@@ -140,6 +140,7 @@
   .hist th{font-family:var(--hei);background:#f7f5f0;position:sticky;top:0;}
   .banner{background:#fff4f4;border:1px solid #f0c9c9;color:#9c1115;padding:10px 14px;font-size:13.5px;margin-bottom:14px;border-radius:2px;}
   .loading{font-size:13px;color:var(--muted);padding:40px 0;text-align:center;}
+  .peek{display:none;max-height:130px;overflow:hidden;margin:10px auto 0;padding:8px 12px;text-align:left;background:#f7f5f0;border:1px dashed var(--line);font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin:26px 0 0;}
   code{font-family:Consolas,Menlo,monospace;background:#f0eee8;padding:1px 5px;border-radius:2px;font-size:12.5px;}
 </style>
@@ -355,7 +356,9 @@ function isThinkingModel(m){
   m = String(m||"").toLowerCase();
   return /reasoner|thinking|-think|deepseek-v4|deepseek-r1|\/r1|\bo1\b|\bo3\b|\bo4\b|gpt-5|glm-z1|glm-4\.5|glm-4\.6|kimi-k[23]|qwq|qwen3/.test(m);
 }
-const CALL_TIMEOUT = 180000; // 单次接口调用上限（毫秒）：宁可明确超时，也不让用户对着转圈无限等
+const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
+const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
+const IDLE_TIMEOUT    = 60000;  // 流式：连续多久没有新字节才算吊死——有字节流动就永远不算卡
 async function fetchWithTimeout(url, opt, ms){
   const ctrl = new AbortController();
   const timer = setTimeout(()=>ctrl.abort(), ms);
@@ -363,7 +366,77 @@ async function fetchWithTimeout(url, opt, ms){
   catch(err){ if(ctrl.signal.aborted) throw {code:"TIMEOUT"}; throw err; }
   finally{ clearTimeout(timer); }
 }
-async function callLLM(system, user, expectJson){
+
+// 解析一行 SSE：返回本次增量；非数据行、[DONE]、坏行都返回空串
+function sseDelta(line){
+  const l = line.trim();
+  if(l.indexOf("data:") !== 0) return "";
+  const payload = l.slice(5).trim();
+  if(payload === "[DONE]") return "";
+  try{
+    const j = JSON.parse(payload);
+    const ch = j.choices && j.choices[0];
+    return (ch && ((ch.delta && ch.delta.content) || ch.text)) || "";
+  }catch(e){ return ""; }
+}
+
+// 从还没收完的流式 JSON 里抠出正在生成的可读片段，给“它在写题了”的实况感；同类字段取最后一个（最新写到的那条）
+function streamPeek(text, keys){
+  for(const key of (keys || ["background","point"])){
+    const re = new RegExp('"'+key+'"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)', "g");
+    let m, hit=null;
+    while((m = re.exec(text))) hit = m;
+    if(hit){
+      try{ return JSON.parse('"'+hit[1]+'"'); }catch(e){ return hit[1]; }
+    }
+  }
+  return "";
+}
+
+// 流式 POST。成功返回 {content}；HTTP 错误原样返回 Response 交给降级阶梯。
+// 服务商不支持流式（返回的不是 SSE）时按普通 JSON 收尾，照样能用。
+async function postStream(url, body, headers, onDelta){
+  const ctrl = new AbortController();
+  const connectTimer = setTimeout(()=>ctrl.abort(), CONNECT_TIMEOUT);
+  let res;
+  try{ res = await fetch(url, {method:"POST", headers, body:JSON.stringify(body), signal:ctrl.signal}); }
+  catch(err){ clearTimeout(connectTimer); if(ctrl.signal.aborted) throw {code:"TIMEOUT"}; throw err; }
+  if(!res.ok){ clearTimeout(connectTimer); return res; }
+  const ct = (res.headers && res.headers.get("content-type")) || "";
+  if(ct.indexOf("text/event-stream") < 0){
+    clearTimeout(connectTimer);
+    const data = await res.json().catch(()=> null);
+    if(!data) throw {code:"BADJSON"};
+    const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+    const c = msg.content || "";
+    onDelta(c, c);
+    return { content:c };
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder("utf-8");
+  let buf = "", content = "", lastByte = Date.now();
+  const idleTimer = setInterval(()=>{ if(Date.now() - lastByte > IDLE_TIMEOUT) ctrl.abort(); }, 1000);
+  try{
+    for(;;){
+      const rd = await reader.read();
+      if(rd.done) break;
+      lastByte = Date.now();
+      buf += dec.decode(rd.value, {stream:true});
+      let idx;
+      while((idx = buf.indexOf("\n")) >= 0){
+        const line = buf.slice(0, idx); buf = buf.slice(idx+1);
+        const d = sseDelta(line);
+        if(d){ content += d; onDelta(d, content); }
+      }
+    }
+  }catch(err){
+    if(ctrl.signal.aborted) throw {code:"TIMEOUT"};
+    throw err;
+  }finally{ clearInterval(idleTimer); clearTimeout(connectTimer); }
+  return { content };
+}
+
+async function callLLM(system, user, expectJson, onDelta){
   const s = state.settings;
   if(!s.apiKey) throw {code:"NO_KEY"};
   const url = (s.baseUrl||"https://api.deepseek.com/v1").replace(/\/+$/,"") + "/chat/completions";
@@ -372,6 +445,7 @@ async function callLLM(system, user, expectJson){
   const model = s.model||"deepseek-v4-flash";
   const r = REASON[s.reasonLevel] || REASON.standard;
   const think = isThinkingModel(model);
+  const streaming = typeof onDelta === "function";
 
   // 不同模型支持的档位不一样：思考型先带 reasoning_effort，不支持则降级为 temperature，
   // 再不行就退回不带这两个参数，保证任何模型都能跑通。
@@ -381,18 +455,28 @@ async function callLLM(system, user, expectJson){
   ladder.push({model,messages});
 
   let last = null;
-  for(const body of ladder){
-    const res = await fetchWithTimeout(url,{method:"POST",headers,body:JSON.stringify(body)}, CALL_TIMEOUT);
-    if(res.ok){
-      const data = await res.json();
-      const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
-      const content = msg.content || "";
-      if(expectJson) return parseJsonLoose(content);
-      return content;
+  for(const base of ladder){
+    const body = Object.assign({}, base, streaming? {stream:true} : null);
+    let out;
+    if(streaming){
+      out = await postStream(url, body, headers, onDelta);
+    }else{
+      const res = await fetchWithTimeout(url,{method:"POST",headers,body:JSON.stringify(body)}, CALL_TIMEOUT);
+      if(!res.ok){ out = res; }
+      else{
+        const data = await res.json();
+        const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+        out = { content: msg.content || "" };
+      }
     }
-    const tx = await res.text().catch(()=> "");
-    last = {code:"API", status:res.status, text:tx.slice(0,240)};
-    if(res.status!==400 && res.status!==422) break; // 仅参数类错误才降级重试
+    if(out.status !== undefined){  // 是一次 HTTP 错误响应，走降级阶梯
+      const tx = await out.text().catch(()=> "");
+      last = {code:"API", status:out.status, text:tx.slice(0,240)};
+      if(out.status!==400 && out.status!==422) break; // 仅参数类错误才降级重试
+      continue;
+    }
+    if(expectJson) return parseJsonLoose(out.content);
+    return out.content;
   }
   throw last || {code:"API", status:0, text:""};
 }
@@ -515,7 +599,7 @@ function difficultyFor(k){
   const p = a/20*100;
   return p >= 80 ? "较难" : (p < 55 ? "简单" : "适中");
 }
-async function gen(k, subtype, focusDim, needCard){
+async function gen(k, subtype, focusDim, needCard, onDelta){
   const m = MODULES[k];
   const scope = subtype? `文种：「${subtype}」` : `题型：综合`;
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
@@ -535,9 +619,9 @@ async function gen(k, subtype, focusDim, needCard){
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难"},
     "keyPoints":[{"point":"采分点1（6-10条，覆盖参考答案的得分点）","weight":"高/中/低"}]
   }`;
-  return await callLLM(SYS_COACH + "\n" + modInstruction(k) + "\n返回 JSON：\n" + schema, user, true);
+  return await callLLM(SYS_COACH + "\n" + modInstruction(k) + "\n返回 JSON：\n" + schema, user, true, onDelta);
 }
-async function grade(k, subtype, question, keyPoints, answer){
+async function grade(k, subtype, question, keyPoints, answer, onDelta){
   const m = MODULES[k];
   const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[] });
   const schema = `{
@@ -551,7 +635,7 @@ async function grade(k, subtype, question, keyPoints, answer){
     `\n阅卷顺序：先逐条对照 keyPoints 判定（考生用自己的话表达，意思到位即算命中，不得苛求原文），再由命中情况推导各维度分数。` +
     `\n档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。同一份答卷重复阅卷，分差应控制在±3以内。` +
     `\n总分将归一化为百分制（各维度满分20，按维度数量折算）。\n返回 JSON：\n` + schema;
-  return await callLLM(sys, user, true);
+  return await callLLM(sys, user, true, onDelta);
 }
 
 /* ============ 渲染 ============ */
@@ -593,7 +677,7 @@ function renderTabs(){
   $("#gongwenPick").style.display = activeModule==="gongwen" ? "flex" : "none";
 }
 function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">${html}</div>`:""; }
-function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span><br><span class="hint">（长文阅卷通常 10-60 秒，请勿关闭页面）</span></p>`; }
+function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
   docBody.innerHTML = `<div class="startbox">
@@ -629,11 +713,19 @@ async function loadQuestion(k, subtype){
     if(!el){ clearInterval(tick); return; }
     el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
   }, 1000);
+  // 流式实况：字数 + 抠出正在生成的背景材料片段，让等待变成“看它写题”
+  let peekAt = 0;
+  const onDelta = (d, full)=>{
+    const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`;
+    const now = Date.now(); if(now - peekAt < 200) return; peekAt = now;
+    const pk = streamPeek(full, ["background","point"]);
+    const pe = $("#streamPeek"); if(pe && pk){ pe.style.display="block"; pe.textContent = pk.slice(-160); }
+  };
   try{
     const focusDim = weakestDimOf(k);
     const cacheKey = k + (subtype? "::"+subtype : "");
     const cached = state.cache.studyCards[cacheKey];
-    const data = await gen(k, subtype, focusDim, !cached);
+    const data = await gen(k, subtype, focusDim, !cached, onDelta);
     if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
     if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
     current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard };
@@ -675,7 +767,9 @@ function renderQuestion(){
       <span class="counter" id="wordCount"><b>0</b> 字</span>
       <span class="hint" id="draftNote"></span>
       <span class="hint">提交后 AI 按本模块维度评分并更新画像</span>
-    </div></div>`;
+      <span class="hint" id="gradeLive"></span>
+    </div>
+    <div class="peek" id="gradePeek"></div></div>`;
   docBody.innerHTML = html;
 
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
@@ -719,8 +813,16 @@ async function submitAnswer(){
     if(!btn.disabled || !document.querySelector("#btnSubmit")){ clearInterval(tick); return; }
     btn.textContent = `阅卷中… ${Math.round((Date.now()-t0)/1000)} 秒`;
   }, 1000);
+  // 阅卷实况：字数 + 正在写的点评/采分点证据片段
+  let peekAt = 0;
+  const onDelta = (d, full)=>{
+    const gl = $("#gradeLive"); if(gl) gl.textContent = `· 已接收 ${full.length} 字`;
+    const now = Date.now(); if(now - peekAt < 200) return; peekAt = now;
+    const pk = streamPeek(full, ["comment","evidence","point"]);
+    const gp = $("#gradePeek"); if(gp && pk){ gp.style.display="block"; gp.textContent = pk.slice(-160); }
+  };
   try{
-    const g = await grade(mod, sub, q, kps, ans);
+    const g = await grade(mod, sub, q, kps, ans, onDelta);
     if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
     updateProfile(mod);
     const total = dimTotal(g.scores, MODULES[mod].dims);
@@ -1055,7 +1157,8 @@ function handleErr(e, keepView){
       + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
       + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""));
   else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。");
-  else if(e && e.code==="TIMEOUT") banner(`接口 ${Math.round(CALL_TIMEOUT/1000)} 秒无响应，已中止本次请求。可换更快的模型，或把「推理程度」调低。`);
+  else if(e && e.code==="BADJSON") banner("服务商返回的内容不是 JSON（多半是 Base URL 不对，需带 /v1）。请检查后重试。");
+  else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或把「推理程度」调低。");
   else if(e && e.code==="ABORT") banner("已取消本次请求。");
   else if(e && /Failed to fetch|NetworkError|TypeError|Load failed|Network request failed/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint());
   else banner("出错了：" + esc((e && e.message) ? e.message : "未知错误"));

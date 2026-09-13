@@ -22,6 +22,16 @@ ok(wordLimit({ requirements:"写一份函。" }) === null, "字数上限: 无要
 ok(MODULES.gongwen.matLen[0] === 300 && MODULES.guina.matLen[1] === 900, "材料分档: 按模块给真实长度");
 ok(GONGWEN_TYPES.some(t=>t.type==="公文改错"), "题型: 公文改错已入池");
 
+/* 1.5 流式 */
+ok(sseDelta('data: {"choices":[{"delta":{"content":"你好"}}]}') === "你好", "SSE: 增量解析");
+ok(sseDelta('data: [DONE]') === "", "SSE: 结束标记返回空");
+ok(sseDelta(': keep-alive') === "", "SSE: 心跳注释行返回空");
+ok(sseDelta('data: {"choices":[{"delta":{"reasoning_content":"思考"}}]}') === "", "SSE: 推理内容不计入正文");
+ok(sseDelta('data: {broken') === "", "SSE: 坏行不炸");
+ok(streamPeek('{"question":{"background":"第一段\\n\\n第二段","req') === "第一段\n\n第二段", "流式预览: 从半截 JSON 抠出背景材料并还原换行");
+ok(streamPeek('{"hits":[{"point":"a","evidence":"e1"},{"point":"b","evidence":"e2"}],"comment":"x"', ["evidence"]) === "e2", "流式预览: 同类字段取最新一条");
+ok(streamPeek('{"scores":{}}', ["background","point"]) === "", "流式预览: 没有可抠片段时返回空");
+
 /* 2. 草稿保护 */
 const q1 = { background:"甲材料", requirements:"写一份通知" };
 ok(qSig(q1) === qSig({ background:"甲材料", requirements:"写一份通知" }), "qSig: 同题同签名");
