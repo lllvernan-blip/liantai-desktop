@@ -718,7 +718,7 @@ async function loadQuestion(k, subtype){
   const onDelta = (d, full)=>{
     const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`;
     const now = Date.now(); if(now - peekAt < 200) return; peekAt = now;
-    const pk = streamPeek(full, ["background","point"]);
+    const pk = streamPeek(full, ["background","templates","title","point"]);
     const pe = $("#streamPeek"); if(pe && pk){ pe.style.display="block"; pe.textContent = pk.slice(-160); }
   };
   try{
