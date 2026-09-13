@@ -39,7 +39,6 @@
   .spacer{flex:1 1 auto;}
   .modbar{display:flex;align-items:center;gap:4px;padding:0 14px;border-top:1px solid var(--line);}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;}
-  .tab.active{color:var(--gov-red);border-bottom-color:var(--gov-red);}
   .tab:hover{background:#f3f1ec;}
   .modbar .pick{display:flex;align-items:center;gap:6px;padding:4px 0;}
 
@@ -564,6 +563,18 @@ function moduleAvg(k){
 // 未练过的模块用先验分“未知”，默认它值得练；刚练过的加惩罚，避免在同一个模块里打转。
 const COLD_START_SCORE = 60;  // 未练过 = 未知，不当作“已掌握”
 const REPEAT_PENALTY   = 12;  // 刚练过再练，代价上浮
+const PEEK_WEIGHT      = 8;   // 翻卡紧迫度：平均多翻 1 次卡 ≈ 抵 8 分——翻得勤说明卡还没长在身上，优先再出
+function recentPeeks(k, subtype){
+  let sum=0, wsum=0, n=0;
+  for(const h of state.history){
+    if(h.module !== k) continue;
+    if(subtype != null && (h.subtype||null) !== subtype) continue;
+    if(h.cardPeeks == null) continue;
+    const w = Math.pow(RECENCY_DECAY, n);
+    sum += h.cardPeeks*w; wsum += w; n++;
+  }
+  return n? sum/wsum : null;
+}
 function recentCount(k){
   const last = state.profile.lastModules.slice(0,3);
   return last.filter(x=>x===k).length;
@@ -571,7 +582,7 @@ function recentCount(k){
 function moduleScore(k){
   const p = moduleAvg(k);
   if(p==null) return COLD_START_SCORE;
-  return Math.round(p/20*100) + recentCount(k)*REPEAT_PENALTY;
+  return Math.round(p/20*100) + recentCount(k)*REPEAT_PENALTY - (recentPeeks(k)||0)*PEEK_WEIGHT;
 }
 function weakestModule(){
   const keys = Object.keys(MODULES);
@@ -597,7 +608,7 @@ function pickSubtype(){
   for(const t of all){
     const st = typeStat(t);
     const base = st? st.avg : COLD_START_SCORE;  // 没练过的文种默认也值得练
-    const s = base + (recent.indexOf(t)>=0? REPEAT_PENALTY : 0);
+    const s = base + (recent.indexOf(t)>=0? REPEAT_PENALTY : 0) - (recentPeeks("gongwen", t)||0)*PEEK_WEIGHT;
     if(s<bs){ bs=s; pool=[t]; } else if(s===bs){ pool.push(t); }
   }
   return pool[Math.floor(Math.random()*pool.length)] || all[0];
@@ -692,10 +703,12 @@ function renderHeader(){
   $("#modLabel").textContent = "综应A · " + MODULES[activeModule].name + (current&&current.subtype?` · ${current.subtype}`:"");
 }
 function renderTabs(){
+  // 页签只做「点名练」的快捷入口，不再跟随智能推送高亮跳动——
+  // 当前练的是哪个模块/文种，红头下方的标签和题目页抬头会说，轮不到导航栏自作主张
   $("#modbar").innerHTML = Object.keys(MODULES).map(k=>
-    `<button class="tab ${k===activeModule?'active':''}" data-k="${k}">${MODULES[k].name}</button>`).join("");
+    `<button class="tab" data-k="${k}" title="直接练这个模块">${MODULES[k].name}</button>`).join("");
   $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> startModule(b.dataset.k));
-  $("#gongwenPick").style.display = activeModule==="gongwen" ? "flex" : "none";
+  $("#gongwenPick").style.display = "flex";  // 文种直达常驻，不随推送显隐
 }
 /* ============ 弹层：设置 / 画像 ============ */
 // 文档是练题的舞台，一动不动；画像和设置是工具，用完即走——弹层保证关掉后精确回到原位

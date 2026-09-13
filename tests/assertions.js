@@ -203,6 +203,23 @@ el("#btnBegin").onclick();
 ok(current.phase === "answer", "回卡后可再进作答");
 state.history = [];
 
+/* 8.6 翻卡次数参与出题调度 */
+ok(recentPeeks("gongwen","通知") === null && recentPeeks("duice") === null, "翻卡: 无记录时返回 null");
+state.history = [
+  { module:"gongwen", subtype:"通知", grade:{ total:70, scores: scoresFor("gongwen",14) }, cardPeeks:3 },
+  { module:"gongwen", subtype:"函",   grade:{ total:70, scores: scoresFor("gongwen",14) }, cardPeeks:0 }
+];
+ok(recentPeeks("gongwen","通知") === 3 && recentPeeks("gongwen","函") === 0, "翻卡: 近期翻卡次数可按文种查询");
+const orRand = Math.random; Math.random = () => 0.9;   // 避开 20% 随机探索，走确定性分支
+ok(pickSubtype() === "通知", "调度: 翻得多的卡对应文种优先再出 (got " + pickSubtype() + ")");
+Math.random = orRand;
+state.history = [
+  { module:"guina", grade:{ scores: scoresFor("guina",14) }, cardPeeks:4 },
+  { module:"fenxi", grade:{ scores: scoresFor("fenxi",14) }, cardPeeks:0 }
+];
+ok(moduleScore("guina") < moduleScore("fenxi"), "调度: 同分模块，翻卡多的更优先");
+state.history = [];
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
