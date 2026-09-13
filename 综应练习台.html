@@ -109,9 +109,12 @@
   .comment{margin-top:10px;font-size:14px;line-height:1.85;}
   .nextrow{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
-  .panel{border:1px solid var(--line);background:var(--paper);margin-top:18px;}
-  .panel>summary{cursor:pointer;font-family:var(--hei);font-weight:700;font-size:14.5px;padding:12px 16px;list-style:none;display:flex;align-items:center;gap:8px;background:#f7f5f0;}
-  .panel>summary::-webkit-details-marker{display:none;}
+  .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:auto;}
+  .modal[hidden]{display:none;}
+  .modal .box{background:var(--paper);border:1px solid var(--line);width:100%;max-width:760px;box-shadow:0 12px 40px rgba(0,0,0,.18);}
+  .modal .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f7f5f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;}
+  .modal .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:2px 8px;}
+  .modal .mhead .x:hover{color:var(--gov-red);}
   .panel-body{padding:16px;}
   .field{margin-bottom:15px;}
   .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:6px;}
@@ -187,9 +190,10 @@
     </div>
   </div>
 
-  <details class="panel" id="panelSettings">
-    <summary>设置（AI 接口 / 红头信息）</summary>
-    <div class="panel-body">
+  <div class="modal" id="modalSettings" hidden role="dialog" aria-modal="true" aria-label="设置">
+    <div class="box">
+      <div class="mhead"><span>设置（AI 接口 / 红头信息）</span><button class="x" title="关闭">✕</button></div>
+      <div class="panel-body">
       <div class="field">
         <label>AI 服务商</label>
         <select id="setProvider"></select>
@@ -235,13 +239,16 @@
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
+      </div>
     </div>
-  </details>
+  </div>
 
-  <details class="panel" id="panelProfile">
-    <summary>我的画像（分模块强弱 / 文种统计 / 历史）</summary>
-    <div class="panel-body" id="profileBody"></div>
-  </details>
+  <div class="modal" id="modalProfile" hidden role="dialog" aria-modal="true" aria-label="我的画像">
+    <div class="box">
+      <div class="mhead"><span>我的画像（分模块强弱 / 文种统计 / 历史）</span><button class="x" title="关闭">✕</button></div>
+      <div class="panel-body" id="profileBody"></div>
+    </div>
+  </div>
 
   <p class="foot">AI 原生综应练习台 · 公文 / 归纳 / 分析 / 对策 / 实务 · 出题·阅卷·画像·自适应推送 · 数据仅存本地</p>
 </div>
@@ -676,6 +683,16 @@ function renderTabs(){
   $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> startModule(b.dataset.k));
   $("#gongwenPick").style.display = activeModule==="gongwen" ? "flex" : "none";
 }
+/* ============ 弹层：设置 / 画像 ============ */
+// 文档是练题的舞台，一动不动；画像和设置是工具，用完即走——弹层保证关掉后精确回到原位
+function openModal(id){
+  ["modalSettings","modalProfile"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
+  document.body.style.overflow = "hidden";
+}
+function closeModals(){
+  $("#modalSettings").hidden = true; $("#modalProfile").hidden = true;
+  document.body.style.overflow = "";
+}
 function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">${html}</div>`:""; }
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
@@ -882,7 +899,7 @@ function renderGrade(g, total){
   renderHeader();  // 交卷后同步刷新红头文号
   $("#btnNext").onclick = startSmart;
   $("#btnRetry").onclick = ()=> startModule(current.module);
-  $("#btnSeeProfile").onclick = ()=>{ $("#panelProfile").open=true; renderProfile(); };
+  $("#btnSeeProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
 }
 
 /* ============ 画像 ============ */
@@ -1087,7 +1104,7 @@ function importJSON(file){
       state.profile.lastModules = state.profile.lastModules||[];
       state.history = s.history||[]; state.cache = s.cache||{studyCards:{}};
       state.modelCache = s.modelCache||{};
-      save(); fillSettings(); renderHeader(); renderProfile(); banner("已从备份恢复数据 ✓");
+      save(); fillSettings(); renderHeader(); renderProfile(); openModal("modalProfile"); banner("已从备份恢复数据 ✓");
     }catch(e){ banner("导入失败：文件不是有效的备份 JSON。"); }
   };
   r.readAsText(file);
@@ -1198,8 +1215,11 @@ function init(){
   $("#setModel").addEventListener("input", setReasonUI);
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
-  $("#btnSettings").onclick = ()=>{ $("#panelSettings").open=true; $("#panelSettings").scrollIntoView({behavior:"smooth",block:"start"}); };
-  $("#btnProfile").onclick = ()=>{ $("#panelProfile").open=true; renderProfile(); $("#panelProfile").scrollIntoView({behavior:"smooth",block:"start"}); };
+  $("#btnSettings").onclick = ()=> openModal("modalSettings");
+  $("#btnProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+  document.querySelectorAll(".modal .mhead .x").forEach(b=> b.onclick = closeModals);
+  document.querySelectorAll(".modal").forEach(m=> m.addEventListener("click", e=>{ if(e.target===m) closeModals(); }));
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModals(); });
   $("#btnExport").onclick = exportJSON;
   $("#btnImport").onclick = ()=> $("#fileImport").click();
   $("#fileImport").onchange = e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); };
