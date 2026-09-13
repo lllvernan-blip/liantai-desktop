@@ -27,5 +27,6 @@ const src = [
   readFileSync(join(here, "assertions.js"), "utf8"),
 ].join("\n");
 
-// 单次 eval：桩子、应用、断言同处一个作用域，断言才看得见应用内部的函数。
-eval(src);
+// 以 data: 模块执行：桩子、应用、断言同处一个模块作用域，且支持顶层 await（异步自检用）
+const b64 = Buffer.from(src, "utf8").toString("base64");
+await import("data:text/javascript;base64," + b64);

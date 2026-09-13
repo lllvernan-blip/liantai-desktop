@@ -152,6 +152,28 @@ clearDraft(qSig(current.question));
 ok(loadDraft(qSig(current.question)) === "" && loadDraft(qSig(qB)) === "B 还在写", "草稿: 提交后只清当前题，别的草稿仍在");
 clearDraft();
 
+/* 8. 模型名单按实际拉取 */
+ok(pickFast(["z-model","a-flash-model","m-chat"]) === "a-flash-model", "pickFast: 优先轻量款");
+ok(pickFast(["zzz","aaa"]) === "zzz", "pickFast: 无轻量款取第一个");
+el("#setBase").value = "https://api.test.com/v1";
+el("#setKey").value = "sk-test";
+el("#setModel").value = "deepseek-v4-flash";   // 不在名单里但实测能用的名字
+const realFetch = globalThis.fetch;
+globalThis.fetch = () => Promise.resolve({ ok:true, status:200, json: async()=>({ data:[{id:"z-model"},{id:"a-flash-model"},{id:"m-chat"}] }), headers:{ get:()=>"application/json" }, text: async()=>"" });
+await fetchModels(true);
+ok(Array.isArray(state.modelCache["https://api.test.com/v1"]) && state.modelCache["https://api.test.com/v1"].length === 3, "实拉: 名单入库缓存");
+ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 静默模式不改写当前模型（名单可能不全）");
+ok(el("#modelOptions").innerHTML.indexOf("a-flash-model") >= 0, "实拉: 下拉候选来自接口");
+el("#setModel").value = "";
+await fetchModels(true);
+ok(el("#setModel").value === "a-flash-model", "实拉: 当前为空时自动补最快模型");
+await fetchModels(false);
+ok(el("#setMsg").textContent.indexOf("3 个模型") >= 0, "实拉: 手动拉取有反馈");
+el("#setModel").value = "deepseek-v4-flash";
+await fetchModels(false);
+ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
+globalThis.fetch = realFetch;
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
