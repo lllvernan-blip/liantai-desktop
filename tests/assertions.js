@@ -1,0 +1,148 @@
+/* ---- assertions against the app in the same scope ---- */
+const el = s => document.querySelector(s);
+const T = [];
+const ok = (c, m) => T.push((c ? "PASS  " : "FAIL  ") + m);
+// 画像从练习记录推导，测试统一用“往 history 里种成绩”的方式给数据
+function scoresFor(k, v){ const sc={}; for(const d of MODULES[k].dims) sc[d]=v; return sc; }
+
+/* 1. 纯函数 */
+ok(JSON.stringify(parseJsonLoose('```json\n{"a":1,}\n```')) === '{"a":1}', "parseJsonLoose: 剥代码围栏 + 容尾逗号");
+ok(parseJsonLoose('说明{"b":[1,2]}结尾').b.length === 2, "parseJsonLoose: 容忍前后噪音");
+ok(dimTotal({ x:10, y:20 }, ["x","y"]) === 75, "dimTotal: 归一化为百分制");
+ok(difficultyFor("gongwen") === "适中", "难度: 未练过默认适中");
+state.history = [{ module:"gongwen", grade:{ scores: scoresFor("gongwen",17) } }]; // 85%
+ok(difficultyFor("gongwen") === "较难", "难度: 高分加码到较难");
+state.history = [{ module:"gongwen", grade:{ scores: scoresFor("gongwen",9) } }];  // 45%
+ok(difficultyFor("gongwen") === "简单", "难度: 低分退到简单");
+state.history = [];
+ok(wordLimit({ requirements:"以街道办名义写一份通知，不超过300字。" }) === 300, "字数上限: 不超过N字");
+ok(wordLimit({ requirements:"写一份倡议书（350字以内）。" }) === 350, "字数上限: N字以内");
+ok(wordLimit({ requirements:"写一份公开信，字数450左右。" }) === 450, "字数上限: 字数N左右");
+ok(wordLimit({ requirements:"写一份函。" }) === null, "字数上限: 无要求返回 null");
+ok(MODULES.gongwen.matLen[0] === 300 && MODULES.guina.matLen[1] === 900, "材料分档: 按模块给真实长度");
+ok(GONGWEN_TYPES.some(t=>t.type==="公文改错"), "题型: 公文改错已入池");
+
+/* 2. 草稿保护 */
+const q1 = { background:"甲材料", requirements:"写一份通知" };
+ok(qSig(q1) === qSig({ background:"甲材料", requirements:"写一份通知" }), "qSig: 同题同签名");
+ok(qSig(q1) !== qSig({ background:"乙材料", requirements:"写一份通知" }), "qSig: 换题换签名");
+saveDraft(qSig(q1), "我的草稿");
+ok(loadDraft(qSig(q1)) === "我的草稿", "草稿: 同题能恢复");
+ok(loadDraft(qSig({ background:"别的题" })) === "", "草稿: 不串到别的题");
+clearDraft();
+ok(loadDraft(qSig(q1)) === "", "草稿: 答案提交后能清空");
+
+/* 3. 自适应引擎 */
+const seen = {};
+for(let i=0;i<400;i++){ const k = weakestModule(); seen[k] = (seen[k]||0)+1; }
+const counts = Object.values(seen);
+ok(Object.keys(seen).length === 5 && Math.min.apply(null,counts) >= 40 && Math.max.apply(null,counts) <= 120,
+   "冷启动: 五个模块均摊，而不是死守第一个 -> " + JSON.stringify(seen));
+state.history = [ { module:"gongwen", grade:{ scores: scoresFor("gongwen",15) } },  // 最新：75%
+                  { module:"guina",   grade:{ scores: scoresFor("guina",11) } } ];  // 更早：55%
+state.profile.lastModules = ["gongwen"];
+ok(moduleScore("guina") < moduleScore("gongwen"), "更弱且没刚练过的模块优先");
+let g = 0;
+for(let i=0;i<200;i++){ if(weakestModule() === "gongwen") g++; }
+ok(g < 80, "刚练过的模块不再霸屏 (gongwen " + g + "/200)");
+const tseen = {};
+for(let i=0;i<400;i++){ tseen[pickSubtype()] = 1; }
+ok(Object.keys(tseen).length === GONGWEN_TYPES.length, "文种: " + GONGWEN_TYPES.length + " 个文种都不会被饿死 (" + Object.keys(tseen).length + "/" + GONGWEN_TYPES.length + ")");
+
+/* 4. 渲染（画像从练习记录近期加权推导） */
+state.history = [{ module:"gongwen", grade:{ scores: scoresFor("gongwen",15) } }]; // 75%
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("width:75%") >= 0, "画像: 进度条按百分制铺满 (75%)");
+ok(el("#profileBody").innerHTML.indexOf("均分 75") >= 0, "画像: 均分与进度条同一刻度");
+// 同样两次练习（旧 5 分、新 15 分）：终身平均是 50%，近期加权应为 52% —— 画像必须偏向最近
+state.history = [ { module:"gongwen", grade:{ scores: scoresFor("gongwen",15) } },
+                  { module:"gongwen", grade:{ scores: scoresFor("gongwen",5)  } } ];
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("width:52%") >= 0, "画像: 近期加权生效（52% 而非终身平均 50%）");
+// 短板/强项由加权分推导：格式规范 25% → 短板，语言得体 95% → 强项
+const mixed = scoresFor("gongwen", 12); mixed["格式规范"] = 5; mixed["语言得体"] = 19;
+state.history = [{ module:"gongwen", grade:{ scores: mixed } }];
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("短板·格式规范") >= 0, "画像: 短板由加权分推导");
+ok(el("#profileBody").innerHTML.indexOf("强项·语言得体") >= 0, "画像: 强项由加权分推导");
+// 文种统计同样近期加权：新 80、旧 60 → (80+60*0.85)/1.85 ≈ 71，而非终身平均 70
+state.history = [ { module:"gongwen", subtype:"通知", grade:{ total:80, scores: scoresFor("gongwen",16) } },
+                  { module:"gongwen", subtype:"通知", grade:{ total:60, scores: scoresFor("gongwen",12) } } ];
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf(">71<") >= 0, "画像: 文种统计近期加权 (71 而非 70)");
+state.settings.orgName = "测试单位";
+state.history = [];
+current = { module:"gongwen", subtype:"通知", question:q1 };
+saveDraft(qSig(q1), "恢复我");
+el("#answer").value = "";
+el("#draftNote").textContent = "";
+renderQuestion();
+ok(el("#answer").value === "恢复我", "题目页: 自动恢复未提交草稿");
+ok(el("#wordCount").innerHTML.indexOf("3") >= 0, "题目页: 字数统计");
+current = { module:"gongwen", subtype:"通知", question:{ background:"字数题", requirements:"写一份通知，不超过200字。" } };
+saveDraft(qSig(current.question), "x");
+el("#answer").value = "一二三四五六七八九十".repeat(25);   // 250 字，超出 200
+syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
+ok(el("#wordCount").innerHTML.indexOf("超出 50 字") >= 0 && el("#wordCount").innerHTML.indexOf("b class=\"over\"") >= 0, "题目页: 超出字数上限标红并给出超出量");
+el("#answer").value = "一二三四五";
+syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
+ok(el("#wordCount").innerHTML.indexOf("/ 200 字") >= 0, "题目页: 未超出时显示 已写/上限");
+current = { module:"gongwen", subtype:"通知", question:q1 };
+current = { module:"gongwen", subtype:"通知", question:q1 };
+renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送机关"],
+              hits:[ {point:"标题含事由",status:"命中",evidence:"考生写了标题"},
+                     {point:"写明主送机关",status:"未命中",evidence:"缺主送机关"},
+                     {point:"落款单位与日期",status:"部分命中",evidence:"有单位无日期"} ],
+              comment:"继续加油" }, 60);
+ok(el("#docBody").innerHTML.indexOf("采分点对照") >= 0, "阅卷页: 采分点对照表");
+ok(el("#docBody").innerHTML.indexOf("hitline miss") >= 0, "阅卷页: 未命中标红");
+ok(el("#docBody").innerHTML.indexOf("hitline part") >= 0, "阅卷页: 部分命中单独标记");
+ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
+
+/* 5. 失败路径 */
+el("#docBody").innerHTML = "正在作答的题";
+handleErr({ code:"API", status:400, text:"model not found" }, true);
+ok(el("#docBody").innerHTML.indexOf("正在作答的题") >= 0, "出错时保留题目与答案（不再被清空）");
+ok(el("#bannerSlot").innerHTML.indexOf("模型名") >= 0, "HTTP 400 给出模型名提示");
+ok(el("#bannerSlot").innerHTML.indexOf("model not found") >= 0, "异常时透出接口原文");
+handleErr({ code:"TIMEOUT" }, false);
+ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0, "无题可看时才回到起点");
+handleErr({ code:"NO_KEY" }, true);
+ok(el("#bannerSlot").innerHTML.indexOf("AI Key") >= 0, "未配置 Key 有明确指引");
+
+/* 6. 存储 */
+state.history = Array.from({ length:200 }, (_,i)=>({ ts:i, module:"gongwen", subtype:null, question:{}, answer:"", grade:{ total:60, scores:{}, strengths:[], weaknesses:[] } }));
+const realSet = localStorage.setItem;
+let n = 0;
+localStorage.setItem = (k,v) => { if(k === "gw_state"){ n++; if(n <= 2) { const e = new Error("quota"); e.name = "QuotaExceededError"; throw e; } } realSet(k,v); };
+let threw = false;
+try{ save(); }catch(e){ threw = true; }
+ok(!threw, "写盘满时不再直接抛错崩掉");
+ok(state.history.length === 40, "写盘满时自动裁历史 (-> " + state.history.length + ")");
+ok(el("#bannerSlot").innerHTML.indexOf("本地存储已满") >= 0, "写盘满时给用户明确提示");
+localStorage.setItem = realSet;
+save();
+ok(load().history.length === 40, "正常写盘 + 读回往返一致");
+
+/* 7. 复查补测：多草稿槽 + 公文骨架同步 */
+const qA = { background:"材料A", requirements:"要求A" };
+const qB = { background:"材料B", requirements:"要求B" };
+saveDraft(qSig(qA), "A 的草稿");
+saveDraft(qSig(qB), "B 的草稿");
+ok(loadDraft(qSig(qA)) === "A 的草稿" && loadDraft(qSig(qB)) === "B 的草稿", "草稿: 换题不覆盖（多槽）");
+for(let i=0;i<10;i++){ saveDraft(qSig({ background:"t"+i, requirements:"r" }), "草稿"+i); }
+ok(loadDraft(qSig(qA)) === "", "草稿: 超过 8 份时最旧的被挤出");
+current = { module:"gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" } };
+renderQuestion();
+el("#btnTpl").onclick();
+ok(el("#wordCount").innerHTML.indexOf("<b>0<") < 0, "骨架: 插入后字数同步");
+ok(loadDraft(qSig(current.question)).indexOf("关于") >= 0, "骨架: 插入后草稿已保存");
+saveDraft(qSig(qB), "B 还在写");
+clearDraft(qSig(current.question));
+ok(loadDraft(qSig(current.question)) === "" && loadDraft(qSig(qB)) === "B 还在写", "草稿: 提交后只清当前题，别的草稿仍在");
+clearDraft();
+
+console.log(T.join("\n"));
+const fails = T.filter(x => x.indexOf("FAIL") === 0);
+console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
+if(fails.length) process.exitCode = 1;

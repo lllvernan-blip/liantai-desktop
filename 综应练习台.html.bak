@@ -16,6 +16,7 @@
     --fangsong:"FangSong","仿宋","STFangsong","FangSong_GB2312","KaiTi","serif";
     --song:"SimSun","宋体","STSong","serif";
     --hei:"SimHei","黑体","Microsoft YaHei","sans-serif";
+    --kai:"KaiTi","楷体","STKaiti","serif";
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -61,9 +62,9 @@
 
   .qtop{display:flex;justify-content:flex-end;margin-top:14px;}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;}
-  .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-size:14.5px;line-height:1.85;white-space:pre-wrap;word-break:break-word;}
+  .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-size:14.5px;line-height:1.85;}
   .material .label{font-family:var(--hei);color:var(--gov-red);font-size:13px;margin-bottom:6px;}
-  .require{margin-top:12px;font-size:14.5px;white-space:pre-wrap;}
+  .require{margin-top:12px;font-size:14.5;}
   .require b{font-family:var(--hei);}
 
   details.card{border:1px solid var(--line);border-left:3px solid var(--gov-red);background:#fbfaf6;margin-top:16px;}
@@ -81,17 +82,6 @@
   textarea#answer:focus{outline:none;border-color:var(--gov-red);}
   .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center;}
   .hint{font-size:12.5px;color:var(--muted);}
-  .counter{font-size:12.5px;color:var(--muted);}
-  .counter b{font-family:var(--hei);color:var(--gov-red);}
-  .counter b.over{color:#fff;background:#b3261e;padding:0 5px;}
-  .hits{border:1px solid var(--line);}
-  .hitline{display:flex;gap:8px;padding:6px 10px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.6;align-items:baseline;}
-  .hitline:last-child{border-bottom:none;}
-  .hitline .mk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
-  .hitline.hit .mk{color:#2f7d32;}
-  .hitline.part .mk{color:#b8860b;}
-  .hitline.miss .mk,.hitline.miss .pt{color:#b3261e;}
-  .hitline .ev{color:var(--muted);font-size:12.5px;}
 
   .grade{margin-top:22px;border-top:2px solid var(--gov-red);padding-top:16px;}
   .grade .total{font-family:var(--hei);font-size:26px;color:var(--gov-red);font-weight:700;}
@@ -202,7 +192,7 @@
       <div class="field">
         <label>API Key</label>
         <input type="password" id="setKey" placeholder="粘贴你的 API Key">
-        <div class="note">只保存在你本机浏览器（localStorage），不会上传到任何第三方；调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
+        <div class="note">只保存在你本机浏览器（localStorage），不会上传到任何第三方。</div>
       </div>
       <div class="field">
         <label>模型</label>
@@ -266,17 +256,16 @@ const PROVIDERS = [
 /* ============ 模块定义 ============ */
 const MODULES = {
   gongwen:{ name:"公文写作", note:"党政机关公文与应用文写作",
-    dims:["格式规范","内容完整","行文逻辑","语言得体","文种适配"], matLen:[300,500] },
+    dims:["格式规范","内容完整","行文逻辑","语言得体","文种适配"] },
   guina:{ name:"归纳概括", note:"概括问题 / 原因 / 影响 / 做法 / 特点",
-    dims:["要点全面","归类准确","表述精炼","逻辑层次"], matLen:[600,900] },
+    dims:["要点全面","归类准确","表述精炼","逻辑层次"] },
   fenxi:{ name:"综合分析", note:"词句理解 / 现象分析 / 观点评析",
-    dims:["审题准确","分析深入","论证有力","结论稳妥"], matLen:[500,800] },
+    dims:["审题准确","分析深入","论证有力","结论稳妥"] },
   duice:{ name:"提出对策", note:"针对问题提出解决措施",
-    dims:["问题对应","对策可行","针对性强","表述规范"], matLen:[500,800] },
+    dims:["问题对应","对策可行","针对性强","表述规范"] },
   shiwu:{ name:"案例实务", note:"会务 / 信访 / 应急 / 沟通协调",
-    dims:["角色意识","处置得当","程序合规","沟通协调"], matLen:[400,800] }
+    dims:["角色意识","处置得当","程序合规","沟通协调"] }
 };
-// matLen：各模块材料长度档。真实综应单题材料几百上千字，从长而乱的里提要点才是核心能力，200字练不出来
 const GONGWEN_TYPES = [
   {type:"通知",cat:"法定公文"},{type:"通报",cat:"法定公文"},
   {type:"请示",cat:"法定公文"},{type:"报告",cat:"法定公文"},
@@ -287,8 +276,7 @@ const GONGWEN_TYPES = [
   {type:"公开信",cat:"应用文"},{type:"新闻稿",cat:"应用文"},
   {type:"短评",cat:"应用文"},{type:"工作方案",cat:"应用文"},
   {type:"调研报告",cat:"应用文"},{type:"汇报材料",cat:"应用文"},
-  {type:"编者按",cat:"应用文"},{type:"宣传稿",cat:"应用文"},
-  {type:"公文改错",cat:"专项"}
+  {type:"编者按",cat:"应用文"},{type:"宣传稿",cat:"应用文"}
 ];
 
 function freshModules(){
@@ -334,16 +322,7 @@ function load(){
     return s;
   }catch(e){ return structuredClone(DEFAULT_STATE); }
 }
-function save(){
-  try{ localStorage.setItem("gw_state", JSON.stringify(state)); }
-  catch(e){
-    // 本地存储写满是可预期的事（历史上存了完整题目+答案）。降级：先裁历史再试，绝不让一次写盘失败打断答题。
-    try{
-      if(state.history.length > 40){ state.history.length = 40; localStorage.setItem("gw_state", JSON.stringify(state)); }
-      else throw e;
-    }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份，再清理练习记录。"); }
-  }
-}
+function save(){ localStorage.setItem("gw_state", JSON.stringify(state)); }
 
 /* ============ AI 调用（含档位自适应与兼容降级） ============ */
 const REASON = {
@@ -354,14 +333,6 @@ const REASON = {
 function isThinkingModel(m){
   m = String(m||"").toLowerCase();
   return /reasoner|thinking|-think|deepseek-v4|deepseek-r1|\/r1|\bo1\b|\bo3\b|\bo4\b|gpt-5|glm-z1|glm-4\.5|glm-4\.6|kimi-k[23]|qwq|qwen3/.test(m);
-}
-const CALL_TIMEOUT = 180000; // 单次接口调用上限（毫秒）：宁可明确超时，也不让用户对着转圈无限等
-async function fetchWithTimeout(url, opt, ms){
-  const ctrl = new AbortController();
-  const timer = setTimeout(()=>ctrl.abort(), ms);
-  try{ return await fetch(url, Object.assign({}, opt, {signal:ctrl.signal})); }
-  catch(err){ if(ctrl.signal.aborted) throw {code:"TIMEOUT"}; throw err; }
-  finally{ clearTimeout(timer); }
 }
 async function callLLM(system, user, expectJson){
   const s = state.settings;
@@ -382,7 +353,7 @@ async function callLLM(system, user, expectJson){
 
   let last = null;
   for(const body of ladder){
-    const res = await fetchWithTimeout(url,{method:"POST",headers,body:JSON.stringify(body)}, CALL_TIMEOUT);
+    const res = await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});
     if(res.ok){
       const data = await res.json();
       const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
@@ -411,91 +382,31 @@ function parseJsonLoose(text){
   return JSON.parse(raw.replace(/,\s*([}\]])/g,"$1"));
 }
 
-/* ============ 画像（近期加权，从练习记录即时推导） ============ */
-// 画像只回答一个问题：“这个模块/维度，用户现在什么水平？”
-// 所以不做终身平均，而是按近期加权：最新一次权重 1，往前每次 ×0.85（约 4 次前权重减半）。
-// 练习记录是唯一事实源，画像不再单独存聚合值——存两份迟早对不上。
-const RECENCY_DECAY = 0.85;
-function dimStat(k, dim){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k) continue;
-    const v = Number(h.grade && h.grade.scores && h.grade.scores[dim]);
-    if(!isFinite(v)) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += v*w; wsum += w; n++;
-  }
-  return n? { avg: sum/wsum, n } : null;
-}
-function typeStat(t){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== "gongwen" || h.subtype !== t) continue;
-    const v = Number(h.grade && h.grade.total);
-    if(!isFinite(v)) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += v*w; wsum += w; n++;
-  }
-  return n? { avg: sum/wsum, n } : null;
-}
-
 /* ============ 自适应选择 ============ */
 function moduleAvg(k){
-  const dims = MODULES[k].dims;
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k) continue;
-    const g = h.grade && h.grade.scores; if(!g) continue;
-    let s=0;
-    for(const d of dims){ const v=Number(g[d]); if(!isFinite(v)){ s=null; break; } s+=v; }
-    if(s==null) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += (s/dims.length)*w; wsum += w; n++;
-  }
-  return n? sum/wsum : null;
-}
-
-// 自适应推送的第一性原理：没有数据并不等于“已经好了”。
-// 未练过的模块用先验分“未知”，默认它值得练；刚练过的加惩罚，避免在同一个模块里打转。
-const COLD_START_SCORE = 60;  // 未练过 = 未知，不当作“已掌握”
-const REPEAT_PENALTY   = 12;  // 刚练过再练，代价上浮
-function recentCount(k){
-  const last = state.profile.lastModules.slice(0,3);
-  return last.filter(x=>x===k).length;
-}
-function moduleScore(k){
-  const p = moduleAvg(k);
-  if(p==null) return COLD_START_SCORE;
-  return Math.round(p/20*100) + recentCount(k)*REPEAT_PENALTY;
+  const d = state.profile.modules[k].dims; let sum=0,n=0;
+  for(const dim of MODULES[k].dims){ sum+=d[dim].sum; n+=d[dim].n; }
+  return n? sum/n : null;
 }
 function weakestModule(){
   const keys = Object.keys(MODULES);
   if(Math.random()<0.2) return keys[Math.floor(Math.random()*keys.length)];
-  // 并列最弱时随机取一个：冷启动时各模块同样“未知”，均摊才是诚实的答案
-  let bs=1e9, pool=[];
-  for(const k of keys){ const s=moduleScore(k); if(s<bs){ bs=s; pool=[k]; } else if(s===bs){ pool.push(k); } }
-  return pool[Math.floor(Math.random()*pool.length)] || keys[0];
+  let worst=null, wa=1e9;
+  for(const k of keys){ const a=moduleAvg(k); if(a!=null && a<wa){ wa=a; worst=k; } }
+  return worst || keys[Math.floor(Math.random()*keys.length)];
 }
 function weakestDimOf(k){
-  let w=null, wp=1e9;
-  for(const dim of MODULES[k].dims){
-    const st = dimStat(k, dim);
-    if(st){ const p = st.avg/20*100; if(p<wp){ wp=p; w=dim; } }
-  }
+  const d = state.profile.modules[k].dims; let w=null, wa=1e9;
+  for(const dim of MODULES[k].dims){ const x=d[dim]; if(x.n){ const a=x.sum/x.n; if(a<wa){ wa=a; w=dim; } } }
   return w;
 }
 function pickSubtype(){
-  const all = GONGWEN_TYPES.map(t=>t.type);
-  if(Math.random()<0.2) return all[Math.floor(Math.random()*all.length)];
-  const recent = state.history.slice(0,3).map(h=>h.subtype).filter(Boolean);
-  let bs=1e9, pool=[];
-  for(const t of all){
-    const st = typeStat(t);
-    const base = st? st.avg : COLD_START_SCORE;  // 没练过的文种默认也值得练
-    const s = base + (recent.indexOf(t)>=0? REPEAT_PENALTY : 0);
-    if(s<bs){ bs=s; pool=[t]; } else if(s===bs){ pool.push(t); }
-  }
-  return pool[Math.floor(Math.random()*pool.length)] || all[0];
+  const ts = state.profile.modules.gongwen.types;
+  const keys = Object.keys(ts);
+  if(Math.random()<0.2 || keys.length===0) return GONGWEN_TYPES[Math.floor(Math.random()*GONGWEN_TYPES.length)].type;
+  let worst=null, wa=1e9;
+  for(const k of keys){ const avg=ts[k].sum/ts[k].n; if(avg<wa){ wa=avg; worst=k; } }
+  return worst || GONGWEN_TYPES[Math.floor(Math.random()*GONGWEN_TYPES.length)].type;
 }
 
 /* ============ 出题 / 阅卷 ============ */
@@ -508,49 +419,36 @@ function modInstruction(k){
 }
 function scoresSchema(k){ return `{${MODULES[k].dims.map(d=>`"${d}":0`).join(",")}}`; }
 
-// 难度跟着画像走：练得好就加码，练不动就退一档，不再永远“适中”
-function difficultyFor(k){
-  const a = moduleAvg(k);
-  if(a == null) return "适中";
-  const p = a/20*100;
-  return p >= 80 ? "较难" : (p < 55 ? "简单" : "适中");
-}
 async function gen(k, subtype, focusDim, needCard){
   const m = MODULES[k];
   const scope = subtype? `文种：「${subtype}」` : `题型：综合`;
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
-  const matSpec = `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）`;
-  const reqSpec = "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const note = needCard
-    ? "生成：(1) 该题型/文种的学习卡（解题要点、常见失分点、答题框架或常用句式）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
-    : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。";
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note });
+    ? "生成：(1) 该题型/文种的学习卡（解题要点、常见失分点、答题框架或常用句式）；(2) 一道贴近真实考试的仿真练习题（含背景材料与作答要求）。"
+    : "只生成一道贴近真实考试的仿真练习题（含背景材料与作答要求），换一个与上次不同的场景与设问角度。";
+  const user = JSON.stringify({ scope, difficulty:"适中", focus, note });
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）"},
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难"},
-    "keyPoints":[{"point":"采分点1（6-10条，覆盖参考答案的得分点）","weight":"高/中/低"}]
+    "question":{"background":"背景材料（200字内，有真实场景感）","requirements":"作答要求（含身份、对象、字数等）","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难"}
   }`
     : `{
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难"},
-    "keyPoints":[{"point":"采分点1（6-10条，覆盖参考答案的得分点）","weight":"高/中/低"}]
+    "question":{"background":"背景材料（200字内，有真实场景感）","requirements":"作答要求（含身份、对象、字数等）","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难"}
   }`;
   return await callLLM(SYS_COACH + "\n" + modInstruction(k) + "\n返回 JSON：\n" + schema, user, true);
 }
-async function grade(k, subtype, question, keyPoints, answer){
+async function grade(k, subtype, question, answer){
   const m = MODULES[k];
-  const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[] });
+  const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, answer });
   const schema = `{
-    "hits":[{"point":"与 keyPoints 一一对应的采分点","status":"命中/部分命中/未命中","evidence":"考生答案中的对应表述；未命中则写缺少什么"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],
+    "dimTags":{"缺点1":"${m.dims[0]}"},
     "comment":"总体点评（80字内，指出下一步该补哪里）"
   }`;
   const sys = SYS_GRADER + "\n" + modInstruction(k) +
-    `\n阅卷顺序：先逐条对照 keyPoints 判定（考生用自己的话表达，意思到位即算命中，不得苛求原文），再由命中情况推导各维度分数。` +
-    `\n档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。同一份答卷重复阅卷，分差应控制在±3以内。` +
-    `\n总分将归一化为百分制（各维度满分20，按维度数量折算）。\n返回 JSON：\n` + schema;
+    `\n总分将归一化为百分制（各维度满分20，按维度数量折算）。dimTags 把每条缺点映射到上述维度之一。\n返回 JSON：\n` + schema;
   return await callLLM(sys, user, true);
 }
 
@@ -593,7 +491,7 @@ function renderTabs(){
   $("#gongwenPick").style.display = activeModule==="gongwen" ? "flex" : "none";
 }
 function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">${html}</div>`:""; }
-function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span><br><span class="hint">（长文阅卷通常 10-60 秒，请勿关闭页面）</span></p>`; }
+function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在生成…"}</p>`; }
 
 function renderStart(){
   docBody.innerHTML = `<div class="startbox">
@@ -618,29 +516,19 @@ async function startSubtype(){
   await loadQuestion("gongwen", t);
 }
 
-let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
 async function loadQuestion(k, subtype){
   current = null; banner("");
-  const mySeq = ++reqSeq;
-  const t0 = Date.now();
   showLoading(`AI 正在为「${MODULES[k].name}${subtype?' · '+subtype:''}」准备学习卡与仿真题…`);
-  const tick = setInterval(()=>{
-    const el = $("#elapsed");
-    if(!el){ clearInterval(tick); return; }
-    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
-  }, 1000);
   try{
     const focusDim = weakestDimOf(k);
     const cacheKey = k + (subtype? "::"+subtype : "");
     const cached = state.cache.studyCards[cacheKey];
     const data = await gen(k, subtype, focusDim, !cached);
-    if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
     if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
-    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard };
+    current = { module:k, subtype, question:data.question, studyCard: cached || data.studyCard };
     if(!current.question){ throw {code:"JSON"}; }
     renderHeader(); renderQuestion();
-  }catch(e){ if(mySeq !== reqSeq) return; handleErr(e, false); }
-  finally{ clearInterval(tick); }
+  }catch(e){ handleErr(e); }
 }
 
 function renderQuestion(){
@@ -655,7 +543,7 @@ function renderQuestion(){
         <h4>解题要点</h4><ul>${pts}</ul>
         <h4>常见失分点</h4><ul>${pits}</ul>
         <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>
-        <div class="actions"><button class="primary" id="btnBegin">我已学习，开始作答</button><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
+        <div class="actions"><button class="primary" id="btnBegin">我已学习，开始作答</button></div>
       </div></details>`;
   } else {
     html += `<div class="actions"><button class="primary" id="btnBegin">开始作答</button></div>`;
@@ -672,8 +560,6 @@ function renderQuestion(){
     <div class="actions">
       ${module==="gongwen"? '<button id="btnTpl">插入公文骨架</button>':''}
       <button class="primary" id="btnSubmit">提交阅卷</button>
-      <span class="counter" id="wordCount"><b>0</b> 字</span>
-      <span class="hint" id="draftNote"></span>
       <span class="hint">提交后 AI 按本模块维度评分并更新画像</span>
     </div></div>`;
   docBody.innerHTML = html;
@@ -681,19 +567,8 @@ function renderQuestion(){
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
   const begin = $("#btnBegin");
   if(begin) begin.onclick = ()=>{ $("#answerArea").style.display="block"; begin.remove(); };
-  const nc = $("#btnNewCard");
-  if(nc) nc.onclick = ()=>{ delete state.cache.studyCards[module + (subtype? "::"+subtype : "")]; save(); loadQuestion(module, subtype); };
   if(module==="gongwen") $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
-
-  // 草稿保护：边写边存；签名不同（换了题）就不会串味
-  const sig = qSig(question);
-  const limit = wordLimit(question);
-  const ta = $("#answer");
-  const draft = loadDraft(sig);
-  if(draft){ ta.value = draft; $("#draftNote").textContent = "已恢复上次未提交的草稿"; }
-  setWordCount(ta.value.length, limit);
-  ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
 }
 
 function insertSkeleton(){
@@ -701,52 +576,36 @@ function insertSkeleton(){
   const type = current.subtype || "公文";
   t.value = `（标题）关于……的${type}\n\n主送机关：\n\n　　正文：……\n\n　　　　　　　　　　　　${state.settings.orgName||"XX单位"}\n　　　　　　　　　　　　${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日`;
   t.focus();
-  syncAnswer(qSig(current.question), t, wordLimit(current.question));  // 骨架也是草稿的一部分，同样要计数、要保存
 }
 
 async function submitAnswer(){
   const t=$("#answer"); const ans=(t?t.value:"").trim();
   if(ans.length<20){ banner("写得太少啦，至少写一段话再交卷～"); return; }
-  const btn=$("#btnSubmit");
-  if(btn.disabled) return;
   banner("");
-  btn.disabled=true; btn.textContent="阅卷中…";
-  const mySeq = reqSeq, mod = current.module, sub = current.subtype, q = current.question;
-  const kps = current.keyPoints || [];
-  // 阅卷往往是全程最慢的一次调用：像出题页一样给实时秒数
-  const t0 = Date.now();
-  const tick = setInterval(()=>{
-    if(!btn.disabled || !document.querySelector("#btnSubmit")){ clearInterval(tick); return; }
-    btn.textContent = `阅卷中… ${Math.round((Date.now()-t0)/1000)} 秒`;
-  }, 1000);
+  const btn=$("#btnSubmit"); btn.disabled=true; btn.textContent="阅卷中…";
   try{
-    const g = await grade(mod, sub, q, kps, ans);
-    if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
-    updateProfile(mod);
-    const total = dimTotal(g.scores, MODULES[mod].dims);
-    state.history.unshift({ ts:Date.now(), module:mod, subtype:sub,
-      question:q, answer:ans, keyPoints:kps, hits:g.hits||[],
+    const g = await grade(current.module, current.subtype, current.question, ans);
+    updateProfile(current.module, current.subtype, g);
+    const total = dimTotal(g.scores, MODULES[current.module].dims);
+    state.history.unshift({ ts:Date.now(), module:current.module, subtype:current.subtype,
+      question:current.question, answer:ans,
       grade:{ total, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
     if(state.history.length>200) state.history.length=200;
-    clearDraft(qSig(q));
-    clearInterval(tick);
     save(); renderGrade(g, total);
-  }catch(e){
-    clearInterval(tick);
-    if(mySeq !== reqSeq) return;
-    handleErr(e, true);  // 关键：失败只提示，留着题目和你写的答案
-    btn.disabled=false; btn.textContent="提交阅卷";
-  }
+  }catch(e){ handleErr(e); btn.disabled=false; btn.textContent="提交阅卷"; }
 }
 
 function dimTotal(scores, dims){
   const raw = dims.reduce((a,d)=> a + (Number(scores[d])||0), 0);
   return Math.round(raw / (dims.length*20) * 100);
 }
-// 画像聚合值全部由练习记录即时推导（dimStat/typeStat），这里只记“最近练过什么”供推送轮转
-function updateProfile(k){
-  state.profile.lastModules.unshift(k);
-  if(state.profile.lastModules.length>8) state.profile.lastModules.length=8;
+function updateProfile(k, subtype, g){
+  const m = state.profile.modules[k];
+  for(const d of MODULES[k].dims){ const v=Number(g.scores[d])||0; m.dims[d].sum+=v; m.dims[d].n+=1; }
+  m.weakDims = MODULES[k].dims.filter(d=> m.dims[d].n && (m.dims[d].sum/m.dims[d].n)<14);
+  m.strongDims = MODULES[k].dims.filter(d=> m.dims[d].n && (m.dims[d].sum/m.dims[d].n)>=17);
+  if(k==="gongwen" && subtype){ if(!m.types[subtype]) m.types[subtype]={sum:0,n:0}; const tot=dimTotal(g.scores,MODULES[k].dims); m.types[subtype].sum+=tot; m.types[subtype].n+=1; }
+  state.profile.lastModules.unshift(k); if(state.profile.lastModules.length>8) state.profile.lastModules.length=8;
 }
 
 function renderGrade(g, total){
@@ -759,17 +618,6 @@ function renderGrade(g, total){
   const bads=(g.weaknesses||[]).map(s=>`<span class="pill bad">− ${esc(s)}</span>`).join("");
   html += `<div class="sec-title" style="margin-top:6px;">优点</div><div class="pills">${goods||'<span class="hint">暂无</span>'}</div>`;
   html += `<div class="sec-title">待改进</div><div class="pills">${bads||'<span class="hint">暂无</span>'}</div>`;
-  const hits = g.hits || [];
-  if(hits.length){
-    html += `<div class="sec-title">采分点对照</div><div class="hits">`;
-    for(const h of hits){
-      const st = String(h.status||"");
-      const cls = st.indexOf("未")>=0? "miss" : (st.indexOf("部分")>=0? "part" : "hit");
-      const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
-      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
-    }
-    html += `</div>`;
-  }
   if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
   html += `<div class="nextrow">
       <button class="primary big" id="btnNext">智能推送下一题</button>
@@ -777,7 +625,6 @@ function renderGrade(g, total){
       <button class="linkbtn" id="btnSeeProfile">看我的画像</button>
     </div></div>`;
   docBody.innerHTML = html;
-  renderHeader();  // 交卷后同步刷新红头文号
   $("#btnNext").onclick = startSmart;
   $("#btnRetry").onclick = ()=> startModule(current.module);
   $("#btnSeeProfile").onclick = ()=>{ $("#panelProfile").open=true; renderProfile(); };
@@ -785,23 +632,17 @@ function renderGrade(g, total){
 
 /* ============ 画像 ============ */
 function renderProfile(){
-  let html = `<div class="hint" style="margin-bottom:10px">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。</div>`;
+  const p = state.profile; let html="";
   for(const k of Object.keys(MODULES)){
-    const avg=moduleAvg(k);
-    html += `<div class="modblock"><h4>${MODULES[k].name}${avg!=null?` · 均分 ${Math.round(avg/20*100)}`:" · 未练"}</h4><div class="dimscores">`;
-    const weak=[], strong=[];
-    for(const d of MODULES[k].dims){
-      const st = dimStat(k,d);
-      const pct = st? Math.round(st.avg/20*100) : 0;
-      if(st){ if(pct<70) weak.push(d); else if(pct>=85) strong.push(d); }
-      html += `<div class="dim"><span class="val">${st? pct+"分 · "+st.n+"次" : "未练"}</span><div class="name">${d}</div><div class="bar"><i style="width:${st?pct:0}%"></i></div></div>`;
-    }
+    const m=p.modules[k]; const avg=moduleAvg(k);
+    html += `<div class="modblock"><h4>${MODULES[k].name}${avg!=null?` · 均分 ${Math.round(avg)}`:" · 未练"}</h4><div class="dimscores">`;
+    for(const d of MODULES[k].dims){ const x=m.dims[d]; const a=x.n?Math.round(x.sum/x.n):0;
+      html += `<div class="dim"><span class="val">${a}分</span><div class="name">${d}</div><div class="bar"><i style="width:${a}%"></i></div></div>`; }
     html += `</div>`;
-    if(weak.length) html += `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
-    if(strong.length) html += `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`;
+    if(m.weakDims.length) html += `<div class="pills">${m.weakDims.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
     if(k==="gongwen"){
-      const rows = GONGWEN_TYPES.map(t=>({ t:t.type, st:typeStat(t.type) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
-      if(rows.length){ html+=`<div class="typestat">`; for(const r of rows){ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; html+=`<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; } html+=`</div>`; }
+      const ts=Object.entries(m.types).sort((a,b)=>(a[1].sum/a[1].n)-(b[1].sum/b[1].n));
+      if(ts.length){ html+=`<div class="typestat">`; for(const [t,o] of ts){ const av=Math.round(o.sum/o.n); const cls=av<70?"lo":"hi"; html+=`<span class="t">${esc(t)} <b class="${cls}">${av}</b><small style="color:#999"> (${o.n})</small></span>`; } html+=`</div>`; }
     }
     html += `</div>`;
   }
@@ -838,6 +679,9 @@ function useCachedModels(base){
   const cache = state.modelCache && state.modelCache[(base||"").replace(/\/+$/,"")];
   if(cache && cache.length){ renderModelList(cache); return true; }
   return false;
+}
+function fillProviderSelect(){
+  $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
 }
 function onProviderChange(){
   const p = providerById($("#setProvider").value);
@@ -878,7 +722,7 @@ async function fetchModels(silent){
   if(!key){ if(!silent) $("#setMsg").textContent = "请先填 API Key"; return; }
   if(!silent) $("#setMsg").textContent = "拉取中…";
   try{
-    const res = await fetchWithTimeout(base + "/models", { headers:{ Authorization:"Bearer "+key } }, 30000);
+    const res = await fetch(base + "/models", { headers:{ Authorization:"Bearer "+key } });
     if(!res.ok){ const t = await res.text().catch(()=> ""); throw {code:"API", status:res.status, text:t.slice(0,160)}; }
     const data = await res.json().catch(()=> null);
     if(!data) throw {code:"BADJSON"};
@@ -914,9 +758,6 @@ async function fetchModels(silent){
     } else if(e && e.code==="BADJSON"){
       $("#modelNote").textContent = "接口返回内容不是 JSON（可能是 HTML 错误页）。请确认 Base URL 是否正确（需带 /v1）。";
       $("#setMsg").textContent = "返回内容非 JSON，检查地址";
-    } else if(e && e.code==="TIMEOUT"){
-      $("#modelNote").textContent = "拉取模型列表超时（30 秒无响应），已回退到推荐模型；也可手动输入模型名。";
-      $("#setMsg").textContent = "拉取超时";
     } else {
       // 真正的网络/异常：把真实报错透出来，并给针对性提示（区分预览窗 CSP / 真网络）
       const nm = (e && e.name) || "";
@@ -950,12 +791,10 @@ async function testConnection(){
 /* ============ 导入导出 ============ */
 function exportJSON(){
   const blob = new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
-  const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); const d = new Date();
-  a.href = url;
+  a.href = URL.createObjectURL(blob);
   a.download = `综应练习台-备份-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
   a.click();
-  setTimeout(()=>URL.revokeObjectURL(url), 3000);
 }
 function importJSON(file){
   const r = new FileReader();
@@ -981,85 +820,13 @@ function importJSON(file){
 
 /* ============ 工具 ============ */
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-/* 草稿：手写的答案是不可再生的资产，任何失败、换题、刷新都不该把它弄丢。
-   按题目签名各存一份（最多 8 份，新的挤旧的），换题不会互相覆盖。 */
-const DRAFT_KEY = "gw_draft";
-const DRAFT_MAX = 8;
-function qSig(q){
-  const s = ((q&&q.background)||"") + "|" + ((q&&q.requirements)||"");
-  let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; }
-  return "q"+h;
-}
-function loadDrafts(){
-  try{
-    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}");
-    if(!d || typeof d !== "object" || Array.isArray(d)) return {};
-    if(typeof d.sig === "string") return { [d.sig]: { text:d.text, ts:d.ts||0 } };  // 兼容旧版单槽格式
-    return d;
-  }catch(e){ return {}; }
-}
-function loadDraft(sig){ const d = loadDrafts()[sig]; return (d && typeof d.text === "string")? d.text : ""; }
-function saveDraft(sig, text){
-  try{
-    const all = loadDrafts();
-    if(!text){ delete all[sig]; }
-    else{
-      all[sig] = { text, ts: Date.now() };
-      // 挤出最旧的一份。不能用“排序后 pop()”：同一毫秒内连续保存时 ts 相等，
-      // 稳定排序会退化成插入序，从尾部 pop 会误杀最新草稿。
-      while(Object.keys(all).length > DRAFT_MAX){
-        let oldest = null;
-        for(const k of Object.keys(all)){ if(oldest===null || (all[k].ts||0) < (all[oldest].ts||0)) oldest = k; }
-        if(oldest === null) break;
-        delete all[oldest];
-      }
-    }
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(all));
-  }catch(e){}
-}
-function clearDraft(sig){
-  try{
-    if(sig == null){ localStorage.removeItem(DRAFT_KEY); return; }
-    const all = loadDrafts(); delete all[sig]; localStorage.setItem(DRAFT_KEY, JSON.stringify(all));
-  }catch(e){}
-}
-// 从作答要求里解析字数上限（"不超过300字" / "300字以内" / "字数450左右"）
-function wordLimit(q){
-  const s = (q && q.requirements) || "";
-  const m = s.match(/(?:不超过|不得超过|不多于|至多)\s*(\d{2,4})\s*字/) || s.match(/(\d{2,4})\s*字以内/) || s.match(/字数[^\d]{0,4}(\d{2,4})/);
-  return m? Number(m[1]) : null;
-}
-function setWordCount(n, limit){
-  const el=$("#wordCount"); if(!el) return;
-  if(limit){
-    const over = n - limit;
-    el.innerHTML = over > 0
-      ? `<b class="over">${n}</b> / ${limit} 字（超出 ${over} 字）`
-      : `<b>${n}</b> / ${limit} 字`;
-  }else{
-    el.innerHTML = `<b>${n}</b> 字`;
-  }
-}
-// 输入与「插入公文骨架」共用同一条同步路径：字数、草稿、恢复提示，永远一致
-function syncAnswer(sig, ta, limit){
-  saveDraft(sig, ta.value);
-  setWordCount(ta.value.length, limit);
-  const n = $("#draftNote");
-  if(n && n.textContent) n.textContent = "";
-}
-
-// keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
-function handleErr(e, keepView){
+function handleErr(e){
   if(e && e.code==="NO_KEY") banner("未配置 AI Key：点右上角「设置」，选服务商、填 Key 即可开启出题与阅卷。");
-  else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
-      + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
-      + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""));
+  else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`);
   else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。");
-  else if(e && e.code==="TIMEOUT") banner(`接口 ${Math.round(CALL_TIMEOUT/1000)} 秒无响应，已中止本次请求。可换更快的模型，或把「推理程度」调低。`);
-  else if(e && e.code==="ABORT") banner("已取消本次请求。");
-  else if(e && /Failed to fetch|NetworkError|TypeError|Load failed|Network request failed/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint());
-  else banner("出错了：" + esc((e && e.message) ? e.message : "未知错误"));
-  if(!keepView) renderStart();
+  else if(e && /Failed to fetch|NetworkError|TypeError/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint());
+  else banner("出错了：" + ((e && e.message) ? e.message : "未知错误"));
+  renderStart();
 }
 
 /* ============ 初始化 ============ */
@@ -1070,11 +837,8 @@ function initSelect(){
 }
 function init(){
   initSelect(); fillSettings(); renderTabs(); renderHeader(); renderStart();
-  // 提示可以并列，不能互相覆盖
-  const notices = [];
-  if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/综应练习台.html（CORS 已实测通过，可正常调用）。");
-  if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，选一个服务商（推荐 DeepSeek）、填上 API Key，就能开始用了。");
-  if(notices.length) banner(notices.join("<br>"));
+  if(!state.settings.apiKey) banner("欢迎。点右上角「设置」，选一个服务商（推荐 DeepSeek）、填上 API Key，就能开始用了。");
+  if(isPreviewHost()) banner("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/综应练习台.html（CORS 已实测通过，可正常调用）。");
   $("#setProvider").onchange = onProviderChange;
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   document.querySelectorAll("#segReason button").forEach(b=> b.onclick = ()=>{ state.settings.reasonLevel = b.dataset.lv; setReasonUI(); });
