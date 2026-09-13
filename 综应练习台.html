@@ -112,10 +112,23 @@
   .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:auto;}
   .modal[hidden]{display:none;}
   .modal .box{background:var(--paper);border:1px solid var(--line);width:100%;max-width:760px;box-shadow:0 12px 40px rgba(0,0,0,.18);}
-  .modal .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f7f5f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;}
-  .modal .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:2px 8px;}
-  .modal .mhead .x:hover{color:var(--gov-red);}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f7f5f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;}
+  .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:2px 8px;}
+  .mhead .x:hover{color:var(--gov-red);}
   .panel-body{padding:16px;}
+  /* 学习卡抽屉 + 我的笔记 + 翻卡浮标 */
+  .drawer{position:fixed;inset:0;z-index:60;background:rgba(31,31,31,.35);}
+  .drawer[hidden]{display:none;}
+  .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
+  .drawer .card-body{padding:14px 16px 20px;}
+  .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:22px;padding:10px 16px;box-shadow:0 4px 14px rgba(0,0,0,.22);font-family:var(--hei);}
+  .fab b{color:var(--gov-red);}
+  .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line);padding:10px 12px;background:#fffdf0;color:var(--ink);border-radius:2px;}
+  .noteedit:focus{outline:none;border-color:var(--gov-red);}
+  .notebox{border:1px dashed #d8c48a;border-left:3px solid #b8860b;background:#fffcf0;margin-top:14px;}
+  .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13.5px;padding:9px 12px;list-style:none;color:#8a6d00;}
+  .notebox>summary::-webkit-details-marker{display:none;}
+  .notebody{padding:2px 12px 12px;font-size:14px;line-height:1.85;white-space:pre-wrap;}
   .field{margin-bottom:15px;}
   .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:6px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
@@ -312,7 +325,7 @@ const DEFAULT_STATE = {
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"综应练习台", noPrefix:"综应练" },
   profile:{ modules:freshModules(), lastModules:[] },
   history:[],
-  cache:{ studyCards:{} },
+  cache:{ studyCards:{}, notes:{} },
   modelCache:{}
 };
 
@@ -338,6 +351,7 @@ function load(){
     s.profile.lastModules = s.profile.lastModules||[];
     s.history = s.history||[];
     s.cache = s.cache||{studyCards:{}};
+    s.cache.notes = s.cache.notes||{};
     s.modelCache = s.modelCache||{};
     return s;
   }catch(e){ return structuredClone(DEFAULT_STATE); }
@@ -745,37 +759,73 @@ async function loadQuestion(k, subtype){
     const data = await gen(k, subtype, focusDim, !cached, onDelta);
     if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
     if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
-    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard };
+    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard, phase:"card", cardPeeks:0 };
     if(!current.question){ throw {code:"JSON"}; }
     renderHeader(); renderQuestion();
   }catch(e){ if(mySeq !== reqSeq) return; handleErr(e, false); }
   finally{ clearInterval(tick); }
 }
 
-function renderQuestion(){
-  const {module, subtype, question, studyCard} = current;
-  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  if(studyCard){
-    const pts=(studyCard.points||[]).map(p=>`<li>${esc(p)}</li>`).join("");
-    const pits=(studyCard.pitfalls||[]).map(p=>`<li>${esc(p)}</li>`).join("");
-    html += `<details class="card" open>
-      <summary>先学再练 · ${esc(studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">看完点「开始作答」</span></summary>
-      <div class="card-body">
-        <h4>解题要点</h4><ul>${pts}</ul>
-        <h4>常见失分点</h4><ul>${pits}</ul>
-        <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>
-        <div class="actions"><button class="primary" id="btnBegin">我已学习，开始作答</button><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-      </div></details>`;
-  } else {
-    html += `<div class="actions"><button class="primary" id="btnBegin">开始作答</button></div>`;
+/* 练习两阶段：先学（卡+笔记）→ 后练（题目+作答）。
+   卡不跟到作答页——只能在右侧抽屉里看，每看一次计一次，翻卡次数就是熟悉度的客观信号；
+   作答时随时可见的是自己写的笔记（生成效应：自己输出的内容印象最深）。 */
+function cardKey(module, subtype){ return module + (subtype? "::"+subtype : ""); }
+function getNote(module, subtype){ return (state.cache.notes && state.cache.notes[cardKey(module,subtype)]) || ""; }
+function saveNote(module, subtype, text){
+  state.cache.notes = state.cache.notes || {};
+  const key = cardKey(module,subtype);
+  if(text) state.cache.notes[key] = text; else delete state.cache.notes[key];
+  save();
+}
+function lastPeeks(module, subtype){
+  for(const h of state.history){
+    if(h.module===module && (h.subtype||null)===(subtype||null) && h.cardPeeks!=null) return h.cardPeeks;
   }
+  return null;
+}
+function cardHtml(studyCard){
+  const pts=(studyCard.points||[]).map(p=>`<li>${esc(p)}</li>`).join("");
+  const pits=(studyCard.pitfalls||[]).map(p=>`<li>${esc(p)}</li>`).join("");
+  return `<h4>解题要点</h4><ul>${pts}</ul>
+    <h4>常见失分点</h4><ul>${pits}</ul>
+    <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>`;
+}
+function renderQuestion(){
+  if(current.phase === "answer"){ renderAnswerPhase(); return; }
+  // —— 阶段一：只有卡和笔记，不给题 ——
+  const {module, subtype, studyCard} = current;
+  if(!studyCard){ current.phase = "answer"; renderAnswerPhase(); return; }
+  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
+  html += `<details class="card" open>
+    <summary>先学再练 · ${esc(studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">边学边记笔记，然后开始作答</span></summary>
+    <div class="card-body">${cardHtml(studyCard)}
+      <h4>我的笔记（作答时只能看这份）</h4>
+      <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
+      <div class="actions"><button class="primary" id="btnBegin">我已学习，开始作答</button><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
+    </div></details>`;
+  const lp = lastPeeks(module, subtype);
+  if(lp != null) html += `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>`;
+  docBody.innerHTML = html;
+
+  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  $("#btnNewCard").onclick = ()=>{ delete state.cache.studyCards[cardKey(module,subtype)]; save(); loadQuestion(module, subtype); };
+  $("#btnBegin").onclick = ()=>{ current.phase = "answer"; renderQuestion(); $("#doc").scrollIntoView(true); };
+  $("#cardNote").addEventListener("input", ()=> saveNote(module, subtype, $("#cardNote").value));
+}
+
+function renderAnswerPhase(){
+  const {module, subtype, question} = current;
+  const note = getNote(module, subtype);
+  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button><button class="linkbtn" id="btnBackCard">← 回学习卡（计翻卡一次）</button></div>`;
   html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · 文种：${esc(subtype)}`:""}）</div>`;
   html += `<div class="material"><div class="label">背景材料</div>${esc(question.background||"")}</div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
 
-  html += `<div class="answer-wrap" id="answerArea" style="display:none;">
+  html += `<details class="notebox"${note? " open":""}><summary>我的笔记${note? "":"（还没有）"} — 作答时只看这个</summary><div class="notebody" id="noteBody">${note? esc(note) : '<span class="hint">还没记笔记。回「学习卡」页补记，或点右下角翻卡时顺手记。</span>'}</div></details>`;
+
+  html += `<div class="answer-wrap" id="answerArea">
     <div class="sec-title">作答区</div>
     <textarea id="answer" placeholder="在此作答。可点「插入公文骨架」获得格式引导（公文写作适用）。"></textarea>
     <div class="actions">
@@ -787,15 +837,32 @@ function renderQuestion(){
       <span class="hint" id="gradeLive"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
+  html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
+  html += `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
+      <div class="mhead"><span>学习卡 <span class="tag" id="peekBadge">本次已翻 ${current.cardPeeks||0} 次（越少越熟）</span></span><button class="x" id="btnDrawerClose" title="关闭">✕</button></div>
+      <div class="card-body" id="drawerBody"></div>
+    </div></div>`;
   docBody.innerHTML = html;
 
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
-  const begin = $("#btnBegin");
-  if(begin) begin.onclick = ()=>{ $("#answerArea").style.display="block"; begin.remove(); };
-  const nc = $("#btnNewCard");
-  if(nc) nc.onclick = ()=>{ delete state.cache.studyCards[module + (subtype? "::"+subtype : "")]; save(); loadQuestion(module, subtype); };
+  $("#btnBackCard").onclick = ()=>{ current.cardPeeks = (current.cardPeeks||0)+1; current.phase = "card"; renderQuestion(); $("#doc").scrollIntoView(true); };
   if(module==="gongwen") $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
+
+  const openDrawer = ()=>{
+    current.cardPeeks = (current.cardPeeks||0)+1;
+    $("#peekBadge").textContent = `本次已翻 ${current.cardPeeks} 次（越少越熟）`;
+    const fb = $("#btnCard").querySelector("b"); if(fb) fb.textContent = current.cardPeeks;
+    $("#drawerBody").innerHTML = (current.studyCard? cardHtml(current.studyCard) : '<span class="hint">本题没有学习卡。</span>') +
+      `<h4>我的笔记</h4><textarea class="noteedit" id="drawerNote" placeholder="在这里也可以补记。">${esc(getNote(module,subtype))}</textarea>`;
+    $("#btnDrawerClose").onclick = ()=>{ $("#cardDrawer").hidden = true; };
+    $("#drawerNote").addEventListener("input", ()=>{
+      saveNote(module, subtype, $("#drawerNote").value);
+      const nb = $("#noteBody"); if(nb) nb.innerHTML = esc($("#drawerNote").value);
+    });
+    $("#cardDrawer").hidden = false;
+  };
+  $("#btnCard").onclick = openDrawer;
 
   // 草稿保护：边写边存；签名不同（换了题）就不会串味
   const sig = qSig(question);
@@ -823,7 +890,7 @@ async function submitAnswer(){
   banner("");
   btn.disabled=true; btn.textContent="阅卷中…";
   const mySeq = reqSeq, mod = current.module, sub = current.subtype, q = current.question;
-  const kps = current.keyPoints || [];
+  const kps = current.keyPoints || [], peeks = current.cardPeeks || 0;
   // 阅卷往往是全程最慢的一次调用：像出题页一样给实时秒数
   const t0 = Date.now();
   const tick = setInterval(()=>{
@@ -844,7 +911,7 @@ async function submitAnswer(){
     updateProfile(mod);
     const total = dimTotal(g.scores, MODULES[mod].dims);
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub,
-      question:q, answer:ans, keyPoints:kps, hits:g.hits||[],
+      question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       grade:{ total, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
     if(state.history.length>200) state.history.length=200;
     clearDraft(qSig(q));
@@ -1102,7 +1169,7 @@ function importJSON(file){
         m.dims = Object.assign(Object.fromEntries(MODULES[k].dims.map(d=>[d,{sum:0,n:0}])), m.dims||{});
         m.weakDims=m.weakDims||[]; m.strongDims=m.strongDims||[]; m.types=m.types||{}; }
       state.profile.lastModules = state.profile.lastModules||[];
-      state.history = s.history||[]; state.cache = s.cache||{studyCards:{}};
+      state.history = s.history||[]; state.cache = s.cache||{studyCards:{}}; state.cache.notes = (s.cache&&s.cache.notes)||{};
       state.modelCache = s.modelCache||{};
       save(); fillSettings(); renderHeader(); renderProfile(); openModal("modalProfile"); banner("已从备份恢复数据 ✓");
     }catch(e){ banner("导入失败：文件不是有效的备份 JSON。"); }

@@ -82,7 +82,7 @@ renderProfile();
 ok(el("#profileBody").innerHTML.indexOf(">71<") >= 0, "画像: 文种统计近期加权 (71 而非 70)");
 state.settings.orgName = "测试单位";
 state.history = [];
-current = { module:"gongwen", subtype:"通知", question:q1 };
+current = { module:"gongwen", subtype:"通知", question:q1, phase:"answer", cardPeeks:0 };
 saveDraft(qSig(q1), "恢复我");
 el("#answer").value = "";
 el("#draftNote").textContent = "";
@@ -142,7 +142,7 @@ saveDraft(qSig(qB), "B 的草稿");
 ok(loadDraft(qSig(qA)) === "A 的草稿" && loadDraft(qSig(qB)) === "B 的草稿", "草稿: 换题不覆盖（多槽）");
 for(let i=0;i<10;i++){ saveDraft(qSig({ background:"t"+i, requirements:"r" }), "草稿"+i); }
 ok(loadDraft(qSig(qA)) === "", "草稿: 超过 8 份时最旧的被挤出");
-current = { module:"gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" } };
+current = { module:"gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" }, phase:"answer", cardPeeks:0 };
 renderQuestion();
 el("#btnTpl").onclick();
 ok(el("#wordCount").innerHTML.indexOf("<b>0<") < 0, "骨架: 插入后字数同步");
@@ -173,6 +173,35 @@ el("#setModel").value = "deepseek-v4-flash";
 await fetchModels(false);
 ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
 globalThis.fetch = realFetch;
+
+/* 8.5 两阶段练习 + 翻卡计数 + 笔记 */
+saveNote("gongwen","通知","要点一：格式完整");
+ok(getNote("gongwen","通知") === "要点一：格式完整" && getNote("gongwen","函") === "", "笔记: 按文种键存取，不串味");
+state.history = [{ module:"gongwen", subtype:"通知", cardPeeks:2, grade:{ total:70, scores:{} } }];
+current = { module:"gongwen", subtype:"通知", question:{ background:"阶段题", requirements:"写一份通知。" }, phase:"card", cardPeeks:0,
+            studyCard:{ title:"通知·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架文本" } };
+renderQuestion();
+ok(el("#docBody").innerHTML.indexOf("题目（模块") < 0, "卡片页: 不给看题，先学");
+ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "卡片页: 笔记可见可续写（真实输入走 input 监听，真机另验）");
+ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 卡片页显示上次翻卡次数");
+el("#btnBegin").onclick();
+ok(current.phase === "answer" && el("#docBody").innerHTML.indexOf("先学再练") < 0, "两阶段: 点开始作答后卡片退场");
+ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "作答页: 能看到自己的笔记");
+ok(el("#docBody").innerHTML.indexOf("解题要点") < 0, "作答页: 卡片原文不再平铺");
+ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "作答页: 翻卡浮标在场");
+el("#btnCard").onclick();
+ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
+ok(el("#drawerBody").innerHTML.indexOf("解题要点") >= 0, "抽屉: 卡片原文只在抽屉里");
+saveNote("gongwen","通知","要点一：格式完整\n要点二：主送机关");
+el("#btnDrawerClose").onclick();
+ok(el("#cardDrawer").hidden === true, "抽屉: 可关闭");
+el("#btnCard").onclick();
+ok(current.cardPeeks === 2, "抽屉: 再看再计");
+el("#btnBackCard").onclick();
+ok(current.phase === "card" && current.cardPeeks === 3, "回卡: 同样计入翻卡");
+el("#btnBegin").onclick();
+ok(current.phase === "answer", "回卡后可再进作答");
+state.history = [];
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
