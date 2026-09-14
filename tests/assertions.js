@@ -56,7 +56,7 @@ let g = 0;
 for(let i=0;i<200;i++){ if(weakestModule() === "gongwen") g++; }
 ok(g < 80, "刚练过的模块不再霸屏 (gongwen " + g + "/200)");
 const tseen = {};
-for(let i=0;i<400;i++){ tseen[pickSubtype()] = 1; }
+for(let i=0;i<400;i++){ tseen[pickSubtypeFor("gongwen")] = 1; }
 ok(Object.keys(tseen).length === GONGWEN_TYPES.length, "文种: " + GONGWEN_TYPES.length + " 个文种都不会被饿死 (" + Object.keys(tseen).length + "/" + GONGWEN_TYPES.length + ")");
 
 /* 4. 渲染（画像从练习记录近期加权推导） */
@@ -211,13 +211,22 @@ state.history = [
 ];
 ok(recentPeeks("gongwen","通知") === 3 && recentPeeks("gongwen","函") === 0, "翻卡: 近期翻卡次数可按文种查询");
 const orRand = Math.random; Math.random = () => 0.9;   // 避开 20% 随机探索，走确定性分支
-ok(pickSubtype() === "通知", "调度: 翻得多的卡对应文种优先再出 (got " + pickSubtype() + ")");
+ok(pickSubtypeFor("gongwen") === "通知", "调度: 翻得多的卡对应文种优先再出 (got " + pickSubtypeFor("gongwen") + ")");
 Math.random = orRand;
 state.history = [
   { module:"guina", grade:{ scores: scoresFor("guina",14) }, cardPeeks:4 },
   { module:"fenxi", grade:{ scores: scoresFor("fenxi",14) }, cardPeeks:0 }
 ];
 ok(moduleScore("guina") < moduleScore("fenxi"), "调度: 同分模块，翻卡多的更优先");
+state.history = [];
+
+/* 8.7 子类型扩展到全部题型 */
+ok(subtypeListOf("gongwen").length === GONGWEN_TYPES.length && subtypeListOf("guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
+ok(el("#selType").innerHTML.indexOf('value="guina::概括原因"') >= 0 && el("#selType").innerHTML.indexOf('optgroup label="归纳概括"') >= 0, "子类型: 下拉按题型分组直达");
+state.history = [{ module:"guina", subtype:"概括原因", grade:{ total:60, scores: scoresFor("guina",12) }, cardPeeks:4 }];
+const orRand2 = Math.random; Math.random = () => 0.9;
+ok(pickSubtypeFor("guina") === "概括原因", "调度: 非公文题型同样按翻卡优先 (got " + pickSubtypeFor("guina") + ")");
+Math.random = orRand2;
 state.history = [];
 
 console.log(T.join("\n"));

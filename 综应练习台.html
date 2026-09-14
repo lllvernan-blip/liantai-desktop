@@ -176,9 +176,9 @@
     <span id="modbar"></span>
     <span class="spacer"></span>
     <span class="pick" id="gongwenPick" style="display:none">
-      <span class="hint" style="white-space:nowrap">文种：</span>
+      <span class="hint" style="white-space:nowrap">子类型：</span>
       <select id="selType"></select>
-      <button id="btnType">练这文种</button>
+      <button id="btnType">练这道</button>
     </span>
   </div>
 </header>
@@ -289,13 +289,17 @@ const MODULES = {
   gongwen:{ name:"公文写作", note:"党政机关公文与应用文写作",
     dims:["格式规范","内容完整","行文逻辑","语言得体","文种适配"], matLen:[300,500] },
   guina:{ name:"归纳概括", note:"概括问题 / 原因 / 影响 / 做法 / 特点",
-    dims:["要点全面","归类准确","表述精炼","逻辑层次"], matLen:[600,900] },
+    dims:["要点全面","归类准确","表述精炼","逻辑层次"], matLen:[600,900],
+    subtypes:["概括问题","概括原因","概括影响","概括做法","概括特点"] },
   fenxi:{ name:"综合分析", note:"词句理解 / 现象分析 / 观点评析",
-    dims:["审题准确","分析深入","论证有力","结论稳妥"], matLen:[500,800] },
+    dims:["审题准确","分析深入","论证有力","结论稳妥"], matLen:[500,800],
+    subtypes:["词句理解","现象分析","观点评析"] },
   duice:{ name:"提出对策", note:"针对问题提出解决措施",
-    dims:["问题对应","对策可行","针对性强","表述规范"], matLen:[500,800] },
+    dims:["问题对应","对策可行","针对性强","表述规范"], matLen:[500,800],
+    subtypes:["对策建议","启示教训"] },
   shiwu:{ name:"案例实务", note:"会务 / 信访 / 应急 / 沟通协调",
-    dims:["角色意识","处置得当","程序合规","沟通协调"], matLen:[400,800] }
+    dims:["角色意识","处置得当","程序合规","沟通协调"], matLen:[400,800],
+    subtypes:["会务组织","信访处理","应急处置","沟通协调"] }
 };
 // matLen：各模块材料长度档。真实综应单题材料几百上千字，从长而乱的里提要点才是核心能力，200字练不出来
 const GONGWEN_TYPES = [
@@ -532,10 +536,12 @@ function dimStat(k, dim){
   }
   return n? { avg: sum/wsum, n } : null;
 }
-function typeStat(t){
+function subtypeListOf(k){ return k==="gongwen"? GONGWEN_TYPES.map(t=>t.type) : (MODULES[k].subtypes||[]); }
+function subtypeWord(k){ return k==="gongwen"? "文种" : "子类型"; }
+function subtypeStat(k, t){
   let sum=0, wsum=0, n=0;
   for(const h of state.history){
-    if(h.module !== "gongwen" || h.subtype !== t) continue;
+    if(h.module !== k || (h.subtype||null) !== t) continue;
     const v = Number(h.grade && h.grade.total);
     if(!isFinite(v)) continue;
     const w = Math.pow(RECENCY_DECAY, n);
@@ -601,15 +607,16 @@ function weakestDimOf(k){
   }
   return w;
 }
-function pickSubtype(){
-  const all = GONGWEN_TYPES.map(t=>t.type);
+function pickSubtypeFor(k){
+  const all = subtypeListOf(k);
+  if(!all.length) return null;
   if(Math.random()<0.2) return all[Math.floor(Math.random()*all.length)];
-  const recent = state.history.slice(0,3).map(h=>h.subtype).filter(Boolean);
+  const recent = state.history.slice(0,3).filter(h=>h.module===k).map(h=>h.subtype).filter(Boolean);
   let bs=1e9, pool=[];
   for(const t of all){
-    const st = typeStat(t);
-    const base = st? st.avg : COLD_START_SCORE;  // 没练过的文种默认也值得练
-    const s = base + (recent.indexOf(t)>=0? REPEAT_PENALTY : 0) - (recentPeeks("gongwen", t)||0)*PEEK_WEIGHT;
+    const st = subtypeStat(k, t);
+    const base = st? st.avg : COLD_START_SCORE;  // 没练过的子类型默认也值得练
+    const s = base + (recent.indexOf(t)>=0? REPEAT_PENALTY : 0) - (recentPeeks(k, t)||0)*PEEK_WEIGHT;
     if(s<bs){ bs=s; pool=[t]; } else if(s===bs){ pool.push(t); }
   }
   return pool[Math.floor(Math.random()*pool.length)] || all[0];
@@ -634,12 +641,12 @@ function difficultyFor(k){
 }
 async function gen(k, subtype, focusDim, needCard, onDelta){
   const m = MODULES[k];
-  const scope = subtype? `文种：「${subtype}」` : `题型：综合`;
+  const scope = subtype? `${subtypeWord(k)}：「${subtype}」` : `题型：综合`;
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
   const matSpec = `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）`;
   const reqSpec = "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const note = needCard
-    ? "生成：(1) 该题型/文种的学习卡（解题要点、常见失分点、答题框架或常用句式）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
+    ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。";
   const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note });
   const schema = needCard
@@ -735,16 +742,18 @@ function renderStart(){
 
 async function startSmart(){
   const k = weakestModule(); activeModule = k; renderTabs(); renderHeader();
-  await loadQuestion(k, k==="gongwen"? pickSubtype():null);
+  await loadQuestion(k, pickSubtypeFor(k));
 }
 async function startModule(k){
   activeModule = k; renderTabs(); renderHeader();
-  await loadQuestion(k, k==="gongwen"? pickSubtype():null);
+  await loadQuestion(k, pickSubtypeFor(k));
 }
 async function startSubtype(){
-  const t = $("#selType").value; if(!t) return;
-  activeModule = "gongwen"; renderTabs(); renderHeader();
-  await loadQuestion("gongwen", t);
+  const v = $("#selType").value; if(!v) return;
+  const i = v.indexOf("::"); if(i < 0) return;
+  const k = v.slice(0,i), t = v.slice(i+2);
+  activeModule = k; renderHeader();
+  await loadQuestion(k, t);
 }
 
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
@@ -831,7 +840,7 @@ function renderAnswerPhase(){
   const {module, subtype, question} = current;
   const note = getNote(module, subtype);
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button><button class="linkbtn" id="btnBackCard">← 回学习卡（计翻卡一次）</button></div>`;
-  html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · 文种：${esc(subtype)}`:""}）</div>`;
+  html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}）</div>`;
   html += `<div class="material"><div class="label">背景材料</div>${esc(question.background||"")}</div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
@@ -999,10 +1008,8 @@ function renderProfile(){
     html += `</div>`;
     if(weak.length) html += `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
     if(strong.length) html += `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`;
-    if(k==="gongwen"){
-      const rows = GONGWEN_TYPES.map(t=>({ t:t.type, st:typeStat(t.type) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
-      if(rows.length){ html+=`<div class="typestat">`; for(const r of rows){ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; html+=`<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; } html+=`</div>`; }
-    }
+    const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
+    if(rows.length){ html+=`<div class="typestat">`; for(const r of rows){ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; html+=`<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; } html+=`</div>`; }
     html += `</div>`;
   }
   html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>模块</th><th>文种</th><th>总分</th><th>待改进</th></tr></thead><tbody>`;
@@ -1277,8 +1284,20 @@ function handleErr(e, keepView){
 
 /* ============ 初始化 ============ */
 function initSelect(){
-  let h=""; let last="";
-  for(const t of GONGWEN_TYPES){ if(t.cat!==last){ h+=`<option disabled>——— ${t.cat} ———</option>`; last=t.cat; } h+=`<option value="${t.type}">${t.type}</option>`; }
+  // 一个下拉覆盖全部题型的子类型，按题型分组：公文写作叫文种，其余叫子类型
+  let h = `<optgroup label="公文写作（文种）">`;
+  let last = "";
+  for(const t of GONGWEN_TYPES){
+    if(t.cat !== last){ h += `<option disabled>——— ${t.cat} ———</option>`; last = t.cat; }
+    h += `<option value="gongwen::${t.type}">${t.type}</option>`;
+  }
+  h += `</optgroup>`;
+  for(const k of Object.keys(MODULES)){
+    if(k === "gongwen") continue;
+    h += `<optgroup label="${MODULES[k].name}">`;
+    for(const s of (MODULES[k].subtypes||[])) h += `<option value="${k}::${s}">${s}</option>`;
+    h += `</optgroup>`;
+  }
   $("#selType").innerHTML = h;
 }
 function init(){
