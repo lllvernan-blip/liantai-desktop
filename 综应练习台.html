@@ -66,7 +66,10 @@
   .material .label{font-family:var(--hei);color:var(--gov-red);font-size:13px;margin-bottom:6px;}
   .ms{cursor:pointer;border-radius:2px;}
   .ms:hover{background:#fef3c7;}
-  .ms.on{background:#fde68a;}
+  mark.ms.on{background:#fde68a;color:var(--ink);}
+  .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:4px;padding:3px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}
+  .markpop button{background:transparent;border:none;color:#fff;font-size:12.5px;padding:3px 10px;cursor:pointer;font-family:var(--fangsong);}
+  .markpop button:hover{color:#fde68a;}
   .require{margin-top:12px;font-size:14.5px;white-space:pre-wrap;}
   .require b{font-family:var(--hei);}
 
@@ -861,7 +864,7 @@ function renderAnswerPhase(){
   const note = getNote(module, subtype);
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
   html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}）</div>`;
-  html += `<div class="material"><div class="label">背景材料 <span class="hint">（读材料时点句子划线，再点取消）</span></div><div id="materialBox">${materialHtml(question)}</div></div>`;
+  html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
@@ -915,16 +918,55 @@ function renderAnswerPhase(){
   setWordCount(ta.value.length, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
 
-  // 材料划线：点一句亮一句，再点取消；按题目签名持久化
-  const mbox = $("#materialBox");
-  if(mbox) mbox.addEventListener("click", e=>{
-    const sp = e.target.closest(".ms"); if(!sp) return;
-    sp.classList.toggle("on");
-    const set = loadMarks(sig);
-    const i = Number(sp.dataset.i);
-    if(sp.classList.contains("on")) set.add(i); else set.delete(i);
-    saveMarks(sig, set);
-  });
+  // 材料划线：选中文字 → 小窗确认；点已有高亮整段取消
+  const mbox = $("#materialBox"), pop = $("#markPop");
+  const hidePop = ()=>{ if(pop) pop.style.display = "none"; };
+  const charOffset = (node, off) => {
+    const sp = node.parentElement && node.parentElement.closest(".ms");
+    return sp? Number(sp.dataset.s) + off : null;
+  };
+  const showPop = ()=>{
+    const sel = window.getSelection();
+    if(!sel || sel.isCollapsed || sel.rangeCount === 0){ hidePop(); return; }
+    const rg = sel.getRangeAt(0);
+    if(!mbox.contains(rg.startContainer) || !mbox.contains(rg.endContainer)){ hidePop(); return; }
+    const o1 = charOffset(rg.startContainer, rg.startOffset), o2 = charOffset(rg.endContainer, rg.endOffset);
+    if(o1 == null || o2 == null){ hidePop(); return; }
+    const s = Math.min(o1,o2), e = Math.max(o1,o2);
+    if(e <= s){ hidePop(); return; }
+    const has = loadMarks(sig);
+    let overlap = false; for(let i=s;i<e;i++) if(has.has(i)){ overlap = true; break; }
+    pop.dataset.s = s; pop.dataset.e = e; pop.dataset.mode = overlap? "off" : "on";
+    $("#popMark").textContent = overlap? "取消划线" : "划线";
+    const r = rg.getBoundingClientRect();
+    pop.style.left = (r.left + window.scrollX) + "px";
+    pop.style.top = (r.top + window.scrollY - 38) + "px";
+    pop.style.display = "block";
+  };
+  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); };
+  if(mbox){
+    mbox.addEventListener("mouseup", ()=> setTimeout(showPop, 0));
+    mbox.addEventListener("click", e=>{
+      const sp = e.target.closest(".ms"); if(!sp) return;
+      const sel = window.getSelection();
+      if(sel && !sel.isCollapsed) return;  // 有选区交给小窗处理
+      if(sp.classList.contains("on")){
+        const set = loadMarks(sig);
+        for(let i=Number(sp.dataset.s); i<Number(sp.dataset.e); i++) set.delete(i);
+        saveMarks(sig, set);
+        renderMaterial();
+      }
+    });
+  }
+  if(pop){
+    $("#popMark").onclick = ()=>{
+      const s = Number(pop.dataset.s), e = Number(pop.dataset.e), set = loadMarks(sig);
+      for(let i=s; i<e; i++){ if(pop.dataset.mode === "on") set.add(i); else set.delete(i); }
+      saveMarks(sig, set);
+      hidePop(); renderMaterial();
+    };
+    document.addEventListener("mousedown", e=>{ if(!pop.contains(e.target)) hidePop(); });
+  }
 }
 
 function insertSkeleton(){
@@ -1298,7 +1340,7 @@ function syncAnswer(sig, ta, limit){
   if(n && n.textContent) n.textContent = "";
 }
 
-/* 划线：材料按句切分，点一句亮一句再点取消；按题目签名保存（同题重开还在），超量淘汰最旧 */
+/* 划线：自由选中文字弹窗确认；标记存到字符级，多细都能划；按题目签名保存，超量淘汰最旧 */
 const MARKS_KEY = "gw_marks";
 const MARKS_MAX = 8;
 function marksAll(){ try{ const d = JSON.parse(localStorage.getItem(MARKS_KEY)||"{}"); return (d && typeof d==="object" && !Array.isArray(d))? d : {}; }catch(e){ return {}; } }
@@ -1314,15 +1356,20 @@ function saveMarks(sig, set){
   }catch(e){}
 }
 function materialHtml(q){
+  const text = String((q&&q.background)||"");
   const marks = loadMarks(qSig(q));
-  let idx = 0;
-  return String((q&&q.background)||"").split("\n").map(line =>
-    line.split(/(?<=[。！？；])/).map(seg => {
-      if(!seg) return "";
-      const i = idx++;
-      return `<span class="ms${marks.has(i)? " on":""}" data-i="${i}">${esc(seg)}</span>`;
-    }).join("")
-  ).join("\n");
+  let html = "", i = 0;
+  while(i < text.length){
+    const on = marks.has(i);
+    let j = i;
+    while(j < text.length && marks.has(j) === on) j++;
+    const seg = esc(text.slice(i, j));
+    html += on
+      ? `<mark class="ms on" data-s="${i}" data-e="${j}">${seg}</mark>`
+      : `<span class="ms" data-s="${i}" data-e="${j}">${seg}</span>`;
+    i = j;
+  }
+  return html;
 }
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。

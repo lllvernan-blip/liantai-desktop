@@ -241,14 +241,15 @@ localStorage.setItem("gw_state", JSON.stringify({ settings:{ orgName:"综应练�
 ok(load().settings.orgName === "模拟练习专用", "迁移: 旧默认机关名换成明显虚构的");
 localStorage.clear();
 
-/* 8.9 材料划线 */
+/* 8.9 材料划线（自由选中，字符级） */
 const mq = { background:"第一句。第二句！\n\n第二段只有一句？", requirements:"r" };
-ok((materialHtml(mq).match(/class="ms/g)||[]).length === 3, "划线: 按句切分并编号（跨段连续）");
-ok(materialHtml(mq).indexOf("<br") < 0, "划线: 段落换行用原文换行而非硬标签");
-ok(materialHtml({ background:"<b>evil</b>句。", requirements:"r" }).indexOf("&lt;b&gt;") >= 0, "划线: 句内内容仍然转义");
-saveMarks(qSig(mq), new Set([0, 2]));
-ok(loadMarks(qSig(mq)).has(0) && loadMarks(qSig(mq)).has(2) && !loadMarks(qSig(mq)).has(1), "划线: 保存与回读");
-ok((materialHtml(mq).match(/ms on/g)||[]).length === 2, "划线: 同题重开恢复高亮");
+ok(materialHtml(mq).indexOf("第一句。第二句！") >= 0, "划线: 无高亮时整段自然呈现");
+saveMarks(qSig(mq), new Set([0,1,2]));
+ok((materialHtml(mq).match(/class="ms on"/g)||[]).length === 1 && materialHtml(mq).indexOf(">第一句</mark>") >= 0, "划线: 连续字符合并为一段高亮");
+ok(materialHtml({ background:"<b>x</b>句。", requirements:"r" }).indexOf("&lt;b&gt;") >= 0, "划线: 句内内容仍然转义");
+saveMarks(qSig(mq), new Set([0, 8]));
+ok((materialHtml(mq).match(/class="ms on"/g)||[]).length === 2, "划线: 离散高亮分段呈现");
+ok(loadMarks(qSig(mq)).has(0) && loadMarks(qSig(mq)).has(8) && loadMarks(qSig(mq)).size === 2, "划线: 保存与回读");
 for(let i=0;i<9;i++){ saveMarks("mk"+i, new Set([i])); }
 ok(!loadMarks("mk0").size, "划线: 超 8 份淘汰最旧");
 
