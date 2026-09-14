@@ -247,7 +247,7 @@
       <details class="more">
         <summary>更多设置（红头机关名 / 文号前缀）</summary>
         <div class="inner">
-          <div class="field"><label>红头机关名（显示在公文顶部）</label><input type="text" id="setOrg" placeholder="如：XX 市综合服务中心"></div>
+          <div class="field"><label>红头机关名（显示在公文顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"></div>
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
@@ -325,7 +325,7 @@ function freshModules(){
 }
 const DEFAULT_STATE = {
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"deepseek-v4-flash",
-             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"综应练习台", noPrefix:"综应练" },
+             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练" },
   profile:{ modules:freshModules(), lastModules:[] },
   history:[],
   cache:{ studyCards:{}, notes:{} },
@@ -344,6 +344,7 @@ function load(){
     s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings||{});
     if(!s.settings.reasonLevel){ const t=Number(s.settings.temperature); s.settings.reasonLevel = (t<=0.35?"quick":(t<=0.95?"standard":"deep")); }
     if(["quick","standard","deep"].indexOf(s.settings.reasonLevel)<0) s.settings.reasonLevel="standard";
+    if(s.settings.orgName === "综应练习台") s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
     s.profile = s.profile||{};
     s.profile.modules = Object.assign(freshModules(), s.profile.modules||{});
     for(const k in MODULES){
@@ -704,7 +705,7 @@ function networkFailHint(){
 }
 
 function renderHeader(){
-  $("#orgName").textContent = state.settings.orgName || "综应练习台";
+  $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   const n = state.history.length + 1, y = new Date().getFullYear();
   $("#docNo").textContent = `${state.settings.noPrefix||"综应练"}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
   $("#modLabel").textContent = "综应A · " + MODULES[activeModule].name + (current&&current.subtype?` · ${current.subtype}`:"");
@@ -1182,6 +1183,7 @@ function importJSON(file){
       if(!s.settings || !s.profile) throw new Error("格式不对");
       state = Object.assign(structuredClone(DEFAULT_STATE), s);
       state.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings);
+      if(state.settings.orgName === "综应练习台") state.settings.orgName = "模拟练习专用";
       state.profile = state.profile||{};
       state.profile.modules = Object.assign(freshModules(), s.profile.modules||{});
       for(const k in MODULES){ const m=state.profile.modules[k];
