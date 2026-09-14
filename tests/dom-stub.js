@@ -1,7 +1,7 @@
 /* ---- minimal DOM stub so the single-file app can boot under node ---- */
 function makeEl(sel){
   const store = { innerHTML:"", textContent:"", value:"", disabled:false, open:false,
-                  dataset:{}, style:{}, onclick:null, onchange:null,
+                  dataset:{}, style:{ setProperty(k,v){ this[k]=v; } }, onclick:null, onchange:null,
                   classList:{ toggle(){}, add(){}, remove(){}, contains(){ return false; } } };
   const noop = ()=>{};
   return new Proxy(store, {
@@ -19,6 +19,7 @@ globalThis.document = {
   querySelectorAll: () => [],
   addEventListener: () => {},
   createElement: () => makeEl("a"),
+  documentElement: makeEl("html"),
   body: makeEl("body")
 };
 const __ls = {};

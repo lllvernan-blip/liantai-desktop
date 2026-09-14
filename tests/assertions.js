@@ -253,6 +253,13 @@ ok(loadMarks(qSig(mq)).has(0) && loadMarks(qSig(mq)).has(8) && loadMarks(qSig(mq
 for(let i=0;i<9;i++){ saveMarks("mk"+i, new Set([i])); }
 ok(!loadMarks("mk0").size, "划线: 超 8 份淘汰最旧");
 
+/* 8.10 划线颜色自选 */
+ok(MARK_COLORS.length === 5, "颜色: 预设五色");
+state.settings.markColor = "#a7f3d0"; applyMarkColor(); renderMarkSwatches();
+ok((el("#markSwatches").innerHTML.match(/swatch sel/g)||[]).length === 1, "颜色: 选中标记唯一");
+ok(el("#markSwatches").innerHTML.indexOf("#fbcfe8") >= 0 && el("#markSwatches").innerHTML.indexOf("#fde68a") >= 0, "颜色: 黄色仍在备选，但非默认");
+ok(document.documentElement.style["--mark"] === "#a7f3d0", "颜色: CSS 变量已应用");
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

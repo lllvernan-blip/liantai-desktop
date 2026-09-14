@@ -65,8 +65,10 @@
   .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-size:14.5px;line-height:1.85;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--gov-red);font-size:13px;margin-bottom:6px;}
   .ms{cursor:pointer;border-radius:2px;}
-  .ms:hover{background:#fef3c7;}
-  mark.ms.on{background:#fde68a;color:var(--ink);}
+  mark.ms.on{background:var(--mark,#fde68a);color:var(--ink);}
+  .swatches{display:flex;gap:8px;}
+  .swatch{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0;}
+  .swatch.sel{border-color:var(--gov-red);box-shadow:0 0 0 2px rgba(192,21,26,.2);}
   .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:4px;padding:3px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}
   .markpop button{background:transparent;border:none;color:#fff;font-size:12.5px;padding:3px 10px;cursor:pointer;font-family:var(--fangsong);}
   .markpop button:hover{color:#fde68a;}
@@ -251,6 +253,7 @@
         <summary>更多设置（红头机关名 / 文号前缀）</summary>
         <div class="inner">
           <div class="field"><label>红头机关名（显示在公文顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"></div>
+          <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div><div class="note">点色块选择，作答页高亮即时换色。</div></div>
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
@@ -328,7 +331,7 @@ function freshModules(){
 }
 const DEFAULT_STATE = {
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"deepseek-v4-flash",
-             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练" },
+             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0" },
   profile:{ modules:freshModules(), lastModules:[] },
   history:[],
   cache:{ studyCards:{}, notes:{} },
@@ -1129,6 +1132,12 @@ function onProviderChange(){
   setReasonUI();
   if($("#setKey").value.trim() && !useCachedModels(baseKey())) fetchModels(true);
 }
+const MARK_COLORS = ["#fde68a","#a7f3d0","#bfdbfe","#fbcfe8","#fed7aa"];
+function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_COLORS[1]); }
+function renderMarkSwatches(){
+  $("#markSwatches").innerHTML = MARK_COLORS.map(c=>`<button class="swatch${state.settings.markColor===c?" sel":""}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join("");
+  $("#markSwatches").querySelectorAll(".swatch").forEach(b=> b.onclick = ()=>{ state.settings.markColor = b.dataset.c; save(); applyMarkColor(); renderMarkSwatches(); });
+}
 function fillSettings(){
   fillProviderSelect();
   $("#setProvider").value = PROVIDERS.some(p=>p.id===state.settings.provider)? state.settings.provider : "deepseek";
@@ -1141,6 +1150,7 @@ function fillSettings(){
   setReasonUI();
   $("#setOrg").value = state.settings.orgName||"";
   $("#setNo").value = state.settings.noPrefix||"";
+  renderMarkSwatches();
 }
 function applyForm(){
   state.settings.provider = $("#setProvider").value;
@@ -1389,7 +1399,7 @@ function handleErr(e, keepView){
 
 /* ============ 初始化 ============ */
 function init(){
-  fillSettings(); renderTabs(); renderHeader(); renderStart();
+  fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderStart();
   // 有 Key 就按实拉名单走：预设只负责没 Key 时的起步建议
   if(state.settings.apiKey) fetchModels(true);
   // 提示可以并列，不能互相覆盖
