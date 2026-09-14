@@ -64,6 +64,9 @@
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;}
   .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-size:14.5px;line-height:1.85;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--gov-red);font-size:13px;margin-bottom:6px;}
+  .ms{cursor:pointer;border-radius:2px;}
+  .ms:hover{background:#fef3c7;}
+  .ms.on{background:#fde68a;}
   .require{margin-top:12px;font-size:14.5px;white-space:pre-wrap;}
   .require b{font-family:var(--hei);}
 
@@ -858,7 +861,7 @@ function renderAnswerPhase(){
   const note = getNote(module, subtype);
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
   html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}）</div>`;
-  html += `<div class="material"><div class="label">背景材料</div>${esc(question.background||"")}</div>`;
+  html += `<div class="material"><div class="label">背景材料 <span class="hint">（读材料时点句子划线，再点取消）</span></div><div id="materialBox">${materialHtml(question)}</div></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
@@ -911,6 +914,17 @@ function renderAnswerPhase(){
   if(draft){ ta.value = draft; $("#draftNote").textContent = "已恢复上次未提交的草稿"; }
   setWordCount(ta.value.length, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
+
+  // 材料划线：点一句亮一句，再点取消；按题目签名持久化
+  const mbox = $("#materialBox");
+  if(mbox) mbox.addEventListener("click", e=>{
+    const sp = e.target.closest(".ms"); if(!sp) return;
+    sp.classList.toggle("on");
+    const set = loadMarks(sig);
+    const i = Number(sp.dataset.i);
+    if(sp.classList.contains("on")) set.add(i); else set.delete(i);
+    saveMarks(sig, set);
+  });
 }
 
 function insertSkeleton(){
@@ -1282,6 +1296,33 @@ function syncAnswer(sig, ta, limit){
   setWordCount(ta.value.length, limit);
   const n = $("#draftNote");
   if(n && n.textContent) n.textContent = "";
+}
+
+/* 划线：材料按句切分，点一句亮一句再点取消；按题目签名保存（同题重开还在），超量淘汰最旧 */
+const MARKS_KEY = "gw_marks";
+const MARKS_MAX = 8;
+function marksAll(){ try{ const d = JSON.parse(localStorage.getItem(MARKS_KEY)||"{}"); return (d && typeof d==="object" && !Array.isArray(d))? d : {}; }catch(e){ return {}; } }
+function loadMarks(sig){ const a = marksAll()[sig]; return new Set(Array.isArray(a)? a : []); }
+function saveMarks(sig, set){
+  try{
+    const all = marksAll();
+    delete all[sig];
+    all[sig] = Array.from(set);
+    const keys = Object.keys(all);
+    while(keys.length > MARKS_MAX) delete all[keys.shift()];
+    localStorage.setItem(MARKS_KEY, JSON.stringify(all));
+  }catch(e){}
+}
+function materialHtml(q){
+  const marks = loadMarks(qSig(q));
+  let idx = 0;
+  return String((q&&q.background)||"").split("\n").map(line =>
+    line.split(/(?<=[。！？；])/).map(seg => {
+      if(!seg) return "";
+      const i = idx++;
+      return `<span class="ms${marks.has(i)? " on":""}" data-i="${i}">${esc(seg)}</span>`;
+    }).join("")
+  ).join("\n");
 }
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
