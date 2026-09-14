@@ -40,7 +40,10 @@
   .modbar{display:flex;align-items:center;gap:4px;padding:0 14px;border-top:1px solid var(--line);}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;}
   .tab:hover{background:#f3f1ec;}
-  .modbar .pick{display:flex;align-items:center;gap:6px;padding:4px 0;}
+  .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
+  .chip{border:1px solid var(--line);background:#fff;padding:7px 14px;cursor:pointer;font-size:13.5px;border-radius:16px;}
+  .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
+  .chip small{color:var(--muted);}
 
   .wrap{max-width:880px;margin:20px auto 60px;padding:0 14px;}
   .doc{background:var(--paper);border:1px solid var(--line);padding:34px 46px 44px;}
@@ -173,12 +176,6 @@
   </div>
   <div class="modbar">
     <span id="modbar"></span>
-    <span class="spacer"></span>
-    <span class="pick" id="gongwenPick" style="display:none">
-      <span class="hint" style="white-space:nowrap">子类型：</span>
-      <select id="selType"></select>
-      <button id="btnType">练这道</button>
-    </span>
   </div>
 </header>
 
@@ -708,15 +705,19 @@ function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   const n = state.history.length + 1, y = new Date().getFullYear();
   $("#docNo").textContent = `${state.settings.noPrefix||"综应练"}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
-  $("#modLabel").textContent = "综应A · " + MODULES[activeModule].name + (current&&current.subtype?` · ${current.subtype}`:"");
+  const mn = MODULES[activeModule]? MODULES[activeModule].name : "智能综合";
+  $("#modLabel").textContent = "综应A · " + mn + (current&&current.subtype?` · ${current.subtype}`:"");
 }
 function renderTabs(){
-  // 页签只做「点名练」的快捷入口，不再跟随智能推送高亮跳动——
-  // 当前练的是哪个模块/文种，红头下方的标签和题目页抬头会说，轮不到导航栏自作主张
-  $("#modbar").innerHTML = Object.keys(MODULES).map(k=>
-    `<button class="tab" data-k="${k}" title="直接练这个模块">${MODULES[k].name}</button>`).join("");
-  $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> startModule(b.dataset.k));
-  $("#gongwenPick").style.display = "flex";  // 文种直达常驻，不随推送显隐
+  // 页签 = 入口，不是开关：点开先看模块落地页（子类型/底子），点「开始练习」才真正调 AI
+  $("#modbar").innerHTML = `<button class="tab" data-k="__all">综合</button>` +
+    Object.keys(MODULES).map(k=>`<button class="tab" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
+  $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
+}
+function tabClick(k){
+  if(k === "__all"){ activeModule = "__all"; renderHeader(); renderStart(); }
+  else renderModuleLanding(k);
+  $("#doc").scrollIntoView(true);
 }
 /* ============ 弹层：设置 / 画像 ============ */
 // 文档是练题的舞台，一动不动；画像和设置是工具，用完即走——弹层保证关掉后精确回到原位
@@ -740,20 +741,36 @@ function renderStart(){
   $("#btnStart").onclick = startSmart;
 }
 
+/* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
+function renderModuleLanding(k){
+  activeModule = k; renderHeader();
+  const m = MODULES[k];
+  const avg = moduleAvg(k);
+  let n = 0; for(const h of state.history) if(h.module===k) n++;
+  let html = `<div class="startbox">
+    <h2>${m.name}</h2>
+    <p>${m.note}</p>
+    <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg/20*100)} 分 · 练过 ${n} 次` : "还没练过——第一次会带你过一遍"}<br>评分维度：${m.dims.join("、")}</p>
+    <div class="subtypechips">
+    ${subtypeListOf(k).map(t=>{
+      const st = subtypeStat(k,t);
+      return `<button class="chip" data-t="${t}">${t}${st? ` <small>${Math.round(st.avg)}分·${st.n}次</small>`:""}</button>`;
+    }).join("")}
+    </div>
+    <div class="actions" style="justify-content:center;margin-top:26px"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
+  </div>`;
+  docBody.innerHTML = html;
+  $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
+  docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
+}
+
 async function startSmart(){
-  const k = weakestModule(); activeModule = k; renderTabs(); renderHeader();
+  const k = weakestModule(); activeModule = k; renderHeader();
   await loadQuestion(k, pickSubtypeFor(k));
 }
 async function startModule(k){
-  activeModule = k; renderTabs(); renderHeader();
-  await loadQuestion(k, pickSubtypeFor(k));
-}
-async function startSubtype(){
-  const v = $("#selType").value; if(!v) return;
-  const i = v.indexOf("::"); if(i < 0) return;
-  const k = v.slice(0,i), t = v.slice(i+2);
   activeModule = k; renderHeader();
-  await loadQuestion(k, t);
+  await loadQuestion(k, pickSubtypeFor(k));
 }
 
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
@@ -1283,25 +1300,8 @@ function handleErr(e, keepView){
 }
 
 /* ============ 初始化 ============ */
-function initSelect(){
-  // 一个下拉覆盖全部题型的子类型，按题型分组：公文写作叫文种，其余叫子类型
-  let h = `<optgroup label="公文写作（文种）">`;
-  let last = "";
-  for(const t of GONGWEN_TYPES){
-    if(t.cat !== last){ h += `<option disabled>——— ${t.cat} ———</option>`; last = t.cat; }
-    h += `<option value="gongwen::${t.type}">${t.type}</option>`;
-  }
-  h += `</optgroup>`;
-  for(const k of Object.keys(MODULES)){
-    if(k === "gongwen") continue;
-    h += `<optgroup label="${MODULES[k].name}">`;
-    for(const s of (MODULES[k].subtypes||[])) h += `<option value="${k}::${s}">${s}</option>`;
-    h += `</optgroup>`;
-  }
-  $("#selType").innerHTML = h;
-}
 function init(){
-  initSelect(); fillSettings(); renderTabs(); renderHeader(); renderStart();
+  fillSettings(); renderTabs(); renderHeader(); renderStart();
   // 有 Key 就按实拉名单走：预设只负责没 Key 时的起步建议
   if(state.settings.apiKey) fetchModels(true);
   // 提示可以并列，不能互相覆盖
@@ -1323,7 +1323,6 @@ function init(){
   $("#btnExport").onclick = exportJSON;
   $("#btnImport").onclick = ()=> $("#fileImport").click();
   $("#fileImport").onchange = e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); };
-  $("#btnType").onclick = startSubtype;
 }
 init();
 </script>

@@ -225,7 +225,11 @@ state.history = [];
 
 /* 8.7 子类型扩展到全部题型 */
 ok(subtypeListOf("gongwen").length === GONGWEN_TYPES.length && subtypeListOf("guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
-ok(el("#selType").innerHTML.indexOf('value="guina::概括原因"') >= 0 && el("#selType").innerHTML.indexOf('optgroup label="归纳概括"') >= 0, "子类型: 下拉按题型分组直达");
+tabClick("__all");
+ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0, "综合入口: 页签直达智能推送起点");
+tabClick("guina");
+ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
+ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
 state.history = [{ module:"guina", subtype:"概括原因", grade:{ total:60, scores: scoresFor("guina",12) }, cardPeeks:4 }];
 const orRand2 = Math.random; Math.random = () => 0.9;
 ok(pickSubtypeFor("guina") === "概括原因", "调度: 非公文题型同样按翻卡优先 (got " + pickSubtypeFor("guina") + ")");
