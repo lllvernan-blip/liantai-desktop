@@ -197,10 +197,13 @@ el("#btnDrawerClose").onclick();
 ok(el("#cardDrawer").hidden === true, "抽屉: 可关闭");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 2, "抽屉: 再看再计");
-el("#btnBackCard").onclick();
-ok(current.phase === "card" && current.cardPeeks === 3, "回卡: 同样计入翻卡");
-el("#btnBegin").onclick();
-ok(current.phase === "answer", "回卡后可再进作答");
+ok(el("#docBody").innerHTML.indexOf("回学习卡") < 0, "作答页: 顶部回卡入口已删，只留抽屉");
+current = { module:"guina", subtype:"概括原因", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
+renderQuestion();
+ok(el("#docBody").innerHTML.indexOf("插入公文骨架") < 0, "非公文: 骨架按钮与占位提示都不出现");
+current = { module:"gongwen", subtype:"通知", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
+renderQuestion();
+ok(el("#docBody").innerHTML.indexOf("插入公文骨架") >= 0, "公文: 骨架按钮在场，占位提示与按钮一致");
 state.history = [];
 
 /* 8.6 翻卡次数参与出题调度 */

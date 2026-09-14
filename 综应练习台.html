@@ -839,7 +839,7 @@ function renderQuestion(){
 function renderAnswerPhase(){
   const {module, subtype, question} = current;
   const note = getNote(module, subtype);
-  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button><button class="linkbtn" id="btnBackCard">← 回学习卡（计翻卡一次）</button></div>`;
+  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
   html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}）</div>`;
   html += `<div class="material"><div class="label">背景材料</div>${esc(question.background||"")}</div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
@@ -850,7 +850,7 @@ function renderAnswerPhase(){
 
   html += `<div class="answer-wrap" id="answerArea">
     <div class="sec-title">作答区</div>
-    <textarea id="answer" placeholder="在此作答。可点「插入公文骨架」获得格式引导（公文写作适用）。"></textarea>
+    <textarea id="answer" placeholder="${module==="gongwen"? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
       ${module==="gongwen"? '<button id="btnTpl">插入公文骨架</button>':''}
       <button class="primary" id="btnSubmit">提交阅卷</button>
@@ -868,7 +868,6 @@ function renderAnswerPhase(){
   docBody.innerHTML = html;
 
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
-  $("#btnBackCard").onclick = ()=>{ current.cardPeeks = (current.cardPeeks||0)+1; current.phase = "card"; renderQuestion(); $("#doc").scrollIntoView(true); };
   if(module==="gongwen") $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
 
