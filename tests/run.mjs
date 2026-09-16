@@ -23,6 +23,8 @@ const app = html.slice(open + "<script>".length, close);
 
 const src = [
   readFileSync(join(here, "dom-stub.js"), "utf8"),
+  // 预置 gw_history：页面脚本求值时必须能读到，专门抓“启动顺序”类回归（如 HISTORY_KEY 撞 TDZ 被静默吞掉）
+  "localStorage.setItem('gw_history', JSON.stringify([{ ts: 42, module: 'gongwen', grade: { total: 60, scores: {} } }]));",
   app,
   readFileSync(join(here, "assertions.js"), "utf8"),
 ].join("\n");

@@ -342,11 +342,8 @@ const DEFAULT_STATE = {
   modelCache:{}
 };
 
-let state = load();
-let activeModule = "gongwen";
-let current = null;
-
-/* 练习记录单独存：一次作答 = 材料 + 手写答案 + 阅卷结果，全部不可再生，不该和可再生的缓存挤同一个配额 */
+/* 练习记录单独存：一次作答 = 材料 + 手写答案 + 阅卷结果，全部不可再生，不该和可再生的缓存挤同一个配额。
+   注意：必须定义在 let state = load() 之前——load() 依赖 HISTORY_KEY，放后面会撞 TDZ 被静默吞掉。 */
 const HISTORY_KEY = "gw_history";
 function loadHistory(){
   try{ const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || "null"); return Array.isArray(h) ? h : null; }
@@ -362,10 +359,20 @@ function saveHistory(){
     }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。"); }
   }
 }
+let state = load();
+let activeModule = "gongwen";
+let current = null;
+
 function load(){
   try{
     const raw = localStorage.getItem("gw_state");
-    if(!raw) return structuredClone(DEFAULT_STATE);
+    if(!raw){
+      // gw_state 缺失（首次使用/被单独清除）时，练习记录也不能丢：gw_history 里有的照读
+      const fresh = structuredClone(DEFAULT_STATE);
+      const h0 = loadHistory();
+      if(h0) fresh.history = h0;
+      return fresh;
+    }
     const s = JSON.parse(raw);
     s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings||{});
     if(!s.settings.reasonLevel){ const t=Number(s.settings.temperature); s.settings.reasonLevel = (t<=0.35?"quick":(t<=0.95?"standard":"deep")); }
