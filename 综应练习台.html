@@ -346,6 +346,22 @@ let state = load();
 let activeModule = "gongwen";
 let current = null;
 
+/* 练习记录单独存：一次作答 = 材料 + 手写答案 + 阅卷结果，全部不可再生，不该和可再生的缓存挤同一个配额 */
+const HISTORY_KEY = "gw_history";
+function loadHistory(){
+  try{ const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || "null"); return Array.isArray(h) ? h : null; }
+  catch(e){ return null; }
+}
+function saveHistory(){
+  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); }
+  catch(e){
+    // 实在写不下：裁到 40 条再试，宁可丢最老的记录也不打断作答；有「导出」兑底
+    try{
+      if(state.history.length > 40){ state.history.length = 40; localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); }
+      else throw e;
+    }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。"); }
+  }
+}
 function load(){
   try{
     const raw = localStorage.getItem("gw_state");
@@ -363,7 +379,15 @@ function load(){
       m.weakDims=m.weakDims||[]; m.strongDims=m.strongDims||[]; m.types=m.types||{};
     }
     s.profile.lastModules = s.profile.lastModules||[];
-    s.history = s.history||[];
+    // 迁移：练习记录从 gw_state 拆到 gw_history；写成功才清掉旧副本，失败则下轮再试
+    let hist = loadHistory();
+    if(Array.isArray(s.history) && s.history.length){
+      let moved = false;
+      if(!hist){ hist = s.history; try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); moved = true; }catch(e){} }
+      else moved = true;  // 新 key 已有数据，旧副本直接清
+      if(moved){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
+    }
+    s.history = hist || [];
     s.cache = s.cache||{studyCards:{}};
     s.cache.notes = s.cache.notes||{};
     s.modelCache = s.modelCache||{};
@@ -371,13 +395,13 @@ function load(){
   }catch(e){ return structuredClone(DEFAULT_STATE); }
 }
 function save(){
-  try{ localStorage.setItem("gw_state", JSON.stringify(state)); }
+  // gw_state 不再含练习记录（见 load 迁移）；写满时优先丢弃可再生的大块：学习卡缓存（手写笔记不在其中）
+  try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); }
   catch(e){
-    // 本地存储写满是可预期的事（历史上存了完整题目+答案）。降级：先裁历史再试，绝不让一次写盘失败打断答题。
     try{
-      if(state.history.length > 40){ state.history.length = 40; localStorage.setItem("gw_state", JSON.stringify(state)); }
+      if(Object.keys(state.cache.studyCards||{}).length){ state.cache.studyCards = {}; localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); }
       else throw e;
-    }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份，再清理练习记录。"); }
+    }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份。"); }
   }
 }
 
@@ -1074,7 +1098,7 @@ async function submitAnswer(){
     if(state.history.length>200) state.history.length=200;
     clearDraft(qSig(q));
     clearInterval(tick);
-    save(); renderGrade(g, total);
+    saveHistory(); save(); renderGrade(g, total);
   }catch(e){
     clearInterval(tick);
     if(mySeq !== reqSeq) return;
@@ -1357,9 +1381,9 @@ function importJSON(file){
         m.dims = Object.assign(Object.fromEntries(MODULES[k].dims.map(d=>[d,{sum:0,n:0}])), m.dims||{});
         m.weakDims=m.weakDims||[]; m.strongDims=m.strongDims||[]; m.types=m.types||{}; }
       state.profile.lastModules = state.profile.lastModules||[];
-      state.history = s.history||[]; state.cache = s.cache||{studyCards:{}}; state.cache.notes = (s.cache&&s.cache.notes)||{};
+      state.history = Array.isArray(s.history)? s.history : []; state.cache = s.cache||{studyCards:{}}; state.cache.notes = (s.cache&&s.cache.notes)||{};
       state.modelCache = s.modelCache||{};
-      save(); fillSettings(); renderHeader(); renderProfile(); openModal("modalProfile"); banner("已从备份恢复数据 ✓");
+      saveHistory(); save(); fillSettings(); renderHeader(); renderProfile(); openModal("modalProfile"); banner("已从备份恢复数据 ✓");
     }catch(e){ banner("导入失败：文件不是有效的备份 JSON。"); }
   };
   r.readAsText(file);

@@ -150,19 +150,46 @@ ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0, "无题可看
 handleErr({ code:"NO_KEY" }, true);
 ok(el("#bannerSlot").innerHTML.indexOf("AI Key") >= 0, "未配置 Key 有明确指引");
 
-/* 6. 存储 */
+/* 6. 存储：练习记录单独 key（gw_history）+ 写满降级 */
 state.history = Array.from({ length:200 }, (_,i)=>({ ts:i, module:"gongwen", subtype:null, question:{}, answer:"", grade:{ total:60, scores:{}, strengths:[], weaknesses:[] } }));
+state.cache.studyCards = { "gongwen::通知": { title:"卡" } };
+state.cache.notes = { "gongwen::通知": "手写笔记，不能丢" };
 const realSet = localStorage.setItem;
 let n = 0;
 localStorage.setItem = (k,v) => { if(k === "gw_state"){ n++; if(n <= 2) { const e = new Error("quota"); e.name = "QuotaExceededError"; throw e; } } realSet(k,v); };
 let threw = false;
 try{ save(); }catch(e){ threw = true; }
-ok(!threw, "写盘满时不再直接抛错崩掉");
-ok(state.history.length === 40, "写盘满时自动裁历史 (-> " + state.history.length + ")");
-ok(el("#bannerSlot").innerHTML.indexOf("本地存储已满") >= 0, "写盘满时给用户明确提示");
+ok(!threw, "gw_state 写满时不再直接抛错崩掉");
+ok(!state.cache.studyCards["gongwen::通知"], "gw_state 写满时丢弃可再生的学习卡缓存");
+ok(state.cache.notes["gongwen::通知"] === "手写笔记，不能丢", "gw_state 写满时手写笔记分毫无损");
+ok(state.history.length === 200, "save() 不再裁练习记录");
 localStorage.setItem = realSet;
 save();
-ok(load().history.length === 40, "正常写盘 + 读回往返一致");
+const s1 = JSON.parse(localStorage.getItem("gw_state"));
+ok(!("history" in s1), "gw_state 不再存放练习记录");
+let m = 0;
+localStorage.setItem = (k,v) => { if(k === "gw_history"){ m++; if(m <= 1) { const e = new Error("quota"); e.name = "QuotaExceededError"; throw e; } } realSet(k,v); };
+threw = false;
+el("#bannerSlot").innerHTML = "";
+try{ saveHistory(); }catch(e){ threw = true; }
+ok(!threw, "gw_history 写满时不再直接抛错崩掉");
+ok(state.history.length === 40, "gw_history 写满时自动裁练习记录 (-> " + state.history.length + ")");
+ok(el("#bannerSlot").innerHTML.indexOf("本地存储已满") < 0, "裁剪后重试成功时不误报存储已满");
+localStorage.setItem = realSet;
+saveHistory();
+ok(load().history.length === 40, "练习记录写盘 + 读回往返一致");
+ok(loadHistory() === null || Array.isArray(loadHistory()), "loadHistory 对坏数据返回 null 而不是抛错");
+
+/* 6.1 history 拆 key 迁移 */
+localStorage.clear();
+localStorage.setItem("gw_state", JSON.stringify({ settings:{}, profile:{}, history:[{ ts:1, module:"guina", grade:{ total:50, scores:{} } }], cache:{} }));
+const stMig = load();
+ok(stMig.history.length === 1 && stMig.history[0].ts === 1, "迁移: 旧 gw_state 里的练习记录被读出");
+ok(Array.isArray(JSON.parse(localStorage.getItem("gw_history"))) && JSON.parse(localStorage.getItem("gw_history")).length === 1, "迁移: 当场写入 gw_history，中途关页不丢");
+ok(!("history" in JSON.parse(localStorage.getItem("gw_state"))), "迁移: 旧副本从 gw_state 清除");
+const stFresh = load();
+ok(stFresh.history.length === 1 && stFresh.history[0].ts === 1, "迁移: 再次 load 从新 key 读，不重复迁移");
+localStorage.clear();
 
 /* 7. 复查补测：多草稿槽 + 公文骨架同步 */
 const qA = { background:"材料A", requirements:"要求A" };
