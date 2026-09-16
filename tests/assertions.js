@@ -8,6 +8,14 @@ function scoresFor(k, v){ const sc={}; for(const d of MODULES[k].dims) sc[d]=v; 
 /* 1. 纯函数 */
 ok(JSON.stringify(parseJsonLoose('```json\n{"a":1,}\n```')) === '{"a":1}', "parseJsonLoose: 剥代码围栏 + 容尾逗号");
 ok(parseJsonLoose('说明{"b":[1,2]}结尾').b.length === 2, "parseJsonLoose: 容忍前后噪音");
+ok(parseJsonLoose("{'a':1}").a === 1, "parseJsonLoose: 单引号键值可修复");
+ok(parseJsonLoose("{'a':'\"quoted\"'}").a === '"quoted"', "parseJsonLoose: 单引号内的双引号被转义");
+ok(parseJsonLoose('{background:"材料",score:20}').score === 20, "parseJsonLoose: 忘加引号的键可修复");
+ok(parseJsonLoose("{'a':1,'b':'x',}").b === "x", "parseJsonLoose: 单引号 + 尾逗号组合");
+ok(parseJsonLoose('{"a":"don\'t break"}').a === "don't break", "parseJsonLoose: 双引号内的撇号不动");
+ok(parseJsonLoose('{"a":"x, y: z"}').a === "x, y: z", "parseJsonLoose: 正文里的逗号冒号不被误改");
+let threwBad = false; try{ parseJsonLoose("{完全不是 JSON"); }catch(e){ threwBad = true; }
+ok(threwBad, "parseJsonLoose: 修不好时老实报格式异常，不硬编");
 ok(dimTotal({ x:10, y:20 }, ["x","y"]) === 75, "dimTotal: 归一化为百分制");
 ok(difficultyFor("gongwen") === "适中", "难度: 未练过默认适中");
 state.history = [{ module:"gongwen", grade:{ scores: scoresFor("gongwen",17) } }]; // 85%
@@ -135,6 +143,8 @@ handleErr({ code:"API", status:400, text:"model not found" }, true);
 ok(el("#docBody").innerHTML.indexOf("正在作答的题") >= 0, "出错时保留题目与答案（不再被清空）");
 ok(el("#bannerSlot").innerHTML.indexOf("模型名") >= 0, "HTTP 400 给出模型名提示");
 ok(el("#bannerSlot").innerHTML.indexOf("model not found") >= 0, "异常时透出接口原文");
+handleErr({ code:"JSON" }, true);
+ok(el("#bannerSlot").innerHTML.indexOf("格式异常") >= 0, "AI 吐坏 JSON 时提示重试（不再漏成裸异常）");
 handleErr({ code:"TIMEOUT" }, false);
 ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0, "无题可看时才回到起点");
 handleErr({ code:"NO_KEY" }, true);

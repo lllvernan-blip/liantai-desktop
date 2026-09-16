@@ -515,19 +515,62 @@ async function callLLM(system, user, expectJson, onDelta){
   }
   throw last || {code:"API", status:0, text:""};
 }
-function parseJsonLoose(text){
-  if(!text) throw {code:"JSON"};
-  let c = String(text).trim();
-  const f = c.match(/```(?:json)?\s*([\s\S]*?)```/i); if(f) c = f[1].trim();
-  const s = c.indexOf("{"); if(s<0) throw {code:"JSON"};
+function firstJsonObject(c){
+  const s = c.indexOf("{"); if(s<0) return null;
   let depth=0,inStr=false,esc=false,end=-1;
   for(let i=s;i<c.length;i++){ const ch=c[i];
     if(inStr){ if(esc)esc=false; else if(ch==="\\")esc=true; else if(ch==='"')inStr=false; }
     else { if(ch==='"')inStr=true; else if(ch==="{")depth++; else if(ch==="}"){ depth--; if(depth===0){ end=i; break; } } }
   }
-  let raw = end>=0? c.slice(s,end+1) : c.slice(s);
-  try{ return JSON.parse(raw); }catch(e){}
-  return JSON.parse(raw.replace(/,\s*([}\]])/g,"$1"));
+  return end>=0? c.slice(s,end+1) : c.slice(s);
+}
+/* 模型偶尔会吐单引号，或忘了给键加引号。这里的修法不是“猜”：每个候选都必须真能通过 JSON.parse 才采纳，
+   修不好的直接丢弃——宁可报格式异常让用户重试，也不能把改坏的文本当数据用。 */
+function bareKeyFixed(s){ return s.replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)(\s*:)/g, '$1"$2"$3'); }
+function singleQuotedFixed(s){
+  let out = "", i = 0, inDouble = false;
+  while(i < s.length){
+    const ch = s[i];
+    if(inDouble){
+      out += ch;
+      if(ch === "\\"){ out += s[i+1] || ""; i += 2; continue; }
+      if(ch === '"') inDouble = false;
+      i++; continue;
+    }
+    if(ch === '"'){ inDouble = true; out += ch; i++; continue; }
+    if(ch === "'"){
+      let j = i+1, buf = "";
+      while(j < s.length){
+        if(s[j] === "\\"){ buf += s[j] + (s[j+1] || ""); j += 2; continue; }
+        if(s[j] === "'") break;
+        buf += s[j]; j++;
+      }
+      if(j >= s.length) return s;   // 没闭合就不动它，交给后续候选或报错
+      out += '"' + buf.replace(/"/g, '\\"') + '"';
+      i = j+1; continue;
+    }
+    out += ch; i++;
+  }
+  return out;
+}
+function parseJsonLoose(text){
+  if(!text) throw {code:"JSON"};
+  let c = String(text).trim();
+  const f = c.match(/```(?:json)?\s*([\s\S]*?)```/i); if(f) c = f[1].trim();
+  const raw = firstJsonObject(c); if(raw == null) throw {code:"JSON"};
+  const noTailComma = s => s.replace(/,\s*([}\]])/g, "$1");
+  const fixes = [
+    s => s,
+    noTailComma,
+    s => bareKeyFixed(noTailComma(s)),
+    s => singleQuotedFixed(noTailComma(s)),
+    s => bareKeyFixed(singleQuotedFixed(noTailComma(s))),
+  ];
+  for(const fix of fixes){
+    let cand; try{ cand = fix(raw); }catch(e){ continue; }
+    try{ return JSON.parse(cand); }catch(e){}
+  }
+  throw {code:"JSON"};   // 修不好就老实报格式异常，让上层提示重试
 }
 
 /* ============ 画像（近期加权，从练习记录即时推导） ============ */
