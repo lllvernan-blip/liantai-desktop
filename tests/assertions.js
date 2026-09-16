@@ -109,6 +109,26 @@ ok(el("#docBody").innerHTML.indexOf("hitline miss") >= 0, "阅卷页: 未命中�
 ok(el("#docBody").innerHTML.indexOf("hitline part") >= 0, "阅卷页: 部分命中单独标记");
 ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
 
+/* 4.5 采分点分值口径（满分/半分/零分三档 + 标注符号） */
+ok(SCORING_RULES.indexOf("80%") >= 0 && SCORING_RULES.indexOf("40%") >= 0, "阅卷: prompt 写明三档阈值 (80% / 40%)");
+ok(SCORING_RULES.indexOf("【缺：") >= 0 && SCORING_RULES.indexOf("△") >= 0 && SCORING_RULES.indexOf("✗") >= 0, "阅卷: prompt 写明三个标注符号");
+ok(SCORING_RULES.indexOf("不倒扣") >= 0, "阅卷: prompt 写明不倒扣");
+ok(GEN_POINT_RULES.indexOf("必须正好等于 question.score") >= 0, "出题: prompt 要求子项分值之和等于题目满分");
+ok(GEN_POINT_RULES.indexOf("85%-95%") >= 0, "出题: prompt 要求子项长度落在字数上限的 85%-95%");
+ok(JSON.stringify(pointsOf([{score:5,awarded:5},{score:5,awarded:2.5}])) === '{"got":7.5,"max":10}', "采分点: 实得分与满分求和");
+ok(pointsOf([{score:5,awarded:99}]).got === 5, "采分点: 实得分夹在子项满分内（模型多给不算数）");
+ok(pointsOf([{point:"没有分值的老数据"}]) === null, "采分点: 无分值信息时不冒充总分");
+ok(hitClass({status:"满分"}) === "hit" && hitClass({status:"半分"}) === "part" && hitClass({status:"零分"}) === "miss", "采分点: 新档位名归类");
+ok(hitClass({status:"命中"}) === "hit" && hitClass({status:"部分命中"}) === "part" && hitClass({status:"未命中"}) === "miss", "采分点: 旧档位名仍能归类");
+renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[ {point:"标题含事由",score:5,awarded:5,status:"满分",evidence:"写了标题"},
+                   {point:"落款单位与日期",score:5,awarded:0,status:"零分",evidence:"【缺：落款】"} ] }, 50);
+ok(el("#docBody").innerHTML.indexOf("折合 50 分") >= 0, "阅卷页: 总分按采分点口径显示 (5 / 10 分)");
+ok(el("#docBody").innerHTML.indexOf("5/5") >= 0 && el("#docBody").innerHTML.indexOf("0/5") >= 0, "阅卷页: 每个子项显示实得分/满分");
+ok(el("#docBody").innerHTML.indexOf("不参与总分") >= 0, "阅卷页: 声明维度分不参与总分");
+current.question.score = 20;   // 子项合计 15 ≠ 题目满分 20，必须明示而不是静默
+renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[{point:"只列了一个子项",score:5,awarded:5,status:"满分"}] }, 33);
+ok(el("#docBody").innerHTML.indexOf("与本题满分 20 分不一致") >= 0, "阅卷页: 子项合计与题目满分不一致时明示");
+
 /* 5. 失败路径 */
 el("#docBody").innerHTML = "正在作答的题";
 handleErr({ code:"API", status:400, text:"model not found" }, true);
@@ -204,6 +224,9 @@ ok(el("#docBody").innerHTML.indexOf("插入公文骨架") < 0, "非公文: 骨�
 current = { module:"gongwen", subtype:"通知", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
 renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") >= 0, "公文: 骨架按钮在场，占位提示与按钮一致");
+current = { module:"gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, phase:"answer", cardPeeks:0 };
+renderQuestion();
+ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") >= 0, "作答页: 题目满分对考生可见");
 state.history = [];
 
 /* 8.6 翻卡次数参与出题调度 */

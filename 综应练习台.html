@@ -100,6 +100,10 @@
   .hitline.hit .mk{color:#2f7d32;}
   .hitline.part .mk{color:#b8860b;}
   .hitline.miss .mk,.hitline.miss .pt{color:#b3261e;}
+  .hitline .sc{font-family:var(--hei);font-size:12.5px;color:var(--muted);flex:0 0 auto;}
+  .hitline.hit .sc{color:#2f7d32;}
+  .hitline.part .sc{color:#b8860b;}
+  .hitline.miss .sc{color:#b3261e;}
   .hitline .ev{color:var(--muted);font-size:12.5px;}
 
   .grade{margin-top:22px;border-top:2px solid var(--gov-red);padding-top:16px;}
@@ -631,6 +635,15 @@ function pickSubtypeFor(k){
 /* ============ 出题 / 阅卷 ============ */
 const SYS_COACH = "你是公考综应教练，熟悉事业单位综合管理类（综应A）各类题型的命题与作答规范。只输出 JSON，不要 markdown 代码块，不要任何解释。";
 const SYS_GRADER = "你是综应阅卷专家，严格按对应题型的评分维度阅卷。只输出 JSON，不要 markdown 代码块，不要任何解释。";
+/* 采分点分值体系（真实阅卷口径）：整题的得分点拆成带分值的子项，子项分值之和 = 题目满分。
+   判定不靠印象分，只看考生对该子项内容的覆盖程度落三档。 */
+const GEN_POINT_RULES = "\n采分点分值：question.score 是题目满分（按真实试卷习惯取 15 / 20 / 25 分）；"
+  + "keyPoints 的每一项是一个带 score 的子项，所有子项分值之和必须正好等于 question.score；"
+  + "子项要能拼成一份完整的满分答案，其总长度落在题干字数上限的 85%-95% 之间。";
+const SCORING_RULES = "逐子项判定三档（先自问：考生对这个子项要求的内容覆盖了多少）："
+  + "覆盖 ≥80% → 给满分（awarded = score）；覆盖 40%-80% → 给一半分（awarded = score 的一半）；覆盖 <40% → 0 分。"
+  + "判定不倒扣，编造内容只是该子项 0 分，不额外扣分。"
+  + "evidence 用固定符号标注问题：【缺：xxx】= 完全没答到的内容；△ = 表述不准；✗ = 严重错误（口径 / 身份 / 文种错）。";
 
 function modInstruction(k){
   const m = MODULES[k];
@@ -658,20 +671,20 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）"},
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难"},
-    "keyPoints":[{"point":"采分点1（6-10条，覆盖参考答案的得分点）","weight":"高/中/低"}]
+    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
+    "keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5}]
   }`
     : `{
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难"},
-    "keyPoints":[{"point":"采分点1（6-10条，覆盖参考答案的得分点）","weight":"高/中/低"}]
+    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
+    "keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5}]
   }`;
-  return await callLLM(SYS_COACH + "\n" + modInstruction(k) + "\n返回 JSON：\n" + schema, user, true, onDelta);
+  return await callLLM(SYS_COACH + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
 }
 async function grade(k, subtype, question, keyPoints, answer, onDelta){
   const m = MODULES[k];
   const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[] });
   const schema = `{
-    "hits":[{"point":"与 keyPoints 一一对应的采分点","status":"命中/部分命中/未命中","evidence":"考生答案中的对应表述；未命中则写缺少什么"}],
+    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],
@@ -679,8 +692,10 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta){
   }`;
   const sys = SYS_GRADER + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定（考生用自己的话表达，意思到位即算命中，不得苛求原文），再由命中情况推导各维度分数。` +
-    `\n档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。同一份答卷重复阅卷，分差应控制在±3以内。` +
-    `\n总分将归一化为百分制（各维度满分20，按维度数量折算）。\n返回 JSON：\n` + schema;
+    `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
+    "\n" + SCORING_RULES +
+    `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。同一份答卷重复阅卷，总分分差应控制在±3以内。` +
+    `\n返回 JSON：\n` + schema;
   return await callLLM(sys, user, true, onDelta);
 }
 
@@ -870,6 +885,7 @@ function renderAnswerPhase(){
   html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
+  if(question.score) html += `<div class="require"><b>分值：</b>${esc(question.score)} 分</div>`;
   if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
 
   html += `<details class="notebox"${note? " open":""}><summary>我的笔记${note? "":"（还没有）"} — 作答时只看这个</summary><div class="notebody" id="noteBody">${note? esc(note) : '<span class="hint">还没记笔记。回「学习卡」页补记，或点右下角翻卡时顺手记。</span>'}</div></details>`;
@@ -1007,10 +1023,11 @@ async function submitAnswer(){
     const g = await grade(mod, sub, q, kps, ans, onDelta);
     if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
     updateProfile(mod);
-    const total = dimTotal(g.scores, MODULES[mod].dims);
+    const pts = pointsOf(g.hits);
+    const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
-      grade:{ total, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
+      grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
     if(state.history.length>200) state.history.length=200;
     clearDraft(qSig(q));
     clearInterval(tick);
@@ -1027,6 +1044,25 @@ function dimTotal(scores, dims){
   const raw = dims.reduce((a,d)=> a + (Number(scores[d])||0), 0);
   return Math.round(raw / (dims.length*20) * 100);
 }
+// 采分点分值口径：总分就是各子项实得分之和。返回 null 表示这份阅卷没有分值信息（老数据），交给上层回退。
+function pointsOf(hits){
+  let got = 0, max = 0, seen = false;
+  for(const h of hits||[]){
+    const s = Number(h && h.score);
+    if(!isFinite(s)) continue;
+    seen = true; max += s;
+    const a = Number(h && h.awarded);
+    got += isFinite(a) ? Math.max(0, Math.min(a, s)) : 0;  // 实得分夹在 [0, 该子项满分] 之间，避免模型多给
+  }
+  return seen && max > 0 ? { got, max } : null;
+}
+// 档位名兼容：新口径 满分/半分/零分，旧数据 命中/部分命中/未命中
+function hitClass(h){
+  const st = String((h && h.status) || "");
+  if(st.indexOf("未")>=0 || st.indexOf("零")>=0 || st.indexOf("✗")>=0) return "miss";
+  if(st.indexOf("部分")>=0 || st.indexOf("半")>=0 || st.indexOf("◐")>=0) return "part";
+  return "hit";
+}
 // 画像聚合值全部由练习记录即时推导（dimStat/typeStat），这里只记“最近练过什么”供推送轮转
 function updateProfile(k){
   state.profile.lastModules.unshift(k);
@@ -1035,7 +1071,12 @@ function updateProfile(k){
 
 function renderGrade(g, total){
   const dims = MODULES[current.module].dims;
-  let html = `<div class="grade"><div class="total">${total} <small>/ 100 分</small></div><div class="dimscores">`;
+  const pts = pointsOf(g.hits);
+  // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
+  const paperScore = Number(current && current.question && current.question.score);
+  const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
+  let html = `<div class="grade"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
+  html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div><div class="dimscores">`;
   for(const d of dims){ const v=Number(g.scores[d])||0; const pct=Math.round(v/20*100);
     html += `<div class="dim"><span class="val">${v}/20</span><div class="name">${d}</div><div class="bar"><i style="width:${pct}%"></i></div></div>`; }
   html += `</div>`;
@@ -1047,10 +1088,10 @@ function renderGrade(g, total){
   if(hits.length){
     html += `<div class="sec-title">采分点对照</div><div class="hits">`;
     for(const h of hits){
-      const st = String(h.status||"");
-      const cls = st.indexOf("未")>=0? "miss" : (st.indexOf("部分")>=0? "part" : "hit");
+      const cls = hitClass(h);
       const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
-      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
+      const sc = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
+      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${sc}${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
     }
     html += `</div>`;
   }
