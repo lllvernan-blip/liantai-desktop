@@ -40,6 +40,11 @@
   .modbar{display:flex;align-items:center;gap:4px;padding:0 14px;border-top:1px solid var(--line);}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;}
   .tab:hover{background:#f3f1ec;}
+  /* 科目切换：页签区左侧的两个科目按钮；页签只列当前科目的模块 */
+  .subjbar{display:flex;align-items:center;gap:6px;padding-right:12px;margin-right:6px;border-right:1px solid var(--line);}
+  .subjbtn{border:1px solid var(--line);background:#fff;color:var(--muted);font-family:var(--hei);font-size:12.5px;padding:5px 12px;cursor:pointer;border-radius:12px;letter-spacing:1px;}
+  .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
+  .subjbtn.active{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
   .chip{border:1px solid var(--line);background:#fff;padding:7px 14px;cursor:pointer;font-size:13.5px;border-radius:16px;}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
@@ -178,7 +183,7 @@
 
 <header class="topbar">
   <div class="toolbar">
-    <span class="brand">综应练习台<small>AI 原生 · 五大题型</small></span>
+    <span class="brand">综应练习台<small>AI 原生 · 综应A / 申论</small></span>
     <span class="spacer"></span>
     <button class="linkbtn" id="btnProfile">我的画像</button>
     <button class="linkbtn" id="btnSettings">设置</button>
@@ -187,6 +192,7 @@
     <input type="file" id="fileImport" accept="application/json" style="display:none">
   </div>
   <div class="modbar">
+    <span class="subjbar" id="subjbar"></span>
     <span id="modbar"></span>
   </div>
 </header>
@@ -267,12 +273,12 @@
 
   <div class="modal" id="modalProfile" hidden role="dialog" aria-modal="true" aria-label="我的画像">
     <div class="box">
-      <div class="mhead"><span>我的画像（分模块强弱 / 文种统计 / 历史）</span><button class="x" title="关闭">✕</button></div>
+      <div class="mhead"><span>我的画像（按科目分组 · 模块强弱 / 题型统计 / 历史）</span><button class="x" title="关闭">✕</button></div>
       <div class="panel-body" id="profileBody"></div>
     </div>
   </div>
 
-  <p class="foot">AI 原生综应练习台 · 公文 / 归纳 / 分析 / 对策 / 实务 · 出题·阅卷·画像·自适应推送 · 数据仅存本地</p>
+  <p class="foot">AI 原生练习台 · 综应A（公文/归纳/分析/对策/实务）· 申论（归纳/对策/分析/贯彻执行）· 出题·阅卷·画像·自适应推送 · 数据仅存本地</p>
 </div>
 
 <script>
@@ -294,21 +300,36 @@ const PROVIDERS = [
 ];
 
 /* ============ 模块定义 ============ */
+// 模块键统一带科目前缀（zy.gongwen）：键全局唯一，画像 / 历史 / 调度全部按模块键聚合，
+// 加科目只需再加一套键，不需要重构聚合逻辑。
 const MODULES = {
-  gongwen:{ name:"公文写作", note:"党政机关公文与应用文写作",
+  "zy.gongwen":{ name:"公文写作", note:"党政机关公文与应用文写作",
     dims:["格式规范","内容完整","行文逻辑","语言得体","文种适配"], matLen:[300,500] },
-  guina:{ name:"归纳概括", note:"概括问题 / 原因 / 影响 / 做法 / 特点",
+  "zy.guina":{ name:"归纳概括", note:"概括问题 / 原因 / 影响 / 做法 / 特点",
     dims:["要点全面","归类准确","表述精炼","逻辑层次"], matLen:[600,900],
     subtypes:["概括问题","概括原因","概括影响","概括做法","概括特点"] },
-  fenxi:{ name:"综合分析", note:"词句理解 / 现象分析 / 观点评析",
+  "zy.fenxi":{ name:"综合分析", note:"词句理解 / 现象分析 / 观点评析",
     dims:["审题准确","分析深入","论证有力","结论稳妥"], matLen:[500,800],
     subtypes:["词句理解","现象分析","观点评析"] },
-  duice:{ name:"提出对策", note:"针对问题提出解决措施",
+  "zy.duice":{ name:"提出对策", note:"针对问题提出解决措施",
     dims:["问题对应","对策可行","针对性强","表述规范"], matLen:[500,800],
     subtypes:["对策建议","启示教训"] },
-  shiwu:{ name:"案例实务", note:"会务 / 信访 / 应急 / 沟通协调",
+  "zy.shiwu":{ name:"案例实务", note:"会务 / 信访 / 应急 / 沟通协调",
     dims:["角色意识","处置得当","程序合规","沟通协调"], matLen:[400,800],
-    subtypes:["会务组织","信访处理","应急处置","沟通协调"] }
+    subtypes:["会务组织","信访处理","应急处置","沟通协调"] },
+  // —— 申论：小题为主，阅卷口径是「要点 + 条理 + 语言」，材料更长；不套用综应A 的实务维度 ——
+  "sl.guina":{ name:"归纳概括", note:"概括问题 / 原因 / 做法 / 成效 / 特点",
+    dims:["要点全面","归类准确","表述精炼","条理清晰","语言准确"], matLen:[800,1200],
+    subtypes:["概括问题","概括原因","概括做法","概括成效","概括特点"] },
+  "sl.duice":{ name:"提出对策", note:"依据材料问题提出对策 / 建议",
+    dims:["问题对应","对策可行","针对性强","条理清晰","语言准确"], matLen:[1000,1400],
+    subtypes:["对策建议","经验启示","建议措施"] },
+  "sl.fenxi":{ name:"综合分析", note:"词句理解 / 观点评析 / 现象分析",
+    dims:["观点明确","分析深入","论证充分","结论稳妥","条理清晰"], matLen:[600,1000],
+    subtypes:["词句理解","观点评析","现象分析"] },
+  "sl.guanche":{ name:"贯彻执行", note:"按身份与场合写讲话稿 / 倡议书 / 意见建议",
+    dims:["格式规范","内容完整","身份贴切","语言得体","条理清晰"], matLen:[800,1200],
+    subtypes:["讲话稿","倡议书","意见建议"] }
 };
 // matLen：各模块材料长度档。真实综应单题材料几百上千字，从长而乱的里提要点才是核心能力，200字练不出来
 const GONGWEN_TYPES = [
@@ -325,6 +346,55 @@ const GONGWEN_TYPES = [
   {type:"公文改错",cat:"专项"}
 ];
 
+/* ============ 科目定义 ============ */
+// 科目只回答两件事：有哪些模块、用哪套教练/阅卷口径（role）。模块内容仍写在 MODULES 里。
+const SUBJECTS = {
+  zy:{ name:"综应A", role:"事业单位综合管理类（综应A）",
+       note:"事业单位综合管理类，公文与案例分析为主",
+       modules:["zy.gongwen","zy.guina","zy.fenxi","zy.duice","zy.shiwu"] },
+  sl:{ name:"申论", role:"公务员申论（小题为主）",
+       note:"公务员申论，给定材料、小题作答为主",
+       modules:["sl.guina","sl.duice","sl.fenxi","sl.guanche"] }
+};
+const SUBJECT_ORDER = ["zy","sl"];
+const DEFAULT_SUBJECT = "zy";
+const GONGWEN_KEY = "zy.gongwen";   // 公文写作：子类型就是文种，取 GONGWEN_TYPES 那一池
+
+function subjectOf(k){ const s = String(k==null?"":k).split(".")[0]; return SUBJECTS[s]? s : null; }
+function moduleKeysOf(subject){ const s = SUBJECTS[subject]; return s? s.modules : []; }
+function moduleName(k){ return (MODULES[k] && MODULES[k].name) || String(k==null?"":k); }
+function subjectName(k){ const s = subjectOf(k); return s? SUBJECTS[s].name : ""; }
+function roleOf(k){ const s = subjectOf(k); return (s && SUBJECTS[s].role) || SUBJECTS[DEFAULT_SUBJECT].role; }
+
+/* ============ 旧数据迁移：裸模块键 -> 科目前缀 ============ */
+// v1 没有「科目」这一层，模块键是裸的（gongwen）。迁移只认「默认科目下的已知裸键」：
+// 命中才补前缀，补完就再也匹配不上 -> 天然幂等（不会变成 zy.zy.gongwen），也不会误改别的键。
+const LEGACY_MODULE_MAP = (()=>{ const m = {};
+  for(const k of SUBJECTS[DEFAULT_SUBJECT].modules) m[k.slice(k.indexOf(".")+1)] = k;
+  return m; })();
+function migrateModuleKey(k){ return LEGACY_MODULE_MAP[k] || k; }
+// 键形如「模块::子类型」：只替换 :: 之前那一段，子类型原样保留
+function migrateKeyedObject(src){
+  const out = {};
+  let changed = false;
+  for(const k in (src||{})){
+    const i = k.indexOf("::");
+    const nk = migrateModuleKey(i>=0? k.slice(0,i) : k) + (i>=0? k.slice(i) : "");
+    if(nk !== k) changed = true;
+    out[nk] = src[k];
+  }
+  return { map:out, changed };
+}
+function migrateHistory(list){
+  let changed = false;
+  const out = (list||[]).map(h=>{
+    const nk = migrateModuleKey(h && h.module);
+    if(nk !== (h && h.module)){ changed = true; return Object.assign({}, h, { module:nk }); }
+    return h;
+  });
+  return { list:out, changed };
+}
+
 function freshModules(){
   const o={};
   for(const k in MODULES){
@@ -335,7 +405,8 @@ function freshModules(){
 }
 const DEFAULT_STATE = {
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"deepseek-v4-flash",
-             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0" },
+             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
+             subject:DEFAULT_SUBJECT },
   profile:{ modules:freshModules(), lastModules:[] },
   history:[],
   cache:{ studyCards:{}, notes:{} },
@@ -360,8 +431,20 @@ function saveHistory(){
   }
 }
 let state = load();
-let activeModule = "gongwen";
+let activeModule = null;   // 当前科目（state.settings.subject）下的模块，由 init() / 切科目时落定
 let current = null;
+function curSubject(){ return SUBJECTS[state.settings.subject] ? state.settings.subject : DEFAULT_SUBJECT; }
+// 「该科目上次练的模块」直接看近期练习记录（profile.lastModules），不另存一份聚合值；没有就取第一个
+function lastModuleOf(subject){
+  const mods = moduleKeysOf(subject);
+  for(const k of (state.profile && state.profile.lastModules) || []){ if(mods.indexOf(k) >= 0) return k; }
+  return mods[0] || null;
+}
+function ensureActive(){
+  if(activeModule === "__all") return;
+  if(moduleKeysOf(curSubject()).indexOf(activeModule) < 0) activeModule = lastModuleOf(curSubject());
+}
+activeModule = lastModuleOf(curSubject());
 
 function load(){
   try{
@@ -370,15 +453,25 @@ function load(){
       // gw_state 缺失（首次使用/被单独清除）时，练习记录也不能丢：gw_history 里有的照读
       const fresh = structuredClone(DEFAULT_STATE);
       const h0 = loadHistory();
-      if(h0) fresh.history = h0;
+      if(h0){
+        const mh0 = migrateHistory(h0);   // 独立 key 里也可能是旧版裸模块键
+        if(mh0.changed){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(mh0.list)); }catch(e){} }
+        fresh.history = mh0.list;
+      }
       return fresh;
     }
     const s = JSON.parse(raw);
+    let migrated = false;   // 任何一处旧数据被改写 -> 整份回写一次（幂等：改完的键下次就匹配不上）
     s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings||{});
     if(!s.settings.reasonLevel){ const t=Number(s.settings.temperature); s.settings.reasonLevel = (t<=0.35?"quick":(t<=0.95?"standard":"deep")); }
     if(["quick","standard","deep"].indexOf(s.settings.reasonLevel)<0) s.settings.reasonLevel="standard";
     if(s.settings.orgName === "综应练习台") s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
+    if(!SUBJECTS[s.settings.subject]) s.settings.subject = DEFAULT_SUBJECT;       // 旧数据没有科目这一层，补默认
     s.profile = s.profile||{};
+    if(s.profile.modules && typeof s.profile.modules === "object"){
+      const pm = migrateKeyedObject(s.profile.modules);   // 画像的模块键补科目前缀（否则旧分值与新建的空键各占一份）
+      if(pm.changed){ s.profile.modules = pm.map; migrated = true; }
+    }
     s.profile.modules = Object.assign(freshModules(), s.profile.modules||{});
     for(const k in MODULES){
       const m = s.profile.modules[k];
@@ -386,6 +479,9 @@ function load(){
       m.weakDims=m.weakDims||[]; m.strongDims=m.strongDims||[]; m.types=m.types||{};
     }
     s.profile.lastModules = s.profile.lastModules||[];
+    // 「最近练过的模块」也补前缀：不然切回科目时恢复不到上次的模块（裸键匹配不上任何模块）
+    const lm = s.profile.lastModules.map(k=>migrateModuleKey(k));
+    if(lm.join("|") !== s.profile.lastModules.join("|")){ s.profile.lastModules = lm; migrated = true; }
     // 迁移：练习记录从 gw_state 拆到 gw_history；写成功才清掉旧副本，失败则下轮再试
     let hist = loadHistory();
     if(Array.isArray(s.history) && s.history.length){
@@ -396,8 +492,22 @@ function load(){
     }
     s.history = hist || [];
     s.cache = s.cache||{studyCards:{}};
+    s.cache.studyCards = s.cache.studyCards||{};
     s.cache.notes = s.cache.notes||{};
+    // 学习卡 / 笔记的键是「模块::子类型」——同样补前缀（只换 :: 之前那段），手写笔记分毫不能丢
+    for(const f of ["studyCards","notes"]){
+      if(!s.cache[f] || typeof s.cache[f] !== "object") continue;
+      const cm = migrateKeyedObject(s.cache[f]);
+      if(cm.changed){ s.cache[f] = cm.map; migrated = true; }
+    }
     s.modelCache = s.modelCache||{};
+    // 练习记录的模块键补前缀；记录存在独立的 gw_history，得单独回写
+    const mh = migrateHistory(s.history);
+    if(mh.changed){
+      s.history = mh.list;
+      try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(s.history)); }catch(e){}
+    }
+    if(migrated){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
     return s;
   }catch(e){ return structuredClone(DEFAULT_STATE); }
 }
@@ -620,8 +730,8 @@ function dimStat(k, dim){
   }
   return n? { avg: sum/wsum, n } : null;
 }
-function subtypeListOf(k){ return k==="gongwen"? GONGWEN_TYPES.map(t=>t.type) : (MODULES[k].subtypes||[]); }
-function subtypeWord(k){ return k==="gongwen"? "文种" : "子类型"; }
+function subtypeListOf(k){ return k===GONGWEN_KEY? GONGWEN_TYPES.map(t=>t.type) : ((MODULES[k] && MODULES[k].subtypes) || []); }
+function subtypeWord(k){ return k===GONGWEN_KEY? "文种" : "子类型"; }
 function subtypeStat(k, t){
   let sum=0, wsum=0, n=0;
   for(const h of state.history){
@@ -675,8 +785,9 @@ function moduleScore(k){
   if(p==null) return COLD_START_SCORE;
   return Math.round(p/20*100) + recentCount(k)*REPEAT_PENALTY - (recentPeeks(k)||0)*PEEK_WEIGHT;
 }
-function weakestModule(){
-  const keys = Object.keys(MODULES);
+function weakestModule(subject){
+  const keys = moduleKeysOf(subject || curSubject());   // 「综合」只在当前科目内综合
+  if(!keys.length) return null;
   if(Math.random()<0.2) return keys[Math.floor(Math.random()*keys.length)];
   // 并列最弱时随机取一个：冷启动时各模块同样“未知”，均摊才是诚实的答案
   let bs=1e9, pool=[];
@@ -707,8 +818,10 @@ function pickSubtypeFor(k){
 }
 
 /* ============ 出题 / 阅卷 ============ */
-const SYS_COACH = "你是公考综应教练，熟悉事业单位综合管理类（综应A）各类题型的命题与作答规范。只输出 JSON，不要 markdown 代码块，不要任何解释。";
-const SYS_GRADER = "你是综应阅卷专家，严格按对应题型的评分维度阅卷。只输出 JSON，不要 markdown 代码块，不要任何解释。";
+// 教练 / 阅卷口径跟着「模块所属科目」走：申论模块用申论的口径，综应模块用综应的口径。
+// 只有这句话是科目化的；下面的 GEN_POINT_RULES / SCORING_RULES 是全科共用的计分口径，一个字都不动。
+function sysCoach(k){ return `你是公考教练，熟悉${roleOf(k)}各类题型的命题与作答规范。只输出 JSON，不要 markdown 代码块，不要任何解释。`; }
+function sysGrader(k){ return `你是${roleOf(k)}阅卷专家，严格按对应题型的评分维度阅卷。只输出 JSON，不要 markdown 代码块，不要任何解释。`; }
 /* 采分点分值体系（真实阅卷口径）：整题的得分点拆成带分值的子项，子项分值之和 = 题目满分。
    判定不靠印象分，只看考生对该子项内容的覆盖程度落三档。 */
 const GEN_POINT_RULES = "\n采分点分值：question.score 是题目满分（按真实试卷习惯取 15 / 20 / 25 分）；"
@@ -721,7 +834,7 @@ const SCORING_RULES = "逐子项判定三档（先自问：考生对这个子项
 
 function modInstruction(k){
   const m = MODULES[k];
-  return `当前练习模块：${m.name}（${m.note}）。该模块评分维度（每个 0-20 分）为：${m.dims.join("、")}。`;
+  return `当前科目：${subjectName(k)}；当前练习模块：${m.name}（${m.note}）。该模块评分维度（每个 0-20 分）为：${m.dims.join("、")}。`;
 }
 function scoresSchema(k){ return `{${MODULES[k].dims.map(d=>`"${d}":0`).join(",")}}`; }
 
@@ -752,7 +865,7 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
     "keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5}]
   }`;
-  return await callLLM(SYS_COACH + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
+  return await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
 }
 async function grade(k, subtype, question, keyPoints, answer, onDelta){
   const m = MODULES[k];
@@ -764,7 +877,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta){
     "weaknesses":["缺点1"],
     "comment":"总体点评（80字内，指出下一步该补哪里）"
   }`;
-  const sys = SYS_GRADER + "\n" + modInstruction(k) +
+  const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定（考生用自己的话表达，意思到位即算命中，不得苛求原文），再由命中情况推导各维度分数。` +
     `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
     "\n" + SCORING_RULES +
@@ -803,14 +916,28 @@ function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   const n = state.history.length + 1, y = new Date().getFullYear();
   $("#docNo").textContent = `${state.settings.noPrefix||"综应练"}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
-  const mn = MODULES[activeModule]? MODULES[activeModule].name : "智能综合";
-  $("#modLabel").textContent = "综应A · " + mn + (current&&current.subtype?` · ${current.subtype}`:"");
+  const subj = SUBJECTS[curSubject()];
+  const mn = (activeModule !== "__all" && MODULES[activeModule])? MODULES[activeModule].name : "智能综合";
+  $("#modLabel").textContent = subj.name + " · " + mn + ((current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
 }
 function renderTabs(){
   // 页签 = 入口，不是开关：点开先看模块落地页（子类型/底子），点「开始练习」才真正调 AI
+  // 页签只列当前科目的模块（左侧两个科目按钮切换）；「综合」= 当前科目内综合
+  const subj = curSubject();
+  const sb = $("#subjbar");
+  if(sb){
+    sb.innerHTML = SUBJECT_ORDER.map(id=>`<button class="subjbtn${id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("");
+    sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=> switchSubject(b.dataset.s));
+  }
   $("#modbar").innerHTML = `<button class="tab" data-k="__all">综合</button>` +
-    Object.keys(MODULES).map(k=>`<button class="tab" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
+    moduleKeysOf(subj).map(k=>`<button class="tab" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
   $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
+}
+function switchSubject(id){
+  if(!SUBJECTS[id] || id === curSubject()) return;
+  state.settings.subject = id; save();
+  activeModule = lastModuleOf(id);   // 恢复到该科目上次练的模块，没有就取第一个
+  renderTabs(); renderHeader(); renderStart();
 }
 function tabClick(k){
   if(k === "__all"){ activeModule = "__all"; renderHeader(); renderStart(); }
@@ -833,7 +960,7 @@ function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在
 function renderStart(){
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
-    <p>AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
+    <p>${esc(SUBJECTS[curSubject()].name)} · AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
     <button class="primary big" id="btnStart">智能推送下一题</button>
   </div>`;
   $("#btnStart").onclick = startSmart;
@@ -843,11 +970,12 @@ function renderStart(){
 function renderModuleLanding(k){
   activeModule = k; renderHeader();
   const m = MODULES[k];
+  const subj = SUBJECTS[subjectOf(k)] || SUBJECTS[curSubject()];
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module===k) n++;
   let html = `<div class="startbox">
-    <h2>${m.name}</h2>
-    <p>${m.note}</p>
+    <h2>${esc(subj.name)} · ${esc(m.name)}</h2>
+    <p>${esc(m.note)}</p>
     <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg/20*100)} 分 · 练过 ${n} 次` : "还没练过——第一次会带你过一遍"}<br>评分维度：${m.dims.join("、")}</p>
     <div class="subtypechips">
     ${subtypeListOf(k).map(t=>{
@@ -863,7 +991,8 @@ function renderModuleLanding(k){
 }
 
 async function startSmart(){
-  const k = weakestModule(); activeModule = k; renderHeader();
+  const k = weakestModule(); if(!k) return;
+  activeModule = k; renderHeader();
   await loadQuestion(k, pickSubtypeFor(k));
 }
 async function startModule(k){
@@ -966,9 +1095,9 @@ function renderAnswerPhase(){
 
   html += `<div class="answer-wrap" id="answerArea">
     <div class="sec-title">作答区</div>
-    <textarea id="answer" placeholder="${module==="gongwen"? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
+    <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
-      ${module==="gongwen"? '<button id="btnTpl">插入公文骨架</button>':''}
+      ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
       <button class="primary" id="btnSubmit">提交阅卷</button>
       <span class="counter" id="wordCount"><b>0</b> 字</span>
       <span class="hint" id="draftNote"></span>
@@ -984,7 +1113,7 @@ function renderAnswerPhase(){
   docBody.innerHTML = html;
 
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
-  if(module==="gongwen") $("#btnTpl").onclick = insertSkeleton;
+  if(module===GONGWEN_KEY) $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
 
   const openDrawer = ()=>{
@@ -1184,29 +1313,33 @@ function renderGrade(g, total){
 
 /* ============ 画像 ============ */
 function renderProfile(){
-  let html = `<div class="hint" style="margin-bottom:10px">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。</div>`;
-  for(const k of Object.keys(MODULES)){
-    const avg=moduleAvg(k);
-    html += `<div class="modblock"><h4>${MODULES[k].name}${avg!=null?` · 均分 ${Math.round(avg/20*100)}`:" · 未练"}</h4><div class="dimscores">`;
-    const weak=[], strong=[];
-    for(const d of MODULES[k].dims){
-      const st = dimStat(k,d);
-      const pct = st? Math.round(st.avg/20*100) : 0;
-      if(st){ if(pct<70) weak.push(d); else if(pct>=85) strong.push(d); }
-      html += `<div class="dim"><span class="val">${st? pct+"分 · "+st.n+"次" : "未练"}</span><div class="name">${d}</div><div class="bar"><i style="width:${st?pct:0}%"></i></div></div>`;
+  let html = `<div class="hint" style="margin-bottom:10px">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。按科目分组看：先综应A各模块，再申论各模块。</div>`;
+  for(const sid of SUBJECT_ORDER){
+    const subj = SUBJECTS[sid];
+    html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div>`;
+    for(const k of subj.modules){
+      const avg=moduleAvg(k);
+      html += `<div class="modblock"><h4>${esc(MODULES[k].name)}${avg!=null?` · 均分 ${Math.round(avg/20*100)}`:" · 未练"}</h4><div class="dimscores">`;
+      const weak=[], strong=[];
+      for(const d of MODULES[k].dims){
+        const st = dimStat(k,d);
+        const pct = st? Math.round(st.avg/20*100) : 0;
+        if(st){ if(pct<70) weak.push(d); else if(pct>=85) strong.push(d); }
+        html += `<div class="dim"><span class="val">${st? pct+"分 · "+st.n+"次" : "未练"}</span><div class="name">${d}</div><div class="bar"><i style="width:${st?pct:0}%"></i></div></div>`;
+      }
+      html += `</div>`;
+      if(weak.length) html += `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
+      if(strong.length) html += `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`;
+      const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
+      if(rows.length){ html+=`<div class="typestat">`; for(const r of rows){ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; html+=`<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; } html+=`</div>`; }
+      html += `</div>`;
     }
-    html += `</div>`;
-    if(weak.length) html += `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
-    if(strong.length) html += `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`;
-    const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
-    if(rows.length){ html+=`<div class="typestat">`; for(const r of rows){ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; html+=`<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; } html+=`</div>`; }
-    html += `</div>`;
   }
-  html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>模块</th><th>文种</th><th>总分</th><th>待改进</th></tr></thead><tbody>`;
+  html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th>总分</th><th>待改进</th></tr></thead><tbody>`;
   for(const h of state.history.slice(0,50)){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     const weak=(h.grade.weaknesses||[]).slice(0,2).join("；");
-    html += `<tr><td>${ds}</td><td>${esc(MODULES[h.module].name)}</td><td>${esc(h.subtype||"—")}</td><td>${h.grade.total}</td><td>${esc(weak||"—")}</td></tr>`;
+    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td>${h.grade.total}</td><td>${esc(weak||"—")}</td></tr>`;
   }
   html += `</tbody></table></div>`;
   $("#profileBody").innerHTML = html;
@@ -1382,15 +1515,20 @@ function importJSON(file){
       state = Object.assign(structuredClone(DEFAULT_STATE), s);
       state.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings);
       if(state.settings.orgName === "综应练习台") state.settings.orgName = "模拟练习专用";
+      if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
       state.profile = state.profile||{};
-      state.profile.modules = Object.assign(freshModules(), s.profile.modules||{});
+      // 备份也可能是旧版（裸模块键）：导入同样走一遍迁移，不原样当可信记录用
+      state.profile.modules = Object.assign(freshModules(), migrateKeyedObject(s.profile.modules||{}).map);
       for(const k in MODULES){ const m=state.profile.modules[k];
         m.dims = Object.assign(Object.fromEntries(MODULES[k].dims.map(d=>[d,{sum:0,n:0}])), m.dims||{});
         m.weakDims=m.weakDims||[]; m.strongDims=m.strongDims||[]; m.types=m.types||{}; }
-      state.profile.lastModules = state.profile.lastModules||[];
-      state.history = Array.isArray(s.history)? s.history : []; state.cache = s.cache||{studyCards:{}}; state.cache.notes = (s.cache&&s.cache.notes)||{};
+      state.profile.lastModules = (state.profile.lastModules||[]).map(k=>migrateModuleKey(k));
+      state.history = migrateHistory(Array.isArray(s.history)? s.history : []).list;
+      state.cache = s.cache||{studyCards:{}};
+      state.cache.studyCards = migrateKeyedObject(state.cache.studyCards||{}).map;
+      state.cache.notes = migrateKeyedObject((s.cache&&s.cache.notes)||{}).map;
       state.modelCache = s.modelCache||{};
-      saveHistory(); save(); fillSettings(); renderHeader(); renderProfile(); openModal("modalProfile"); banner("已从备份恢复数据 ✓");
+      saveHistory(); save(); fillSettings(); ensureActive(); renderTabs(); renderHeader(); renderProfile(); openModal("modalProfile"); banner("已从备份恢复数据 ✓");
     }catch(e){ banner("导入失败：文件不是有效的备份 JSON。"); }
   };
   r.readAsText(file);
@@ -1514,6 +1652,7 @@ function handleErr(e, keepView){
 
 /* ============ 初始化 ============ */
 function init(){
+  ensureActive();
   fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderStart();
   // 有 Key 就按实拉名单走：预设只负责没 Key 时的起步建议
   if(state.settings.apiKey) fetchModels(true);

@@ -7,6 +7,24 @@ function scoresFor(k, v){ const sc={}; for(const d of MODULES[k].dims) sc[d]=v; 
 
 /* 0. 启动顺序：页面脚本求值时，gw_history 里预置的练习记录必须已被 load() 读进内存（TDZ/顺序回归哨兵） */
 ok(state.history.length === 1 && state.history[0].ts === 42, "启动顺序: 首次求值即从 gw_history 读回练习记录");
+// 预置的是一条旧格式（裸模块键）记录：启动路径就得把它迁到科目前缀上
+ok(state.history[0].module === "zy.gongwen", "启动顺序: 旧裸模块键在首次 load 时就补上科目前缀");
+
+/* 0.5 科目骨架：模块键全局唯一、科目定义齐备 */
+const ALL_MODULE_KEYS = SUBJECT_ORDER.reduce((a,s)=>a.concat(SUBJECTS[s].modules), []);
+ok(new Set(ALL_MODULE_KEYS).size === ALL_MODULE_KEYS.length, "模块键: 全局唯一（" + ALL_MODULE_KEYS.length + " 个）");
+ok(Object.keys(MODULES).length === ALL_MODULE_KEYS.length && Object.keys(MODULES).every(k=>ALL_MODULE_KEYS.indexOf(k)>=0),
+   "模块键: MODULES 与 SUBJECTS 一一对应，无游离模块");
+ok(ALL_MODULE_KEYS.every(k=>MODULES[k] && MODULES[k].name && MODULES[k].dims.length >= 4 && MODULES[k].matLen),
+   "模块键: 每个模块都有名字、评分维度和材料长度档");
+ok(ALL_MODULE_KEYS.every(k=>k.split(".").length === 2 && SUBJECTS[k.split(".")[0]]),
+   "模块键: 都带科目前缀（科目.模块）");
+ok(SUBJECT_ORDER.map(s=>SUBJECTS[s].modules.length).join(",") === "5,4",
+   "科目: 综应A 五模块 / 申论 四模块");
+ok(SUBJECT_ORDER.every(s=>SUBJECTS[s].name && SUBJECTS[s].role && SUBJECTS[s].note), "科目: name / role / note 齐备");
+ok(subjectOf("zy.gongwen") === "zy" && subjectOf("sl.guanche") === "sl" && subjectOf("gongwen") === null,
+   "科目归属: 按模块键前缀解析，裸键不算任何科目");
+ok(DEFAULT_STATE.settings.subject === "zy" && load().settings.subject === "zy", "科目: 默认科目是 zy");
 
 /* 1. 纯函数 */
 ok(JSON.stringify(parseJsonLoose('```json\n{"a":1,}\n```')) === '{"a":1}', "parseJsonLoose: 剥代码围栏 + 容尾逗号");
@@ -20,17 +38,17 @@ ok(parseJsonLoose('{"a":"x, y: z"}').a === "x, y: z", "parseJsonLoose: 正文里
 let threwBad = false; try{ parseJsonLoose("{完全不是 JSON"); }catch(e){ threwBad = true; }
 ok(threwBad, "parseJsonLoose: 修不好时老实报格式异常，不硬编");
 ok(dimTotal({ x:10, y:20 }, ["x","y"]) === 75, "dimTotal: 归一化为百分制");
-ok(difficultyFor("gongwen") === "适中", "难度: 未练过默认适中");
-state.history = [{ module:"gongwen", grade:{ scores: scoresFor("gongwen",17) } }]; // 85%
-ok(difficultyFor("gongwen") === "较难", "难度: 高分加码到较难");
-state.history = [{ module:"gongwen", grade:{ scores: scoresFor("gongwen",9) } }];  // 45%
-ok(difficultyFor("gongwen") === "简单", "难度: 低分退到简单");
+ok(difficultyFor("zy.gongwen") === "适中", "难度: 未练过默认适中");
+state.history = [{ module:"zy.gongwen", grade:{ scores: scoresFor("zy.gongwen",17) } }]; // 85%
+ok(difficultyFor("zy.gongwen") === "较难", "难度: 高分加码到较难");
+state.history = [{ module:"zy.gongwen", grade:{ scores: scoresFor("zy.gongwen",9) } }];  // 45%
+ok(difficultyFor("zy.gongwen") === "简单", "难度: 低分退到简单");
 state.history = [];
 ok(wordLimit({ requirements:"以街道办名义写一份通知，不超过300字。" }) === 300, "字数上限: 不超过N字");
 ok(wordLimit({ requirements:"写一份倡议书（350字以内）。" }) === 350, "字数上限: N字以内");
 ok(wordLimit({ requirements:"写一份公开信，字数450左右。" }) === 450, "字数上限: 字数N左右");
 ok(wordLimit({ requirements:"写一份函。" }) === null, "字数上限: 无要求返回 null");
-ok(MODULES.gongwen.matLen[0] === 300 && MODULES.guina.matLen[1] === 900, "材料分档: 按模块给真实长度");
+ok(MODULES["zy.gongwen"].matLen[0] === 300 && MODULES["zy.guina"].matLen[1] === 900, "材料分档: 按模块给真实长度");
 ok(GONGWEN_TYPES.some(t=>t.type==="公文改错"), "题型: 公文改错已入池");
 
 /* 1.5 流式 */
@@ -59,48 +77,48 @@ for(let i=0;i<400;i++){ const k = weakestModule(); seen[k] = (seen[k]||0)+1; }
 const counts = Object.values(seen);
 ok(Object.keys(seen).length === 5 && Math.min.apply(null,counts) >= 40 && Math.max.apply(null,counts) <= 120,
    "冷启动: 五个模块均摊，而不是死守第一个 -> " + JSON.stringify(seen));
-state.history = [ { module:"gongwen", grade:{ scores: scoresFor("gongwen",15) } },  // 最新：75%
-                  { module:"guina",   grade:{ scores: scoresFor("guina",11) } } ];  // 更早：55%
-state.profile.lastModules = ["gongwen"];
-ok(moduleScore("guina") < moduleScore("gongwen"), "更弱且没刚练过的模块优先");
+state.history = [ { module:"zy.gongwen", grade:{ scores: scoresFor("zy.gongwen",15) } },  // 最新：75%
+                  { module:"zy.guina",   grade:{ scores: scoresFor("zy.guina",11) } } ];  // 更早：55%
+state.profile.lastModules = ["zy.gongwen"];
+ok(moduleScore("zy.guina") < moduleScore("zy.gongwen"), "更弱且没刚练过的模块优先");
 let g = 0;
-for(let i=0;i<200;i++){ if(weakestModule() === "gongwen") g++; }
+for(let i=0;i<200;i++){ if(weakestModule() === "zy.gongwen") g++; }
 ok(g < 80, "刚练过的模块不再霸屏 (gongwen " + g + "/200)");
 const tseen = {};
-for(let i=0;i<400;i++){ tseen[pickSubtypeFor("gongwen")] = 1; }
+for(let i=0;i<400;i++){ tseen[pickSubtypeFor("zy.gongwen")] = 1; }
 ok(Object.keys(tseen).length === GONGWEN_TYPES.length, "文种: " + GONGWEN_TYPES.length + " 个文种都不会被饿死 (" + Object.keys(tseen).length + "/" + GONGWEN_TYPES.length + ")");
 
 /* 4. 渲染（画像从练习记录近期加权推导） */
-state.history = [{ module:"gongwen", grade:{ scores: scoresFor("gongwen",15) } }]; // 75%
+state.history = [{ module:"zy.gongwen", grade:{ scores: scoresFor("zy.gongwen",15) } }]; // 75%
 renderProfile();
 ok(el("#profileBody").innerHTML.indexOf("width:75%") >= 0, "画像: 进度条按百分制铺满 (75%)");
 ok(el("#profileBody").innerHTML.indexOf("均分 75") >= 0, "画像: 均分与进度条同一刻度");
 // 同样两次练习（旧 5 分、新 15 分）：终身平均是 50%，近期加权应为 52% —— 画像必须偏向最近
-state.history = [ { module:"gongwen", grade:{ scores: scoresFor("gongwen",15) } },
-                  { module:"gongwen", grade:{ scores: scoresFor("gongwen",5)  } } ];
+state.history = [ { module:"zy.gongwen", grade:{ scores: scoresFor("zy.gongwen",15) } },
+                  { module:"zy.gongwen", grade:{ scores: scoresFor("zy.gongwen",5)  } } ];
 renderProfile();
 ok(el("#profileBody").innerHTML.indexOf("width:52%") >= 0, "画像: 近期加权生效（52% 而非终身平均 50%）");
 // 短板/强项由加权分推导：格式规范 25% → 短板，语言得体 95% → 强项
-const mixed = scoresFor("gongwen", 12); mixed["格式规范"] = 5; mixed["语言得体"] = 19;
-state.history = [{ module:"gongwen", grade:{ scores: mixed } }];
+const mixed = scoresFor("zy.gongwen", 12); mixed["格式规范"] = 5; mixed["语言得体"] = 19;
+state.history = [{ module:"zy.gongwen", grade:{ scores: mixed } }];
 renderProfile();
 ok(el("#profileBody").innerHTML.indexOf("短板·格式规范") >= 0, "画像: 短板由加权分推导");
 ok(el("#profileBody").innerHTML.indexOf("强项·语言得体") >= 0, "画像: 强项由加权分推导");
 // 文种统计同样近期加权：新 80、旧 60 → (80+60*0.85)/1.85 ≈ 71，而非终身平均 70
-state.history = [ { module:"gongwen", subtype:"通知", grade:{ total:80, scores: scoresFor("gongwen",16) } },
-                  { module:"gongwen", subtype:"通知", grade:{ total:60, scores: scoresFor("gongwen",12) } } ];
+state.history = [ { module:"zy.gongwen", subtype:"通知", grade:{ total:80, scores: scoresFor("zy.gongwen",16) } },
+                  { module:"zy.gongwen", subtype:"通知", grade:{ total:60, scores: scoresFor("zy.gongwen",12) } } ];
 renderProfile();
 ok(el("#profileBody").innerHTML.indexOf(">71<") >= 0, "画像: 文种统计近期加权 (71 而非 70)");
 state.settings.orgName = "测试单位";
 state.history = [];
-current = { module:"gongwen", subtype:"通知", question:q1, phase:"answer", cardPeeks:0 };
+current = { module:"zy.gongwen", subtype:"通知", question:q1, phase:"answer", cardPeeks:0 };
 saveDraft(qSig(q1), "恢复我");
 el("#answer").value = "";
 el("#draftNote").textContent = "";
 renderQuestion();
 ok(el("#answer").value === "恢复我", "题目页: 自动恢复未提交草稿");
 ok(el("#wordCount").innerHTML.indexOf("3") >= 0, "题目页: 字数统计");
-current = { module:"gongwen", subtype:"通知", question:{ background:"字数题", requirements:"写一份通知，不超过200字。" } };
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"字数题", requirements:"写一份通知，不超过200字。" } };
 saveDraft(qSig(current.question), "x");
 el("#answer").value = "一二三四五六七八九十".repeat(25);   // 250 字，超出 200
 syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
@@ -108,8 +126,8 @@ ok(el("#wordCount").innerHTML.indexOf("超出 50 字") >= 0 && el("#wordCount").
 el("#answer").value = "一二三四五";
 syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
 ok(el("#wordCount").innerHTML.indexOf("/ 200 字") >= 0, "题目页: 未超出时显示 已写/上限");
-current = { module:"gongwen", subtype:"通知", question:q1 };
-current = { module:"gongwen", subtype:"通知", question:q1 };
+current = { module:"zy.gongwen", subtype:"通知", question:q1 };
+current = { module:"zy.gongwen", subtype:"通知", question:q1 };
 renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送机关"],
               hits:[ {point:"标题含事由",status:"命中",evidence:"考生写了标题"},
                      {point:"写明主送机关",status:"未命中",evidence:"缺主送机关"},
@@ -154,17 +172,17 @@ handleErr({ code:"NO_KEY" }, true);
 ok(el("#bannerSlot").innerHTML.indexOf("AI Key") >= 0, "未配置 Key 有明确指引");
 
 /* 6. 存储：练习记录单独 key（gw_history）+ 写满降级 */
-state.history = Array.from({ length:200 }, (_,i)=>({ ts:i, module:"gongwen", subtype:null, question:{}, answer:"", grade:{ total:60, scores:{}, strengths:[], weaknesses:[] } }));
-state.cache.studyCards = { "gongwen::通知": { title:"卡" } };
-state.cache.notes = { "gongwen::通知": "手写笔记，不能丢" };
+state.history = Array.from({ length:200 }, (_,i)=>({ ts:i, module:"zy.gongwen", subtype:null, question:{}, answer:"", grade:{ total:60, scores:{}, strengths:[], weaknesses:[] } }));
+state.cache.studyCards = { "zy.gongwen::通知": { title:"卡" } };
+state.cache.notes = { "zy.gongwen::通知": "手写笔记，不能丢" };
 const realSet = localStorage.setItem;
 let n = 0;
 localStorage.setItem = (k,v) => { if(k === "gw_state"){ n++; if(n <= 2) { const e = new Error("quota"); e.name = "QuotaExceededError"; throw e; } } realSet(k,v); };
 let threw = false;
 try{ save(); }catch(e){ threw = true; }
 ok(!threw, "gw_state 写满时不再直接抛错崩掉");
-ok(!state.cache.studyCards["gongwen::通知"], "gw_state 写满时丢弃可再生的学习卡缓存");
-ok(state.cache.notes["gongwen::通知"] === "手写笔记，不能丢", "gw_state 写满时手写笔记分毫无损");
+ok(!state.cache.studyCards["zy.gongwen::通知"], "gw_state 写满时丢弃可再生的学习卡缓存");
+ok(state.cache.notes["zy.gongwen::通知"] === "手写笔记，不能丢", "gw_state 写满时手写笔记分毫无损");
 ok(state.history.length === 200, "save() 不再裁练习记录");
 localStorage.setItem = realSet;
 save();
@@ -185,13 +203,56 @@ ok(loadHistory() === null || Array.isArray(loadHistory()), "loadHistory 对坏�
 
 /* 6.1 history 拆 key 迁移 */
 localStorage.clear();
-localStorage.setItem("gw_state", JSON.stringify({ settings:{}, profile:{}, history:[{ ts:1, module:"guina", grade:{ total:50, scores:{} } }], cache:{} }));
+localStorage.setItem("gw_state", JSON.stringify({ settings:{}, profile:{}, history:[{ ts:1, module:"zy.guina", grade:{ total:50, scores:{} } }], cache:{} }));
 const stMig = load();
 ok(stMig.history.length === 1 && stMig.history[0].ts === 1, "迁移: 旧 gw_state 里的练习记录被读出");
 ok(Array.isArray(JSON.parse(localStorage.getItem("gw_history"))) && JSON.parse(localStorage.getItem("gw_history")).length === 1, "迁移: 当场写入 gw_history，中途关页不丢");
 ok(!("history" in JSON.parse(localStorage.getItem("gw_state"))), "迁移: 旧副本从 gw_state 清除");
 const stFresh = load();
 ok(stFresh.history.length === 1 && stFresh.history[0].ts === 1, "迁移: 再次 load 从新 key 读，不重复迁移");
+localStorage.clear();
+
+/* 6.2 科目前缀迁移：旧裸模块键 -> zy.*，幂等且不丢数据 */
+localStorage.clear();
+localStorage.setItem("gw_state", JSON.stringify({
+  settings:{ provider:"deepseek", apiKey:"sk-x" },   // 旧数据没有 subject 这一层
+  profile:{ modules:{ gongwen:{ dims:{ "格式规范":{sum:34,n:2}, "语言得体":{sum:30,n:2} }, weakDims:["格式规范"], strongDims:[], types:{} },
+                     guina:{ dims:{ "要点全面":{sum:20,n:1} } } },
+            lastModules:["gongwen","guina"] },
+  cache:{ studyCards:{ "gongwen::通知":{ title:"卡" } }, notes:{ "gongwen::通知":"手写笔记" } },
+  history:[{ ts:7, module:"gongwen", subtype:"通知", grade:{ total:70, scores:{} } }]
+}));
+const m1 = load();
+ok(m1.profile.modules["zy.gongwen"].dims["格式规范"].sum === 34 && m1.profile.modules["zy.gongwen"].dims["语言得体"].sum === 30,
+   "迁移: 画像键补前缀且维度分值分毫未丢");
+ok(m1.profile.modules["zy.guina"].dims["要点全面"].sum === 20, "迁移: 同科目其它模块一起迁");
+ok(!m1.profile.modules["gongwen"] && !m1.profile.modules["guina"], "迁移: 裸模块键不再残留在画像里");
+ok(m1.profile.lastModules[0] === "zy.gongwen" && m1.profile.lastModules[1] === "zy.guina", "迁移: 最近练过的模块键同样补前缀");
+ok(m1.cache.studyCards["zy.gongwen::通知"] && !m1.cache.studyCards["gongwen::通知"], "迁移: 学习卡键只替换 :: 之前那段");
+ok(m1.cache.notes["zy.gongwen::通知"] === "手写笔记", "迁移: 手写笔记原样保留");
+ok(m1.history[0].module === "zy.gongwen", "迁移: 练习记录的模块键补前缀");
+ok(m1.settings.subject === "zy", "迁移: 缺科目时补默认 zy");
+const m2 = load();
+ok(m2.profile.modules["zy.gongwen"].dims["格式规范"].sum === 34 && Object.keys(m2.profile.modules).indexOf("zy.zy.gongwen") < 0,
+   "迁移: 二次 load 幂等（不叠前缀、不丢数据）");
+ok(m2.cache.studyCards["zy.gongwen::通知"] && !m2.cache.studyCards["zy.zy.gongwen::通知"], "迁移: 缓存键二次 load 幂等");
+ok(m2.history[0].module === "zy.gongwen" && m2.history.length === 1, "迁移: 记录键二次 load 幂等");
+const storedAfter = localStorage.getItem("gw_state");
+ok(storedAfter.indexOf("zy.zy.") < 0 && storedAfter.indexOf('"gongwen"') < 0, "迁移: 回写后的状态里既无裸键也无叠前缀");
+let legacy2 = JSON.parse(localStorage.getItem("gw_state"));
+legacy2.settings.subject = "sl";
+localStorage.setItem("gw_state", JSON.stringify(legacy2));
+ok(load().settings.subject === "sl", "迁移: 已有科目不被改写");
+legacy2.settings.subject = "bogus";
+localStorage.setItem("gw_state", JSON.stringify(legacy2));
+ok(load().settings.subject === "zy", "迁移: 非法科目落到默认");
+// 独立的 gw_history 里也可能是裸键
+localStorage.clear();
+localStorage.setItem("gw_history", JSON.stringify([{ ts:9, module:"guina", grade:{ total:50, scores:{} } }]));
+const m3 = load();
+ok(m3.history[0].module === "zy.guina", "迁移: 独立 gw_history 里的裸键补前缀");
+ok(load().history[0].module === "zy.guina" && load().history.length === 1, "迁移: gw_history 二次 load 幂等");
+ok(!m3.cache.studyCards["zy.gongwen::通知"], "迁移: gw_state 缺失时从全新默认值开始");
 localStorage.clear();
 
 /* 7. 复查补测：多草稿槽 + 公文骨架同步 */
@@ -202,7 +263,7 @@ saveDraft(qSig(qB), "B 的草稿");
 ok(loadDraft(qSig(qA)) === "A 的草稿" && loadDraft(qSig(qB)) === "B 的草稿", "草稿: 换题不覆盖（多槽）");
 for(let i=0;i<10;i++){ saveDraft(qSig({ background:"t"+i, requirements:"r" }), "草稿"+i); }
 ok(loadDraft(qSig(qA)) === "", "草稿: 超过 8 份时最旧的被挤出");
-current = { module:"gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" }, phase:"answer", cardPeeks:0 };
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" }, phase:"answer", cardPeeks:0 };
 renderQuestion();
 el("#btnTpl").onclick();
 ok(el("#wordCount").innerHTML.indexOf("<b>0<") < 0, "骨架: 插入后字数同步");
@@ -235,10 +296,10 @@ ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外�
 globalThis.fetch = realFetch;
 
 /* 8.5 两阶段练习 + 翻卡计数 + 笔记 */
-saveNote("gongwen","通知","要点一：格式完整");
-ok(getNote("gongwen","通知") === "要点一：格式完整" && getNote("gongwen","函") === "", "笔记: 按文种键存取，不串味");
-state.history = [{ module:"gongwen", subtype:"通知", cardPeeks:2, grade:{ total:70, scores:{} } }];
-current = { module:"gongwen", subtype:"通知", question:{ background:"阶段题", requirements:"写一份通知。" }, phase:"card", cardPeeks:0,
+saveNote("zy.gongwen","通知","要点一：格式完整");
+ok(getNote("zy.gongwen","通知") === "要点一：格式完整" && getNote("zy.gongwen","函") === "", "笔记: 按文种键存取，不串味");
+state.history = [{ module:"zy.gongwen", subtype:"通知", cardPeeks:2, grade:{ total:70, scores:{} } }];
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"阶段题", requirements:"写一份通知。" }, phase:"card", cardPeeks:0,
             studyCard:{ title:"通知·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架文本" } };
 renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("题目（模块") < 0, "卡片页: 不给看题，先学");
@@ -252,50 +313,50 @@ ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "作答页: 翻卡浮�
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
 ok(el("#drawerBody").innerHTML.indexOf("解题要点") >= 0, "抽屉: 卡片原文只在抽屉里");
-saveNote("gongwen","通知","要点一：格式完整\n要点二：主送机关");
+saveNote("zy.gongwen","通知","要点一：格式完整\n要点二：主送机关");
 el("#btnDrawerClose").onclick();
 ok(el("#cardDrawer").hidden === true, "抽屉: 可关闭");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 2, "抽屉: 再看再计");
 ok(el("#docBody").innerHTML.indexOf("回学习卡") < 0, "作答页: 顶部回卡入口已删，只留抽屉");
-current = { module:"guina", subtype:"概括原因", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
+current = { module:"zy.guina", subtype:"概括原因", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
 renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") < 0, "非公文: 骨架按钮与占位提示都不出现");
-current = { module:"gongwen", subtype:"通知", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
 renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") >= 0, "公文: 骨架按钮在场，占位提示与按钮一致");
-current = { module:"gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, phase:"answer", cardPeeks:0 };
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, phase:"answer", cardPeeks:0 };
 renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") >= 0, "作答页: 题目满分对考生可见");
 state.history = [];
 
 /* 8.6 翻卡次数参与出题调度 */
-ok(recentPeeks("gongwen","通知") === null && recentPeeks("duice") === null, "翻卡: 无记录时返回 null");
+ok(recentPeeks("zy.gongwen","通知") === null && recentPeeks("zy.duice") === null, "翻卡: 无记录时返回 null");
 state.history = [
-  { module:"gongwen", subtype:"通知", grade:{ total:70, scores: scoresFor("gongwen",14) }, cardPeeks:3 },
-  { module:"gongwen", subtype:"函",   grade:{ total:70, scores: scoresFor("gongwen",14) }, cardPeeks:0 }
+  { module:"zy.gongwen", subtype:"通知", grade:{ total:70, scores: scoresFor("zy.gongwen",14) }, cardPeeks:3 },
+  { module:"zy.gongwen", subtype:"函",   grade:{ total:70, scores: scoresFor("zy.gongwen",14) }, cardPeeks:0 }
 ];
-ok(recentPeeks("gongwen","通知") === 3 && recentPeeks("gongwen","函") === 0, "翻卡: 近期翻卡次数可按文种查询");
+ok(recentPeeks("zy.gongwen","通知") === 3 && recentPeeks("zy.gongwen","函") === 0, "翻卡: 近期翻卡次数可按文种查询");
 const orRand = Math.random; Math.random = () => 0.9;   // 避开 20% 随机探索，走确定性分支
-ok(pickSubtypeFor("gongwen") === "通知", "调度: 翻得多的卡对应文种优先再出 (got " + pickSubtypeFor("gongwen") + ")");
+ok(pickSubtypeFor("zy.gongwen") === "通知", "调度: 翻得多的卡对应文种优先再出 (got " + pickSubtypeFor("zy.gongwen") + ")");
 Math.random = orRand;
 state.history = [
-  { module:"guina", grade:{ scores: scoresFor("guina",14) }, cardPeeks:4 },
-  { module:"fenxi", grade:{ scores: scoresFor("fenxi",14) }, cardPeeks:0 }
+  { module:"zy.guina", grade:{ scores: scoresFor("zy.guina",14) }, cardPeeks:4 },
+  { module:"zy.fenxi", grade:{ scores: scoresFor("zy.fenxi",14) }, cardPeeks:0 }
 ];
-ok(moduleScore("guina") < moduleScore("fenxi"), "调度: 同分模块，翻卡多的更优先");
+ok(moduleScore("zy.guina") < moduleScore("zy.fenxi"), "调度: 同分模块，翻卡多的更优先");
 state.history = [];
 
 /* 8.7 子类型扩展到全部题型 */
-ok(subtypeListOf("gongwen").length === GONGWEN_TYPES.length && subtypeListOf("guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
+ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf("zy.guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
 tabClick("__all");
 ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0, "综合入口: 页签直达智能推送起点");
-tabClick("guina");
+tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
-state.history = [{ module:"guina", subtype:"概括原因", grade:{ total:60, scores: scoresFor("guina",12) }, cardPeeks:4 }];
+state.history = [{ module:"zy.guina", subtype:"概括原因", grade:{ total:60, scores: scoresFor("zy.guina",12) }, cardPeeks:4 }];
 const orRand2 = Math.random; Math.random = () => 0.9;
-ok(pickSubtypeFor("guina") === "概括原因", "调度: 非公文题型同样按翻卡优先 (got " + pickSubtypeFor("guina") + ")");
+ok(pickSubtypeFor("zy.guina") === "概括原因", "调度: 非公文题型同样按翻卡优先 (got " + pickSubtypeFor("zy.guina") + ")");
 Math.random = orRand2;
 state.history = [];
 
@@ -322,6 +383,83 @@ state.settings.markColor = "#a7f3d0"; applyMarkColor(); renderMarkSwatches();
 ok((el("#markSwatches").innerHTML.match(/swatch sel/g)||[]).length === 1, "颜色: 选中标记唯一");
 ok(el("#markSwatches").innerHTML.indexOf("#fbcfe8") >= 0 && el("#markSwatches").innerHTML.indexOf("#fde68a") >= 0, "颜色: 黄色仍在备选，但非默认");
 ok(document.documentElement.style["--mark"] === "#a7f3d0", "颜色: CSS 变量已应用");
+
+/* 9. 科目切换：页签只列当前科目的模块 / 抬头跟科目 / 画像分组 / prompt 口径 */
+state.history = [];
+state.profile.lastModules = ["zy.shiwu", "sl.guanche"];   // 两个科目各有一个「上次练的模块」
+renderTabs();
+ok(el("#subjbar").innerHTML.indexOf("综应A") >= 0 && el("#subjbar").innerHTML.indexOf("申论") >= 0,
+   "科目切换: 两个科目都在页签区");
+ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
+   "页签: 当前科目（综应A）只列综应模块");
+switchSubject("sl");
+ok(curSubject() === "sl" && state.settings.subject === "sl", "科目: 切换后落盘 settings.subject");
+ok(el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0
+   && el("#modbar").innerHTML.indexOf("案例实务") < 0, "页签: 切到申论后只渲染申论模块");
+ok(activeModule === "sl.guanche", "科目: 切到申论后恢复该科目上次练的模块 (got " + activeModule + ")");
+ok(el("#modLabel").textContent.indexOf("申论 · ") === 0, "抬头: 科目名 · 模块名");
+switchSubject("zy");
+ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
+   "页签: 切回综应A 只留综应模块");
+ok(activeModule === "zy.shiwu", "科目: 切回综应A 恢复该科目上次练的模块 (got " + activeModule + ")");
+ok(el("#modLabel").textContent.indexOf("综应A · ") === 0, "抬头: 切回后科目名跟着走");
+
+// 「综合」= 当前科目内综合
+state.settings.subject = "sl"; renderTabs();
+const slSeen = {};
+for(let i=0;i<200;i++){ slSeen[weakestModule()] = 1; }
+ok(Object.keys(slSeen).every(k=>k.indexOf("sl.")===0) && Object.keys(slSeen).length === SUBJECTS.sl.modules.length,
+   "综合推送: 只在当前科目内选模块 -> " + Object.keys(slSeen).join(","));
+state.settings.subject = "zy"; ensureActive(); renderTabs();
+
+// 画像按科目分组 + 练习记录加科目列
+state.history = [];
+renderProfile();
+const ph1 = el("#profileBody").innerHTML;
+ok(ph1.indexOf("综应A") >= 0 && ph1.indexOf("申论") >= 0 && ph1.indexOf("综应A") < ph1.indexOf("申论"),
+   "画像: 按科目分组渲染，综应A 在前申论在后");
+ok(ph1.indexOf("公文写作") < ph1.indexOf("贯彻执行"), "画像: 科目组内按模块列出，下一科目接在后面");
+state.history = [{ ts:1, module:"sl.guanche", subtype:"讲话稿", grade:{ total:66, scores:{}, weaknesses:["少落款"] } }];
+renderProfile();
+const ph2 = el("#profileBody").innerHTML;
+ok(ph2.indexOf(">科目<") >= 0, "画像: 练习记录新增「科目」列");
+ok(ph2.indexOf("申论</td><td>贯彻执行") >= 0, "画像: 记录行同时显示科目与模块");
+state.history = [];
+
+/* 9.5 prompt 口径随模块所属科目走（拦下 callLLM，直接看真拼出来的 system prompt） */
+const realCallLLM = callLLM;
+let cap = null;
+callLLM = async (sys, user)=>{ cap = { sys, user }; return { question:{ background:"b", requirements:"r" }, keyPoints:[] }; };
+await gen("sl.guina", "概括原因", null, false);
+ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SUBJECTS.zy.role) < 0, "出题 prompt: 申论模块用申论口径");
+ok(cap.sys.indexOf("归纳概括") >= 0 && cap.sys.indexOf(GEN_POINT_RULES) >= 0, "出题 prompt: 保留模块说明与采分点规则");
+await gen("zy.gongwen", "通知", null, false);
+ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf(SUBJECTS.sl.role) < 0, "出题 prompt: 综应模块用综应A 口径");
+await grade("sl.guanche", "讲话稿", { background:"b" }, [], "答案");
+ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SCORING_RULES) >= 0 && cap.sys.indexOf("80%") >= 0,
+   "阅卷 prompt: 申论口径 + 三档计分规则原样保留");
+await grade("zy.shiwu", null, { background:"b" }, [], "答案");
+ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf("维度分只用于画像诊断") >= 0,
+   "阅卷 prompt: 综应口径 + 维度锚定原样保留");
+callLLM = realCallLLM;
+
+/* 10. 申论模块按申论阅卷口径写，不照抄综应A */
+const SL_DIM_VOCAB = ["要点全面","归类准确","表述精炼","条理清晰","语言准确","问题对应","对策可行","针对性强","观点明确","分析深入","论证充分","结论稳妥","格式规范","内容完整","身份贴切","语言得体"];
+for(const k of SUBJECTS.sl.modules){
+  const m = MODULES[k];
+  ok(m.dims.length >= 4 && m.dims.length <= 5 && m.dims.every(d=>SL_DIM_VOCAB.indexOf(d) >= 0),
+     "申论维度: " + k + " 与题型匹配 -> " + m.dims.join("/"));
+  ok(m.matLen[0] >= 600 && m.matLen[1] > m.matLen[0], "申论材料: " + k + " 长度按小题起 600+ -> " + m.matLen.join("-"));
+  ok((m.subtypes||[]).length >= 2, "申论子类型: " + k + " 有细分 -> " + (m.subtypes||[]).join("/"));
+}
+ok(MODULES["sl.guanche"].dims.indexOf("格式规范") >= 0 && MODULES["sl.guanche"].subtypes.join("") === "讲话稿倡议书意见建议",
+   "贯彻执行: 维度含格式规范，子类型是讲话稿 / 倡议书 / 意见建议");
+ok(MODULES["sl.guina"].dims.indexOf("要点全面") >= 0 && MODULES["sl.fenxi"].dims.indexOf("观点明确") >= 0,
+   "申论: 归纳概括重要点、综合分析重观点");
+ok(MODULES["sl.guina"].dims.indexOf("文种适配") < 0 && MODULES["sl.shiwu"] === undefined && MODULES["gongwen"] === undefined,
+   "申论: 不套用综应A 的维度与模块");
+ok(MODULES["zy.gongwen"].dims.indexOf("文种适配") >= 0 && MODULES["zy.shiwu"].dims.indexOf("程序合规") >= 0,
+   "综应A: 原模块口径加前缀后未被动过");
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
