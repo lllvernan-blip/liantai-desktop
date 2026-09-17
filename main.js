@@ -17,7 +17,12 @@ const fs = require('fs');
 const path = require('path');
 
 const APP_DIR = path.join(__dirname, 'app');
-const LOG_DIR = path.join(__dirname, 'logs');
+/* 开发版：日志跟着项目走（__dirname 可写）；
+   打包版：asar 包内只读，日志必须写进 userData（%APPDATA%\综应练习台\logs），
+   否则写入被静默吞掉——打包版出问题将没有任何排查抓手。 */
+const LOG_DIR = app.isPackaged
+  ? path.join(app.getPath('userData'), 'logs')
+  : path.join(__dirname, 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'startup.log');
 const HOST = '127.0.0.1';
 
@@ -230,6 +235,16 @@ function createWindow() {
 
   wc.on('did-finish-load', () => {
     log('did-finish-load', wc.getURL());
+    // 端口退让 = origin 变了 = 用户会看到一套空存储。必须打在界面上：只写日志不行（打包版日志还写不进包内）。
+    if (serverPort !== PREFERRED_PORT) {
+      const msg = '<b>注意：</b>本次启动端口 ' + serverPort +
+        ' 被占用（默认 18743），你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
+        '关掉占用端口的程序后重新打开本应用即可恢复。';
+      wc.executeJavaScript(
+        'try { typeof banner === "function" && banner(' + JSON.stringify(msg) + '); ' +
+        'console.warn("[port-fallback-ui] banner shown"); } catch (e) {}'
+      ).catch(() => {});
+    }
   });
 
   wc.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL, isMainFrame) => {
