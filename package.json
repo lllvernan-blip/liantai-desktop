@@ -1,0 +1,13 @@
+{
+  "name": "liantai-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "综应练习台桌面版（Electron 壳）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "40.10.2"
+  }
+}

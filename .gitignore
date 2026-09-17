@@ -1,0 +1,10 @@
+node_modules/
+dist/
+logs/
+
+# 打包产物 / 临时文件
+out/
+release/
+*.log
+.DS_Store
+Thumbs.db

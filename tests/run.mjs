@@ -2,7 +2,7 @@
  * 综应练习台 —— 零依赖自检
  *   node tests/run.mjs
  *
- * 它做的事：把 综应练习台.html 里的 <script> 抠出来，配上最小 DOM 桩子，
+ * 它做的事：把 app/index.html 里的 <script> 抠出来，配上最小 DOM 桩子，
  * 再接上断言文件，在同一个作用域里跑一遍。不需要浏览器、不需要装包。
  */
 import { readFileSync } from "node:fs";
@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const htmlPath = join(here, "..", "综应练习台.html");
+const htmlPath = join(here, "..", "app", "index.html");
 const html = readFileSync(htmlPath, "utf8");
 
 const open = html.indexOf("<script>");
