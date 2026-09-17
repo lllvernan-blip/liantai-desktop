@@ -116,9 +116,11 @@ saveDraft(qSig(q1), "恢复我");
 el("#answer").value = "";
 el("#draftNote").textContent = "";
 renderQuestion();
-flowGoStep("draft");
-ok(el("#answer").value === "恢复我", "一稿: 自动恢复未提交草稿");
-ok(el("#wordCount").innerHTML.indexOf("3") >= 0, "一稿: 字数统计");
+ok(activeFlow() === null && el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A 两阶段: 渲染不建链、不渲染步骤条");
+ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A 两阶段: 学习卡阶段有「开始作答」入口");
+el("#btnZyAnswer").onclick();
+ok(el("#answer").value === "恢复我", "综应A 作答页: 自动恢复未提交草稿");
+ok(el("#wordCount").innerHTML.indexOf("3") >= 0, "综应A 作答页: 字数统计");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"字数题", requirements:"写一份通知，不超过200字。" } };
 saveDraft(qSig(current.question), "x");
 el("#answer").value = "一二三四五六七八九十".repeat(25);   // 250 字，超出 200
@@ -265,7 +267,7 @@ for(let i=0;i<10;i++){ saveDraft(qSig({ background:"t"+i, requirements:"r" }), "
 ok(loadDraft(qSig(qA)) === "", "草稿: 超过 8 份时最旧的被挤出");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" }, cardPeeks:0 };
 renderQuestion();
-flowGoStep("draft");
+el("#btnZyAnswer").onclick();
 el("#btnTpl").onclick();
 ok(el("#wordCount").innerHTML.indexOf("<b>0<") < 0, "骨架: 插入后字数同步");
 ok(loadDraft(qSig(current.question)).indexOf("关于") >= 0, "骨架: 插入后草稿已保存");
@@ -296,28 +298,31 @@ await fetchModels(false);
 ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
 globalThis.fetch = realFetch;
 
-/* 8.5 七步训练链：读材料（学习卡并入）→ 一稿；翻卡计数 + 笔记 */
-saveNote("zy.gongwen","通知","要点一：格式完整");
-ok(getNote("zy.gongwen","通知") === "要点一：格式完整" && getNote("zy.gongwen","函") === "", "笔记: 按文种键存取，不串味");
-state.history = [{ module:"zy.gongwen", subtype:"通知", cardPeeks:2, grade:{ total:70, scores:{} } }];
-current = { module:"zy.gongwen", subtype:"通知", question:{ background:"阶段题。第二句！", requirements:"写一份通知。" }, cardPeeks:0,
-            studyCard:{ title:"通知·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架文本" } };
+/* 8.5 科目分叉：申论走七步链（读材料→找点→…→沉淀），综应A 走两阶段（学习卡 → 作答 → 批改） */
+ok(usesFlowChain("sl.guina") && usesFlowChain("sl.guanche"), "分叉: 申论走七步链");
+ok(!usesFlowChain("zy.gongwen") && !usesFlowChain("zy.guina"), "分叉: 综应A 走两阶段");
+saveNote("sl.guina","概括原因","申论要点一：先找动词");
+ok(getNote("sl.guina","概括原因") === "申论要点一：先找动词" && getNote("sl.guina","概括做法") === "", "笔记: 按模块+子类型键存取，不串味");
+state.history = [{ module:"sl.guina", subtype:"概括原因", cardPeeks:2, grade:{ total:70, scores:{} } }];
+current = { module:"sl.guina", subtype:"概括原因", question:{ background:"阶段题。第二句！", requirements:"不超过250字。" }, cardPeeks:0,
+            studyCard:{ title:"概括原因·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架文本" } };
 renderQuestion();
-ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "七步链: 步骤条在场，落点是读材料");
+ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "申论七步链: 步骤条在场，落点是读材料");
+ok(activeFlow() && activeFlow().module === "sl.guina", "申论七步链: 渲染即建链");
 ok(el("#docBody").innerHTML.indexOf("题目（模块") >= 0, "读材料: 题目与材料同屏");
 ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡折叠并入本步（展开可看）");
-ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
+ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
 ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始找点」推进）");
 flowGoStep("draft");
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷在场");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: draft 步不摆 Next（靠「提交阅卷」推进）");
-ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "一稿: 能看到自己的笔记");
+ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "一稿: 能看到自己的笔记");
 ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡浮标在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
 ok(el("#drawerBody").innerHTML.indexOf("解题要点") >= 0, "抽屉: 卡片原文只在抽屉里");
-saveNote("zy.gongwen","通知","要点一：格式完整\n要点二：主送机关");
+saveNote("sl.guina","概括原因","申论要点一：先找动词\n要点二：归类上位词");
 el("#btnDrawerClose").onclick();
 ok(el("#cardDrawer").hidden === true, "抽屉: 可关闭");
 el("#btnCard").onclick();
@@ -325,11 +330,29 @@ ok(current.cardPeeks === 2, "抽屉: 再看再计");
 const flowGate = activeFlow();
 ok(flowGoStep("review") === false && flowGate.step === "draft", "批改门槛: 无批改结果不得进入批改步");
 ok(el("#bannerSlot").innerHTML.indexOf("批改") >= 0, "批改门槛: 拒绝时有明确提示");
+
+/* 综应A：两阶段——不建链、不渲染步骤条；学习卡（折叠+笔记+翻卡计数）→ 开始作答 → 作答页；翻卡计次照旧 */
+saveNote("zy.gongwen","通知","综应要点：格式三件套");
+state.history = [{ module:"zy.gongwen", subtype:"通知", cardPeeks:2, grade:{ total:70, scores:{} } }];
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"综应阶段题。", requirements:"写一份通知。" }, cardPeeks:0,
+            studyCard:{ title:"通知·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架" } };
+renderQuestion();
+ok(!state.flows.some(x=>x.sig === qSig(current.question)) && (activeFlow() === null || activeFlow().module === "sl.guina"), "综应A: 渲染不建训练链");
+ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A: 不渲染七步步骤条");
+ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A: 学习卡阶段有「开始作答」入口");
+ok(el("#docBody").innerHTML.indexOf("综应要点：格式三件套") >= 0, "综应A: 学习卡阶段笔记可见");
+ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "综应A: 翻卡熟悉度提示照旧");
+el("#btnZyAnswer").onclick();
+ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("背景材料") >= 0, "综应A: 作答页 = 材料 + 作答区");
+ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "综应A: 作答页翻卡浮标在场");
+el("#btnCard").onclick();
+ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "综应A: 翻卡计次照旧（照旧参与调度）");
+el("#btnDrawerClose").onclick();
 current = { module:"zy.guina", subtype:"概括原因", question:{ background:"x", requirements:"y" }, cardPeeks:0 };
-renderQuestion(); flowGoStep("draft");
+renderQuestion(); el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") < 0, "非公文: 骨架按钮与占位提示都不出现");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y" }, cardPeeks:0 };
-renderQuestion(); flowGoStep("draft");
+renderQuestion(); el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") >= 0, "公文: 骨架按钮在场，占位提示与按钮一致");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, cardPeeks:0 };
 renderQuestion();
@@ -582,6 +605,147 @@ ok(state.flows.length === MAX_OPEN_FLOWS, "flow 裁剪: 只留最近 " + MAX_OPE
 ok(state.flows.some(x=>x.sig === qSig(keepQ)), "flow 裁剪: 有未提交草稿的 flow 永不自动裁剪");
 clearDraft(qSig(keepQ));
 state.flows = []; _flowId = null;
+
+/* ============ 12. 第二批：回改 / 回滚 / 经验闭环 / 恢复现场 ============ */
+
+/* 12.1 行级 LCS diff */
+ok(JSON.stringify(diffLCS("", "")) === "[]", "diff: 空 vs 空 = 无差异");
+ok(diffLCS("a\nb", "a\nb").every(op=>op.t==="same") && diffLCS("a\nb","a\nb").length === 2, "diff: 全等 = 全 same");
+const dAB = diffLCS("a\nb", "a\nc");
+ok(dAB.some(op=>op.t==="del"&&op.text==="b") && dAB.some(op=>op.t==="add"&&op.text==="c") && dAB.some(op=>op.t==="same"&&op.text==="a"), "diff: 单行改动 = 一删一增一保留");
+const dXY = diffLCS("a\nb\nc", "x\ny\nz");
+ok(dXY.filter(op=>op.t==="del").length === 3 && dXY.filter(op=>op.t==="add").length === 3, "diff: 全异 = 全删全增");
+ok(diffHtml("a\nb", "a\nc").indexOf("dline add") >= 0 && diffHtml("a\nb","a\nc").indexOf("dline del") >= 0, "diff: HTML 标出新增与删除");
+ok(diffHtml("同\n稿", "同\n稿").indexOf("没有行级差异") >= 0, "diff: 无差异时轻提示");
+
+/* 12.2 回改 revise：预填上一稿 + drafts 压栈 + rewrite 提交带 mode+previousReview */
+state.history = []; state.experiences = []; _lastDistilled = [];
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"回改题材料。", requirements:"不超过250字。" }, cardPeeks:0 };
+renderQuestion();
+const fR = activeFlow();
+flowGoStep("draft");
+el("#answer").value = "第一稿的作答内容，字数肯定超过二十个字了，没有问题。";
+el("#btnSubmit").disabled = false;
+const realCall12 = callLLM;
+let cap12 = null;
+callLLM = async (sys, user)=>{ cap12 = { sys, user }; return { hits:[ {point:"要点一",score:10,awarded:5,status:"半分",evidence:"△ 表述不准"}, {point:"要点二",score:10,awarded:0,status:"零分",evidence:"【缺：关键对策】"} ], scores:{}, strengths:[], weaknesses:[], comment:"x" }; };
+await submitAnswer();
+ok(fR.step === "review" && fR.attempts.length === 1, "回改: 一稿提交进入批改步");
+ok(JSON.parse(cap12.user).mode === undefined, "回改: 一稿提交不带 rewrite 标记");
+flowGoStep("revise");
+ok(fR.drafts.length === 1 && fR.drafts[0].step === "revise" && fR.drafts[0].text.indexOf("第一稿") >= 0, "回改: 上一稿压栈 flow.drafts");
+ok(el("#answer").value.indexOf("第一稿") >= 0, "回改: 作答区预填上一稿");
+ok(el("#docBody").innerHTML.indexOf("要点一") >= 0 && el("#docBody").innerHTML.indexOf("【缺：关键对策】") >= 0, "回改: 回改清单列出 ✗/◐ 子项与缺失标注");
+ok(el("#docBody").innerHTML.indexOf("diffBox") >= 0, "回改: 行级差异对照框在场");
+el("#answer").value = "第一稿的作答内容，字数肯定超过二十个字了，没有问题。\n补上关键对策的一行。";
+el("#btnSubmit").disabled = false;
+await submitAnswer();
+const sent12 = JSON.parse(cap12.user);
+ok(sent12.mode === "rewrite" && Array.isArray(sent12.previousReview) && sent12.previousReview.length === 2 && sent12.previousReview[0].point === "要点一", "回改: 提交带 mode=rewrite + previousReview");
+ok(fR.attempts.length === 2 && fR.attempts[1].mode === "rewrite", "回改: attempts 追加并标记 rewrite");
+ok(state.history[0].answer.indexOf("补上关键对策") >= 0, "回改: 回改稿照常入练习记录（总分口径不变）");
+ok(cap12.sys.indexOf("previousReview") >= 0 && cap12.sys.indexOf("计分口径不变") >= 0, "回改: prompt 说明回改背景，计分口径一字不动");
+
+/* 12.3 rollbackFlowFrom：回滚 history 与 lastModules，保留 drafts/selections/groups */
+const lmBefore = state.profile.lastModules.filter(x=>x==="sl.guina").length;
+const histBefore = state.history.length;
+ok(rollbackFlowFrom("review") === true, "回滚: 从批改页可回滚");
+ok(state.history.length === histBefore - 1, "回滚: 移除该 flow 最近一次的练习记录");
+ok(state.history[0].answer.indexOf("补上关键对策") < 0, "回滚: 被回滚的那稿不再在记录里");
+ok(fR.attempts.length === 1 && fR.step === "draft", "回滚: attempts 退一位，step 落到目标步前一步（一稿）");
+ok(fR.drafts.length === 1 && Array.isArray(fR.selections) && Array.isArray(fR.groups), "回滚: drafts/selections/groups 原样保留");
+ok(loadDraft(qSig(current.question)).indexOf("第一稿") >= 0, "回滚: 保留稿放回草稿槽，回一稿能恢复");
+ok(state.profile.lastModules.filter(x=>x==="sl.guina").length === lmBefore - 1, "回滚: lastModules 同步退一位");
+ok(lastGrade === null, "回滚: 过期批改结果不再展示");
+el("#answer").value = "重新写的一稿，字数肯定超过二十个字了，没有问题。";
+el("#btnSubmit").disabled = false;
+await submitAnswer();
+ok(fR.attempts.length === 2, "回滚: 回到一稿后可重新提交");
+ok(rollbackFlowFrom("review", { attemptIndex:0 }) === true && fR.attempts.length === 0, "回滚: attemptIndex=0 清空全部尝试");
+ok(!state.history.some(h=>h.flowId === fR.id), "回滚: attemptIndex=0 移除该 flow 全部记录");
+ok(rollbackFlowFrom("draft") === false, "回滚: 批改之前的步无可回滚");
+closeActiveFlow("test-done");
+clearDraft(qSig(current.question));
+state.history = []; state.flows = []; _flowId = null; current = null;
+
+/* 12.4 经验闭环：提炼入库 / 字段 / 去重 / EXP_MAX 裁剪 disabled 优先 */
+state.experiences = [];
+callLLM = async ()=>({ experiences:[ {type:"胡说", title:"x", body:"y"}, {type:"错因", title:"漏写落款", body:"公文先查抬头、文号、落款。"} ] });
+const outE1 = await distillExperience("sl.guina","概括问题",{ hits:[], weaknesses:["少落款"], comment:"x" }, { background:"经验题材料。", requirements:"r" });
+ok(outE1.length === 1 && outE1[0].title === "漏写落款", "经验: type 不合法的丢弃");
+callLLM = async ()=>({ experiences:[ {type:"错因",title:"漏写落款",body:"b1"}, {type:"表达",title:"语言口语化",body:"b2"}, {type:"规则",title:"第三条",body:"b3"} ] });
+const outE2 = await distillExperience("sl.guina","概括问题",{ hits:[], weaknesses:[], comment:"" }, { background:"经验题二。", requirements:"r" });
+ok(outE2.length === 2, "经验: 一次最多提炼 2 条");
+ok(state.experiences.length === 2 && state.experiences[0].title === "语言口语化", "经验: 入库（新的在前，同名去重不新增）");
+ok(state.experiences[0].module === "sl.guina" && state.experiences[0].subject === "sl" && state.experiences[0].disabled === false && state.experiences[0].sourceSig && state.experiences[0].id, "经验: 字段齐备（id/type/title/body/scope/module/subject/ts/disabled/sourceSig）");
+callLLM = async ()=>({ experiences:[ {type:"规则", title:"语言口语化", body:"更新后的表述规则。"} ] });
+await distillExperience("sl.guina","概括问题",{ hits:[], weaknesses:[], comment:"" }, { background:"另一题材料。", requirements:"r" });
+ok(state.experiences.length === 2 && state.experiences[0].title === "语言口语化" && state.experiences[0].body === "更新后的表述规则。", "经验: 同模块同名去重（更新内容不新增）");
+callLLM = async ()=>({ experiences:[ {type:"规则", title:"标".repeat(40), body:"b".repeat(300)} ] });
+const outE3 = await distillExperience("sl.guina",null,{ hits:[], weaknesses:[], comment:"" }, { background:"截断题。", requirements:"r" });
+ok(outE3.length === 1 && outE3[0].title.length === 30 && outE3[0].body.length === 220, "经验: title≤30/body≤220 超长截断");
+state.experiences = [];
+for(let i=0;i<EXP_MAX;i++) state.experiences.unshift({ id:"e"+i, type:"规则", title:"t"+i, body:"b", scope:"module", module:"sl.guina", subject:"sl", ts:i, disabled:(i%2===0), sourceSig:"s" });
+storeExperiences([{ type:"规则", title:"新经验", body:"b" }], "sl.guina", null, { background:"裁剪题材料。", requirements:"r" });
+ok(state.experiences.length === EXP_MAX, "经验: 超出 EXP_MAX 即裁剪 -> " + state.experiences.length);
+ok(!state.experiences.some(e=>e.title==="t0") && state.experiences.some(e=>e.title==="t1") && state.experiences.some(e=>e.title==="t59"), "经验: 裁掉的是最旧的停用条目，启用条目保留");
+ok(state.experiences.some(e=>e.title==="新经验"), "经验: 新经验正常入库");
+
+/* 12.5 经验注入：出题与阅卷 prompt，两科都带，停用不带（拦 callLLM） */
+let capI = null;
+callLLM = async (sys, user)=>{ capI = { sys, user }; return { question:{ background:"b", requirements:"r" }, keyPoints:[] }; };
+state.experiences = [
+  { id:"x1", type:"错因", title:"漏写落款", body:"b1", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:"s" },
+  { id:"x2", type:"表达", title:"语言口语化", body:"b2", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
+];
+await gen("sl.guina","概括问题",null,false);
+ok(capI.user.indexOf("漏写落款") >= 0 && capI.user.indexOf("语言口语化") >= 0, "注入: 未停用经验进入申论出题请求");
+state.experiences[1].disabled = true;
+await gen("sl.guina","概括问题",null,false);
+ok(capI.user.indexOf("语言口语化") < 0 && capI.user.indexOf("漏写落款") >= 0, "注入: 停用的经验不再出现");
+await grade("sl.guina","概括问题",{ background:"b" },[],"答案");
+ok(capI.user.indexOf("漏写落款") >= 0, "注入: 阅卷请求同样带经验（请它盯防再犯）");
+state.experiences = [ { id:"z1", type:"规则", title:"综应格式三件套", body:"b", module:"zy.gongwen", subject:"zy", ts:1, disabled:false, sourceSig:"s" } ];
+await gen("zy.gongwen","通知",null,false);
+ok(capI.user.indexOf("综应格式三件套") >= 0, "注入: 综应A 出题同样带经验（两科共用机制）");
+await grade("zy.gongwen","通知",{ background:"b" },[],"答案");
+ok(capI.user.indexOf("综应格式三件套") >= 0, "注入: 综应A 阅卷同样带经验");
+await gen("sl.guina","概括问题",null,false);
+ok(capI.user.indexOf("综应格式三件套") < 0, "注入: 经验按模块归属，不跨科目串味");
+callLLM = realCall12;
+
+/* 12.6 提炼失败静默：不影响批改展示、不弹错、不写半条数据 */
+_lastDistilled = [];
+const expCnt = state.experiences.length;
+let rejectedE = false;
+callLLM = async ()=>{ throw { code:"API", status:500, text:"boom" }; };
+await distillExperience("sl.guina",null,{ hits:[], weaknesses:[], comment:"" }, { background:"失败题。", requirements:"r" }).catch(()=>{ rejectedE = true; });
+ok(rejectedE, "提炼失败: 异常可被调用方吞掉（submitAnswer 里 fire-and-forget）");
+ok(state.experiences.length === expCnt && _lastDistilled.length === 0, "提炼失败: 不写半条经验");
+ok(el("#bannerSlot").innerHTML === "", "提炼失败: 静默，不弹任何错误横幅");
+callLLM = realCall12;
+
+/* 12.7 恢复现场：有 24h 内未关闭的链时给入口，点了才跳，不自动跳转 */
+state.flows = []; _flowId = null; current = null;
+const rq12 = { background:"恢复题材料。", requirements:"r" };
+const rFlow = ensureFlow("sl.guina", "概括问题", rq12, []);
+rFlow.step = "extract";
+renderStart();
+ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") >= 0, "恢复现场: 有未关闭的链时首页给入口");
+ok(el("#docBody").innerHTML.indexOf("extractBox") < 0, "恢复现场: 不自动跳进链里");
+el("#btnResume").onclick();
+ok(_flowId === rFlow.id && current && current.module === "sl.guina", "恢复现场: 点击后才回到链上");
+ok(el("#docBody").innerHTML.indexOf("extractBox") >= 0, "恢复现场: 进入链停下的那一步");
+rFlow.createdAt = Date.now() - 25*3600*1000;
+current = null; _flowId = null;
+renderStart();
+ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") < 0, "恢复现场: 超 24h 的链不再提示");
+state.flows = []; _flowId = null;
+
+/* 12.8 小修：organize 未入组提示 + 提纲/找点不自动重排 */
+const fOrg = { selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} };
+ok(organizePanelHtml(fOrg).indexOf("1 个新找的点还没进组") >= 0, "organize: 有未入组的点时轻提示");
+ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} }).indexOf("还没进组") < 0, "organize: 全部入组时不提示");
 
 current = null;
 console.log(T.join("\n"));

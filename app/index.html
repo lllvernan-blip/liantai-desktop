@@ -190,6 +190,10 @@
   .ogroup .gname{width:100%;margin-bottom:8px;}
   .ogroup label{display:block;font-size:13.5px;margin:3px 0;cursor:pointer;}
   .fnav{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap;}
+  /* 回改稿的行级差异对照：新增绿、删除删除线 */
+  .dline{font-size:13.5px;line-height:1.8;padding:1px 0;}
+  .dline.add{color:#2f7d32;}
+  .dline.del{color:#b3261e;text-decoration:line-through;}
 
   .foot{text-align:center;color:var(--muted);font-size:12px;margin:26px 0 0;}
   code{font-family:Consolas,Menlo,monospace;background:#f0eee8;padding:1px 5px;border-radius:2px;font-size:12.5px;}
@@ -382,6 +386,8 @@ function moduleKeysOf(subject){ const s = SUBJECTS[subject]; return s? s.modules
 function moduleName(k){ return (MODULES[k] && MODULES[k].name) || String(k==null?"":k); }
 function subjectName(k){ const s = subjectOf(k); return s? SUBJECTS[s].name : ""; }
 function roleOf(k){ const s = subjectOf(k); return (s && SUBJECTS[s].role) || SUBJECTS[DEFAULT_SUBJECT].role; }
+// 流程分叉：七步链（找点/归类/一稿/回改/沉淀）只归申论；综应A 走「学习卡 → 作答 → 批改」两阶段
+function usesFlowChain(k){ return subjectOf(k) === "sl"; }
 
 /* ============ 旧数据迁移：裸模块键 -> 科目前缀 ============ */
 // v1 没有「科目」这一层，模块键是裸的（gongwen）。迁移只认「默认科目下的已知裸键」：
@@ -432,12 +438,14 @@ const DEFAULT_STATE = {
   profile:{ modules:freshModules(), lastModules:[] },
   history:[],
   flows:[],
+  experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
   cache:{ studyCards:{}, notes:{} },
   modelCache:{}
 };
 
-/* ============ 七步训练链（读材料→找点→归类→一稿→批改→回改→沉淀） ============ */
-// 全科统一走这条链，综应A 与申论只是走法不同；revise / distill 本批只占位。
+/* ============ 七步训练链（申论：读材料→找点→归类→一稿→批改→回改→沉淀） ============ */
+// 只有申论走全链（usesFlowChain）；综应A 恢复「学习卡 → 作答 → 批改」两阶段（renderZyPage）。
+// 沉淀/经验闭环两科共用：批改成功后自动提炼，注入后续出题与阅卷（见「经验闭环」一节）。
 const FLOW_STEPS  = ["read","extract","organize","draft","review","revise","distill"];
 const FLOW_LABELS = { read:"读材料", extract:"找点", organize:"归类", draft:"一稿", review:"批改", revise:"回改", distill:"沉淀" };
 const MAX_OPEN_FLOWS = 20;   // state.flows 只留最近 20 条；有未提交草稿的 flow 永不自动裁剪
@@ -546,6 +554,8 @@ function load(){
       if(cm.changed){ s.cache[f] = cm.map; migrated = true; }
     }
     s.modelCache = s.modelCache||{};
+    // 经验闭环（两科共用）：缺省补空数组；条目不合法的丢弃，不整包失败
+    s.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
     // 训练链：非法 step 丢弃该项、缺失字段补默认（sanitizeFlows 幂等，二次 load 不再变化）
     s.flows = sanitizeFlows(s.flows);
     // 练习记录的模块键补前缀；记录存在独立的 gw_history，得单独回写
@@ -900,10 +910,12 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   // 字数口径唯一来源是本地表（ansLen）：prompt 里写死数字，生成结果再由 enforceWordLimit 纠偏——以本地表为准，不信模型
   const reqSpec = m.ansLen? `作答要求（含作答身份、对象，明确写「不超过${m.ansLen}字」）`
                           : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
-  const note = needCard
+  const exps = expBlock(k);   // 经验闭环：当前模块未停用的经验（≤3 条）注入出题，两科都带
+  const note = (needCard
     ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
-    : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。";
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note });
+    : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。")
+    + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "");
+  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note, experiences: exps || undefined });
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）"},
@@ -916,10 +928,16 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   }`;
   return await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
 }
-async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline){
+async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline, rewrite){
   const m = MODULES[k];
   // organizeOutline：考生作答前的归类提纲，只进 prompt 供诊断，绝不参与 hits / 总分
-  const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[], organizeOutline: organizeOutline || "" });
+  // rewrite：回改稿提交（mode=rewrite）时带上轮批改要点；总分口径一字不动
+  const exps = expBlock(k);   // 经验闭环：请阅卷特别核对用户是否又犯这些错，两科都注入
+  const expNote = exps? "用户在 experiences 里这些点上栽过跟头：请特别核对考生是否又犯了这些错。" : "";
+  const user = JSON.stringify(Object.assign(
+    { module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[], organizeOutline: organizeOutline || "" },
+    exps? { experiences:exps, expNote } : {},
+    rewrite? { mode:"rewrite", previousReview:(rewrite.previousReview||[]) } : {}));
   const schema = `{
     "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
@@ -931,10 +949,114 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     `\n阅卷顺序：先逐条对照 keyPoints 判定（考生用自己的话表达，意思到位即算命中，不得苛求原文），再由命中情况推导各维度分数。` +
     `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
     `\n归类提纲（organizeOutline，可能为空）是考生作答前对材料的归类草稿：只用于诊断其归类与结构意识，不参与计分，也不要求答案与其一致；总分仍只看子项覆盖。` +
+    (rewrite? `\n本次答卷（mode=rewrite）是考生按上一轮批改（previousReview）回改后的新一稿：请对照 previousReview 核对上轮指出的问题是否改正；计分口径不变。` : "") +
     "\n" + SCORING_RULES +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。同一份答卷重复阅卷，总分分差应控制在±3以内。` +
     `\n返回 JSON：\n` + schema;
   return await callLLM(sys, user, true, onDelta);
+}
+
+/* ============ 经验闭环（两科共用）：批改后自动提炼 → 注入后续出题与阅卷 ============ */
+// 「同一个循环，两个出口」：智能推送管「练哪」，个人经验管「题里带什么、批改盯什么」。
+// 不做成两个功能、不设采纳仪式：提炼全自动，失败静默跳过，绝不影响批改展示。
+const EXP_MAX = 60;
+const EXP_TYPES = ["错因","规则","表达"];
+let _lastDistilled = [];   // 最近一次批改提炼出的经验（申论 distill 步展示用）
+function activeExperiences(k){
+  return (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k).slice(0,3);
+}
+// 只从 state.experiences 现算，无经验返回 null（JSON.stringify 会丢掉 undefined 键，不污染请求体）
+function expBlock(k){
+  const list = activeExperiences(k);
+  return list.length? list.map(e=>({ type:e.type, title:e.title, body:e.body })) : null;
+}
+async function distillExperience(mod, subtype, g, q){
+  const user = JSON.stringify({ module:(MODULES[mod]||{}).name||mod, subtype:subtype||"",
+    requirements:(q && q.requirements)||"",
+    hits:(g && g.hits)||[], weaknesses:(g && g.weaknesses)||[], comment:(g && g.comment)||"" });
+  const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。只输出 JSON。";
+  const schema = '{\n  "experiences": [ { "type": "错因", "title": "要点（≤30字）", "body": "具体经验：错在哪、下次怎么办（≤220字）" } ]\n}';
+  const data = await callLLM(sys, user + "\n返回 JSON：\n" + schema, true);
+  const list = (data && Array.isArray(data.experiences))? data.experiences : [];
+  const out = [];
+  for(const e of list.slice(0,2)){
+    const type = EXP_TYPES.indexOf(e && e.type) >= 0? e.type : "";
+    const title = String((e && e.title) || "").trim().slice(0,30);
+    const body = String((e && e.body) || "").trim().slice(0,220);
+    if(!type || !title || !body) continue;
+    out.push({ type, title, body });
+  }
+  if(out.length) storeExperiences(out, mod, subtype, q);
+  _lastDistilled = out;
+  return out;
+}
+function storeExperiences(items, mod, subtype, q){
+  const now = Date.now(), sig = qSig(q);
+  for(const it of items||[]){
+    const exist = state.experiences.find(e=> e.module === mod && e.title === it.title);
+    if(exist){ exist.type = it.type; exist.body = it.body; exist.ts = now; exist.sourceSig = sig; exist.disabled = false; continue; }   // 同模块同名：更新不新增
+    state.experiences.unshift({ id:"exp_"+now.toString(36)+Math.random().toString(36).slice(2,7),
+      type:it.type, title:it.title, body:it.body, scope:"module", module:mod, subject:subjectOf(mod)||"",
+      ts:now, disabled:false, sourceSig:sig });
+  }
+  trimExperiences();
+  save();
+}
+// 满了丢最旧且 disabled 优先：数组新在前、旧在后，从队尾先找停用的，没有才丢最旧的
+function trimExperiences(){
+  while(state.experiences.length > EXP_MAX){
+    let idx = -1;
+    for(let i = state.experiences.length - 1; i >= 0; i--){ if(state.experiences[i].disabled){ idx = i; break; } }
+    if(idx < 0) idx = state.experiences.length - 1;
+    state.experiences.splice(idx, 1);
+  }
+}
+function previousReviewHits(){
+  const g = lastGrade && lastGrade.g;
+  return (g && Array.isArray(g.hits))? g.hits.map(h=>({ point:h.point||"", status:h.status||"", evidence:h.evidence||"" })) : [];
+}
+/* 经验 UI：申论 distill 步 = 本次新提炼 + 我的经验列表；综应A 的管理入口在画像弹层（两处共用列表与接线） */
+function expSourceLabel(e){
+  const h = (state.history||[]).find(x=> x.question && qSig(x.question) === e.sourceSig);
+  if(!h) return "来源题已不在练习记录里";
+  const d = new Date(h.ts);
+  return `来源题：${moduleName(h.module)}${h.subtype? " · "+h.subtype : ""}（${d.getMonth()+1}/${d.getDate()} 练）`;
+}
+function experienceListHtml(){
+  if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。完成一次批改后会自动提炼。</div>`;
+  return state.experiences.map(e=>`<div class="ogroup">
+    <b>${esc(e.title)}</b> <span class="ptag">${esc(e.type)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}
+    <div style="margin-top:4px">${esc(e.body)}</div>
+    <div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")}</div>
+    <div class="actions"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div>
+  </div>`).join("");
+}
+function distillPanelHtml(){
+  let html = `<div class="hint" style="margin-top:10px">这一步不用动手：每次批改完成都会自动提炼经验，下次出题与批改会自动带上（两科共用一个经验库）。</div>`;
+  html += `<div class="sec-title">本次新提炼</div>`;
+  if(_lastDistilled.length){
+    html += _lastDistilled.map(e=>`<div class="ogroup"><b>${esc(e.title)}</b> <span class="ptag">${esc(e.type)}</span><div style="margin-top:4px">${esc(e.body)}</div></div>`).join("");
+  } else {
+    html += `<div class="hint">这次没有提炼出新经验（可能提炼还没跑完、这次无需沉淀，或提炼服务暂时不可用——静默跳过，不影响批改）。</div>`;
+  }
+  html += `<div class="sec-title">我的经验（${(state.experiences||[]).length}/${EXP_MAX}）</div>` + experienceListHtml();
+  html += `<div class="hint" style="margin-top:8px">下次出题和批改会自动带上未停用的经验。</div>`;
+  return html;
+}
+function wireExperiences(){
+  document.querySelectorAll("[data-exp-toggle]").forEach(b=> b.onclick = ()=>{
+    const e = (state.experiences||[]).find(x=>x.id===b.dataset.expToggle);
+    if(e){ e.disabled = !e.disabled; save(); refreshAfterExpChange(); }
+  });
+  document.querySelectorAll("[data-exp-del]").forEach(b=> b.onclick = ()=>{
+    const i = (state.experiences||[]).findIndex(x=>x.id===b.dataset.expDel);
+    if(i >= 0){ state.experiences.splice(i,1); save(); refreshAfterExpChange(); }
+  });
+}
+function refreshAfterExpChange(){
+  const f = activeFlow();
+  if(current && current.question && f && f.sig === qSig(current.question) && usesFlowChain(current.module)) renderFlowStep();
+  renderProfile();
 }
 
 /* ============ 渲染 ============ */
@@ -1010,12 +1132,22 @@ function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">$
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
+  const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
     <p>${esc(SUBJECTS[curSubject()].name)} · AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
     <button class="primary big" id="btnStart">智能推送下一题</button>
+    ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
   $("#btnStart").onclick = startSmart;
+  const br = $("#btnResume");
+  if(br) br.onclick = ()=>{
+    const f = resumableFlow();
+    if(!f || f.closedAt){ renderStart(); return; }
+    _flowId = f.id;
+    current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card" };
+    activeModule = f.module; renderHeader(); renderQuestion();
+  };
 }
 
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
@@ -1081,7 +1213,7 @@ async function loadQuestion(k, subtype){
     if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
     if(!data.question) throw {code:"JSON"};
     enforceWordLimit(k, data.question);   // 字数口径以本地表为准，不信模型
-    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard, cardPeeks:0 };
+    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard, cardPeeks:0, phase:"card" };
     renderHeader(); renderQuestion();
   }catch(e){
     if(mySeq !== reqSeq) return;
@@ -1115,11 +1247,75 @@ function cardHtml(studyCard){
     <h4>常见失分点</h4><ul>${pits}</ul>
     <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>`;
 }
-/* 七步训练链入口：题目渲染即建链/复链，面板随 flow.step 切换 */
+/* 题目渲染入口：申论建链/复链走七步面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
   if(!current || !current.question){ renderStart(); return; }
+  if(!usesFlowChain(current.module)){ renderZyPage(); return; }
   ensureFlow(current.module, current.subtype, current.question, current.keyPoints);
   renderFlowStep();
+}
+
+/* ============ 综应A 两阶段：学习卡（折叠+笔记+翻卡计数）→ 我已学习，开始作答 → 作答页；结果页与申论共用 gradeHtml ============ */
+// 不建训练链、不渲染步骤条；翻卡计次照旧进练习记录、参与调度（PEEK_WEIGHT）。
+function zyHeadHtml(){
+  const {module, subtype, question} = current;
+  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
+  html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}）</div>`;
+  html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
+  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
+  if(question.score) html += `<div class="require"><b>分值：</b>${esc(question.score)} 分</div>`;
+  if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
+  return html;
+}
+function zyCardHtml(){
+  const {module, subtype} = current;
+  let html = "";
+  if(current.studyCard){
+    const lp = lastPeeks(module, subtype);
+    html += `<details class="card">
+      <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">展开可看，顺手记笔记</span></summary>
+      <div class="card-body">${cardHtml(current.studyCard)}
+        <h4>我的笔记</h4>
+        <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
+        <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
+        ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
+      </div></details>`;
+  } else {
+    html += `<div class="hint" style="margin-top:10px">本题没有学习卡，直接作答即可。</div>`;
+  }
+  html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnZyAnswer">我已学习，开始作答</button></div>`;
+  return html;
+}
+function renderZyPage(){
+  if(!current || !current.question){ renderStart(); return; }
+  const phase = current.phase || "card";
+  let html = zyHeadHtml();
+  if(phase === "grade" && current.grade){
+    html += gradeHtml(current.grade.g, current.grade.total);
+  } else if(phase === "answer"){
+    html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
+    html += draftPanelHtml(null);
+  } else {
+    html += zyCardHtml();
+  }
+  docBody.innerHTML = html;
+  renderHeader();
+  wireZyPage(phase);
+}
+function wireZyPage(phase){
+  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  if(phase === "answer"){
+    wireMarks();
+    wireDraft(null);
+  } else if(phase === "grade"){
+    const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
+    const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
+    const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+  } else {
+    const ba = $("#btnZyAnswer"); if(ba) ba.onclick = ()=>{ current.phase = "answer"; renderZyPage(); };
+    const cn = $("#cardNote"); if(cn) cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value));
+    const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
+  }
 }
 
 /* ============ 七步训练链：生命周期 ============ */
@@ -1155,6 +1351,44 @@ function closeActiveFlow(reason){
   const f = activeFlow();
   if(f) closeFlow(f, { reason });
 }
+/* 恢复现场：24h 内未关闭的申论链（新在前）；首页给入口用，不自动跳转 */
+const RESUME_WINDOW = 24*3600*1000;
+function resumableFlow(){
+  const now = Date.now();
+  for(let i = state.flows.length - 1; i >= 0; i--){
+    const f = state.flows[i];
+    if(f && !f.closedAt && f.question && now - (f.createdAt||0) < RESUME_WINDOW) return f;
+  }
+  return null;
+}
+/* 回滚：批改/回改页「回到一稿重做」——撤销该链最近一次（或第 attemptIndex 次之后的）批改。
+   删掉 gw_history 里对应的记录；画像聚合全部由记录即时推导，删记录即回滚画像，lastModules 同步退位。
+   drafts/selections/groups 原样保留；step 落到目标步的前一步（传 "review" 即落回「一稿」）。 */
+function rollbackFlowFrom(step, opts){
+  const f = activeFlow(); if(!f) return false;
+  const idx = FLOW_STEPS.indexOf(step);
+  if(idx < FLOW_STEPS.indexOf("review")) return false;   // 批改之前的步没有可回滚的记录
+  const keep = (opts && Number.isInteger(opts.attemptIndex))? Math.max(0, opts.attemptIndex) : Math.max(0, f.attempts.length - 1);
+  if(keep >= f.attempts.length) return false;
+  const need = f.attempts.length - keep;
+  let removed = 0;
+  state.history = state.history.filter(h=>{   // 记录新在前：从头数起删掉最近的 need 条该 flow 记录
+    if(removed < need && h && h.flowId === f.id){ removed++; return false; }
+    return true;
+  });
+  f.attempts.length = keep;
+  for(let i=0;i<removed;i++){
+    const li = state.profile.lastModules.indexOf(f.module);
+    if(li >= 0) state.profile.lastModules.splice(li,1);
+  }
+  // 保住不可再生的文字：把保留的最后一稿放回草稿槽，回「一稿」时能原样恢复
+  const back = f.attempts.length? String(f.attempts[f.attempts.length-1].answer||"") : (f.drafts[0]? f.drafts[0].text : "");
+  if(back) saveDraft(qSig(f.question), back);
+  f.step = FLOW_STEPS[Math.max(0, idx-1)];
+  lastGrade = null;   // 过期的批改结果不再展示
+  saveHistory(); save();
+  return true;
+}
 function pruneFlows(){
   const hasDraft = f => !!loadDraft(f.sig);   // 有未提交草稿的 flow 永不自动裁剪
   while(state.flows.length > MAX_OPEN_FLOWS){
@@ -1176,6 +1410,13 @@ function flowGoStep(step){
   if(step === "review" && !(f.attempts && f.attempts.length)){
     banner("还没有批改结果——先在「一稿」提交阅卷，才能进入「批改」步。");
     return false;   // 不允许空批改
+  }
+  if(step === "revise" && f.attempts.length){   // 进回改：把上一稿压栈 flow.drafts（{text,ts,step}，上限 10 条）
+    const prev = String(f.attempts[f.attempts.length-1].answer || "");
+    if(!f.drafts.length || f.drafts[0].text !== prev){
+      f.drafts.unshift({ text: prev, ts: Date.now(), step: "revise" });
+      if(f.drafts.length > 10) f.drafts.length = 10;
+    }
   }
   f.step = step; save();
   renderFlowStep();
@@ -1247,6 +1488,10 @@ function commitFreeSelection(f){
   const o1 = charOffsetAt(rg.startContainer, rg.startOffset), o2 = charOffsetAt(rg.endContainer, rg.endOffset);
   if(o1 == null || o2 == null) return;
   if(addFreeSelectionRecord(f, Math.min(o1,o2), Math.max(o1,o2))){ save(); renderFlowStep(); }
+  else{   // 选区起点落在句间空白/太短：状态栏轻提示一次，不弹窗
+    const pc = $("#pickCount");
+    if(pc) pc.textContent = "这个选区太短或落在空白处，没有收进找点。";
+  }
 }
 /* 找点步的材料渲染：整句可点，选区（整句 + 划选）统一高亮；与 gw_marks 的划线层互不覆盖（独立 class） */
 function extractHtml(f){
@@ -1308,8 +1553,12 @@ function buildOrganizeOutline(groups, selections){
 function organizePanelHtml(f){
   const groups = f.groups || [];
   if(!groups.length) return `<div class="hint" style="margin-top:10px">上一步还没有找点。可以直接进一稿（提纲将为空），或回上一步找点。</div>`;
-  return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词；勾选决定归属。提纲只供批改诊断，不参与计分。</div>
-    <div id="organizeBox">${groups.map((g,i)=>`
+  const covered = new Set();
+  groups.forEach(g=> (g.facts||[]).forEach(fi=> covered.add(fi)));
+  const unc = f.selections.filter((sl,i)=> !covered.has(i)).length;
+  const uncHint = unc? `<div class="hint" style="color:#b8860b;margin-top:6px">有 ${unc} 个新找的点还没进组——不会自动重排，勾选或「重新均衡分组」来安置它们。</div>` : "";
+  return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词；勾选决定归属。提纲只供批改诊断，不参与计分。</div>` + uncHint +
+    `<div id="organizeBox">${groups.map((g,i)=>`
       <div class="ogroup" data-g="${i}">
         <input type="text" class="gname" data-g="${i}" placeholder="上位概括词，如：政务服务效能" value="${esc(g.name||"")}">
         ${f.selections.map((sl,si)=>`<label><input type="checkbox" data-si="${si}" data-g="${i}"${g.facts.indexOf(si)>=0? " checked":""}> ${esc(sl.text)}</label>`).join("")}
@@ -1327,6 +1576,58 @@ function readGroupsDom(){
   }));
 }
 
+/* ============ 回改：清单 + 行级差异 ============ */
+/* 回改清单：hits 里 ✗/◐ 的子项 + evidence 里的【缺：xxx】标注（已在子项证据里出现的不重复列） */
+function revisionListHtml(g){
+  const rows = [];
+  for(const h of (g && g.hits) || []){
+    const cls = hitClass(h);
+    if(cls === "hit") continue;
+    rows.push({ cls, mk: cls==="part"? "◐" : "✗", text: h.point || "", ev: h.evidence || "" });
+  }
+  const evAll = rows.map(r=>r.ev).join("\n");
+  const seen = new Set();
+  for(const h of (g && g.hits) || []){
+    for(const x of (String(h && h.evidence || "").match(/【缺：[^】]*】/g) || [])){
+      if(seen.has(x) || evAll.indexOf(x) >= 0) continue;
+      seen.add(x); rows.push({ cls:"miss", mk:"缺", text:x, ev:"" });
+    }
+  }
+  if(!rows.length) return `<div class="hint" style="margin-top:10px">上一稿没有列出不达标的子项——按「待改进」自己再把把关。</div>`;
+  return `<div class="hits" style="margin-top:10px">` + rows.map(r=>
+    `<div class="hitline ${r.cls}"><span class="mk">${r.mk}</span><span class="pt">${esc(r.text)}</span>${r.ev? `<span class="ev">${esc(r.ev)}</span>`:""}</div>`
+  ).join("") + `</div>`;
+}
+/* 行级 LCS diff：返回 same/add/del 序列；回改页新增绿、删改删除线，只做展示不参与计分 */
+function diffLCS(a, b){
+  const splitLines = s => { const t = String(s==null?"":s); return t === ""? [] : t.split("\n"); };
+  const A = splitLines(a), B = splitLines(b);
+  const n = A.length, m = B.length;
+  const dp = Array.from({length:n+1}, ()=> new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--)
+    dp[i][j] = A[i]===B[j]? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+  const out = [];
+  let i=0, j=0;
+  while(i<n && j<m){
+    if(A[i]===B[j]){ out.push({t:"same", text:A[i]}); i++; j++; }
+    else if(dp[i+1][j] >= dp[i][j+1]){ out.push({t:"del", text:A[i]}); i++; }
+    else{ out.push({t:"add", text:B[j]}); j++; }
+  }
+  while(i<n) out.push({t:"del", text:A[i++]});
+  while(j<m) out.push({t:"add", text:B[j++]});
+  return out;
+}
+function diffHtml(prev, cur){
+  let html = "";
+  for(const op of diffLCS(prev, cur)){
+    if(op.t === "same") continue;
+    html += op.t === "add"
+      ? `<div class="dline add">+ ${esc(op.text)}</div>`
+      : `<div class="dline del">− ${esc(op.text)}</div>`;
+  }
+  return html || `<span class="hint">与上一稿没有行级差异</span>`;
+}
+
 /* ============ 七步训练链：面板渲染 ============ */
 let lastGrade = null;   // 最近一次批改 { g, total }：批改步的重渲染只读它，不重调 AI
 
@@ -1334,7 +1635,7 @@ function railHtml(f){
   return `<div class="flowrail" id="flowRail">` +
     syncRail(f).map(s=>`<span class="fstep ${s.state}" data-step="${s.step}">${s.label}</span>`).join("") + `</div>`;
 }
-function navHtml(step){
+function navHtml(step, f){
   const i = FLOW_STEPS.indexOf(step);
   const prev = i > 0? FLOW_STEPS[i-1] : null;
   const next = (i >= 0 && i < FLOW_STEPS.length - 1)? FLOW_STEPS[i+1] : null;
@@ -1342,6 +1643,8 @@ function navHtml(step){
   if(prev) html += `<button class="linkbtn" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
   // read 靠「开始找点」推进、draft 靠「提交阅卷」推进——这两步不摆 Next
   if(next && step !== "read" && step !== "draft") html += `<button id="btnFlowNext">下一步：${FLOW_LABELS[next]}</button>`;
+  // 回到一稿重做：撤销该链最近一次批改（回滚 history 与画像累计，草稿保留），比「上一步」多一层回滚语义
+  if((step === "review" || step === "revise") && f && f.attempts.length) html += `<button class="linkbtn" id="btnRedraft">回到一稿重做</button>`;
   return html + `</div>`;
 }
 function renderFlowStep(){
@@ -1360,7 +1663,7 @@ function renderFlowStep(){
   if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
   if(f) html += railHtml(f);
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
-  if(f) html += navHtml(step);
+  if(f) html += navHtml(step, f);
   docBody.innerHTML = html;
   renderHeader();
   wireStep(step, f);
@@ -1391,13 +1694,12 @@ function stepPanelHtml(step, f){
       <div id="pickList">${f? pickListHtml(f) : ""}</div>`;
   }
   if(step === "organize") return f? organizePanelHtml(f) : `<div class="hint" style="margin-top:10px">没有进行中的训练链。</div>`;
-  if(step === "draft") return draftPanelHtml(f);
+  if(step === "draft" || step === "revise") return draftPanelHtml(f);
   if(step === "review"){
     if(!lastGrade) return `<div class="hint" style="margin-top:10px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
     return gradeHtml(lastGrade.g, lastGrade.total);
   }
-  if(step === "revise") return `<div class="startbox"><h2>回改（下一批次）</h2><p>将带着批改重点回到一稿修改，并做两稿对照。</p></div>`;
-  if(step === "distill") return `<div class="startbox"><h2>沉淀（下一批次）</h2><p>将自动提炼个人经验，注入后续出题与阅卷。</p></div>`;
+  if(step === "distill") return distillPanelHtml();
   return "";
 }
 function draftPanelHtml(f){
@@ -1405,10 +1707,15 @@ function draftPanelHtml(f){
   const question = current.question;
   const note = getNote(module, subtype);
   const outline = f? buildOrganizeOutline(f.groups, f.selections) : "";
+  const rewriting = !!(f && f.step === "revise");   // 回改稿：同一面板，多一份回改清单与差异对照
   let html = "";
+  if(rewriting){
+    html += `<div class="hint" style="margin-top:10px">按批改回改：对照下面的清单修改，提交后重新阅卷（记为同一题的新一次尝试，总分口径不变）。</div>`;
+    html += revisionListHtml(lastGrade && lastGrade.g || {});
+  }
   if(outline) html += `<details class="notebox" open style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
   html += `<div class="answer-wrap" id="answerArea">
-    <div class="sec-title">作答区</div>
+    <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
@@ -1419,6 +1726,7 @@ function draftPanelHtml(f){
       <span class="hint" id="gradeLive"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
+  if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
   html += `<details class="notebox"${note? " open":""}><summary>我的笔记${note? "":"（还没有）"} — 作答时只看这个</summary><div class="notebody" id="noteBody">${note? esc(note) : '<span class="hint">还没记笔记。回「读材料」步的学习卡里补记，或点右下角翻卡时顺手记。</span>'}</div></details>`;
   html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
   html += `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
@@ -1507,6 +1815,16 @@ function wireDraft(f){
   if(draft){ ta.value = draft; $("#draftNote").textContent = "已恢复上次未提交的草稿"; }
   setWordCount(ta.value.length, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
+  // 回改稿：预填上一稿（有未提交的回改草稿则以草稿优先），并做行级差异实时对照
+  if(f && f.step === "revise"){
+    const prev = (f.attempts && f.attempts.length)? String(f.attempts[f.attempts.length-1].answer||"") : "";
+    if(!ta.value) ta.value = prev;
+    setWordCount(ta.value.length, limit);
+    const dbox = $("#diffBox");
+    const updDiff = ()=>{ if(dbox) dbox.innerHTML = diffHtml(prev, ta.value); };
+    updDiff();
+    ta.addEventListener("input", updDiff);
+  }
 }
 function wireOrganize(f){
   const box = $("#organizeBox");
@@ -1527,6 +1845,7 @@ function wireStep(step, f){
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
+  const brd = $("#btnRedraft"); if(brd) brd.onclick = ()=>{ if(rollbackFlowFrom("review")) renderFlowStep(); };
   if(step === "read"){
     wireMarks();
     const be = $("#btnToExtract"); if(be) be.onclick = ()=> flowGoStep("extract");
@@ -1535,6 +1854,8 @@ function wireStep(step, f){
   }
   if(step === "organize" && f) wireOrganize(f);
   if(step === "draft") wireDraft(f);
+  if(step === "revise" && f) wireDraft(f);
+  if(step === "distill") wireExperiences();
   if(step === "review"){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
@@ -1587,6 +1908,7 @@ async function submitAnswer(){
   const mySeq = reqSeq, mod = current.module, sub = current.subtype, q = current.question;
   const f = activeFlow();
   const inFlow = !!(f && f.sig === qSig(q));
+  const rewriting = !!(inFlow && f.step === "revise");   // 回改稿：走同一条 grade 路径，但带上轮批改要点
   const outline = inFlow? buildOrganizeOutline(f.groups, f.selections) : "";   // 归类提纲：只进 prompt 供诊断
   const kps = current.keyPoints || [], peeks = current.cardPeeks || 0;
   // 阅卷往往是全程最慢的一次调用：像出题页一样给实时秒数
@@ -1604,19 +1926,22 @@ async function submitAnswer(){
     const gp = $("#gradePeek"); if(gp && pk){ gp.style.display="block"; gp.textContent = pk.slice(-160); }
   };
   try{
-    const g = await grade(mod, sub, q, kps, ans, onDelta, outline);
+    const g = await grade(mod, sub, q, kps, ans, onDelta, outline, rewriting? { previousReview: previousReviewHits() } : null);
     if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
     updateProfile(mod);
     const pts = pointsOf(g.hits);
     const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub, flowId: inFlow? f.id : undefined,
+      mode: rewriting? "rewrite" : undefined,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
     if(state.history.length>200) state.history.length=200;
     clearDraft(qSig(q));
-    if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline });   // 批改门槛的事实源
+    if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline, mode: rewriting? "rewrite" : "draft" });   // 批改门槛的事实源
     clearInterval(tick);
-    saveHistory(); save(); renderGrade(g, total);   // 提交即进入「批改」步
+    saveHistory(); save(); renderGrade(g, total);   // 申论：提交即进入「批改」步；综应A：显示结果页
+    // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示
+    setTimeout(()=>{ distillExperience(mod, sub, g, q).catch(()=>{}); }, 0);
   }catch(e){
     clearInterval(tick);
     if(mySeq !== reqSeq) return;
@@ -1688,12 +2013,18 @@ function gradeHtml(g, total){
     </div></div>`;
   return html;
 }
-/* 批改结果进「批改」步：renderGrade 只记结果并切步，渲染统一走 renderFlowStep */
+/* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
 function renderGrade(g, total){
   lastGrade = { g, total };
-  const f = activeFlow();
-  if(f && current && f.sig === qSig(current.question)) f.step = "review";
-  renderFlowStep();
+  if(current && usesFlowChain(current.module)){
+    const f = activeFlow();
+    if(f && f.sig === qSig(current.question)) f.step = "review";
+    renderFlowStep();
+  } else if(current){
+    current.grade = { g, total };
+    current.phase = "grade";
+    renderZyPage();
+  }
 }
 
 /* ============ 画像 ============ */
@@ -1720,6 +2051,7 @@ function renderProfile(){
       html += `</div>`;
     }
   }
+  html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div>` + experienceListHtml();
   html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th>总分</th><th>待改进</th></tr></thead><tbody>`;
   for(const h of state.history.slice(0,50)){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
@@ -1728,6 +2060,7 @@ function renderProfile(){
   }
   html += `</tbody></table></div>`;
   $("#profileBody").innerHTML = html;
+  wireExperiences();
 }
 
 /* ============ 设置 ============ */
@@ -1913,6 +2246,7 @@ function importJSON(file){
       state.cache.studyCards = migrateKeyedObject(state.cache.studyCards||{}).map;
       state.cache.notes = migrateKeyedObject((s.cache&&s.cache.notes)||{}).map;
       state.modelCache = s.modelCache||{};
+      state.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
       // 训练链：类型校验（非法 step 丢弃该项，不整包失败），并恢复最近一条进行中的链
       state.flows = sanitizeFlows(s.flows);
       _flowId = null;
