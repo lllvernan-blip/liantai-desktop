@@ -111,13 +111,14 @@ renderProfile();
 ok(el("#profileBody").innerHTML.indexOf(">71<") >= 0, "画像: 文种统计近期加权 (71 而非 70)");
 state.settings.orgName = "测试单位";
 state.history = [];
-current = { module:"zy.gongwen", subtype:"通知", question:q1, phase:"answer", cardPeeks:0 };
+current = { module:"zy.gongwen", subtype:"通知", question:q1, cardPeeks:0 };
 saveDraft(qSig(q1), "恢复我");
 el("#answer").value = "";
 el("#draftNote").textContent = "";
 renderQuestion();
-ok(el("#answer").value === "恢复我", "题目页: 自动恢复未提交草稿");
-ok(el("#wordCount").innerHTML.indexOf("3") >= 0, "题目页: 字数统计");
+flowGoStep("draft");
+ok(el("#answer").value === "恢复我", "一稿: 自动恢复未提交草稿");
+ok(el("#wordCount").innerHTML.indexOf("3") >= 0, "一稿: 字数统计");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"字数题", requirements:"写一份通知，不超过200字。" } };
 saveDraft(qSig(current.question), "x");
 el("#answer").value = "一二三四五六七八九十".repeat(25);   // 250 字，超出 200
@@ -126,7 +127,6 @@ ok(el("#wordCount").innerHTML.indexOf("超出 50 字") >= 0 && el("#wordCount").
 el("#answer").value = "一二三四五";
 syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
 ok(el("#wordCount").innerHTML.indexOf("/ 200 字") >= 0, "题目页: 未超出时显示 已写/上限");
-current = { module:"zy.gongwen", subtype:"通知", question:q1 };
 current = { module:"zy.gongwen", subtype:"通知", question:q1 };
 renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送机关"],
               hits:[ {point:"标题含事由",status:"命中",evidence:"考生写了标题"},
@@ -263,8 +263,9 @@ saveDraft(qSig(qB), "B 的草稿");
 ok(loadDraft(qSig(qA)) === "A 的草稿" && loadDraft(qSig(qB)) === "B 的草稿", "草稿: 换题不覆盖（多槽）");
 for(let i=0;i<10;i++){ saveDraft(qSig({ background:"t"+i, requirements:"r" }), "草稿"+i); }
 ok(loadDraft(qSig(qA)) === "", "草稿: 超过 8 份时最旧的被挤出");
-current = { module:"zy.gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" }, phase:"answer", cardPeeks:0 };
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"骨架题", requirements:"写一份通知" }, cardPeeks:0 };
 renderQuestion();
+flowGoStep("draft");
 el("#btnTpl").onclick();
 ok(el("#wordCount").innerHTML.indexOf("<b>0<") < 0, "骨架: 插入后字数同步");
 ok(loadDraft(qSig(current.question)).indexOf("关于") >= 0, "骨架: 插入后草稿已保存");
@@ -295,21 +296,24 @@ await fetchModels(false);
 ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
 globalThis.fetch = realFetch;
 
-/* 8.5 两阶段练习 + 翻卡计数 + 笔记 */
+/* 8.5 七步训练链：读材料（学习卡并入）→ 一稿；翻卡计数 + 笔记 */
 saveNote("zy.gongwen","通知","要点一：格式完整");
 ok(getNote("zy.gongwen","通知") === "要点一：格式完整" && getNote("zy.gongwen","函") === "", "笔记: 按文种键存取，不串味");
 state.history = [{ module:"zy.gongwen", subtype:"通知", cardPeeks:2, grade:{ total:70, scores:{} } }];
-current = { module:"zy.gongwen", subtype:"通知", question:{ background:"阶段题", requirements:"写一份通知。" }, phase:"card", cardPeeks:0,
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"阶段题。第二句！", requirements:"写一份通知。" }, cardPeeks:0,
             studyCard:{ title:"通知·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架文本" } };
 renderQuestion();
-ok(el("#docBody").innerHTML.indexOf("题目（模块") < 0, "卡片页: 不给看题，先学");
-ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "卡片页: 笔记可见可续写（真实输入走 input 监听，真机另验）");
-ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 卡片页显示上次翻卡次数");
-el("#btnBegin").onclick();
-ok(current.phase === "answer" && el("#docBody").innerHTML.indexOf("先学再练") < 0, "两阶段: 点开始作答后卡片退场");
-ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "作答页: 能看到自己的笔记");
-ok(el("#docBody").innerHTML.indexOf("解题要点") < 0, "作答页: 卡片原文不再平铺");
-ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "作答页: 翻卡浮标在场");
+ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "七步链: 步骤条在场，落点是读材料");
+ok(el("#docBody").innerHTML.indexOf("题目（模块") >= 0, "读材料: 题目与材料同屏");
+ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡折叠并入本步（展开可看）");
+ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
+ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
+ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始找点」推进）");
+flowGoStep("draft");
+ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷在场");
+ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: draft 步不摆 Next（靠「提交阅卷」推进）");
+ok(el("#docBody").innerHTML.indexOf("要点一：格式完整") >= 0, "一稿: 能看到自己的笔记");
+ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡浮标在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
 ok(el("#drawerBody").innerHTML.indexOf("解题要点") >= 0, "抽屉: 卡片原文只在抽屉里");
@@ -318,16 +322,18 @@ el("#btnDrawerClose").onclick();
 ok(el("#cardDrawer").hidden === true, "抽屉: 可关闭");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 2, "抽屉: 再看再计");
-ok(el("#docBody").innerHTML.indexOf("回学习卡") < 0, "作答页: 顶部回卡入口已删，只留抽屉");
-current = { module:"zy.guina", subtype:"概括原因", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
-renderQuestion();
+const flowGate = activeFlow();
+ok(flowGoStep("review") === false && flowGate.step === "draft", "批改门槛: 无批改结果不得进入批改步");
+ok(el("#bannerSlot").innerHTML.indexOf("批改") >= 0, "批改门槛: 拒绝时有明确提示");
+current = { module:"zy.guina", subtype:"概括原因", question:{ background:"x", requirements:"y" }, cardPeeks:0 };
+renderQuestion(); flowGoStep("draft");
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") < 0, "非公文: 骨架按钮与占位提示都不出现");
-current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y" }, phase:"answer", cardPeeks:0 };
-renderQuestion();
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y" }, cardPeeks:0 };
+renderQuestion(); flowGoStep("draft");
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") >= 0, "公文: 骨架按钮在场，占位提示与按钮一致");
-current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, phase:"answer", cardPeeks:0 };
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, cardPeeks:0 };
 renderQuestion();
-ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") >= 0, "作答页: 题目满分对考生可见");
+ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") >= 0, "题目页: 题目满分对考生可见");
 state.history = [];
 
 /* 8.6 翻卡次数参与出题调度 */
@@ -461,6 +467,123 @@ ok(MODULES["sl.guina"].dims.indexOf("文种适配") < 0 && MODULES["sl.shiwu"] =
 ok(MODULES["zy.gongwen"].dims.indexOf("文种适配") >= 0 && MODULES["zy.shiwu"].dims.indexOf("程序合规") >= 0,
    "综应A: 原模块口径加前缀后未被动过");
 
+/* 10.5 作答上限与材料长度：以题型规范为准（本地表是唯一口径） */
+ok(MODULES["sl.guina"].ansLen === 250 && MODULES["sl.fenxi"].ansLen === 300 && MODULES["sl.duice"].ansLen === 400 && MODULES["sl.guanche"].ansLen === 500,
+   "作答上限: 申论四题型按题型规范 (250/300/400/500)");
+ok(MODULES["zy.guina"].ansLen === 300 && MODULES["zy.fenxi"].ansLen === 300 && MODULES["zy.duice"].ansLen === 300 && MODULES["zy.shiwu"].ansLen === 400,
+   "作答上限: 综应A 按规范沿用 (300/300/300/400)");
+ok(MODULES["zy.gongwen"].ansLen === undefined, "作答上限: 公文写作按文种定，不设单一上限");
+ok(SUBJECTS.sl.modules.every(k=>MODULES[k].matLen[0] === 600 && MODULES[k].matLen[1] === 900), "材料长度: 申论四题型统一 600-900");
+
+/* 11. 七步训练链：状态机 / 找点 / 归类 / 提纲进批改 / 迁移 / 裁剪 */
+/* ① 同题复用 / 换题关闭且草稿保留 */
+const fqA = { background:"流程题甲", requirements:"要求甲" };
+saveDraft(qSig(fqA), "甲还没交的草稿");
+const fA = ensureFlow("zy.guina", "概括问题", fqA, []);
+const fA2 = ensureFlow("zy.guina", "概括问题", fqA, []);
+ok(fA2 === fA && fA.step === "read", "flow: 同题复用同一条训练链");
+const fqB = { background:"流程题乙", requirements:"要求乙" };
+const fB = ensureFlow("zy.guina", "概括原因", fqB, []);
+ok(fA.closedAt && fA.step === "done", "flow: 换题收口旧链（只置标记，不删内容）");
+ok(loadDraft(qSig(fqA)) === "甲还没交的草稿", "flow: 收口后未提交草稿原样保留");
+ok(fB.sig === qSig(fqB) && fB.step === "read" && fB.subject === "zy", "flow: 新链从读材料开始并带科目");
+/* ③ 无 attempts 进 review 被拒 */
+ok(flowGoStep("review") === false && activeFlow().step === "read", "批改门槛: 无批改结果进批改步被拒");
+/* ② syncRail 三态 */
+const rail = syncRail({ step:"organize" });
+ok(rail.map(x=>x.state).join(",") === "done,done,active,pending,pending,pending,pending", "步骤条: i<cur done / = active / > pending");
+ok(rail[2].label === "归类" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
+
+/* ④ 句子表切分与选区偏移 */
+const sq2 = { background:"第一句。第二句！\n\n第二段只有一句？", requirements:"r" };
+const sents2 = sentenceTable(sq2);
+ok(sents2.length === 3 && sents2.map(s=>s.text).join("|") === "第一句。|第二句！|第二段只有一句？", "句子表: 按句切分、跨段不断句");
+ok(sents2.every(s=> sq2.background.slice(s.start, s.end) === s.text), "句子表: start/end 偏移可还原原句");
+ok(snapSentence(sents2, 0, 3) === 0 && snapSentence(sents2, sents2[2].start, sents2[2].start+2) === 2, "吸附: 有重叠时取重叠最大的句子");
+ok(snapSentence(sents2, 8, 9) === 1, "吸附: 无重叠时取最近句");
+ok(addFreeSelectionRecord(fB, 0, 3) === false, "找点: 不足 4 字的划选不收");
+ok(addFreeSelectionRecord(fB, 0, 8) === true, "找点: ≥4 字的划选收入");
+const frec = fB.selections[0];
+ok(frec.free === true && frec.valid === null && frec.point === -1 && typeof frec.sentenceId === "number" && frec.text === "流程题乙",
+   "找点: 选区记录同构 {text,start,end,sentenceId,valid,point,free}");
+ok(addFreeSelectionRecord(fB, 0, 8) === false, "找点: 同一选区不重复收");
+ok(toggleSentenceSelection(fB, 0, "") === true && fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 点选整句收入");
+ok(toggleSentenceSelection(fB, 0, "s0") === true && !fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 再点取消整句，划选记录不受影响");
+
+/* 归类：组数与提纲 */
+fB.groups = groupAutoSplit(fB.selections);
+ok(fB.groups.length === Math.min(Math.max(fB.selections.length,1),8), "归类: 组数 = clamp(选区数,1,8)");
+ok(fB.groups.every(g=> Array.isArray(g.facts)), "归类: 每组有归属数组");
+const outlineDemo = buildOrganizeOutline(
+  [{ name:"格式要求", facts:[0] }, { name:"", facts:[1] }],
+  [{ text:"有抬头有落款" }, { text:"语言要得体" }]);
+ok(outlineDemo === "格式要求：有抬头有落款\n要点2：语言要得体", "归类: 一行一组的纯文本提纲 -> " + JSON.stringify(outlineDemo));
+
+/* ⑤ 归类提纲进批改请求体（拦 callLLM 检查） */
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"提纲题材料。", requirements:"不超过250字。" }, cardPeeks:0 };
+renderQuestion();   // 让 flow 与 current 对齐
+const fCur = activeFlow();
+fCur.selections = [{ text:"要点甲", start:0, end:3, sentenceId:0, valid:null, point:-1, free:false }];
+fCur.groups = [{ name:"甲类", facts:[0] }];
+flowGoStep("draft");
+el("#answer").value = "这是一段超过二十个字的作答内容，用于验证批改请求体。";
+const realCall3 = callLLM;
+let cap3 = null;
+callLLM = async (sys, user)=>{ cap3 = { sys, user }; return { hits:[{point:"p",score:10,awarded:8,status:"满分",evidence:"e"}], scores:{}, strengths:[], weaknesses:[], comment:"x" }; };
+await submitAnswer();
+callLLM = realCall3;
+const sent3 = JSON.parse(cap3.user);
+ok(sent3.organizeOutline === "甲类：要点甲", "批改请求体: 归类提纲随卷上报");
+ok(cap3.sys.indexOf("organizeOutline") >= 0 && cap3.sys.indexOf("不参与计分") >= 0, "批改 prompt: 提纲只供诊断的口径写明");
+ok(cap3.sys.indexOf(SCORING_RULES) >= 0, "批改 prompt: SCORING_RULES 一字未动");
+ok(fCur.attempts.length === 1 && fCur.step === "review", "批改: 提交后进入批改步并留痕 attempt");
+ok(state.history[0].answer.indexOf("二十个字") >= 0 && state.history[0].grade.total === 80, "批改: 练习记录已写入且计分口径不变");
+
+/* ⑦ 超字数不阻断提交；作答上限来自本地表 */
+ok(enforceWordLimit("sl.guina", { requirements:"概括主要问题，不超过300字。" }).requirements.indexOf("不超过250字") >= 0,
+   "本地口径: 模型给的 300 被纠正为本地表 250");
+ok(ansLimitFor("sl.guina", { requirements:"不超过300字" }) === 250 && ansLimitFor("zy.gongwen", { requirements:"不超过300字" }) === 300,
+   "作答上限: 本地表优先，公文回落到材料解析");
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"超字数材料。", requirements:"概括主要问题，不超过250字。" }, cardPeeks:0 };
+renderQuestion(); flowGoStep("draft");
+el("#answer").value = "字".repeat(300);   // 超出 250 上限 50 字
+el("#btnSubmit").disabled = false;   // DOM 桩按选择器缓存元素：真机每次重渲染都是新按钮，这里手动复位
+const realCall4 = callLLM;
+callLLM = async (sys, user)=>{ return { hits:[], scores:{}, strengths:[], weaknesses:[], comment:"x" }; };
+await submitAnswer();
+callLLM = realCall4;
+ok(el("#bannerSlot").innerHTML.indexOf("出错了") < 0 && state.history[0] && state.history[0].answer.length === 300,
+   "超字数: 只提示不阻断，作答照常入记录");
+ok(state.history[0].flowId, "记录: 练习记录带上 flowId");
+
+/* ⑥ flows 迁移 + 幂等 */
+localStorage.clear();
+localStorage.setItem("gw_history", JSON.stringify([{ ts:42, module:"zy.guina", grade:{ total:50, scores:{} } }]));
+localStorage.setItem("gw_state", JSON.stringify({ settings:{}, profile:{}, history:[], cache:{},
+  flows:[ { id:"flow_1", subject:"zy", module:"zy.guina", subtype:null, sig:"q1", question:{background:"b"}, keyPoints:[], createdAt:1, closedAt:null, step:"read", attempts:[], selections:[], groups:[], drafts:[] },
+          { id:"flow_bad", step:"bogus", question:{background:"x"} },
+          { id:"flow_done", step:"done", closedAt:5, question:{background:"c"} } ] }));
+const lf1 = load();
+ok(lf1.flows.length === 2 && lf1.flows[0].id === "flow_1" && lf1.flows[1].step === "done", "flow 迁移: 非法 step 丢弃该项，其余保留（含已关闭）");
+ok(Array.isArray(lf1.flows[1].attempts) && Array.isArray(lf1.flows[1].selections), "flow 迁移: 缺失字段补默认");
+ok(JSON.parse(localStorage.getItem("gw_history"))[0].flowId === "legacy-42", "history 迁移: 旧记录补 flowId=legacy-ts");
+const lf2 = load();
+ok(lf2.flows.length === 2 && lf2.flows[0].id === "flow_1", "flow 迁移: 二次 load 幂等");
+ok(JSON.parse(localStorage.getItem("gw_history"))[0].flowId === "legacy-42", "history 迁移: flowId 幂等不重复");
+localStorage.clear();
+
+/* flow 裁剪：上限 20 条，有未提交草稿的永不裁 */
+state.flows = []; _flowId = null;
+const keepQ = { background:"保留题", requirements:"r" };
+saveDraft(qSig(keepQ), "还没写完的草稿");
+ensureFlow("zy.guina", null, keepQ, []);
+for(let i=0;i<25;i++){ ensureFlow("zy.guina", null, { background:"裁剪题" + i, requirements:"r" }, []); }
+ok(state.flows.length === MAX_OPEN_FLOWS, "flow 裁剪: 只留最近 " + MAX_OPEN_FLOWS + " 条 -> " + state.flows.length);
+ok(state.flows.some(x=>x.sig === qSig(keepQ)), "flow 裁剪: 有未提交草稿的 flow 永不自动裁剪");
+clearDraft(qSig(keepQ));
+state.flows = []; _flowId = null;
+
+current = null;
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
