@@ -820,7 +820,7 @@ ok(pdRound.items[1].done && pdRound.items[1].ok === false && pdRound.correct ===
 const realDistillPD = distillExperience;
 let distilledPD = false;
 distillExperience = async ()=>{ distilledPD = true; return []; };
-const pdDimsBefore = JSON.stringify(state.profile.modules["zy.gongwen"].dims);
+const pdDimsBefore = JSON.stringify(state.profile.modules);
 const pdLMBefore = state.profile.lastModules.length;
 state.history = [];
 pdNext();   // 最后一题 → 收卷
@@ -835,7 +835,7 @@ ok(JSON.stringify(state.history[0].items) === JSON.stringify([
   { stem:"s2", options:["甲","乙"], answer:1, picked:0, ok:false, trap:"改范围", explain:"e2" } ]),
    "轮次: items 带 stem/options/answer/picked/ok");
 ok(JSON.parse(localStorage.getItem("gw_history"))[0].track === "pd", "轮次: 落盘 gw_history");
-ok(JSON.stringify(state.profile.modules["zy.gongwen"].dims) === pdDimsBefore, "隔离: 判别轨不写维度画像 dims");
+ok(JSON.stringify(state.profile.modules) === pdDimsBefore, "隔离: 判别轨不写维度画像 dims");
 ok(state.profile.lastModules.length === pdLMBefore, "隔离: 判别轨不进 lastModules（不影响作答轨调度）");
 ok(distilledPD === false, "隔离: 判别轨不触发经验提炼");
 renderProfile();
@@ -866,6 +866,122 @@ ok(el("#profileBody").innerHTML.indexOf("分组概括") >= 0 && el("#profileBody
    "迁移: 新旧混合记录渲染不报错，画像统计正确");
 localStorage.clear();
 state.history = [];
+
+/* ============ 14. review 修复批次：小修 / 安全 / 经验去重 / 导入加固 ============ */
+
+/* 14.1 migrateHistory：判别轨记录（track:'pd'）不补 legacy- 占位 flowId */
+const mhPD = migrateHistory([
+  { ts:1, module:"zy.gongwen", grade:{ total:60, scores:{} } },
+  { ts:2, track:"pd", form:"fact-select", theme:"养老", correct:1, total:2 }
+]);
+ok(mhPD.list[0].flowId === "legacy-1" && mhPD.list[1].flowId === undefined,
+   "history 迁移: 判别轨记录（track:'pd'）不补 legacy- 占位 flowId");
+
+/* 14.2 showLoading：传入文本统一转义后再上屏 */
+showLoading('<img src=x onerror=alert(1)>养老主题');
+ok(el("#docBody").innerHTML.indexOf("<img") < 0 && el("#docBody").innerHTML.indexOf("&lt;img") >= 0,
+   "showLoading: 传入文本统一 esc 再拼 innerHTML（堵 genPDRound 主题/模型输出注入）");
+showLoading("");
+
+/* 14.3 switchSubject：从判别轨回当前科目不收链；真切到另一科目才收链 */
+state.flows = []; _flowId = null; current = null;
+state.settings.subject = "sl"; renderTabs();
+const swFlow = ensureFlow("sl.guina", "概括问题", { background:"切科题目材料。", requirements:"r" }, []);
+enterPD();
+switchSubject("sl");
+ok(pdActive === false && swFlow.closedAt == null && _flowId === swFlow.id,
+   "切科目: 从判别轨点回当前科目，进行中的申论链不被收口");
+switchSubject("zy");
+ok(swFlow.closedAt != null && swFlow.step === "done", "切科目: 真正切到另一科目才收链");
+state.flows = []; _flowId = null; current = null;
+
+/* 14.4 恢复现场：链的科目与当前抬头不同时，先把 settings.subject 对齐再进入 */
+state.settings.subject = "zy"; save(); renderTabs(); renderHeader();
+const alFlow = ensureFlow("sl.guina", "概括问题", { background:"对齐题目材料。", requirements:"r" }, []);
+_flowId = null; current = null;
+renderStart();
+el("#btnResume").onclick();
+ok(state.settings.subject === "sl" && current && current.module === "sl.guina" && _flowId === alFlow.id,
+   "恢复现场: 点击恢复先把 settings.subject 对齐到链的科目，再进入（杜绝张冠李戴）");
+state.flows = []; _flowId = null; current = null;
+
+/* 14.5 sanitizePDItems：重复选项去重 + answerKey 按文本重映射 / 越界丢弃 / 缺 context 丢弃 / 不足 2 项丢弃 */
+const dedupIt = sanitizePDItems([{ context:"c", stem:"s", options:["甲","乙","甲"], answer:2 }])[0];
+ok(dedupIt && dedupIt.options.join("|") === "甲|乙" && dedupIt.answer === 0,
+   "判别净化: 重复选项去重，answerKey 按选项文本重映射 (2->0)");
+ok(sanitizePDItems([{ context:"c", stem:"s", options:["甲","甲","乙"], answer:0 }])[0].answer === 0,
+   "判别净化: answerKey 指向被合并的重复项时仍指向原正确文本");
+ok(sanitizePDItems([{ context:"c", stem:"s", options:["甲","乙"], answer:5 }]).length === 0,
+   "判别净化: answerKey 越界丢弃整题");
+ok(sanitizePDItems([{ context:"", stem:"s", options:["甲","乙"], answer:0 }]).length === 0,
+   "判别净化: 缺 context 丢弃整题");
+ok(sanitizePDItems([{ context:"c", stem:"s", options:["甲"], answer:0 }]).length === 0,
+   "判别净化: 去重后不足 2 个选项丢弃整题");
+
+/* 14.6 sanitizeFlows：非法 step 丢弃（直接调用） */
+const sfBad = sanitizeFlows([ { id:"a", step:"bogus", question:{background:"b"} }, { id:"b", step:"read", question:{background:"c"} } ]);
+ok(sfBad.length === 1 && sfBad[0].id === "b", "flow 净化: 非法 step 丢弃该项（直接调用）");
+
+/* 14.7 pruneFlows：裁剪次序——有草稿的最旧项永不裁，先裁其后的无草稿已关闭项 */
+state.flows = []; _flowId = null;
+const pq14 = { background:"裁剪次序题材料。", requirements:"r" };
+saveDraft(qSig(pq14), "还没交的草稿");
+state.flows.push({ id:"f_draft", subject:"zy", module:"zy.guina", sig:qSig(pq14), question:pq14, keyPoints:[], createdAt:1, closedAt:9, step:"done", attempts:[], selections:[], groups:[], drafts:[] });
+for(let i=0;i<25;i++) state.flows.push({ id:"f"+i, subject:"zy", module:"zy.guina", sig:"sig"+i, question:{background:"b"+i}, keyPoints:[], createdAt:2+i, closedAt:9, step:"done", attempts:[], selections:[], groups:[], drafts:[] });
+pruneFlows();
+ok(state.flows.length === MAX_OPEN_FLOWS && state.flows.some(x=>x.id==="f_draft") && state.flows.some(x=>x.id==="f24") && !state.flows.some(x=>x.id==="f0"),
+   "flow 裁剪: 裁剪次序正确——有草稿的最旧项保留，先裁其后的无草稿项 (剩 " + state.flows.length + ")");
+clearDraft(qSig(pq14));
+state.flows = []; _flowId = null;
+
+/* 14.8 normalizeExpTitle + 归一化判重（措辞不同但语义相同 → 更新不新增） */
+ok(normalizeExpTitle("漏写 落款、文号！") === "漏写落款文号",
+   "经验去重: normalizeExpTitle 去标点/空白 -> " + normalizeExpTitle("漏写 落款、文号！"));
+ok(normalizeExpTitle("Ｌogin ＩＤ") === "loginid", "经验去重: 全角折半角 + 小写");
+state.experiences = [];
+storeExperiences([{ type:"错因", title:"漏写落款", body:"b1" }], "sl.guina", null, { background:"判重题一。", requirements:"r" });
+storeExperiences([{ type:"错因", title:"总是漏写落款和文号", body:"b2" }], "sl.guina", null, { background:"判重题二。", requirements:"r" });
+ok(state.experiences.length === 1 && state.experiences[0].body === "b2",
+   "经验去重: 措辞不同但语义相同（一方完整包含另一方）→ 更新已有条目不新增");
+storeExperiences([{ type:"规则", title:"对策要落到具体主体", body:"b3" }], "sl.guina", null, { background:"判重题三。", requirements:"r" });
+ok(state.experiences.length === 2, "经验去重: 语义不同的照常新增");
+
+/* 14.9 distillExperience：prompt 带当前模块已有 titles + 防换措辞指令 */
+const realCall14 = callLLM;
+let cap14 = null;
+callLLM = async (sys, user)=>{ cap14 = { sys, user }; return { experiences: [] }; };
+await distillExperience("sl.guina", null, { hits:[], weaknesses:[], comment:"" }, { background:"prompt题。", requirements:"r" });
+ok(cap14.user.indexOf('"existingTitles"') >= 0 && cap14.user.indexOf("漏写落款") >= 0,
+   "经验去重: prompt 带当前模块已有经验 titles（≤10）");
+ok(cap14.sys.indexOf("title 原文") >= 0 && cap14.sys.indexOf("不要换措辞") >= 0,
+   "经验去重: prompt 明确「本质相同就返回已有 title 原文，不要换措辞」");
+callLLM = realCall14;
+
+/* 14.10 expBlock：注入上限 3 条 */
+state.experiences = [1,2,3,4,5].map(i=>({ id:"m"+i, type:"错因", title:"t"+i, body:"b", module:"sl.guina", subject:"sl", ts:i, disabled:false, sourceSig:"s" }));
+ok(expBlock("sl.guina").length === 3, "注入: expBlock 上限 3 条");
+state.experiences = [];
+
+/* 14.11 importJSON：类型加固 + 危险键过滤 */
+globalThis.FileReader = class { readAsText(f){ this.result = f; if(this.onload) this.onload(); } };
+importJSON('{"settings":{"apiKey":"sk-x","__proto__":{"polluted":1}},"profile":{"modules":{"sl.guina":{"dims":{}}},"lastModules":["sl.guina"]},"cache":{"studyCards":{"sl.guina::概括问题":{"title":"卡"}},"notes":{}},"experiences":[{"title":"t","body":"b"},{"bad":1}],"flows":[{"id":"f1","step":"read","question":{"background":"b"}}],"history":[]}');
+ok(state.settings.apiKey === "sk-x" && ({}).polluted === undefined, "导入: __proto__ 键被过滤，不污染原型");
+ok(state.profile.lastModules[0] === "sl.guina", "导入: profile 合法字段收下");
+ok(state.cache.studyCards["sl.guina::概括问题"] && state.cache.studyCards["sl.guina::概括问题"].title === "卡", "导入: cache 合法字段收下且键保留");
+ok(state.experiences.length === 1, "导入: experiences 逐条校验，坏条目丢弃");
+ok(state.flows.length === 1 && state.flows[0].id === "f1", "导入: flows 走 sanitizeFlows");
+importJSON('{"settings":"bad","profile":[1,2],"cache":"x","flows":"y","experiences":"z","modelCache":5,"history":"no"}');
+ok(state.settings.provider === "deepseek" && state.settings.apiKey === "", "导入: settings 非对象丢用默认值，不整包失败");
+ok(JSON.stringify(state.profile.modules) === "{}" && JSON.stringify(state.profile.lastModules) === "[]", "导入: profile 非对象丢用默认值");
+ok(state.cache.studyCards && typeof state.cache.studyCards === "object", "导入: cache 非对象丢用默认值");
+ok(Array.isArray(state.experiences) && Array.isArray(state.flows) && Array.isArray(state.history), "导入: experiences/flows/history 非数组丢用默认值");
+
+/* 14.12 输入防抖：笔记输入即时进内存，persistFlush 立即落盘（失焦/关页兜底） */
+saveNote("zy.gongwen", "通知", "防抖笔记");
+ok(getNote("zy.gongwen","通知") === "防抖笔记", "输入防抖: 笔记输入即时进内存");
+persistFlush();
+ok((JSON.parse(localStorage.getItem("gw_state")).cache.notes||{})["zy.gongwen::通知"] === "防抖笔记",
+   "输入防抖: persistFlush 立即落盘（失焦/关页兜底）");
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);

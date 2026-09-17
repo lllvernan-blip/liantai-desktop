@@ -426,27 +426,22 @@ function migrateHistory(list){
     let nh = h, touched = false;
     const nk = migrateModuleKey(h.module);
     if(nk !== h.module){ nh = Object.assign({}, nh, { module:nk }); touched = true; }
-    // 旧记录没有训练链：补占位 flowId，让记录与七步链的关联从第一天就是显式的（幂等：补过就不再动）
-    if(!nh.flowId){ nh = Object.assign({}, nh, { flowId: "legacy-" + (h.ts == null? i : h.ts) }); touched = true; }
+    // 旧记录没有训练链：补占位 flowId，让记录与七步链的关联从第一天就是显式的（幂等：补过就不再动）。
+    // 判别轨记录（track:'pd'）不建训练链，不补占位。
+    if(!nh.flowId && h.track !== "pd"){ nh = Object.assign({}, nh, { flowId: "legacy-" + (h.ts == null? i : h.ts) }); touched = true; }
     if(touched){ changed = true; return nh; }
     return h;
   });
   return { list:out, changed };
 }
 
-function freshModules(){
-  const o={};
-  for(const k in MODULES){
-    o[k]={ dims:Object.fromEntries(MODULES[k].dims.map(d=>[d,{sum:0,n:0}])),
-           weakDims:[], strongDims:[], types:{} };
-  }
-  return o;
-}
+/* 画像聚合字段（dims.sum/n、weakDims/strongDims/types）已删除：画像全部由练习记录即时推导，
+   两份聚合迟早对不上。profile.modules 降级为旧数据 pass-through 容器（load/import 只做键迁移，不再写入这些字段）。 */
 const DEFAULT_STATE = {
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"deepseek-v4-flash",
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
              subject:DEFAULT_SUBJECT },
-  profile:{ modules:freshModules(), lastModules:[] },
+  profile:{ modules:{}, lastModules:[] },
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
@@ -531,18 +526,13 @@ function load(){
     if(["quick","standard","deep"].indexOf(s.settings.reasonLevel)<0) s.settings.reasonLevel="standard";
     if(s.settings.orgName === "综应练习台") s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
     if(!SUBJECTS[s.settings.subject]) s.settings.subject = DEFAULT_SUBJECT;       // 旧数据没有科目这一层，补默认
-    s.profile = s.profile||{};
-    if(s.profile.modules && typeof s.profile.modules === "object"){
+    s.profile = (s.profile && typeof s.profile === "object" && !Array.isArray(s.profile))? s.profile : {};
+    // profile.modules 是旧数据 pass-through 容器：只补科目前缀，不再重建/补默认聚合字段（画像由 history 即时推导）
+    if(s.profile.modules && typeof s.profile.modules === "object" && !Array.isArray(s.profile.modules)){
       const pm = migrateKeyedObject(s.profile.modules);   // 画像的模块键补科目前缀（否则旧分值与新建的空键各占一份）
       if(pm.changed){ s.profile.modules = pm.map; migrated = true; }
-    }
-    s.profile.modules = Object.assign(freshModules(), s.profile.modules||{});
-    for(const k in MODULES){
-      const m = s.profile.modules[k];
-      m.dims = Object.assign(Object.fromEntries(MODULES[k].dims.map(d=>[d,{sum:0,n:0}])), m.dims||{});
-      m.weakDims=m.weakDims||[]; m.strongDims=m.strongDims||[]; m.types=m.types||{};
-    }
-    s.profile.lastModules = s.profile.lastModules||[];
+    }else{ delete s.profile.modules; }
+    s.profile.lastModules = Array.isArray(s.profile.lastModules)? s.profile.lastModules : [];
     // 「最近练过的模块」也补前缀：不然切回科目时恢复不到上次的模块（裸键匹配不上任何模块）
     const lm = s.profile.lastModules.map(k=>migrateModuleKey(k));
     if(lm.join("|") !== s.profile.lastModules.join("|")){ s.profile.lastModules = lm; migrated = true; }
@@ -588,6 +578,18 @@ function save(){
       else throw e;
     }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份。"); }
   }
+}
+
+/* 输入防抖落盘（persistSoon 风格）：打字即时进内存/上屏，localStorage 落盘延迟 300ms；
+   失焦（focusout/blur）与关页（beforeunload）补一次立即落盘，秒关也不丢刚输入的字。 */
+let _persistTimer = null;
+function persistSoon(){
+  if(_persistTimer) clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(()=>{ _persistTimer = null; save(); }, 300);
+}
+function persistFlush(){
+  if(_persistTimer){ clearTimeout(_persistTimer); _persistTimer = null; }
+  save();
 }
 
 /* ============ AI 调用（含档位自适应与兼容降级） ============ */
@@ -982,10 +984,15 @@ function expBlock(k){
   return list.length? list.map(e=>({ type:e.type, title:e.title, body:e.body })) : null;
 }
 async function distillExperience(mod, subtype, g, q){
+  _lastDistilled = [];   // 提炼一开始就清掉上一题残留：失败/超时也不能把旧经验标成「本次新提炼」
+  // 防重复第一道保险：prompt 带上当前模块已有经验 titles（≤10），本质相同就复用原文，不要换措辞
+  const existTitles = (state.experiences||[]).filter(e=> e && !e.disabled && e.module === mod).map(e=>e.title).slice(0,10);
   const user = JSON.stringify({ module:(MODULES[mod]||{}).name||mod, subtype:subtype||"",
     requirements:(q && q.requirements)||"",
-    hits:(g && g.hits)||[], weaknesses:(g && g.weaknesses)||[], comment:(g && g.comment)||"" });
-  const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。只输出 JSON。";
+    hits:(g && g.hits)||[], weaknesses:(g && g.weaknesses)||[], comment:(g && g.comment)||"",
+    existingTitles: existTitles.length? existTitles : undefined });
+  const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。只输出 JSON。"
+    + (existTitles.length? " 考生已有这些经验：" + existTitles.join("；") + "。若本次要提炼的经验与已有经验本质相同，必须原样返回已有经验的 title 原文（不要换措辞、不要新造条目），只给出更新后的 body；确有新经验才新增。" : "");
   const schema = '{\n  "experiences": [ { "type": "错因", "title": "要点（≤30字）", "body": "具体经验：错在哪、下次怎么办（≤220字）" } ]\n}';
   const data = await callLLM(sys, user + "\n返回 JSON：\n" + schema, true);
   const list = (data && Array.isArray(data.experiences))? data.experiences : [];
@@ -1001,11 +1008,23 @@ async function distillExperience(mod, subtype, g, q){
   _lastDistilled = out;
   return out;
 }
+/* 经验标题归一化：小写、全角 ASCII 区折成半角、去标点/符号/空白——用于「措辞不同但语义相同」的判重 */
+function normalizeExpTitle(t){
+  return String(t||"").toLowerCase()
+    .replace(/[\uFF01-\uFF5E]/g, ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0))
+    .replace(/[\s\p{P}\p{S}]+/gu, "");
+}
+/* 判重规则（防重复第二道保险）：归一化后相等，或一方完整包含另一方（整串包含，不是公共前缀/后缀），视为同一条经验 */
+function expTitleSame(a, b){
+  const na = normalizeExpTitle(a), nb = normalizeExpTitle(b);
+  if(!na || !nb) return false;
+  return na === nb || na.indexOf(nb) >= 0 || nb.indexOf(na) >= 0;
+}
 function storeExperiences(items, mod, subtype, q){
   const now = Date.now(), sig = qSig(q);
   for(const it of items||[]){
-    const exist = state.experiences.find(e=> e.module === mod && e.title === it.title);
-    if(exist){ exist.type = it.type; exist.body = it.body; exist.ts = now; exist.sourceSig = sig; exist.disabled = false; continue; }   // 同模块同名：更新不新增
+    const exist = state.experiences.find(e=> e && e.module === mod && expTitleSame(e.title, it.title));
+    if(exist){ exist.type = it.type; exist.body = it.body; exist.ts = now; exist.sourceSig = sig; exist.disabled = false; continue; }   // 同模块同义（归一化判重）：更新不新增，title 保留原文
     state.experiences.unshift({ id:"exp_"+now.toString(36)+Math.random().toString(36).slice(2,7),
       type:it.type, title:it.title, body:it.body, scope:"module", module:mod, subject:subjectOf(mod)||"",
       ts:now, disabled:false, sourceSig:sig });
@@ -1127,7 +1146,8 @@ function renderTabs(){
 function switchSubject(id){
   const fromPD = pdActive; pdActive = false;   // 从判别轨回到作答轨：先退出判别模式（同科目也照走，恢复原页签）
   if(!SUBJECTS[id] || (id === curSubject() && !fromPD)) return;
-  closeActiveFlow("switched");   // 切科目：收口进行中的训练链（草稿/选区保留在原 flow 里）
+  // 只有真正切到另一个科目才收口进行中的训练链；从判别轨点回当前科目只恢复页签/落地页，申论链照常进行
+  if(id !== curSubject()) closeActiveFlow("switched");
   state.settings.subject = id; save();
   activeModule = lastModuleOf(id);   // 恢复到该科目上次练的模块，没有就取第一个
   renderTabs(); renderHeader(); renderStart();
@@ -1148,7 +1168,7 @@ function closeModals(){
   document.body.style.overflow = "";
 }
 function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">${html}</div>`:""; }
-function showLoading(t){ docBody.innerHTML = `<p class="loading">${t||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
+function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
@@ -1163,6 +1183,9 @@ function renderStart(){
   if(br) br.onclick = ()=>{
     const f = resumableFlow();
     if(!f || f.closedAt){ renderStart(); return; }
+    // 科目对齐：链的科目与当前抬头不符时，先把 settings.subject 切回链的科目再进入——杜绝「在综应A 抬头下打开申论链」
+    const fsubj = subjectOf(f.module);
+    if(fsubj && fsubj !== curSubject()){ state.settings.subject = fsubj; save(); renderTabs(); }
     _flowId = f.id;
     current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card" };
     activeModule = f.module; renderHeader(); renderQuestion();
@@ -1251,7 +1274,7 @@ function saveNote(module, subtype, text){
   state.cache.notes = state.cache.notes || {};
   const key = cardKey(module,subtype);
   if(text) state.cache.notes[key] = text; else delete state.cache.notes[key];
-  save();
+  persistSoon();   // 输入即时进内存，落盘防抖 300ms；失焦/关页由 persistFlush 兼底
 }
 function lastPeeks(module, subtype){
   for(const h of state.history){
@@ -1332,7 +1355,8 @@ function wireZyPage(phase){
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   } else {
     const ba = $("#btnZyAnswer"); if(ba) ba.onclick = ()=>{ current.phase = "answer"; renderZyPage(); };
-    const cn = $("#cardNote"); if(cn) cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value));
+    const cn = $("#cardNote");
+    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
     const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
   }
 }
@@ -1463,10 +1487,16 @@ function sanitizePDItems(list){
     if(!it || typeof it !== "object") continue;
     const context = String(it.context||"").trim();
     const stem = String(it.stem||"").trim();
-    const options = (Array.isArray(it.options)? it.options : []).map(o=>String(o||"").trim()).filter(Boolean);
+    // 选项去重：文字完全相同的两项只留一个；answerKey 按选项文本重映射（不按下标硬搬）。
+    // 去重后有效选项 < 2，或 answerKey 越界/指向不存在的文本 → 整题丢弃：整轮少一题好过判分不公。
+    const raw = (Array.isArray(it.options)? it.options : []).map(o=>String(o||"").trim()).filter(Boolean);
+    const options = [], seenOpt = {};
+    for(const o of raw){ if(seenOpt[o] === undefined){ seenOpt[o] = options.length; options.push(o); } }
     const answer = Number(it.answer);
-    if(!context || !stem || options.length < 2 || !Number.isInteger(answer) || answer < 0 || answer >= options.length) continue;
-    out.push({ context, stem, options, answer, trap:String(it.trap||"").trim().slice(0,20), explain:String(it.explain||"").trim().slice(0,120) });
+    const ansText = (Number.isInteger(answer) && answer >= 0 && answer < raw.length)? raw[answer] : null;
+    const ansIdx = (ansText != null)? options.indexOf(ansText) : -1;
+    if(!context || !stem || options.length < 2 || ansIdx < 0) continue;
+    out.push({ context, stem, options, answer:ansIdx, trap:String(it.trap||"").trim().slice(0,20), explain:String(it.explain||"").trim().slice(0,120) });
     if(out.length >= PD_ROUND_SIZE) break;
   }
   return out;
@@ -2036,6 +2066,7 @@ function wireDraft(f){
       saveNote(module, subtype, $("#drawerNote").value);
       const nb = $("#noteBody"); if(nb) nb.innerHTML = esc($("#drawerNote").value);
     });
+    $("#drawerNote").addEventListener("blur", persistFlush);
     $("#cardDrawer").hidden = false;
   };
   $("#btnCard").onclick = openDrawer;
@@ -2061,14 +2092,15 @@ function wireDraft(f){
 function wireOrganize(f){
   const box = $("#organizeBox");
   if(box){
-    const persist = ()=>{
+    const applyGroups = ()=>{
       const domGroups = readGroupsDom();
-      if(domGroups && domGroups.length){ f.groups = domGroups; save(); }
+      if(domGroups && domGroups.length) f.groups = domGroups;
       const op = $("#outlinePrev");
       if(op) op.textContent = buildOrganizeOutline(f.groups, f.selections) || "（空）";
     };
-    box.addEventListener("change", persist);
-    box.addEventListener("input", persist);
+    box.addEventListener("change", ()=>{ applyGroups(); save(); });   // 勾选/失焦提交：立即落盘
+    box.addEventListener("input", ()=>{ applyGroups(); persistSoon(); });   // 组名打字：内存即时上屏，落盘防抖 300ms
+    box.addEventListener("focusout", persistFlush);   // 失焦兼底：立即落盘
   }
   const rg = $("#btnRegroup"); if(rg) rg.onclick = ()=>{ f.groups = groupAutoSplit(f.selections); save(); renderFlowStep(); };
   const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> flowGoStep("draft");
@@ -2082,7 +2114,8 @@ function wireStep(step, f){
     wireMarks();
     const be = $("#btnToExtract"); if(be) be.onclick = ()=> flowGoStep("extract");
     const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
-    const cn = $("#cardNote"); if(cn) cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value));
+    const cn = $("#cardNote");
+    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
   }
   if(step === "organize" && f) wireOrganize(f);
   if(step === "draft") wireDraft(f);
@@ -2168,12 +2201,18 @@ async function submitAnswer(){
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
     if(state.history.length>200) state.history.length=200;
-    clearDraft(qSig(q));
     if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline, mode: rewriting? "rewrite" : "draft" });   // 批改门槛的事实源
     clearInterval(tick);
-    saveHistory(); save(); renderGrade(g, total);   // 申论：提交即进入「批改」步；综应A：显示结果页
-    // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示
-    setTimeout(()=>{ distillExperience(mod, sub, g, q).catch(()=>{}); }, 0);
+    saveHistory(); save(); clearDraft(qSig(q));   // 先保住记录，再清草稿：记录没写成功时草稿还在
+    renderGrade(g, total);   // 申论：提交即进入「批改」步；综应A：显示结果页
+    // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
+    // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
+    const fullMark = pts && pts.got === pts.max && !(g.weaknesses||[]).length;
+    setTimeout(()=>{
+      _lastDistilled = [];   // 派发前置空：distill 步绝不能把上一题的旧经验标成「本次新提炼」
+      if(fullMark) return;
+      distillExperience(mod, sub, g, q).catch(()=>{ _lastDistilled = []; });   // 提炼失败也置空
+    }, 0);
   }catch(e){
     clearInterval(tick);
     if(mySeq !== reqSeq) return;
@@ -2474,31 +2513,49 @@ function exportJSON(){
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
 }
+/* 导入白名单化重建：入口只收对象；profile/cache/flows/experiences 逐字段 typeof 校验，
+   不合格字段丢弃用默认值，不整包失败；构造新对象时过滤 __proto__/constructor/prototype 键，防原型污染。 */
+function plainPick(o){
+  const out = {};
+  for(const k of Object.keys(o||{})){
+    if(k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    out[k] = o[k];
+  }
+  return out;
+}
+function plainObj(v){ return (v && typeof v === "object" && !Array.isArray(v))? v : null; }
 function importJSON(file){
   const r = new FileReader();
   r.onload = ()=>{
     try{
       const s = JSON.parse(r.result);
-      if(!s.settings || !s.profile) throw new Error("格式不对");
-      state = Object.assign(structuredClone(DEFAULT_STATE), s);
-      state.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings);
+      if(!s || typeof s !== "object" || Array.isArray(s)) throw new Error("格式不对");
+      state = structuredClone(DEFAULT_STATE);   // 从默认值重建，逐字段收合格的，不整包信任导入文件
+      const st = plainObj(s.settings);
+      if(st) state.settings = Object.assign({}, DEFAULT_STATE.settings, plainPick(st));
       if(state.settings.orgName === "综应练习台") state.settings.orgName = "模拟练习专用";
       if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
-      state.profile = state.profile||{};
-      // 备份也可能是旧版（裸模块键）：导入同样走一遍迁移，不原样当可信记录用
-      state.profile.modules = Object.assign(freshModules(), migrateKeyedObject(s.profile.modules||{}).map);
-      for(const k in MODULES){ const m=state.profile.modules[k];
-        m.dims = Object.assign(Object.fromEntries(MODULES[k].dims.map(d=>[d,{sum:0,n:0}])), m.dims||{});
-        m.weakDims=m.weakDims||[]; m.strongDims=m.strongDims||[]; m.types=m.types||{}; }
-      state.profile.lastModules = (state.profile.lastModules||[]).map(k=>migrateModuleKey(k));
+      // profile：modules 是旧数据 pass-through 容器（只迁移键，死字段不再重建）；lastModules 必须是数组
+      const pf = plainObj(s.profile);
+      if(pf){
+        const pm = plainObj(pf.modules);
+        if(pm) state.profile.modules = migrateKeyedObject(plainPick(pm)).map;
+        if(Array.isArray(pf.lastModules)) state.profile.lastModules = pf.lastModules.map(k=>migrateModuleKey(k));
+      }
       state.history = migrateHistory(Array.isArray(s.history)? s.history : []).list;
-      state.cache = s.cache||{studyCards:{}};
-      state.cache.studyCards = migrateKeyedObject(state.cache.studyCards||{}).map;
-      state.cache.notes = migrateKeyedObject((s.cache&&s.cache.notes)||{}).map;
-      state.modelCache = s.modelCache||{};
+      // cache：studyCards / notes 逐字段校验（键过滤 + 迁移），手写笔记分毫不能丢
+      const ca = plainObj(s.cache);
+      if(ca){
+        const sc = plainObj(ca.studyCards);
+        if(sc) state.cache.studyCards = migrateKeyedObject(plainPick(sc)).map;
+        const nt = plainObj(ca.notes);
+        if(nt) state.cache.notes = migrateKeyedObject(plainPick(nt)).map;
+      }
+      const mc = plainObj(s.modelCache);
+      if(mc) state.modelCache = plainPick(mc);
+      // 经验闭环：逐条校验；训练链走 sanitizeFlows（非法 step 丢弃，不整包失败）
       state.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
-      // 训练链：类型校验（非法 step 丢弃该项，不整包失败），并恢复最近一条进行中的链
-      state.flows = sanitizeFlows(s.flows);
+      state.flows = sanitizeFlows(Array.isArray(s.flows)? s.flows : []);
       _flowId = null;
       const openFlows = state.flows.filter(x=>!x.closedAt);
       if(openFlows.length) _flowId = openFlows[openFlows.length-1].id;
@@ -2669,6 +2726,8 @@ function init(){
   $("#btnExport").onclick = exportJSON;
   $("#btnImport").onclick = ()=> $("#fileImport").click();
   $("#fileImport").onchange = e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); };
+  // 输入防抖的兼底：关页/刷新前把挂起的落盘立即写掉
+  if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("beforeunload", persistFlush);
 }
 init();
 </script>
