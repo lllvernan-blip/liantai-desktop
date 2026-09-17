@@ -273,6 +273,7 @@
           <input type="text" id="setModel" list="modelOptions" placeholder="点右侧按钮自动拉取，或手动输入模型名" style="flex:1">
           <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
         </div>
+        <div class="subtypechips" id="modelChips" style="display:none"></div>
         <datalist id="modelOptions"></datalist>
         <div class="note" id="modelNote">有 Key 时每次启动自动从接口实拉；拉不到或未填 Key 时回退到预设推荐，也可手动输入模型名。</div>
       </div>
@@ -2369,6 +2370,15 @@ function fillProviderSelect(){
 function providerById(id){ return PROVIDERS.find(p=>p.id===id) || PROVIDERS[PROVIDERS.length-1]; }
 function baseKey(){ return ($("#setBase").value.trim()||"").replace(/\/+$/,""); }
 function renderModelList(list){
+  /* 候选模型的可点 chips：datalist 的下拉会按输入框里已有的文字过滤（自动填了模型名后另一个就“看不见”了），
+     所以拉到的名单必须同时以明面 chips 呈现，点谁填谁。 */
+  const box = $("#modelChips");
+  if(box){
+    const ids = list||[];
+    box.style.display = ids.length? "":"none";
+    box.innerHTML = ids.map(m=>`<button type="button" class="chip" data-m="${esc(m)}">${esc(m)}</button>`).join("");
+    box.querySelectorAll(".chip").forEach(b=> b.onclick = ()=>{ $("#setModel").value = b.dataset.m; setReasonUI(); });
+  }
   $("#modelOptions").innerHTML = (list||[]).map(m=>`<option value="${esc(m)}"></option>`).join("");
 }
 function useCachedModels(base){
@@ -2445,8 +2455,8 @@ async function fetchModels(silent){
     // 不静默改写当前模型——实测有服务商名单不全（名字不在列表里照样能用），不能拿列表当生死簿。
     if(cur==="" || (!silent && !ids.includes(cur))) $("#setModel").value = pickFast(ids);
     $("#modelNote").textContent = silent
-      ? `已从接口实拉 ${ids.length} 个模型（每次启动自动刷新）；也可下拉选择或手动输入。`
-      : `已从接口实拉 ${ids.length} 个模型；可下拉选择或手动输入。`;
+      ? `已从接口实拉 ${ids.length} 个模型（每次启动自动刷新）；点下方模型名直接选用，也可手动输入。`
+      : `已从接口实拉 ${ids.length} 个模型；点下方模型名直接选用，也可手动输入。`;
     if(!silent) $("#setMsg").textContent = "已拉取 " + ids.length + " 个模型 ✓";
   }catch(e){
     const p = providerById($("#setProvider").value);
