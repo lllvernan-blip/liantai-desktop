@@ -194,6 +194,17 @@
   .dline{font-size:13.5px;line-height:1.8;padding:1px 0;}
   .dline.add{color:#2f7d32;}
   .dline.del{color:#b3261e;text-decoration:line-through;}
+  /* 判别轨：可点的行块选项，判完对的绿、错的红、正解标出（沿用克制的红绿，不加新色） */
+  .pdopts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+  .pdopt{border:1px solid var(--line);background:#fff;padding:10px 14px;font-size:14.5px;line-height:1.7;cursor:pointer;}
+  .pdopt:hover{border-color:var(--gov-red);}
+  .pdopt.good{border-color:#2f7d32;background:#f2f8f2;color:#2f7d32;cursor:default;}
+  .pdopt.good:hover{border-color:#2f7d32;}
+  .pdopt.bad{border-color:#b3261e;background:#fdf1f1;color:#b3261e;cursor:default;}
+  .pdopt.bad:hover{border-color:#b3261e;}
+  .pdopt.dim{color:var(--muted);cursor:default;}
+  .pdopt.dim:hover{border-color:var(--line);}
+  .pdexplain{font-size:13.5px;background:#faf8f2;border:1px dashed var(--line);padding:8px 12px;line-height:1.8;}
 
   .foot{text-align:center;color:var(--muted);font-size:12px;margin:26px 0 0;}
   code{font-family:Consolas,Menlo,monospace;background:#f0eee8;padding:1px 5px;border-radius:2px;font-size:12.5px;}
@@ -1089,25 +1100,33 @@ function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   const n = state.history.length + 1, y = new Date().getFullYear();
   $("#docNo").textContent = `${state.settings.noPrefix||"综应练"}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
+  if(pdActive){   // 判别轨不是科目：抬头不挂科目名，只报当前形式
+    $("#modLabel").textContent = "判别轨 · " + (pdForm && PD_FORMS[pdForm]? PD_FORMS[pdForm].name : "判别训练");
+    return;
+  }
   const subj = SUBJECTS[curSubject()];
   const mn = (activeModule !== "__all" && MODULES[activeModule])? MODULES[activeModule].name : "智能综合";
   $("#modLabel").textContent = subj.name + " · " + mn + ((current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
 }
 function renderTabs(){
   // 页签 = 入口，不是开关：点开先看模块落地页（子类型/底子），点「开始练习」才真正调 AI
-  // 页签只列当前科目的模块（左侧两个科目按钮切换）；「综合」= 当前科目内综合
+  // 页签只列当前科目的模块（左侧科目按钮切换）；「综合」= 当前科目内综合。
+  // 判别轨（__pd）不是第三个科目，是另一种练习形式：入口挂在科目栏末尾，点进落地页
   const subj = curSubject();
   const sb = $("#subjbar");
   if(sb){
-    sb.innerHTML = SUBJECT_ORDER.map(id=>`<button class="subjbtn${id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("");
-    sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=> switchSubject(b.dataset.s));
+    sb.innerHTML = SUBJECT_ORDER.map(id=>`<button class="subjbtn${!pdActive && id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("")
+      + `<button class="subjbtn${pdActive?" active":""}" data-s="__pd" title="判别训练：事实选择 / 分组概括 / 表达比较，点选即判">判别轨</button>`;
+    sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=> b.dataset.s==="__pd"? enterPD() : switchSubject(b.dataset.s));
   }
-  $("#modbar").innerHTML = `<button class="tab" data-k="__all">综合</button>` +
+  // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）
+  $("#modbar").innerHTML = pdActive? "" : `<button class="tab" data-k="__all">综合</button>` +
     moduleKeysOf(subj).map(k=>`<button class="tab" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
-  $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
+  if(!pdActive) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
 }
 function switchSubject(id){
-  if(!SUBJECTS[id] || id === curSubject()) return;
+  const fromPD = pdActive; pdActive = false;   // 从判别轨回到作答轨：先退出判别模式（同科目也照走，恢复原页签）
+  if(!SUBJECTS[id] || (id === curSubject() && !fromPD)) return;
   closeActiveFlow("switched");   // 切科目：收口进行中的训练链（草稿/选区保留在原 flow 里）
   state.settings.subject = id; save();
   activeModule = lastModuleOf(id);   // 恢复到该科目上次练的模块，没有就取第一个
@@ -1316,6 +1335,219 @@ function wireZyPage(phase){
     const cn = $("#cardNote"); if(cn) cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value));
     const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
   }
+}
+
+/* ============ 判别轨（第三入口）：事实选择 / 分组概括 / 表达比较 ============ */
+// 另一种练习形式，不是第三个科目：不写长篇作答，逐题点选即判（命中/误选/未答），
+// 不套采分点三档口径、不建七步链、不进 dims 维度画像、不触发经验提炼。
+// 模板语义沿用 demo/申论-AI版 的 A 轨三件套（fact-select / group-summarize / expression-compare），只取口径不搬架构。
+let pdActive = false;   // 判别轨是入口模式，不落盘：重启回到作答轨
+let pdForm = null;      // 当前判别形式 id
+let pdRound = null;     // 进行中的一轮 { form, theme, items:[{context,stem,options,answer,trap,explain,done,picked,ok}], idx, correct, done }
+const PD_ROUND_SIZE = 5;
+const PD_FORMS = {
+  "fact-select":{
+    name:"事实选择",
+    desc:"判断关于材料的说法哪一条站得住：主体、范围、数量、时间、因果，一个限定语都不能被悄悄改动。",
+    spec:"每题给一段 120-200 字的材料节选（context，贴近所给主题，有场景有细节、含数字与限定语），再问「下列关于……的说法哪一项准确」。正确项在节选里能找到逐字出处，限定语一个不改；干扰项只能从这几类里造：换主体（村集体出资说成镇政府出资）、改范围（部分小区说成全部、试点说成全面推行）、改数量时限（5个工作日说成15个）、改关系（并列说成因果）、错位拼接（甲段的做法接到乙段的成效上）。fact-select 固定用 2 个选项。"
+  },
+  "group-summarize":{
+    name:"分组概括",
+    desc:"把分散在材料里的几处同类事实，归到正确的概括句下面：不漏、不重、层级一致。",
+    spec:"每题给一段 120-200 字的材料节选（context，内含 2-3 类并列的做法或问题），再问「上述做法可以概括为哪一条」。正确项覆盖节选中全部（至少两处）同类信息；干扰项只能从这几类里造：以偏概全（只取其中一类，最常犯）、混类（把做法与成效、问题与建议并成一条）、层级错位（具体做法与上位概念互换）、同义重复（同一处信息换个说法充两条）。用 2-3 个选项。"
+  },
+  "expression-compare":{
+    name:"表达比较",
+    desc:"几句改写里选更规范的那句，说清为什么：主体明确、范围准确、因果清楚、不改变原意。",
+    spec:"每题给一段 120-200 字的材料节选（context，含平均数、限定语、目标与结果这类易被改写坏的敏感点），再对节选中某句话给出 2-3 种改写，问「哪一项改变了原意」或「哪一种最规范」。每题只涉及一处错误（主体、范围、因果或语体）；干扰项只能从这几类里造：把平均数说成人人如此（平均跑一点一次说成只需跑一点一次）、把目标说成结果（拟推行说成已推行）、抹掉限定语（基本解决说成彻底解决）、并列改成因果。"
+  }
+};
+const PD_FORM_ORDER = ["fact-select","group-summarize","expression-compare"];
+const PD_TOPICS = ["基层治理","乡村振兴","政务服务","生态环保","科技创新","就业服务","养老托育","文化传承","城市更新","应急管理"];
+const PD_SCHEMA = `{
+  "items":[{
+    "context":"材料节选 120-200 字（贴近所给主题，有场景有细节，含数字与限定语）",
+    "stem":"题干（明确问什么）",
+    "options":["选项1","选项2","选项3"],
+    "answer":0,
+    "trap":"干扰项类别（如：换主体 / 改范围 / 以偏概全 / 抹掉限定语）",
+    "explain":"一句话解析：这题对在哪、错在哪、下次怎么辨（60字内）"
+  }]
+}`;
+function sysPD(){ return "你是公考判别训练的命题助手。只输出 JSON，不要 markdown 代码块，不要任何解释。"; }
+
+function enterPD(){
+  pdActive = true;
+  renderTabs(); renderHeader(); renderPDLanding();
+  $("#doc").scrollIntoView(true);
+}
+// 判别轨的经验注入：不按模块取（判别轨不属于任何科目），按主题相关性取——title/body 命中主题词的优先，不足用最近未停用的补，最多 3 条
+function pdExperienceBlock(theme){
+  const all = (state.experiences||[]).filter(e=> e && !e.disabled);
+  if(!all.length) return null;
+  const kw = String(theme||"").trim();
+  const hit = kw? all.filter(e=> (e.title||"").indexOf(kw) >= 0 || (e.body||"").indexOf(kw) >= 0) : [];
+  const rest = all.filter(e=> hit.indexOf(e) < 0);
+  return hit.concat(rest).slice(0,3).map(e=>({ type:e.type, title:e.title, body:e.body }));
+}
+function pdRecentTheme(){
+  for(const h of state.history){
+    if(h && h.track !== "pd" && h.question && typeof h.question.background === "string" && h.question.background.trim()) return h.question.background;
+  }
+  return "";
+}
+function renderPDLanding(){
+  pdForm = null; pdRound = null;
+  const recent = pdRecentTheme();
+  let html = `<div class="startbox">
+    <h2>判别轨 · 从材料里做判断</h2>
+    <p>不写长篇作答：看材料 → 点选答案 → 立刻对错。一轮 5 题，同一形式；练的是信息取舍与表达规范的眼力。</p>
+    ${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="ogroup" style="text-align:left"><b>${f.name}</b><div style="margin-top:4px">${f.desc}</div><div class="actions" style="margin-top:8px"><button class="primary" data-pdform="${id}">开始「${f.name}」</button></div></div>`; }).join("")}
+    <div class="sec-title" style="text-align:left">主题（可自填，留空则随机）</div>
+    <input type="text" id="pdTheme" placeholder="想练什么主题？如：养老服务">
+    <div class="subtypechips" style="margin-top:10px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
+  </div>`;
+  docBody.innerHTML = html; renderHeader();
+  docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
+  docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
+  docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
+}
+function pdThemeValue(){
+  const inp = $("#pdTheme");
+  const t = inp? inp.value.trim() : "";
+  return t || PD_TOPICS[Math.floor(Math.random()*PD_TOPICS.length)];
+}
+function startPDRound(form){ genPDRound(form, pdThemeValue()); }
+// 出题：一轮 5 道同形式判别题，沿用 callLLM（流式等待页 + reqSeq 守卫 + handleErr 失败保留现场）
+async function genPDRound(form, theme){
+  const f = PD_FORMS[form]; if(!f) return;
+  banner("");
+  const mySeq = ++reqSeq;
+  const prevForm = pdForm;
+  pdForm = form;
+  const t0 = Date.now();
+  showLoading(`AI 正在出「${f.name}」判别题（主题：${theme}）…`);
+  const tick = setInterval(()=>{
+    const el = $("#elapsed");
+    if(!el){ clearInterval(tick); return; }
+    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
+  }, 1000);
+  const onDelta = (d, full)=>{ const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`; };
+  const exps = pdExperienceBlock(theme);
+  const user = JSON.stringify({ form, formName:f.name, theme, count:PD_ROUND_SIZE,
+    note:`出 ${PD_ROUND_SIZE} 道「${f.name}」判别题，每题各自给一段独立的材料节选，围绕主题的不同侧面；题目之间辨析点不重复。`
+      + (exps? " 用户在 experiences 里这些点上栽过跟头：干扰项请优先针对这些点设置，检验是否已经补上。" : ""),
+    experiences: exps || undefined });
+  const sys = sysPD() + "\n本次形式：「" + f.name + "」。" + f.spec
+    + "\n禁令：不得虚构材料里没有的事实、数字、主体、时间；不得出有歧义或多解的题（逐字读一遍必须只有一项成立，两项都说得通就换题）；正确项不得永远最长、不得总在同一个位置；不得出「找原词/同义替换」式的字面题。"
+    + "\n返回 JSON：\n" + PD_SCHEMA;
+  try{
+    const data = await callLLM(sys, user, true, onDelta);
+    if(mySeq !== reqSeq) return;   // 已被更晚的请求取代：丢弃结果
+    const items = sanitizePDItems(data && data.items);
+    if(!items.length) throw {code:"JSON"};
+    pdRound = { form, theme, items, idx:0, correct:0, done:false };
+    renderPDRound();
+  }catch(e){
+    if(mySeq !== reqSeq) return;
+    handleErr(e, true);            // 失败只提示，不清界面：回到出题前的现场
+    pdForm = prevForm;
+    if(pdRound) renderPDRound(); else renderPDLanding();
+  }
+  finally{ clearInterval(tick); }
+}
+// 只收结构完整的题：材料、题干、至少两个选项、答案下标在范围内；不满 5 道有几道算几道，一道都凑不出就报格式异常
+function sanitizePDItems(list){
+  const out = [];
+  for(const it of (Array.isArray(list)? list : [])){
+    if(!it || typeof it !== "object") continue;
+    const context = String(it.context||"").trim();
+    const stem = String(it.stem||"").trim();
+    const options = (Array.isArray(it.options)? it.options : []).map(o=>String(o||"").trim()).filter(Boolean);
+    const answer = Number(it.answer);
+    if(!context || !stem || options.length < 2 || !Number.isInteger(answer) || answer < 0 || answer >= options.length) continue;
+    out.push({ context, stem, options, answer, trap:String(it.trap||"").trim().slice(0,20), explain:String(it.explain||"").trim().slice(0,120) });
+    if(out.length >= PD_ROUND_SIZE) break;
+  }
+  return out;
+}
+// 判分三态：命中 / 误选 / 未答。不套作答轨的采分点三档口径，不折算分数、不进维度画像
+function pdScoreOf(item, picked){
+  if(picked == null) return "skip";
+  return picked === item.answer? "hit" : "miss";
+}
+function pdResolve(picked){
+  const r = pdRound; if(!r || r.done) return;
+  const it = r.items[r.idx];
+  if(!it || it.done) return;
+  it.done = true;
+  it.picked = (picked == null? null : picked);
+  it.ok = pdScoreOf(it, picked) === "hit";
+  if(it.ok) r.correct++;
+  renderPDRound();
+}
+function pdNext(){
+  const r = pdRound; if(!r || r.done) return;
+  const it = r.items[r.idx];
+  if(!it || !it.done) return;   // 没判完不许翻页：逐题点选即判，不允许攒到最后一堆未答
+  if(r.idx < r.items.length-1){ r.idx++; renderPDRound(); }
+  else pdFinish();
+}
+function pdFinish(){
+  const r = pdRound; if(!r || r.done) return;
+  r.done = true;
+  // 判别轨记录带 track:'pd'（区分于作答轨）；只写 gw_history，不写 dims、不进 lastModules、不触发经验提炼
+  state.history.unshift({ ts:Date.now(), track:"pd", form:r.form, theme:r.theme,
+    items:r.items.map(it=>({ stem:it.stem, options:it.options, answer:it.answer, picked:it.done? it.picked : null, ok:!!it.ok, trap:it.trap||"", explain:it.explain||"" })),
+    correct:r.correct, total:r.items.length });
+  if(state.history.length>200) state.history.length=200;
+  saveHistory();
+  renderPDSummary();
+}
+function renderPDRound(){
+  const r = pdRound;
+  if(!r || !PD_FORMS[r.form]){ renderPDLanding(); return; }
+  pdForm = r.form;
+  const f = PD_FORMS[r.form];
+  const it = r.items[r.idx];
+  let html = `<div class="qtop"><span class="hint">判别轨 · ${f.name} · 主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题</span></div>`;
+  html += `<div class="material"><div class="label">材料节选</div>${esc(it.context)}</div>`;
+  html += `<div class="require" style="margin-top:12px"><b>题干：</b>${esc(it.stem)}</div>`;
+  html += `<div class="pdopts">` + it.options.map((o,i)=>{
+    let cls = "pdopt";
+    if(it.done){ if(i===it.answer) cls += " good"; else if(it.picked===i) cls += " bad"; else cls += " dim"; }
+    const mark = it.done? (i===it.answer? "✓" : (it.picked===i? "✗" : "　")) : String.fromCharCode(65+i)+"．";
+    return `<div class="${cls}"${it.done? "" : ` data-pdopt="${i}"`}>${mark} ${esc(o)}</div>`;
+  }).join("") + `</div>`;
+  if(!it.done){
+    html += `<div class="actions"><span class="hint">点选即判，不用等整组做完。</span><button class="linkbtn" id="pdSkip">直接看答案（算未答）</button></div>`;
+  } else {
+    const verdict = it.ok? `<span class="pill good">答对了</span>` : (it.picked==null? `<span class="pill bad">未作答</span>` : `<span class="pill bad">答错了${it.trap? " · "+esc(it.trap) : ""}</span>`);
+    html += `<div class="actions">${verdict}</div><div class="pdexplain">${esc(it.explain || "（这题没给出解析）")}</div>`;
+    html += `<div class="actions"><button class="primary" id="pdNext">${r.idx < r.items.length-1? "下一题" : "看本轮小结"}</button></div>`;
+  }
+  docBody.innerHTML = html; renderHeader();
+  if(!it.done){
+    docBody.querySelectorAll("[data-pdopt]").forEach(b=> b.onclick = ()=> pdResolve(Number(b.dataset.pdopt)));
+    const sk = $("#pdSkip"); if(sk) sk.onclick = ()=> pdResolve(null);
+  } else {
+    const nx = $("#pdNext"); if(nx) nx.onclick = pdNext;
+  }
+}
+function renderPDSummary(){
+  const r = pdRound; if(!r) return;
+  const f = PD_FORMS[r.form];
+  const misses = r.items.map((it,i)=>({i,it})).filter(x=>!x.it.ok);
+  let html = `<div class="startbox"><h2>本轮小结 · ${f.name}</h2><p>主题「${esc(r.theme)}」 · ${r.items.length} 题对了 ${r.correct} 题</p></div>`;
+  html += `<div class="hits">` + r.items.map((it,i)=>`<div class="hitline ${it.ok?"hit":"miss"}"><span class="mk">${it.ok?"✓":(it.picked==null?"○":"✗")}</span><span class="pt">第${i+1}题${it.trap? "（"+esc(it.trap)+"）":""}</span><span class="ev">${esc(it.explain||"")}</span></div>`).join("") + `</div>`;
+  const traps = {};
+  for(const x of misses){ const t = x.it.trap || "其他"; traps[t] = (traps[t]||0)+1; }
+  const trapStr = Object.keys(traps).map(t=>`${t}（${traps[t]}题）`).join("、");
+  html += `<p class="hint" style="margin-top:10px">${misses.length? "答错的集中在："+esc(trapStr)+"——下次出题会在这些辨析点上再考你。" : "全对——这个形式的辨析点你站得稳。"}</p>`;
+  html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div>`;
+  docBody.innerHTML = html; renderHeader();
+  $("#pdAgain").onclick = ()=> genPDRound(r.form, r.theme);
+  $("#pdSwitch").onclick = renderPDLanding;
 }
 
 /* ============ 七步训练链：生命周期 ============ */
@@ -2051,12 +2283,30 @@ function renderProfile(){
       html += `</div>`;
     }
   }
+  // 判别轨单独一节：记录带 track:'pd'，不进 dims 维度画像，不与综应A/申论混算
+  html += `<div class="sec-title">判别轨（点选即判 · 只看正确率，不计入维度画像）</div><div class="modblock"><h4>三种形式</h4>`;
+  const pdHas = PD_FORM_ORDER.some(id=> state.history.some(h=>h && h.track==="pd" && h.form===id));
+  if(pdHas){
+    html += `<div class="typestat">` + PD_FORM_ORDER.map(id=>{
+      const rounds = state.history.filter(h=>h && h.track==="pd" && h.form===id);
+      let q=0,c=0; for(const r of rounds){ q += Number(r.total)||0; c += Number(r.correct)||0; }
+      const rate = q? Math.round(c/q*100) : 0;
+      return `<span class="t">${PD_FORMS[id].name} <b class="${rate<70?"lo":"hi"}">${rate}%</b><small style="color:#999"> (${rounds.length}轮/${q}题)</small></span>`;
+    }).join("") + `</div>`;
+  } else {
+    html += `<div class="hint">还没练过判别轨。点科目栏的「判别轨」开一轮。</div>`;
+  }
+  html += `</div>`;
   html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div>` + experienceListHtml();
   html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th>总分</th><th>待改进</th></tr></thead><tbody>`;
   for(const h of state.history.slice(0,50)){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-    const weak=(h.grade.weaknesses||[]).slice(0,2).join("；");
-    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td>${h.grade.total}</td><td>${esc(weak||"—")}</td></tr>`;
+    if(h.track === "pd"){   // 判别轨行：形式当模块、主题当子类型，总分列是「对/总题数」
+      html += `<tr><td>${ds}</td><td>判别轨</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td>${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td>—</td></tr>`;
+      continue;
+    }
+    const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
+    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td>${h.grade? h.grade.total : "—"}</td><td>${esc(weak||"—")}</td></tr>`;
   }
   html += `</tbody></table></div>`;
   $("#profileBody").innerHTML = html;

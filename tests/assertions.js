@@ -748,6 +748,125 @@ ok(organizePanelHtml(fOrg).indexOf("1 个新找的点还没进组") >= 0, "organ
 ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} }).indexOf("还没进组") < 0, "organize: 全部入组时不提示");
 
 current = null;
+
+/* ============ 13. 判别轨（第三入口）：事实选择 / 分组概括 / 表达比较 ============ */
+
+/* ① 入口：科目栏第三个按钮，进入判别轨落地页；作答轨两科目不受影响 */
+renderTabs();
+ok(el("#subjbar").innerHTML.indexOf("判别轨") >= 0 && el("#subjbar").innerHTML.indexOf('data-s="__pd"') >= 0,
+   "判别轨: 科目栏有第三入口");
+switchSubject("zy");
+ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0, "判别轨: 切回作答轨后模块页签照旧（综应A）");
+enterPD();
+ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0
+   && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
+   "判别轨: 进入后高亮判别轨按钮、作答轨科目按钮不高亮");
+ok(el("#modLabel").textContent.indexOf("判别轨") === 0, "判别轨: 抬头不挂科目名");
+ok(el("#modbar").innerHTML.indexOf("公文写作") < 0 && el("#modbar").innerHTML.indexOf("综合") < 0,
+   "判别轨: 不渲染综应/申论的模块页签");
+const pdLand = el("#docBody").innerHTML;
+ok(PD_FORM_ORDER.every(id=> pdLand.indexOf(PD_FORMS[id].name) >= 0) && pdLand.indexOf("开始") >= 0,
+   "判别轨: 落地页三种形式各有说明与开始入口");
+switchSubject("sl");
+ok(pdActive === false && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0,
+   "判别轨: 从判别轨切申论，作答轨页签正常恢复");
+switchSubject("zy");
+ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerHTML.indexOf("判别轨") >= 0,
+   "判别轨: 切回综应A，页签齐全且判别轨入口仍在");
+
+/* ② 出题：三种形式 prompt 各自成形，带主题与相关经验（拦 callLLM） */
+const realCallPD = callLLM;
+let capPD = null;
+callLLM = async (sys, user)=>{ capPD = { sys, user }; return { items:[ { context:"甲材料节选，含数字与限定语。", stem:"哪一项准确？", options:["对","错"], answer:0, trap:"换主体", explain:"先看主体。" } ] }; };
+state.experiences = [ { id:"p1", type:"规则", title:"基层治理要盯主体", body:"先看动作主体是谁", module:"zy.gongwen", subject:"zy", ts:1, disabled:false, sourceSig:"s" },
+                      { id:"p2", type:"规则", title:"停用的不带走", body:"x", module:"sl.guina", subject:"sl", ts:0, disabled:true, sourceSig:"s" } ];
+await genPDRound("fact-select", "基层治理");
+ok(capPD.sys.indexOf("事实选择") >= 0 && capPD.sys.indexOf("换主体") >= 0 && capPD.sys.indexOf("2 个选项") >= 0,
+   "判别出题: fact-select 规范成形（含干扰项口径）");
+const pdUser1 = JSON.parse(capPD.user);
+ok(pdUser1.theme === "基层治理" && pdUser1.count === 5 && Array.isArray(pdUser1.experiences) && pdUser1.experiences.some(e=>e.title==="基层治理要盯主体"),
+   "判别出题: 主题 + 5 题 + 相关经验进请求，停用经验不带");
+await genPDRound("group-summarize", "基层治理");
+ok(capPD.sys.indexOf("分组概括") >= 0 && capPD.sys.indexOf("以偏概全") >= 0,
+   "判别出题: group-summarize 规范成形");
+await genPDRound("expression-compare", "基层治理");
+ok(capPD.sys.indexOf("表达比较") >= 0 && capPD.sys.indexOf("原意") >= 0,
+   "判别出题: expression-compare 规范成形");
+ok(capPD.sys.indexOf("采分点") < 0 && capPD.sys.indexOf(SCORING_RULES) < 0,
+   "判别出题: 不套作答轨的采分点口径");
+state.experiences = [];
+await genPDRound("fact-select", "生态环保");
+ok(!JSON.parse(capPD.user).experiences, "判别出题: 无经验时不带 experiences 键");
+
+/* ③ 判分：命中 / 误选 / 未答三态，不套三档 */
+ok(pdScoreOf({answer:1}, 1) === "hit" && pdScoreOf({answer:1}, 0) === "miss" && pdScoreOf({answer:1}, null) === "skip",
+   "判分: 命中/误选/未答三态");
+pdRound = { form:"fact-select", theme:"测试", items:[
+  { context:"c1", stem:"s1", options:["对","错"], answer:0, trap:"换主体", explain:"e1" },
+  { context:"c2", stem:"s2", options:["甲","乙"], answer:1, trap:"改范围", explain:"e2" } ], idx:0, correct:0, done:false };
+pdResolve(0);
+ok(pdRound.items[0].done && pdRound.items[0].picked === 0 && pdRound.items[0].ok === true && pdRound.correct === 1,
+   "判分: 点选即判（命中立计，不等整组）");
+const pdDoc1 = el("#docBody").innerHTML;
+ok(pdDoc1.indexOf("pdopt good") >= 0 && pdDoc1.indexOf("答对了") >= 0 && pdDoc1.indexOf("e1") >= 0,
+   "判分: 判完对的标绿 + 一句解析上屏");
+pdNext();
+pdResolve(0);
+ok(pdRound.items[1].done && pdRound.items[1].ok === false && pdRound.correct === 1
+   && el("#docBody").innerHTML.indexOf("pdopt bad") >= 0 && el("#docBody").innerHTML.indexOf("pdopt good") >= 0,
+   "判分: 误选标红且正解标绿");
+
+/* ⑤+④ 轮次收尾：记录入 gw_history，不写 dims / lastModules / 不触发提炼；小结与画像 */
+const realDistillPD = distillExperience;
+let distilledPD = false;
+distillExperience = async ()=>{ distilledPD = true; return []; };
+const pdDimsBefore = JSON.stringify(state.profile.modules["zy.gongwen"].dims);
+const pdLMBefore = state.profile.lastModules.length;
+state.history = [];
+pdNext();   // 最后一题 → 收卷
+ok(pdRound.done === true && el("#docBody").innerHTML.indexOf("本轮小结") >= 0
+   && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("换个形式") >= 0,
+   "轮次: 收卷后一屏小结，含再来一轮 / 换个形式");
+ok(state.history.length === 1 && state.history[0].track === "pd" && state.history[0].form === "fact-select"
+   && state.history[0].theme === "测试" && state.history[0].correct === 1 && state.history[0].total === 2,
+   "轮次: 记录写入 history（track/form/theme/correct/total）");
+ok(JSON.stringify(state.history[0].items) === JSON.stringify([
+  { stem:"s1", options:["对","错"], answer:0, picked:0, ok:true, trap:"换主体", explain:"e1" },
+  { stem:"s2", options:["甲","乙"], answer:1, picked:0, ok:false, trap:"改范围", explain:"e2" } ]),
+   "轮次: items 带 stem/options/answer/picked/ok");
+ok(JSON.parse(localStorage.getItem("gw_history"))[0].track === "pd", "轮次: 落盘 gw_history");
+ok(JSON.stringify(state.profile.modules["zy.gongwen"].dims) === pdDimsBefore, "隔离: 判别轨不写维度画像 dims");
+ok(state.profile.lastModules.length === pdLMBefore, "隔离: 判别轨不进 lastModules（不影响作答轨调度）");
+ok(distilledPD === false, "隔离: 判别轨不触发经验提炼");
+renderProfile();
+const phPD = el("#profileBody").innerHTML;
+ok(phPD.indexOf("判别轨（点选即判") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 判别轨单独一节");
+ok(phPD.indexOf(">50%<") >= 0, "画像: 判别轨正确率 (1/2 = 50%)");
+ok(phPD.indexOf(">判别轨</td>") >= 0 && phPD.indexOf(">1/2<") >= 0, "画像: 记录表识别判别轨行（对/总题数）");
+distillExperience = realDistillPD;
+pdRound = null; pdForm = null;
+
+/* ⑥ 迁移幂等：旧记录无 track 字段不报错，判别轨记录原样保留 */
+pdActive = false;
+localStorage.clear();
+localStorage.setItem("gw_history", JSON.stringify([
+  { ts:1, module:"zy.gongwen", grade:{ total:60, scores:{} } },
+  { ts:2, track:"pd", form:"group-summarize", theme:"养老托育", items:[{ stem:"s", options:["a","b"], answer:0, picked:1, ok:false }], correct:0, total:1 }
+]));
+const lmPD = load();
+ok(lmPD.history.length === 2 && lmPD.history[0].module === "zy.gongwen" && !lmPD.history[0].track,
+   "迁移: 旧记录无 track 字段照常读回，不报错");
+ok(lmPD.history[1].track === "pd" && lmPD.history[1].form === "group-summarize" && lmPD.history[1].correct === 0,
+   "迁移: 判别轨记录原样保留");
+const lmPD2 = load();
+ok(lmPD2.history.length === 2 && lmPD2.history[1].track === "pd" && lmPD2.history[1].form === "group-summarize",
+   "迁移: 判别轨与旧记录二次 load 幂等");
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("分组概括") >= 0 && el("#profileBody").innerHTML.indexOf("0%") >= 0,
+   "迁移: 新旧混合记录渲染不报错，画像统计正确");
+localStorage.clear();
+state.history = [];
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
