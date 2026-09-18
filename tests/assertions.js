@@ -345,6 +345,34 @@ el("#setProvider").value = "deepseek";
 onProviderChange();
 ok(el("#setModel").value === "" && el("#modelMenu").innerHTML.indexOf("deepseek") < 0,
    "换服务商: 模型栏留空等实拉，不含任何写死的名字");
+
+/* 8.3 推理程度随模型适配：认得出的家族按各自发法，认不出的不带档位也不显三档 */
+state.settings.apiKey = "sk-test";
+const capBodies = [];
+const realFetch8 = globalThis.fetch;
+globalThis.fetch = (url, opt) => { capBodies.push(JSON.parse(opt.body));
+  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" }); };
+state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "standard";
+await callLLM("s","u",false);
+ok(capBodies.at(-1).reasoning_effort === "medium", "适配: effort 家族标准档=reasoning_effort medium");
+state.settings.reasonLevel = "deep";
+await callLLM("s","u",false);
+ok(capBodies.at(-1).reasoning_effort === "high", "适配: 深入档=high");
+state.settings.model = "qwen3-32b"; state.settings.reasonLevel = "quick";
+await callLLM("s","u",false);
+ok(capBodies.at(-1).enable_thinking === false, "适配: qwen3 快速档=直接关闭思考");
+state.settings.reasonLevel = "deep";
+await callLLM("s","u",false);
+ok(capBodies.at(-1).enable_thinking === true && capBodies.at(-1).thinking_budget === 24576, "适配: qwen3 深入档=大思考预算");
+state.settings.model = "gpt-4o-mini";
+await callLLM("s","u",false);
+ok(!("reasoning_effort" in capBodies.at(-1)) && capBodies.at(-1).temperature === 0.7,
+   "适配: 认不出的模型没有档位，只按标准温度发送");
+el("#setModel").value = "deepseek-v4-pro"; setReasonUI();
+ok(el("#segReason").style.display !== "none", "适配: 有档位的模型显示三档");
+el("#setModel").value = "gpt-4o-mini"; setReasonUI();
+ok(el("#segReason").style.display === "none", "适配: 无档位的模型隐藏三档并说明");
+globalThis.fetch = realFetch8;
 ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
   const kk = state.settings.apiKey, mm = state.settings.model;
   state.settings.apiKey = "sk-test"; state.settings.model = "";

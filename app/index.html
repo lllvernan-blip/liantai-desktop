@@ -613,14 +613,32 @@ function persistFlush(){
 }
 
 /* ============ AI 调用（含档位自适应与兼容降级） ============ */
-const REASON = {
-  quick:{ label:"快速", temp:0.3, effort:"low",    desc:"更快、更省 token" },
-  standard:{ label:"标准", temp:0.7, effort:"medium", desc:"均衡" },
-  deep:{ label:"深入", temp:1.0, effort:"high",   desc:"想得更充分，更慢更贵" }
+const REASON_LEVELS = {
+  quick:   { label:"快速", temp:0.3 },
+  standard:{ label:"标准", temp:0.7 },
+  deep:    { label:"深入", temp:1.0 }
 };
-function isThinkingModel(m){
+/* 各家「思考」的开法不一样：认得出的家族各写各的发法（build 产出附加字段，note 给界面明示），
+   认不出的模型就没有推理档位——界面不显三档，只按标准温度发。新家族先查文档再加进来，别瞎猜参数。 */
+const THINK_FAMILIES = [
+  { name:"effort",
+    re:/reasoner|thinking|-think|deepseek-v4|deepseek-r1|\/r1|\bo1\b|\bo3\b|\bo4\b|gpt-5|kimi-k[23]|qwq/i,
+    build:lv=> ({ reasoning_effort: lv==="quick"?"low" : lv==="deep"?"high" : "medium" }),
+    note:lv=> `此模型按「思考强度」发送：reasoning_effort = ${lv==="quick"?"low":lv==="deep"?"high":"medium"}（不支持时自动降级）。` },
+  { name:"qwen3",
+    re:/qwen3/i,
+    build:lv=> lv==="quick" ? { enable_thinking:false }
+             : { enable_thinking:true, thinking_budget: lv==="deep"? 24576 : 8192 },
+    note:lv=> lv==="quick" ? "此模型：快速档=直接关闭思考（enable_thinking=false）。"
+             : `此模型：开启思考，thinking_budget = ${lv==="deep"?24576:8192}。` },
+  { name:"glm",
+    re:/glm-z1|glm-4\.5|glm-4\.6/i,
+    build:lv=> ({ thinking:{ type: lv==="quick" ? "disabled" : "enabled" } }),
+    note:lv=> `此模型：thinking.type = ${lv==="quick"?"disabled":"enabled"}。` }
+];
+function reasonFamily(m){
   m = String(m||"").toLowerCase();
-  return /reasoner|thinking|-think|deepseek-v4|deepseek-r1|\/r1|\bo1\b|\bo3\b|\bo4\b|gpt-5|glm-z1|glm-4\.5|glm-4\.6|kimi-k[23]|qwq|qwen3/.test(m);
+  return THINK_FAMILIES.find(f=>f.re.test(m)) || null;
 }
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
@@ -711,16 +729,15 @@ async function callLLM(system, user, expectJson, onDelta){
   const headers = {"Content-Type":"application/json","Authorization":"Bearer "+s.apiKey};
   const messages = [{role:"system",content:system},{role:"user",content:user}];
   const model = s.model;
-  const r = REASON[s.reasonLevel] || REASON.standard;
-  const think = isThinkingModel(model);
+  const fam = reasonFamily(model);
+  // 认得出的模型按它自己的「思考」发法组首选请求；认不出的没有推理档位，只按标准温度发
+  const r = REASON_LEVELS[fam ? s.reasonLevel : "standard"] || REASON_LEVELS.standard;
   const streaming = typeof onDelta === "function";
 
-  // 不同模型支持的档位不一样：思考型先带 reasoning_effort，不支持则降级为 temperature，
-  // 再不行就退回不带这两个参数，保证任何模型都能跑通。
-  const ladder = [];
-  if(think) ladder.push({model,messages,temperature:r.temp,reasoning_effort:r.effort});
-  ladder.push({model,messages,temperature:r.temp});
-  ladder.push({model,messages});
+  // 首选仍可能被某家拒收：先降回纯 temperature，再退到最裸的请求体，保证任何模型都能跑通。
+  const primary = {model,messages,temperature:r.temp};
+  if(fam) Object.assign(primary, fam.build(s.reasonLevel));
+  const ladder = [primary, {model,messages,temperature:r.temp}, {model,messages}];
 
   let last = null;
   for(const base of ladder){
@@ -2406,13 +2423,12 @@ function renderProfile(){
 /* ============ 设置 ============ */
 function setReasonUI(){
   const lv = state.settings.reasonLevel || "standard";
+  const fam = reasonFamily($("#setModel").value.trim());
+  $("#segReason").style.display = fam ? "" : "none";   // 档位控件随模型显隐：认不出就不摆三档
   document.querySelectorAll("#segReason button").forEach(b=> b.classList.toggle("active", b.dataset.lv===lv));
   const note = $("#reasonNote"); if(!note) return;
-  const model = $("#setModel").value.trim();
-  const r = REASON[lv] || REASON.standard;
-  note.textContent = isThinkingModel(model)
-    ? `此模型按「思考强度」发送：reasoning_effort = ${r.effort}（${r.desc}）。不同模型档位不同，不支持的会自动降级。`
-    : `此模型按「生成温度」发送：temperature = ${r.temp}（${r.desc}）。若换成思考型模型会自动改用思考强度。`;
+  note.textContent = fam ? fam.note(lv)
+    : "此模型没有推理档位的概念：请求按标准温度发送，无需选档。";
 }
 function fillProviderSelect(){
   $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
@@ -2489,7 +2505,7 @@ function applyForm(){
   state.settings.model = $("#setModel").value.trim();
   state.settings.apiKey = $("#setKey").value.trim();
   state.settings.reasonLevel = state.settings.reasonLevel || "standard";
-  state.settings.temperature = (REASON[state.settings.reasonLevel] || REASON.standard).temp;
+  state.settings.temperature = (REASON_LEVELS[state.settings.reasonLevel] || REASON_LEVELS.standard).temp;
   state.settings.orgName = $("#setOrg").value.trim() || "综应练习台";
   state.settings.noPrefix = $("#setNo").value.trim() || "综应练";
 }
