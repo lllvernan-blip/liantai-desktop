@@ -7,7 +7,7 @@
   "author": "lllvernan",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win portable"
+    "dist": "node tools/stamp-build.mjs && electron-builder --win portable"
   },
   "build": {
     "appId": "com.lllvernan.liantai",
