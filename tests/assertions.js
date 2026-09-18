@@ -152,7 +152,9 @@ el("#draftNote").textContent = "";
 renderQuestion();
 ok(activeFlow() === null && el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A 两阶段: 渲染不建链、不渲染步骤条");
 ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A 两阶段: 学习卡阶段有「开始作答」入口");
+ok(el("#docBody").innerHTML.indexOf("作答要求") < 0, "综应A 两阶段: 卡阶段不亮题面（题目等开始作答才出现）");
 el("#btnZyAnswer").onclick();
+ok(el("#docBody").innerHTML.indexOf("作答要求") >= 0, "综应A 两阶段: 点开始作答后题面亮出");
 ok(el("#answer").value === "恢复我", "综应A 作答页: 自动恢复未提交草稿");
 ok(el("#wordCount").innerHTML.indexOf("3") >= 0, "综应A 作答页: 字数统计");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"字数题", requirements:"写一份通知，不超过200字。" } };
@@ -464,7 +466,9 @@ renderQuestion(); el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") >= 0, "公文: 骨架按钮在场，占位提示与按钮一致");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, cardPeeks:0 };
 renderQuestion();
-ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") >= 0, "题目页: 题目满分对考生可见");
+ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") < 0, "题目页: 卡阶段不亮分值（题面未出）");
+el("#btnZyAnswer").onclick();
+ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") >= 0, "题目页: 题目满分对考生可见（作答阶段亮出）");
 state.history = [];
 
 /* 8.6 翻卡次数参与出题调度 */

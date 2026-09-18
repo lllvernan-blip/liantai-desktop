@@ -1363,10 +1363,14 @@ function renderQuestion(){
 
 /* ============ 综应A 两阶段：学习卡（折叠+笔记+翻卡计数）→ 我已学习，开始作答 → 作答页；结果页与申论共用 gradeHtml ============ */
 // 不建训练链、不渲染步骤条；翻卡计次照旧进练习记录、参与调度（PEEK_WEIGHT）。
-function zyHeadHtml(){
+function zyHeadHtml(showQuestion){
   const {module, subtype, question} = current;
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}）</div>`;
+  if(showQuestion === false){   // 学习卡阶段不亮题面：题目等点了「开始作答」再见面
+    html += `<div class="sec-title">${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}</div>`;
+    html += `<div class="hint" style="margin:8px 0">题目先不亮出来——看完卡，点「我已学习，开始作答」再见面。</div>`;
+    return html;
+  }
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   if(question.score) html += `<div class="require"><b>分值：</b>${esc(question.score)} 分</div>`;
@@ -1395,7 +1399,7 @@ function zyCardHtml(){
 function renderZyPage(){
   if(!current || !current.question){ renderStart(); return; }
   const phase = current.phase || "card";
-  let html = zyHeadHtml();
+  let html = zyHeadHtml(phase !== "card");
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
