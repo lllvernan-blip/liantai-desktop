@@ -132,7 +132,7 @@ ok(recordTotal({ module:"zy.guina", grade:{ scores: scoresFor("zy.guina",20) } }
    "recordTotal: 老记录没存总分时，用维度分折算");
 ok(recordTotal({ module:"zy.guina", grade:{} }) === null, "recordTotal: 总分与维度都没有，返回 null 而不是 0");
 ok(recordTotal({ track:"pd", form:"fact-select", correct:3, total:5 }) === null,
-   "recordTotal: 判别轨记录没有 module，天然不计入");
+   "recordTotal: 快判记录没有 module，天然不计入");
 
 /* 4.7 维度缺失不再把折算分拉低 */
 ok(dimTotal({ a:20, b:20 }, ["a","b"]) === 100 && dimTotal({ a:20, b:20 }, ["a","b","c"]) === 100,
@@ -919,32 +919,32 @@ ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"",facts:[0]}
 
 current = null;
 
-/* ============ 13. 判别轨（第三入口）：事实选择 / 分组概括 / 表达比较 ============ */
+/* ============ 13. 快判（第三入口）：事实选择 / 分组概括 / 表达比较 ============ */
 
-/* ① 入口：科目栏第三个按钮，进入判别轨落地页；作答轨两科目不受影响 */
+/* ① 入口：科目栏第三个按钮，进入快判落地页；作答轨两科目不受影响 */
 renderTabs();
-ok(el("#subjbar").innerHTML.indexOf("判别轨") >= 0 && el("#subjbar").innerHTML.indexOf('data-s="__pd"') >= 0,
-   "判别轨: 科目栏有第三入口");
+ok(el("#subjbar").innerHTML.indexOf("快判") >= 0 && el("#subjbar").innerHTML.indexOf('data-s="__pd"') >= 0,
+   "快判: 科目栏有第三入口");
 switchSubject("zy");
-ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0, "判别轨: 切回作答轨后模块页签照旧（综应A）");
+ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0, "快判: 切回作答轨后模块页签照旧（综应A）");
 enterPD();
 ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
-   "判别轨: 进入后高亮判别轨按钮、作答轨科目按钮不高亮");
-ok(el("#modLabel").textContent.indexOf("判别轨") === 0, "判别轨: 抬头不挂科目名");
+   "快判: 进入后高亮快判按钮、作答轨科目按钮不高亮");
+ok(el("#modLabel").textContent.indexOf("快判") === 0, "快判: 抬头不挂科目名");
 ok(el("#modbar").innerHTML.indexOf("公文写作") < 0 && el("#modbar").innerHTML.indexOf("综合") < 0,
-   "判别轨: 不渲染综应/申论的模块页签");
+   "快判: 不渲染综应/申论的模块页签");
 const pdLand = el("#docBody").innerHTML;
 ok(PD_FORM_ORDER.every(id=> pdLand.indexOf(PD_FORMS[id].name) >= 0) && pdLand.indexOf("开始") >= 0,
-   "判别轨: 落地页三种形式各有说明与开始入口");
-ok(pdLand.indexOf("综合判别") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0,
-   "判别轨: 落地页给「综合判别」一个窗口（三种形式混在一轮），单练入口仍在");
+   "快判: 落地页三种形式各有说明与开始入口");
+ok(pdLand.indexOf("综合快判") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0,
+   "快判: 落地页给「综合快判」一个窗口（三种形式混在一轮），单练入口仍在");
 switchSubject("sl");
 ok(pdActive === false && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0,
-   "判别轨: 从判别轨切申论，作答轨页签正常恢复");
+   "快判: 从快判切申论，作答轨页签正常恢复");
 switchSubject("zy");
-ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerHTML.indexOf("判别轨") >= 0,
-   "判别轨: 切回综应A，页签齐全且判别轨入口仍在");
+ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerHTML.indexOf("快判") >= 0,
+   "快判: 切回综应A，页签齐全且快判入口仍在");
 
 /* ② 出题：三种形式 prompt 各自成形，带主题与相关经验（拦 callLLM） */
 const realCallPD = callLLM;
@@ -1017,35 +1017,35 @@ ok(JSON.stringify(state.history[0].items) === JSON.stringify([
   { form:"fact-select", stem:"s2", options:["甲","乙"], answer:1, picked:0, ok:false, trap:"改范围", explain:"e2" } ]),
    "轮次: items 带 form/stem/options/answer/picked/ok");
 ok(JSON.parse(localStorage.getItem("gw_history"))[0].track === "pd", "轮次: 落盘 gw_history");
-ok(JSON.stringify(state.profile.modules) === pdDimsBefore, "隔离: 判别轨不写维度画像 dims");
-ok(state.profile.lastModules.length === pdLMBefore, "隔离: 判别轨不进 lastModules（不影响作答轨调度）");
-ok(distilledPD === false, "隔离: 判别轨不触发经验提炼");
+ok(JSON.stringify(state.profile.modules) === pdDimsBefore, "隔离: 快判不写维度画像 dims");
+ok(state.profile.lastModules.length === pdLMBefore, "隔离: 快判不进 lastModules（不影响作答轨调度）");
+ok(distilledPD === false, "隔离: 快判不触发经验提炼");
 renderProfile();
 const phPD = el("#profileBody").innerHTML;
-ok(phPD.indexOf("判别轨（点选即判") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 判别轨单独一节");
+ok(phPD.indexOf("快判（点选即判") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 快判单独一节");
 
-/* ③ 综合判别：每题自带形式，统计按题归属（一轮里三种都有，按轮算会混成一笔） */
+/* ③ 综合快判：每题自带形式，统计按题归属（一轮里三种都有，按轮算会混成一笔） */
 const pdSan = sanitizePDItems([
   { form:"group-summarize", context:"c", stem:"s", options:["a","b"], answer:0 },
   { form:"乱填的", context:"c2", stem:"s2", options:["a","b"], answer:1 },
   { context:"c3", stem:"s3", options:["a","b"], answer:0 } ], PD_MIX);
 ok(pdSan.length === 3 && pdSan[0].form === "group-summarize" && pdSan[1].form === "fact-select" && pdSan[2].form === "fact-select",
-   "综合判别: 认每题自带的 form；认不出的退回「事实选择」（形状最通用，不误导）");
+   "综合快判: 认每题自带的 form；认不出的退回「事实选择」（形状最通用，不误导）");
 const __pdHistKeep = state.history;
 state.history = [ { ts:Date.now(), track:"pd", form:PD_MIX, theme:"t", correct:2, total:3,
   items:[ { form:"fact-select", ok:true }, { form:"group-summarize", ok:false }, { form:"expression-compare", ok:true } ] } ];
 const __pdSt = pdFormStats();
 ok(__pdSt.st["fact-select"].q === 1 && __pdSt.st["fact-select"].c === 1 && __pdSt.st["group-summarize"].q === 1
    && __pdSt.st["group-summarize"].c === 0 && __pdSt.st["expression-compare"].c === 1 && __pdSt.mixRounds === 1,
-   "综合判别: 统计按每题形式归属（不被按轮算混成一笔）");
+   "综合快判: 统计按每题形式归属（不被按轮算混成一笔）");
 state.history = __pdHistKeep;
-ok(pdFormStats().st["fact-select"].q >= 1, "综合判别: 统计函数可重复调用（不污染 state）");
-ok(phPD.indexOf(">50%<") >= 0, "画像: 判别轨正确率 (1/2 = 50%)");
-ok(phPD.indexOf(">判别轨</td>") >= 0 && phPD.indexOf(">1/2<") >= 0, "画像: 记录表识别判别轨行（对/总题数）");
+ok(pdFormStats().st["fact-select"].q >= 1, "综合快判: 统计函数可重复调用（不污染 state）");
+ok(phPD.indexOf(">50%<") >= 0, "画像: 快判正确率 (1/2 = 50%)");
+ok(phPD.indexOf(">快判</td>") >= 0 && phPD.indexOf(">1/2<") >= 0, "画像: 记录表识别快判行（对/总题数）");
 distillExperience = realDistillPD;
 pdRound = null; pdForm = null;
 
-/* ⑥ 迁移幂等：旧记录无 track 字段不报错，判别轨记录原样保留 */
+/* ⑥ 迁移幂等：旧记录无 track 字段不报错，快判记录原样保留 */
 pdActive = false;
 localStorage.clear();
 localStorage.setItem("gw_history", JSON.stringify([
@@ -1056,10 +1056,10 @@ const lmPD = load();
 ok(lmPD.history.length === 2 && lmPD.history[0].module === "zy.gongwen" && !lmPD.history[0].track,
    "迁移: 旧记录无 track 字段照常读回，不报错");
 ok(lmPD.history[1].track === "pd" && lmPD.history[1].form === "group-summarize" && lmPD.history[1].correct === 0,
-   "迁移: 判别轨记录原样保留");
+   "迁移: 快判记录原样保留");
 const lmPD2 = load();
 ok(lmPD2.history.length === 2 && lmPD2.history[1].track === "pd" && lmPD2.history[1].form === "group-summarize",
-   "迁移: 判别轨与旧记录二次 load 幂等");
+   "迁移: 快判与旧记录二次 load 幂等");
 renderProfile();
 ok(el("#profileBody").innerHTML.indexOf("分组概括") >= 0 && el("#profileBody").innerHTML.indexOf("0%") >= 0,
    "迁移: 新旧混合记录渲染不报错，画像统计正确");
@@ -1068,13 +1068,13 @@ state.history = [];
 
 /* ============ 14. review 修复批次：小修 / 安全 / 经验去重 / 导入加固 ============ */
 
-/* 14.1 migrateHistory：判别轨记录（track:'pd'）不补 legacy- 占位 flowId */
+/* 14.1 migrateHistory：快判记录（track:'pd'）不补 legacy- 占位 flowId */
 const mhPD = migrateHistory([
   { ts:1, module:"zy.gongwen", grade:{ total:60, scores:{} } },
   { ts:2, track:"pd", form:"fact-select", theme:"养老", correct:1, total:2 }
 ]);
 ok(mhPD.list[0].flowId === "legacy-1" && mhPD.list[1].flowId === undefined,
-   "history 迁移: 判别轨记录（track:'pd'）不补 legacy- 占位 flowId");
+   "history 迁移: 快判记录（track:'pd'）不补 legacy- 占位 flowId");
 
 /* 14.2 showLoading：传入文本统一转义后再上屏 */
 showLoading('<img src=x onerror=alert(1)>养老主题');
@@ -1082,14 +1082,14 @@ ok(el("#docBody").innerHTML.indexOf("<img") < 0 && el("#docBody").innerHTML.inde
    "showLoading: 传入文本统一 esc 再拼 innerHTML（堵 genPDRound 主题/模型输出注入）");
 showLoading("");
 
-/* 14.3 switchSubject：从判别轨回当前科目不收链；真切到另一科目才收链 */
+/* 14.3 switchSubject：从快判回当前科目不收链；真切到另一科目才收链 */
 state.flows = []; _flowId = null; current = null;
 state.settings.subject = "sl"; renderTabs();
 const swFlow = ensureFlow("sl.guina", "概括问题", { background:"切科题目材料。", requirements:"r" }, []);
 enterPD();
 switchSubject("sl");
 ok(pdActive === false && swFlow.closedAt == null && _flowId === swFlow.id,
-   "切科目: 从判别轨点回当前科目，进行中的申论链不被收口");
+   "切科目: 从快判点回当前科目，进行中的申论链不被收口");
 switchSubject("zy");
 ok(swFlow.closedAt != null && swFlow.step === "done", "切科目: 真正切到另一科目才收链");
 state.flows = []; _flowId = null; current = null;

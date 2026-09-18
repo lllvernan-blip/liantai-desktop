@@ -41,8 +41,8 @@
 
 ## 界面（UI/UX）约束
 
-- 顶栏 `.topbar` 是 sticky，高 92px（工具栏 + 页签栏）。**页签栏 `.modbar` 的高度必须锁死**（`min-height:47px`）：判别轨模式下不渲染页签，不锁就会矮 13px、整条顶栏看着像“往上跳”（用户报过的 bug）。
-- `.tab.active` 由全局 `tabActiveKey` 驱动：作答中 / 模块落地页 = 那个模块；起始页与判别轨 = `null`（别谎报“你在哪”）。调用点在 `renderModuleLanding` / `renderQuestion` / `renderStart` / `enterPD`，改页签渲染时四处都要跟上。
+- 顶栏 `.topbar` 是 sticky，高 92px（工具栏 + 页签栏）。**页签栏 `.modbar` 的高度必须锁死**（`min-height:47px`）：快判模式下不渲染页签，不锁就会矮 13px、整条顶栏看着像“往上跳”（用户报过的 bug）。
+- `.tab.active` 由全局 `tabActiveKey` 驱动：作答中 / 模块落地页 = 那个模块；起始页与快判 = `null`（别谎报“你在哪”）。调用点在 `renderModuleLanding` / `renderQuestion` / `renderStart` / `enterPD`，改页签渲染时四处都要跟上。
 - 点页签会 `$("#doc").scrollIntoView(true)`，而顶栏是 sticky——所以 `#doc` 有 `scroll-margin-top:100px`，否则红头会被顶栏盖住。
 - 动效三条自律（用户对“界面自走”极敏感）：只播一次、≤240ms、不循环不自动播放；只动 opacity / transform / 颜色；`prefers-reduced-motion` 下一律关。不引外部资源、不加依赖。
 - 颜色：**不要黄色系**（用户明确不喜欢），划线默认绿 `#a7f3d0`，主色一律 `--gov-red`；公文纸面风（直角、极小圆角）是刻意选的，别改成大圆角卡片风。
