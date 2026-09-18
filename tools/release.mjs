@@ -8,12 +8,12 @@
  *   少传一个 blockmap，差量更新就退化成全量下载；忘了改版本号，用户永远等不到更新。
  *   一步做完，就没得忘。
  *
- * 用 gh CLI 取 token（`gh auth token`），省得手工配 GH_TOKEN。
- * 发布前如果那个 tag 已经存在，直接停——重复发布只会让人分不清哪一版是新版。
+ * 发布改用 gh 自己上传（不再让 electron-builder 发布：它两个 target 各跑一次发布，
+ * 第二次撞 tag 已存在而中断，latest.yml 与 blockmap 常就丢在那一步）。
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -51,16 +51,10 @@ if (dirty.status === 0 && dirty.stdout.trim()) {
   console.log(dirty.stdout.trim());
 }
 
-// 2) gh 登录状态 + token
+// 2) gh 登录状态（上传走 gh 自己的登录态，不需要手工配 GH_TOKEN）
 const auth = spawnSync("gh", ["auth", "status"], { cwd: root, encoding: "utf8" });
 if (auth.status !== 0) {
   console.error("gh 未登录。先跑 gh auth login。");
-  process.exit(1);
-}
-const tokenRes = spawnSync("gh", ["auth", "token"], { cwd: root, encoding: "utf8" });
-const token = (tokenRes.stdout || "").trim();
-if (tokenRes.status !== 0 || !token) {
-  console.error("拿不到 GitHub token（gh auth token 失败），无法发布。");
   process.exit(1);
 }
 
@@ -78,26 +72,24 @@ if (!reconcileOnly) {
   if (run(process.execPath, [join(here, "stamp-build.mjs")]) !== 0) process.exit(1);
 }
 
-// 5) 出包并上传（--publish always：出完即传，包含 latest.yml 与 *.blockmap）
-let status = 0;
+// 5) 出包（不发布：--publish never）
+/* 为什么不让 electron-builder 发布：它的 nsis / portable 两个 target 会各跑一次发布流程，
+   第二次撞「tag_name already_exists」而中断，而 latest.yml 与 *.blockmap 常就丢在那一步——
+   少了 latest.yml，自动更新压根不会启动。所以打包只用它，发布交给下面的 gh。 */
 if (reconcileOnly) {
-  console.log("跳过打包，只对账补齐。");
+  console.log("\n跳过打包，只对账补齐。");
 } else {
-  step("打包并上传（electron-builder --win nsis portable --publish always）");
-  status = run(
-    process.execPath,
-    [BUILDER_CLI, "--win", "nsis", "portable", "--publish", "always"],
-    { env: Object.assign({}, process.env, { GH_TOKEN: token }) }
-  );
-  if (status !== 0) {
-    console.error("\n打包/上传过程报错了（常见原因：两个 target 各跑一次发布，第二次撞上 tag 已存在）。下面统一对账补齐。");
-  }
+  step("出包（electron-builder --win nsis portable --publish never）");
+  const status = run(process.execPath, [BUILDER_CLI, "--win", "nsis", "portable", "--publish", "never"]);
+  if (status !== 0) console.error("\n打包报错了，下面先按现有产物对账（补不齐就停）。");
 }
 
-/* electron-builder 每个 target 各跑一次发布流程，第二次会撞「tag_name already_exists」而中断——
-   偏偏 latest.yml 与 *.blockmap 很可能就是在那一步丢的，而少了 latest.yml，自动更新压根不会启动。
-   所以不信任它的返回码，而是**对着产物对账**：该在的都必须在，缺的用 gh 补传。 */
-step("对账发布资产");
+/* 6) 确认 Release 存在 */
+step("确认 Release " + tag);
+if (!ensureRelease()) process.exit(1);
+
+/* 7) 自己上传 + 对账：一次创建、逐个 --clobber 传，幂等可重跑，不依赖任何人返回码 */
+step("上传并对账发布资产");
 const missing = reconcileRelease();
 if (missing.length) {
   console.error("发布资产仍不完整：" + missing.join("、") + "（自动更新会因为缺 latest.yml / blockmap 而不可用）");
@@ -117,6 +109,7 @@ function sha512Base64(file) {
    对不上的话客户端会 404 —— 这正是最隐蔽的一种“更新装了但没人收得到”。 */
 function reconcileRelease() {
   const ymlPath = join(root, "dist", "latest.yml");
+  ensureLatestYml(ymlPath);   // 清单缺了/版本或哈希对不上，就按本地安装包重写（详见函数注释）
   if (!existsSync(ymlPath)) {
     console.error("没有 dist/latest.yml，无法对账（先在本地跑一次 npm run dist）。");
     return ["latest.yml"];
@@ -159,6 +152,9 @@ function reconcileRelease() {
   const want = [];
   if (existsSync(localSetup)) want.push({ local: localSetup, name: remoteSetupName });
   if (existsSync(localBlockmap)) want.push({ local: localBlockmap, name: remoteSetupName + ".blockmap" });
+  // 免安装版也要在 Release 上（README 两种形态都提供；少了它，用免安装版的人只能找到旧版）
+  const portableLocal = join(root, "dist", portableLocalName());
+  if (existsSync(portableLocal)) want.push({ local: portableLocal, name: pkg.name + "-" + pkg.version + ".exe" });
   want.push({ local: ymlPath, name: "latest.yml" });
 
   const listed = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "assets", "--jq", ".assets[].name"], { cwd: root, encoding: "utf8" });
@@ -190,4 +186,71 @@ function reconcileRelease() {
     }
   }
   return stillMissing;
+}
+
+/* 本地产物名（中文，用户看着舒服）与 gh 上的资产名（ASCII，避免各种下载器乱码）是两套名字。
+   上游 electron-builder 发布时会用 package name 替换产品名，所以我们按同样的规则推算。 */
+function setupLocalName() {
+  const tpl = (pkg.build && pkg.build.nsis && pkg.build.nsis.artifactName) || "综应练习台-Setup-${version}.exe";
+  return tpl.replace("${version}", pkg.version);
+}
+
+function portableLocalName() {
+  const tpl = (pkg.build && pkg.build.portable && pkg.build.portable.artifactName) || "综应练习台.exe";
+  return tpl.replace("${version}", pkg.version);
+}
+
+/* dist/latest.yml 是「客户端该下哪个包、拿哪个哈希校验」的唯一指针。
+   踩过的坑：dist/ 里混着上一次试打包的清单，于是拿旧版本号去对账，
+   把 1.0.0 的安装包按 1.0.1 的名字传了上去（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」，
+   而且都不会在打包阶段报错）。所以不猜也不信残留：缺失、或版本/哈希与本地产物不符，
+   就按本地安装包的真实指纹重写一份。 */
+function ensureLatestYml(ymlPath) {
+  const localSetup = join(root, "dist", setupLocalName());
+  if (!existsSync(localSetup)) return;   // 本地产物都没有，交给后面的对账去报缺
+  const remoteSetupName = pkg.name + "-setup-" + pkg.version + ".exe";
+  const sha = sha512Base64(localSetup);
+  if (existsSync(ymlPath)) {
+    const yml = readFileSync(ymlPath, "utf8");
+    const v = (((/^version:\s*(.+)$/m.exec(yml) || [])[1]) || "").trim().replace(/^['"]|['"]$/g, "");
+    const s = (((/^\s*sha512:\s*(.+)$/m.exec(yml) || [])[1]) || "").trim();
+    if (v === pkg.version && s === sha) return;   // 就是当前这一版，别动它
+    console.log("  dist/latest.yml 与当前产物不符（版本 " + (v || "?") + " / 哈希 " + (s ? s.slice(0, 12) + "…" : "?") + "），按本地安装包重写。");
+  } else {
+    console.log("  本地没有 dist/latest.yml，按本地安装包生成一份。");
+  }
+  const size = statSync(localSetup).size;
+  const iso = new Date(statSync(localSetup).mtime).toISOString();
+  const text =
+    "version: " + pkg.version + "\n" +
+    "files:\n" +
+    "  - url: " + remoteSetupName + "\n" +
+    "    sha512: " + sha + "\n" +
+    "    size: " + size + "\n" +
+    "path: " + remoteSetupName + "\n" +
+    "sha512: " + sha + "\n" +
+    "releaseDate: '" + iso + "'\n";
+  writeFileSync(ymlPath, text, "utf8");
+  console.log("  已写 dist/latest.yml：" + pkg.version + " / " + remoteSetupName + " / " + size + " bytes");
+}
+
+/* 确保 Release 存在：不存在就建（tag 指向刚推上去的提交），存在就复用。
+   资产的上传由 reconcileRelease() 负责，两个函数都不依赖任何人的返回码。 */
+function ensureRelease() {
+  const view = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "tagName"], { cwd: root, encoding: "utf8" });
+  if (view.status === 0) {
+    console.log("  Release " + tag + " 已存在，直接补资产");
+    return true;
+  }
+  const notes = "自动更新已就绪：安装版在后台只下载变化的部分（差量），练习记录、画像、草稿、划线、Key 都不动。";
+  const created = spawnSync(
+    "gh",
+    ["release", "create", tag, "--repo", REPO, "--title", pkg.version, "--notes", notes],
+    { cwd: root, stdio: "inherit" }
+  );
+  if (created.status !== 0) {
+    console.error("创建 Release 失败（网络不稳可重试；先确认 gh 已登录、tag 没被别的 Release 占用）。");
+    return false;
+  }
+  return true;
 }
