@@ -7,7 +7,7 @@
   "author": "lllvernan",
   "scripts": {
     "start": "electron .",
-    "dist": "node tools/stamp-build.mjs && electron-builder --win nsis portable --publish never",
+    "dist": "node tools/stamp-build.mjs && electron-builder --win nsis --publish never",
     "release": "node tools/release.mjs"
   },
   "build": {
@@ -27,10 +27,6 @@
         {
           "target": "nsis",
           "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
         }
       ]
     },
@@ -43,9 +39,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false
-    },
-    "portable": {
-      "artifactName": "练习台.exe"
     },
     "publish": [
       {
