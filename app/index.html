@@ -268,7 +268,7 @@
 
 <header class="topbar">
   <div class="toolbar">
-    <span class="brand">练习台<small>AI 原生 · 综应A / 申论</small></span>
+    <span class="brand">练习台</span>
     <span class="spacer"></span>
     <button class="linkbtn" id="btnProfile">我的画像</button>
     <button class="linkbtn" id="btnSettings">设置</button>
@@ -319,7 +319,7 @@
       <div class="field">
         <label>API Key</label>
         <input type="password" id="setKey" placeholder="粘贴你的 API Key">
-        <div class="note">只保存在你本机浏览器（localStorage），不会上传到任何第三方；调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
+        <div class="note">只保存在这台电脑上，不会上传到任何第三方；调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
       </div>
       <div class="field">
         <label>模型</label>
@@ -373,7 +373,7 @@
     </div>
   </div>
 
-  <p class="foot">AI 原生练习台 · 综应A（公文/归纳/分析/对策/实务）· 申论（归纳/对策/分析/贯彻执行）· 出题·阅卷·画像·自适应推送 · 数据仅存本地</p>
+  <p class="foot">练习台 · 出题 · 阅卷 · 画像 · 快判 · 数据仅存本机</p>
 </div>
 
 <script>
@@ -1292,7 +1292,7 @@ function renderHeader(){
     return;
   }
   const subj = SUBJECTS[curSubject()];
-  const mn = (activeModule !== "__all" && MODULES[activeModule])? MODULES[activeModule].name : "智能综合";
+  const mn = (activeModule !== "__all" && MODULES[activeModule])? MODULES[activeModule].name : "综合推送";
   $("#modLabel").textContent = subj.name + " · " + mn + ((current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
 }
 function renderTabs(){
@@ -1322,7 +1322,6 @@ function switchSubject(id){
   // 只有真正切到另一个科目才收口进行中的训练链；从判别轨点回当前科目只恢复页签/落地页，申论链照常进行
   if(id !== curSubject()) closeActiveFlow("switched");
   state.settings.subject = id; save();
-  activeModule = lastModuleOf(id);   // 恢复到该科目上次练的模块，没有就取第一个
   renderTabs(); renderHeader(); renderStart();
 }
 function tabClick(k){
@@ -1332,8 +1331,7 @@ function tabClick(k){
 /* 返回综合：再点一次当前科目的按钮就回起始页（综合推送）。
    落点与切科目后完全一致；不收口进行中的训练链——它保持可恢复，起始页会给出「继续上次没做完的题」。 */
 function backToStart(){
-  activeModule = lastModuleOf(curSubject());
-  renderTabs(); renderHeader(); renderStart();
+  renderStart();
 }
 /* ============ 弹层：设置 / 画像 ============ */
 // 文档是练题的舞台，一动不动；画像和设置是工具，用完即走——弹层保证关掉后精确回到原位
@@ -1349,11 +1347,12 @@ function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">$
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
+  activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
   tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
-    <p>${esc(SUBJECTS[curSubject()].name)} · 不选具体题型，就按综合来推：AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
+    <p>不选具体题型，就按综合来推：AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
     <button class="primary big" id="btnStart">智能推送下一题</button>
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;

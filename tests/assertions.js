@@ -570,13 +570,13 @@ switchSubject("sl");
 ok(curSubject() === "sl" && state.settings.subject === "sl", "科目: 切换后落盘 settings.subject");
 ok(el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0
    && el("#modbar").innerHTML.indexOf("案例实务") < 0, "页签: 切到申论后只渲染申论模块");
-ok(activeModule === "sl.guanche", "科目: 切到申论后恢复该科目上次练的模块 (got " + activeModule + ")");
-ok(el("#modLabel").textContent.indexOf("申论 · ") === 0, "抬头: 科目名 · 模块名");
+ok(activeModule === null, "科目: 切到申论后落在综合起始页（不再暗记上次模块，抬头如实报综合推送）");
+ok(el("#modLabel").textContent === "申论 · 综合推送", "抬头: 科目名 · 综合推送（起始页不再挂模块名）");
 switchSubject("zy");
 ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
    "页签: 切回综应A 只留综应模块");
-ok(activeModule === "zy.shiwu", "科目: 切回综应A 恢复该科目上次练的模块 (got " + activeModule + ")");
-ok(el("#modLabel").textContent.indexOf("综应A · ") === 0, "抬头: 切回后科目名跟着走");
+ok(activeModule === null, "科目: 切回综应A 同样落在综合起始页");
+ok(el("#modLabel").textContent === "综应A · 综合推送", "抬头: 切回后科目名跟着走");
 
 // 「综合」= 当前科目内综合
 state.settings.subject = "sl"; renderTabs();
@@ -953,7 +953,7 @@ ok(el("#docBody").innerHTML.indexOf("开始今天的练习") < 0,
 backToStart();
 ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0 && tabActiveKey === null,
    "返回综合: 再点当前科目回到综合推送，页签全灭");
-ok(el("#modLabel").textContent.indexOf("综应A") === 0, "返回综合: 抬头仍是综应A");
+ok(el("#modLabel").textContent === "综应A · 综合推送", "返回综合: 抬头如实报「科目 · 综合推送」，不再挂上次练的模块名");
 
 /* ② 出题：三种形式 prompt 各自成形，带主题与相关经验（拦 callLLM） */
 const realCallPD = callLLM;
