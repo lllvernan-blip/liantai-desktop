@@ -18,6 +18,10 @@ import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
+/* 直接调 electron-builder 的 JS 入口，不调 npx/npm：
+   Windows 上 Node 18.20+/20.12+ 已经禁止 spawn 一个 .cmd/.bat 而不带 shell（CVE-2024-27980），
+   而带 shell 又要跟引号搏斗——走 js 入口最干净。 */
+const BUILDER_CLI = join(root, "node_modules", "electron-builder", "cli.js");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const tag = "v" + pkg.version;
 
@@ -70,8 +74,8 @@ if (run(process.execPath, [join(here, "stamp-build.mjs")]) !== 0) process.exit(1
 // 5) 出包并上传（--publish always：出完即传，包含 latest.yml 与 *.blockmap）
 step("打包并上传（electron-builder --win nsis portable --publish always）");
 const status = run(
-  process.platform === "win32" ? "npx.cmd" : "npx",
-  ["electron-builder", "--win", "nsis", "portable", "--publish", "always"],
+  process.execPath,
+  [BUILDER_CLI, "--win", "nsis", "portable", "--publish", "always"],
   { env: Object.assign({}, process.env, { GH_TOKEN: token }) }
 );
 if (status !== 0) {
