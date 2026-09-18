@@ -386,6 +386,8 @@ state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
 await callLLM("s","u",false);
 ok(capBodies.filter(b=>b.reasoning_effort).length === 1 && state.modelCaps["deepseek-v4-pro"] === "rejected",
    "实测记忆: 参数被拒自动降级成功，并记住此模型拒收思考参数");
+ok(el("#bannerSlot").innerHTML.indexOf("不收思考强度参数") >= 0,
+   "实测记忆: 探针被拒有界面提示（不再是静默降级）");
 const nB84 = capBodies.length;
 await callLLM("s","u",false);
 ok(capBodies.length === nB84 + 1 && !("reasoning_effort" in capBodies.at(-1)),

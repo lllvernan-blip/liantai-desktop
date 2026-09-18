@@ -772,7 +772,12 @@ async function callLLM(system, user, expectJson, onDelta){
       if(out.status!==400 && out.status!==422) break; // 仅参数类错误才降级重试
       continue;
     }
-    if(adaptive){ state.modelCaps[model] = (ri===0) ? "ok" : "rejected"; save(); setReasonUI(); }
+    if(adaptive){
+      const rejected = ri>0;
+      state.modelCaps[model] = rejected ? "rejected" : "ok";
+      save(); setReasonUI();
+      if(rejected) banner(`实测「${esc(model)}」不收思考强度参数，已自动改按标准方式发送（已记住，之后不再尝试）。`);
+    }
     if(expectJson) return parseJsonLoose(out.content);
     return out.content;
   }
