@@ -80,8 +80,18 @@ if (reconcileOnly) {
   console.log("\n跳过打包，只对账补齐。");
 } else {
   step("出包（electron-builder --win nsis portable --publish never）");
-  const status = run(process.execPath, [BUILDER_CLI, "--win", "nsis", "portable", "--publish", "never"]);
-  if (status !== 0) console.error("\n打包报错了，下面先按现有产物对账（补不齐就停）。");
+  /* 组件源默认走 npmmirror：electron-builder 打包时要下 winCodeSign / nsis 这些组件，
+     默认从 github.com 拉 —— 本机到 github.com 时通时断（实测 ETIMEDOUT 20.205.243.166:443）。
+     外部（打包.bat 或环境变量）已经显式设置就尊重外部设置。 */
+  const buildEnv = Object.assign({}, process.env);
+  if (!buildEnv.ELECTRON_MIRROR) buildEnv.ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
+  if (!buildEnv.ELECTRON_BUILDER_BINARIES_MIRROR) buildEnv.ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/";
+  const status = run(process.execPath, [BUILDER_CLI, "--win", "nsis", "portable", "--publish", "never"], { env: buildEnv });
+  if (status !== 0) {
+    console.error("\n打包报错了（多半是组件下载超时：本机到 github.com 时通时断）。");
+    console.error("先跑一次 tools/release.mjs 重试；还不行就查 %LOCALAPPDATA%\\electron-builder\\Cache 少了哪个组件。");
+    console.error("下面先按现有产物对账（补不齐就停）。");
+  }
 }
 
 /* 6) 确认 Release 存在 */

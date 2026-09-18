@@ -85,6 +85,7 @@ node tools/probe.mjs 我的探针.js
 - 先读周边代码和现有测试，再做最小范围修改。
 - `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 一改，必须同步 `题型规范.md`。那张表被代码注释与本文档当作「数值依据」引用，却曾经整体落后于代码（申论半张表四个模块的子类型与维度数全不符），是含金量最高的一处文档债。
 - 打包走 `npm run dist`：它先跑 `tools/stamp-build.mjs` 生成 `app/build.json`（应用设置面板底部会显示这个构建时间，用来确认装的是不是新版），再调 electron-builder。**不要用文本工具改 `打包.bat`**：它是 GBK 编码（配 `chcp 936`），会被写坏；要给打包加步骤就改 `package.json` 的 `scripts.dist`。
+- electron-builder 要下的组件（electron / winCodeSign / nsis）默认从 github.com 拉，本机到那里时通时断。**`tools/release.mjs` 和 `打包.bat` 里都设了 npmmirror 镜像兵底**（外部已设则不覆盖）；缓存里 `winCodeSign` 最容易缺，卡在打包第一步就是它。发布失败时若已经把 Release 建出来了（空壳），**先 `gh release delete vX.Y.Z --yes --cleanup-tag`** 再重出 —— 否则客户端会看到一个“有新版但没有资产”的坑。
 - electron-builder 偶发在 `downloaded label=electron progress=100%` 之后长时间不动（extraction 已完成但零写入，实测停 13 分钟）。确认卡死后结束进程、删掉 `dist/win-unpacked.tmp` 与 `.tmp.lock` 再重跑，通常 2–3 分钟就过。**打包中途失败不会破坏 `dist/练习台.exe`**（builder 写的是新目录，最后才替换），所以用户手上那一版始终可用。
 - 不提交 API Key、真实个人资料或真实练习备份；`node_modules/`、`dist/`、`logs/` 不进 Git。
 - 不把一次性开发流水账写进本文件；稳定的使用方式和边界写在 `README.md`，历史通过 Git 记录。
