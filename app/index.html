@@ -989,13 +989,13 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
                             : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const exps = expBlock(k);   // 经验闭环：当前模块未停用的经验（≤3 条）注入出题，两科都带
   const note = (needCard
-    ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
+    ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式，另附一个 example：两三句话的示例小案例 + 典型问法，让用户认出这类题的样子；example 必须是全新编的示例，严禁使用本题背景材料的情节）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。")
     + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "");
   const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note, experiences: exps || undefined });
   const schema = needCard
     ? `{
-    "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）"},
+    "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
     "keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5}]
   }`
@@ -1349,9 +1349,13 @@ function lastPeeks(module, subtype){
 function cardHtml(studyCard){
   const pts=(studyCard.points||[]).map(p=>`<li>${esc(p)}</li>`).join("");
   const pits=(studyCard.pitfalls||[]).map(p=>`<li>${esc(p)}</li>`).join("");
+  const ex = studyCard.example;
+  const exHtml = (ex && (ex.scene||ex.ask))
+    ? `<h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div>`
+    : "";
   return `<h4>解题要点</h4><ul>${pts}</ul>
     <h4>常见失分点</h4><ul>${pits}</ul>
-    <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>`;
+    <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>${exHtml}`;
 }
 /* 题目渲染入口：申论建链/复链走七步面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
@@ -1382,14 +1386,12 @@ function zyCardHtml(){
   let html = "";
   if(current.studyCard){
     const lp = lastPeeks(module, subtype);
-    html += `<details class="card">
-      <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">展开可看，顺手记笔记</span></summary>
-      <div class="card-body">${cardHtml(current.studyCard)}
-        <h4>我的笔记</h4>
-        <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-        <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-        ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
-      </div></details>`;
+    html += `<div class="card"><div class="card-body">${cardHtml(current.studyCard)}
+      <h4>我的笔记</h4>
+      <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
+      <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
+      ${lp != null? `<div class="hint" style="margin-top:8px">上次作答中你翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
+    </div></div>`;
   } else {
     html += `<div class="hint" style="margin-top:10px">本题没有学习卡，直接作答即可。</div>`;
   }

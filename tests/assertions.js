@@ -451,7 +451,13 @@ ok(!state.flows.some(x=>x.sig === qSig(current.question)) && (activeFlow() === n
 ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A: 不渲染七步步骤条");
 ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A: 学习卡阶段有「开始作答」入口");
 ok(el("#docBody").innerHTML.indexOf("综应要点：格式三件套") >= 0, "综应A: 学习卡阶段笔记可见");
-ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "综应A: 翻卡熟悉度提示照旧");
+ok(el("#docBody").innerHTML.indexOf("上次作答中你翻了 2 次卡") >= 0, "综应A: 翻卡熟悉度提示照旧");
+ok(el("#docBody").innerHTML.indexOf("展开可看") < 0 && el("#docBody").innerHTML.indexOf("解题要点") >= 0,
+   "综应A: 卡阶段整页平铺不再折叠（页面就是给卡的）");
+ok(cardHtml({points:["要点"],pitfalls:["失分"],templates:"框架",example:{scene:"燃气泄漏的示例场景。",ask:"你会怎么处置？"}}).indexOf("这类题长什么样") >= 0,
+   "学习卡: example 栏目渲染（示例案例+典型问法）");
+ok(cardHtml({points:[],pitfalls:[],templates:""}).indexOf("这类题长什么样") < 0,
+   "学习卡: 旧卡没有 example 也不渲染空栏目");
 el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("背景材料") >= 0, "综应A: 作答页 = 材料 + 作答区");
 ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "综应A: 作答页翻卡浮标在场");
