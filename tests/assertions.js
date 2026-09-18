@@ -196,6 +196,15 @@ current.question.score = 20;   // 子项合计 15 ≠ 题目满分 20，必须�
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[{point:"只列了一个子项",score:5,awarded:5,status:"满分"}] }, 33);
 ok(el("#docBody").innerHTML.indexOf("与本题满分 20 分不一致") >= 0, "阅卷页: 子项合计与题目满分不一致时明示");
 
+/* 4.9 划线随写随看 + 作答笔记 + 完整参考答案（2026-09-18 三改进） */
+const qMk = { background:"ABCDEFG", requirements:"R" };
+saveMarks(qSig(qMk), new Set([1,2,6]));
+ok(markedRuns(qMk).length === 2 && markedRuns(qMk)[0] === "BC" && markedRuns(qMk)[1] === "G", "划线随写随看: 字符级标记还原成句子（保持原文顺序）");
+saveQNote(qSig(qMk), "这道题要先分主体");
+ok(getQNote(qSig(qMk)) === "这道题要先分主体" && getQNote(qSig({ background:"别的材料", requirements:"R" })) === "", "作答笔记: 按题目签名存取、不串题");
+renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", modelAnswer:"第一，迅速核实情况。第二，按预案上报。", hits:[] }, 50);
+ok(el("#docBody").innerHTML.indexOf("参考答案（范文") >= 0 && el("#docBody").innerHTML.indexOf("按预案上报") >= 0, "阅卷页: 完整参考答案渲染");
+
 /* 5. 失败路径 */
 el("#docBody").innerHTML = "正在作答的题";
 handleErr({ code:"API", status:400, text:"model not found" }, true);
