@@ -12,16 +12,17 @@
     --line:#d9d6cf;
     --paper:#fffdf8;
     --canvas:#e9e7e1;
-    --muted:#6b6b66;
+    --muted:#5e5e57;
     --fangsong:"FangSong","仿宋","STFangsong","FangSong_GB2312","KaiTi","serif";
+    --yahei:"Microsoft YaHei","Microsoft YaHei UI","PingFang SC","sans-serif";
     --song:"SimSun","宋体","STSong","serif";
     --hei:"SimHei","黑体","Microsoft YaHei","sans-serif";
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
-  body{background:var(--canvas);color:var(--ink);font-family:var(--fangsong);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;}
+  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:14.5px;line-height:1.7;-webkit-font-smoothing:antialiased;}
 
-  button{font-family:var(--fangsong);font-size:13.5px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:2px;transition:background .15s,border-color .15s;}
+  button{font-family:var(--fangsong);font-size:14px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:2px;transition:background .15s,border-color .15s;}
   button:hover{background:#f3f1ec;}
   button:disabled{opacity:.5;cursor:not-allowed;}
   button.primary{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
@@ -29,7 +30,7 @@
   button.big{font-family:var(--hei);font-size:16px;padding:13px 42px;letter-spacing:2px;}
   button.linkbtn{border:none;background:transparent;color:var(--muted);padding:4px 8px;font-size:13px;}
   button.linkbtn:hover{background:transparent;color:var(--gov-red);}
-  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:13.5px;border:1px solid var(--line);background:#fff;padding:7px 9px;border-radius:2px;color:var(--ink);}
+  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:14px;border:1px solid var(--line);background:#fff;padding:7px 9px;border-radius:2px;color:var(--ink);}
 
   /* 顶栏 */
   .topbar{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);}
@@ -66,14 +67,14 @@
   .modlabel{text-align:center;font-family:var(--hei);font-size:13px;color:var(--muted);margin:4px 0 0;letter-spacing:1px;}
 
   /* 起始区 —— 醒目主入口 */
-  .startbox{text-align:center;padding:52px 20px 46px;}
+  .startbox{text-align:center;padding:52px 20px 46px;min-height:440px;display:flex;flex-direction:column;justify-content:center;}
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:13.5px;margin:0 0 26px;}
   .startbox .big{min-width:260px;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:14px;}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;}
-  .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-size:14.5px;line-height:1.85;white-space:pre-wrap;word-break:break-word;}
+  .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-family:var(--fangsong);font-size:15.5px;line-height:1.85;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--gov-red);font-size:13px;margin-bottom:6px;}
   .ms{cursor:pointer;border-radius:2px;}
   mark.ms.on{background:var(--mark,#fde68a);color:var(--ink);}
@@ -1287,7 +1288,7 @@ function renderHeader(){
   const n = state.history.length + 1, y = new Date().getFullYear();
   $("#docNo").textContent = `${state.settings.noPrefix||"综应练"}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
   if(pdActive){   // 判别轨不是科目：抬头不挂科目名，只报当前形式
-    $("#modLabel").textContent = "判别轨 · " + (pdForm && PD_FORMS[pdForm]? PD_FORMS[pdForm].name : "判别训练");
+    $("#modLabel").textContent = "快判 · " + (pdForm && PD_FORMS[pdForm]? PD_FORMS[pdForm].name : "快判训练");
     return;
   }
   const subj = SUBJECTS[curSubject()];
@@ -1302,7 +1303,7 @@ function renderTabs(){
   const sb = $("#subjbar");
   if(sb){
     sb.innerHTML = SUBJECT_ORDER.map(id=>`<button class="subjbtn${!pdActive && id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("")
-      + `<button class="subjbtn${pdActive?" active":""}" data-s="__pd" title="判别训练：事实选择 / 分组概括 / 表达比较，点选即判">判别轨</button>`;
+      + `<button class="subjbtn${pdActive?" active":""}" data-s="__pd" title="快判训练：看材料点答案，立刻对错。事实选择 / 分组概括 / 表达比较">快判</button>`;
     sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=> b.dataset.s==="__pd"? enterPD() : switchSubject(b.dataset.s));
   }
   // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）。
@@ -1570,7 +1571,7 @@ const PD_FORMS = {
   /* 综合判别：三种形式混在一轮。练的是“不告诉你这是哪类题”的实战眼力——
      考试里没人先告诉你这道题考的是主体、范围还是因果。 */
   "__mix":{
-    name:"综合判别",
+    name:"综合快判",
     optCount:[2,3],
     desc:"三种形式混在一轮里，不给提示——拿住材料就地判断，练的就是这种眼力。",
     spec:"本轮三种混着出：事实选择（判断哪条说法站得住）、分组概括（哪条概括不漏不重）、表达比较（哪句改写改变了原意）。每题必须带 form 字段标明属于哪种。"
@@ -1649,9 +1650,9 @@ function renderPDLanding(){
   tabActiveKey = null; renderTabs();
   const recent = pdRecentTheme();
   let html = `<div class="startbox">
-    <h2>判别轨 · 从材料里做判断</h2>
+    <h2>快判 · 从材料里做判断</h2>
     <p>不写长篇作答：看材料 → 点选答案 → 立刻对错。一轮 5 题；练的是信息取舍与表达规范的眼力。</p>
-    <div class="actions" style="justify-content:center;margin:2px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合判别</button></div>
+    <div class="actions" style="justify-content:center;margin:2px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
     <p class="hint" style="margin:10px auto 24px;max-width:560px">三种形式混着来、不给提示——考试里没人先告诉你这道题考的是主体、范围还是因果。只想单练一类，用下面的入口。</p>
     ${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="ogroup" style="text-align:left"><b>${f.name}</b><div style="margin-top:4px">${f.desc}</div><div class="actions" style="margin-top:8px"><button data-pdform="${id}">只练「${f.name}」</button></div></div>`; }).join("")}
     <div class="sec-title" style="text-align:left">主题（可自填，留空则随机）</div>
@@ -1677,7 +1678,7 @@ async function genPDRound(form, theme){
   const prevForm = pdForm;
   pdForm = form;
   const t0 = Date.now();
-  showLoading(`AI 正在出「${f.name}」判别题（主题：${theme}）…`);
+  showLoading(`AI 正在出「${f.name}」快判题（主题：${theme}）…`);
   const tick = setInterval(()=>{
     const el = $("#elapsed");
     if(!el){ clearInterval(tick); return; }
@@ -1778,7 +1779,7 @@ function renderPDRound(){
   pdForm = r.form;
   const f = PD_FORMS[r.form];
   const it = r.items[r.idx];
-  let html = `<div class="qtop"><span class="hint">判别轨 · ${f.name} · 主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题</span></div>`;
+  let html = `<div class="qtop"><span class="hint">快判 · ${f.name} · 主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题</span></div>`;
   html += `<div class="material"><div class="label">材料节选</div>${esc(it.context)}</div>`;
   html += `<div class="require" style="margin-top:12px"><b>题干：</b>${esc(it.stem)}</div>`;
   html += `<div class="pdopts">` + it.options.map((o,i)=>{
@@ -2576,14 +2577,14 @@ function renderProfile(){
   }
   // 判别轨单独一节：记录带 track:'pd'，不进 dims 维度画像，不与综应A/申论混算
   const pds = pdFormStats();
-  html += `<div class="sec-title">判别轨（点选即判 · 只看正确率，不计入维度画像）</div><div class="modblock"><h4>三种形式</h4>`;
+  html += `<div class="sec-title">快判（点选即判 · 只看正确率，不计入维度画像）</div><div class="modblock"><h4>三种形式</h4>`;
   if(PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
     html += `<div class="typestat">` + PD_FORM_ORDER.map(id=>{
       const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
       return `<span class="t">${PD_FORMS[id].name} <b class="${rate<70?"lo":"hi"}">${rate}%</b><small style="color:#999"> (${t.rounds}轮/${t.q}题)</small></span>`;
-    }).join("") + (pds.mixRounds? `<span class="t">综合判别 <small style="color:#999">${pds.mixRounds} 轮混着出，已按题归入上面三类</small></span>` : "") + `</div>`;
+    }).join("") + (pds.mixRounds? `<span class="t">综合快判 <small style="color:#999">${pds.mixRounds} 轮混着出，已按题归入上面三类</small></span>` : "") + `</div>`;
   } else {
-    html += `<div class="hint">还没练过判别轨。点科目栏的「判别轨」开一轮。</div>`;
+    html += `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
   }
   html += `</div>`;
   html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div>` + experienceListHtml();
@@ -2591,7 +2592,7 @@ function renderProfile(){
   for(const h of state.history.slice(0,50)){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     if(h.track === "pd"){   // 判别轨行：形式当模块、主题当子类型，总分列是「对/总题数」
-      html += `<tr><td>${ds}</td><td>判别轨</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td>${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td>—</td></tr>`;
+      html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td>${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td>—</td></tr>`;
       continue;
     }
     const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
