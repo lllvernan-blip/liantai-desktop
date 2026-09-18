@@ -1245,8 +1245,9 @@ function renderTabs(){
       + `<button class="subjbtn${pdActive?" active":""}" data-s="__pd" title="判别训练：事实选择 / 分组概括 / 表达比较，点选即判">判别轨</button>`;
     sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=> b.dataset.s==="__pd"? enterPD() : switchSubject(b.dataset.s));
   }
-  // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）
-  $("#modbar").innerHTML = pdActive? "" : `<button class="tab" data-k="__all">综合</button>` +
+  // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）。
+  // 「综合」不设页签：点具体题型就推那个题型；不选题型（起始页）就是综合智能推送——两件事不该有两个入口。
+  $("#modbar").innerHTML = pdActive? "" :
     moduleKeysOf(subj).map(k=>`<button class="tab" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
   if(!pdActive) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
 }
@@ -1260,8 +1261,7 @@ function switchSubject(id){
   renderTabs(); renderHeader(); renderStart();
 }
 function tabClick(k){
-  if(k === "__all"){ activeModule = "__all"; renderHeader(); renderStart(); }
-  else renderModuleLanding(k);
+  renderModuleLanding(k);
   $("#doc").scrollIntoView(true);
 }
 /* ============ 弹层：设置 / 画像 ============ */
@@ -1281,7 +1281,7 @@ function renderStart(){
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
-    <p>${esc(SUBJECTS[curSubject()].name)} · AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
+    <p>${esc(SUBJECTS[curSubject()].name)} · 不选具体题型，就按综合来推：AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
     <button class="primary big" id="btnStart">智能推送下一题</button>
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;

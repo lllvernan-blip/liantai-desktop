@@ -521,8 +521,10 @@ state.history = [];
 
 /* 8.7 子类型扩展到全部题型 */
 ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf("zy.guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
-tabClick("__all");
-ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0, "综合入口: 页签直达智能推送起点");
+renderTabs();
+ok(el("#modbar").innerHTML.indexOf("__all") < 0, "页签: 综合页签已撤（不选题型即综合推送，不设双入口）");
+renderStart();
+ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0 && el("#docBody").innerHTML.indexOf("按综合来推") >= 0, "起始页: 智能推送入口 + 「不选题型就按综合来推」明示");
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
