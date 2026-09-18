@@ -511,13 +511,13 @@ function loadHistory(){
   catch(e){ return null; }
 }
 function saveHistory(){
-  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); }
+  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); return true; }
   catch(e){
     // 实在写不下：裁到 40 条再试，宁可丢最老的记录也不打断作答；有「导出」兑底
     try{
-      if(state.history.length > 40){ state.history.length = 40; localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); }
-      else throw e;
-    }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。"); }
+      if(state.history.length > 40){ state.history.length = 40; localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); return true; }
+      throw e;
+    }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。"); return false; }
   }
 }
 let state = load();
@@ -2134,6 +2134,7 @@ function draftPanelHtml(f){
 }
 
 /* ============ 七步训练链：交互接线 ============ */
+let _markOutsideHandler = null;   // 每次重渲染都要换一个新的（闭包持有当次面板的 DOM），旧的必须摘掉，否则长会话里越挂越多
 function wireMarks(){
   const sig = qSig(current.question);
   const mbox = $("#materialBox"), pop = $("#markPop");
@@ -2182,7 +2183,9 @@ function wireMarks(){
       saveMarks(sig, set);
       hidePop(); renderMaterial();
     };
-    document.addEventListener("mousedown", e=>{ if(!pop.contains(e.target)) hidePop(); });
+    if(_markOutsideHandler) document.removeEventListener("mousedown", _markOutsideHandler);
+    _markOutsideHandler = e=>{ if(!pop.contains(e.target)) hidePop(); };
+    document.addEventListener("mousedown", _markOutsideHandler);
   }
 }
 function wireDraft(f){
@@ -2292,6 +2295,8 @@ function installFlowListeners(){
 
 function insertSkeleton(){
   const t=$("#answer"); if(!t) return;
+  // 骨架是覆盖写：已经写了东西就先问一声。标签说「插入」，别真的把用户手写的正文抹掉——答案不可再生
+  if(t.value.trim() && typeof window !== "undefined" && !window.confirm("插入骨架会覆盖当前已写的内容（草稿也会跟着变），确定吗？")) return;
   const type = current.subtype || "公文";
   t.value = `（标题）关于……的${type}\n\n主送机关：\n\n　　正文：……\n\n　　　　　　　　　　　　${state.settings.orgName||"XX单位"}\n　　　　　　　　　　　　${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日`;
   t.focus();
@@ -2305,7 +2310,8 @@ async function submitAnswer(){
   if(btn.disabled) return;
   banner("");
   btn.disabled=true; btn.textContent="阅卷中…";
-  const mySeq = reqSeq, mod = current.module, sub = current.subtype, q = current.question;
+  const mySeq = ++reqSeq;   // 提交也是一次请求：不自增的话，同一份答案会被并发批改两次、画像里算两遍
+  const mod = current.module, sub = current.subtype, q = current.question;
   const f = activeFlow();
   const inFlow = !!(f && f.sig === qSig(q));
   const rewriting = !!(inFlow && f.step === "revise");   // 回改稿：走同一条 grade 路径，但带上轮批改要点
@@ -2338,7 +2344,11 @@ async function submitAnswer(){
     if(state.history.length>200) state.history.length=200;
     if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline, mode: rewriting? "rewrite" : "draft" });   // 批改门槛的事实源
     clearInterval(tick);
-    saveHistory(); save(); clearDraft(qSig(q));   // 先保住记录，再清草稿：记录没写成功时草稿还在
+    // 草稿只在记录确实落盘后才清：写不进 localStorage 时留着草稿，用户还能再交一次，
+    // 不然「记录只活在内存里 + 草稿已删」这个窗口里被强杀，手写答案就不可再生地没了。
+    if(saveHistory()){ clearDraft(qSig(q)); }
+    else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。"); }
+    save();
     renderGrade(g, total);   // 申论：提交即进入「批改」步；综应A：显示结果页
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
@@ -2580,7 +2590,7 @@ function applyForm(){
   state.settings.apiKey = $("#setKey").value.trim();
   state.settings.reasonLevel = state.settings.reasonLevel || "standard";
   state.settings.temperature = (REASON_LEVELS[state.settings.reasonLevel] || REASON_LEVELS.standard).temp;
-  state.settings.orgName = $("#setOrg").value.trim() || "综应练习台";
+  state.settings.orgName = $("#setOrg").value.trim() || DEFAULT_STATE.settings.orgName;   // 回落到现行默认值，不回落到已被迁移掉的旧默认名
   state.settings.noPrefix = $("#setNo").value.trim() || "综应练";
 }
 // 从实拉名单里挑个“跑得快”的做默认：优先轻量款，否则取第一个
@@ -2677,10 +2687,14 @@ async function testConnection(){
 /* 备份文件的 Key 政策：导出不带 Key，导入也不吃文件里的 Key。
    一份备份会被发到群里、丢进网盘、随手转给别人——API Key 是这台机器的凭证，不该跟着练习数据走。
    反过来，别人给的（或网上捡的）备份里如果埋了 Key/baseURL，导入也不该把你的请求拐到别处去。
-   代价：换机迁移要在新机器上重填一次 Key，值。 */
+   代价：换机迁移要在新机器上重填一次 Key，值。
+   另外：草稿与划线不在 state 里（独立键 gw_draft / gw_marks），必须显式带上——
+   那才是用户手写、不可再生的东西，漏了就不算「备份」。 */
 function exportPayload(){
   const s = structuredClone(state);
   if(s.settings) delete s.settings.apiKey;
+  s.drafts = loadDrafts();
+  s.marks = marksAll();
   return s;
 }
 function exportJSON(){
@@ -2691,7 +2705,7 @@ function exportJSON(){
   a.download = `综应练习台-备份-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
-  banner("已导出备份 ✓ 不含 API Key（备份可以放心分享，换机后在新机器重填一次 Key 即可）");
+  banner("已导出备份 ✓ 含草稿与划线、不含 API Key（可放心分享；换机后在新机器重填一次 Key 即可）");
 }
 /* 导入白名单化重建：入口只收对象；profile/cache/flows/experiences 逐字段 typeof 校验，
    不合格字段丢弃用默认值，不整包失败；构造新对象时过滤 __proto__/constructor/prototype 键，防原型污染。 */
@@ -2743,6 +2757,22 @@ function importJSON(file){
       // 经验闭环：逐条校验；训练链走 sanitizeFlows（非法 step 丢弃，不整包失败）
       state.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
       state.flows = sanitizeFlows(Array.isArray(s.flows)? s.flows : []);
+      // 草稿与划线：不在 state 里，按题目签名逐条校验后合并回来；本机已有的一份不覆盖
+      const dr = plainObj(s.drafts);
+      if(dr){
+        for(const k of Object.keys(dr)){
+          const v = plainObj(dr[k]);
+          if(v && typeof v.text === "string" && v.text) saveDraft(k, v.text);
+        }
+      }
+      const mk = plainObj(s.marks);
+      if(mk){
+        for(const k of Object.keys(mk)){
+          if(!Array.isArray(mk[k])) continue;
+          if(marksAll()[k]) continue;
+          saveMarks(k, new Set(mk[k].filter(n => typeof n === "number")));
+        }
+      }
       _flowId = null;
       const openFlows = state.flows.filter(x=>!x.closedAt);
       if(openFlows.length) _flowId = openFlows[openFlows.length-1].id;
@@ -2937,27 +2967,29 @@ function postUpdateAction(name){
 }
 function fmtMB(n){ return n? Math.round(n/1048576*10)/10 + "MB" : ""; }
 
-/* 纯函数：状态 -> 一句话。测试直接核这里，不需要真壳。 */
+/* 纯函数：状态 -> 一句话。**返回纯文本、不做 HTML 转义**——调用方用 textContent 上屏，
+   转了反而让用户看到 `&amp;` 这种实体（错误报文里带引号和 & 是常事，那行字恰恰最需要读懂）。
+   若改成 innerHTML 上屏，必须在这里补 esc()。测试直接核这里，不需要真壳。 */
 function updateNoteText(s){
   if(!s) return "正在读取更新状态…";
   if(!s.supported){
     if(s.reason === "dev") return "开发版（源码直跑），不检查更新。";
     if(s.reason === "portable") return "免安装版不自动更新：下载新版 exe 覆盖原文件即可。练习记录与 Key 都在用户数据目录里，不受影响。";
-    if(s.reason === "missing-module") return "更新组件缺失，无法自动更新（" + esc(s.error||"未知") + "）。";
+    if(s.reason === "missing-module") return "更新组件缺失，无法自动更新（" + (s.error||"未知") + "）。";
     return "当前构建不支持自动更新。";
   }
   if(s.phase === "checking") return "正在检查更新…";
-  if(s.phase === "up-to-date") return "已是最新版本 v" + esc(s.currentVersion) + "。";
-  if(s.phase === "available") return "发现新版本 v" + esc(s.latestVersion) + "，正在后台下载…";
+  if(s.phase === "up-to-date") return "已是最新版本 v" + (s.currentVersion||"") + "。";
+  if(s.phase === "available") return "发现新版本 v" + (s.latestVersion||"") + "，正在后台下载…";
   if(s.phase === "downloading"){
     const p = s.progress || {};
-    return "正在后台下载 v" + esc(s.latestVersion) + " … " + (p.percent||0) + "%"
+    return "正在后台下载 v" + (s.latestVersion||"") + " … " + (p.percent||0) + "%"
       + (p.total? "（" + fmtMB(p.transferred) + " / " + fmtMB(p.total) + "）" : "")
       + "，期间可以照常练题。";
   }
-  if(s.phase === "downloaded") return "v" + esc(s.latestVersion) + " 已下载完成。点「重启并更新」立即生效；直接关掉应用也行，下次打开就是新版。";
-  if(s.phase === "error") return "检查更新失败：" + esc(s.error||"未知错误") + "（不影响使用，稍后会自动重试）。";
-  return "当前 v" + esc(s.currentVersion) + "，启动后会自动检查更新。";
+  if(s.phase === "downloaded") return "v" + (s.latestVersion||"") + " 已下载完成。点「重启并更新」立即生效；直接关掉应用也行，下次打开就是新版。";
+  if(s.phase === "error") return "检查更新失败：" + (s.error||"未知错误") + "（不影响使用，稍后会自动重试）。";
+  return "当前 v" + (s.currentVersion||"") + "，启动后会自动检查更新。";
 }
 
 function renderUpdateNote(){
@@ -3000,7 +3032,18 @@ function initUpdateUi(){
     });
   };
   const bi = $("#btnInstallUpdate");
-  if(bi) bi.onclick = ()=>{ bi.disabled = true; postUpdateAction("install"); };
+  if(bi) bi.onclick = ()=>{
+    bi.disabled = true;
+    const el = $("#updateNote"); if(el) el.textContent = "正在重启并安装…（应用会自动关掉再重新打开）";
+    postUpdateAction("install").then(r =>{
+      // 无论成不成都要把按钮放回去：否则一次失败就整场会话点不动，只能重启应用
+      bi.disabled = false;
+      if(r && r.ok) return;
+      const st = (r && r.status) || updateInfo || {};
+      if(el) el.textContent = "没能开始安装（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或直接关掉应用——下次打开就是新版。";
+      renderUpdateNote();
+    });
+  };
   const bl = $("#btnOpenReleases");
   if(bl) bl.onclick = ()=>{
     const url = (updateInfo && updateInfo.releasesUrl) || "";

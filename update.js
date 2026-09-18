@@ -29,11 +29,14 @@ const PHASE = {
 const BOOT_CHECK_DELAY_MS = 12 * 1000;        // 启动后 12 秒再查（别和启动抢带宽/注意力）
 const PERIODIC_CHECK_MS = 6 * 60 * 60 * 1000; // 开着不动也每 6 小时看一眼
 const ERROR_RETRY_MS = 30 * 60 * 1000;        // 失败后 30 分钟再试（网络问题多半是一时的）
+const CHECK_TIMEOUT_MS = 2 * 60 * 1000;       // 检查接口半挂：2 分钟没回话就算失败
+const DOWNLOAD_STALL_MS = 10 * 60 * 1000;     // 下载 10 分钟没有任何进展也算失败
 
 let autoUpdater = null;
 let log = () => {};
 let notify = () => {};
 let timer = null;
+let stallTimer = null;
 let stopped = false;   // 应用正在退出：不再发任何更新请求，别和退出流程抢
 
 const status = {
@@ -97,8 +100,9 @@ function initUpdate(options) {
     return status;
   }
 
+  let updaterModule = null;
   try {
-    autoUpdater = require('electron-updater').autoUpdater;
+    updaterModule = require('electron-updater');
   } catch (err) {
     status.supported = false;
     status.reason = 'missing-module';
@@ -106,6 +110,18 @@ function initUpdate(options) {
     setPhase(PHASE.ERROR, status.error + ' :: ' + (err && err.message));
     return status;
   }
+
+  /* 拿到了模块不等于拿到了可用的 updater：半成品/版本不对时 autoUpdater 可能不存在。
+     这里必须自己挡下来——直接往下写属性会抛，而 initUpdate 是在启动链上调的，
+     一抛就是「更新组件有问题 → 应用打不开」，代价远远大于自动更新本身。 */
+  if (!updaterModule || !updaterModule.autoUpdater || typeof updaterModule.autoUpdater.checkForUpdates !== 'function') {
+    status.supported = false;
+    status.reason = 'missing-module';
+    status.error = '更新组件不完整（electron-updater 版本不对或文件缺失）';
+    setPhase(PHASE.ERROR, status.error);
+    return status;
+  }
+  autoUpdater = updaterModule.autoUpdater;
 
   autoUpdater.autoDownload = true;          // 后台静默下好，再问用户要不要重启
   autoUpdater.autoInstallOnAppQuit = true;  // 用户直接关窗口也算数：下次启动就是新版
@@ -139,6 +155,7 @@ function initUpdate(options) {
   autoUpdater.on('update-available', (info) => {
     status.latestVersion = (info && info.version) || '';
     setPhase(PHASE.AVAILABLE, status.latestVersion + ' 可用，开始后台下载');
+    armStallWatchdog();
   });
 
   autoUpdater.on('update-not-available', (info) => {
@@ -147,6 +164,7 @@ function initUpdate(options) {
   });
 
   autoUpdater.on('download-progress', (p) => {
+    armStallWatchdog();   // 有字节流动就重置卡住计时
     status.progress = {
       percent: Math.max(0, Math.min(100, Math.round((p && p.percent) || 0))),
       transferred: (p && p.transferred) || 0,
@@ -157,12 +175,14 @@ function initUpdate(options) {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    clearStallWatchdog();
     status.latestVersion = (info && info.version) || status.latestVersion;
     status.progress = { percent: 100, transferred: 0, total: 0, bytesPerSecond: 0 };
     setPhase(PHASE.DOWNLOADED, status.latestVersion + ' 已下载，重启后生效');
   });
 
   autoUpdater.on('error', (err) => {
+    clearStallWatchdog();
     status.error = (err && err.message) || String(err);
     setPhase(PHASE.ERROR, status.error);
     schedule(ERROR_RETRY_MS);   // 网络抖一下就永久放弃是不行的
@@ -173,6 +193,30 @@ function initUpdate(options) {
 
   schedule(BOOT_CHECK_DELAY_MS);
   return status;
+}
+
+/* 卡住看门狗：checkForUpdates 与下载都可能「既不 resolve 也不 emit error」（连接建了但对端不回）。
+   没这道兜底，phase 就永远停在 checking/downloading，而页面那时恰好把「检查更新」藏起来——变成单向门，
+   只能重启应用。所以超时就当失败处理，走统一的报错 + 重试。 */
+function armStallWatchdog() {
+  clearStallWatchdog();
+  if (stopped) return;
+  stallTimer = setTimeout(() => {
+    stallTimer = null;
+    if (stopped) return;
+    const where = status.phase === PHASE.DOWNLOADING ? '下载' : '检查更新';
+    status.error = where + '超过 ' + Math.round(DOWNLOAD_STALL_MS / 60000) + ' 分钟没有进展';
+    setPhase(PHASE.ERROR, status.error);
+    schedule(ERROR_RETRY_MS);
+  }, DOWNLOAD_STALL_MS);
+  if (stallTimer && typeof stallTimer.unref === 'function') stallTimer.unref();
+}
+
+function clearStallWatchdog() {
+  if (stallTimer) {
+    clearTimeout(stallTimer);
+    stallTimer = null;
+  }
 }
 
 function schedule(delayMs) {
@@ -188,6 +232,7 @@ function schedule(delayMs) {
 /* 退出时叫停：quitAndInstall 与退出流程都在跑的时候，再插一个 checkForUpdates 只是自找不确定性 */
 function stopUpdate() {
   stopped = true;
+  clearStallWatchdog();
   if (timer) {
     clearTimeout(timer);
     timer = null;
@@ -198,7 +243,12 @@ async function checkUpdate() {
   if (stopped || !status.supported || !autoUpdater) return snapshot();
   if (status.phase === PHASE.CHECKING || status.phase === PHASE.DOWNLOADING) return snapshot();
   try {
-    await autoUpdater.checkForUpdates();
+    const p = autoUpdater.checkForUpdates();
+    p.catch(() => {});   // 竞速输掉的那一边也要有人接住，否则会冒 unhandledRejection
+    await Promise.race([p, new Promise((_, reject) => {
+      const t = setTimeout(() => reject(new Error('检查更新超时（' + Math.round(CHECK_TIMEOUT_MS / 1000) + ' 秒没有回应）')), CHECK_TIMEOUT_MS);
+      if (t && typeof t.unref === 'function') t.unref();
+    })]);
     status.lastCheckAt = new Date().toISOString();
     if (status.phase === PHASE.UP_TO_DATE) schedule(PERIODIC_CHECK_MS);
   } catch (err) {

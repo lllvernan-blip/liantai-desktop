@@ -366,20 +366,25 @@ function createWindow() {
 /* ------------------------------------------------------------------ */
 
 function setupUpdate() {
-  update.initUpdate({
-    log: log,
-    isPackaged: app.isPackaged,
-    currentVersion: app.getVersion(),
-    releasesUrl: RELEASES_URL,
-    feed: process.env[UPDATE_FEED_ENV] || '',
-    // 状态变了就推给页面（页面自己决定怎么显示：顶栏提示 / 设置面板里的行）
-    onStatusChange: (s) => {
-      if (!mainWindow || mainWindow.isDestroyed()) return;
-      mainWindow.webContents.executeJavaScript(
-        'try { typeof __updatePush === "function" && __updatePush(' + JSON.stringify(s) + '); } catch (e) {}'
-      ).catch(() => {});
-    },
-  });
+  // 更新是锦上添花，绝不能弄死启动：这儿的任何异常都只能进日志
+  try {
+    update.initUpdate({
+      log: log,
+      isPackaged: app.isPackaged,
+      currentVersion: app.getVersion(),
+      releasesUrl: RELEASES_URL,
+      feed: process.env[UPDATE_FEED_ENV] || '',
+      // 状态变了就推给页面（页面自己决定怎么显示：顶栏提示 / 设置面板里的行）
+      onStatusChange: (s) => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.webContents.executeJavaScript(
+          'try { typeof __updatePush === "function" && __updatePush(' + JSON.stringify(s) + '); } catch (e) {}'
+        ).catch(() => {});
+      },
+    });
+  } catch (err) {
+    log('update-setup-failed', (err && err.stack) || String(err));
+  }
 }
 
 /* ------------------------------------------------------------------ */

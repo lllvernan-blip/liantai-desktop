@@ -26,6 +26,10 @@
 - 更新不得碰用户数据：用户数据在 `%APPDATA%\liantai-desktop`，更新只替换安装目录里的程序文件；`nsis.deleteAppDataOnUninstall` 保持 `false`（卸载也不删练习记录）。
 - 更新失败绝不阻断使用：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，后台自动重试（出错后 30 分钟、常驻每 6 小时）。不要在启动路径上弹阻断式对话框。
 - 发布：`npm run release`（`tools/release.mjs`：取 `gh auth token` → 盖章 → `electron-builder --publish always`）。**发布前必须先把 `package.json` 的 `version` 提高**——版本号不变，老用户永远收不到这一版；tag 重复会被脚本直接挡下。
+- **发布必须对账**：nsis / portable 两个 target 各跑一次发布，第二次撞 `tag_name already_exists` 中断——`latest.yml` 与 `.blockmap` 常就在这一步丢，而少了 `latest.yml` 自动更新压根不会启动。所以 `release.mjs` 不信返回码，出完包按产物逐个对账、缺的用 `gh` 补传；`latest.yml` 永远覆盖上传（它是指针，留着旧的会被当成「已有」跳过）。`npm run release -- --reconcile-only` 只对账不出包。
+- 对账前会校验 `dist/latest.yml` 的 `version` 与 `sha512` 是否就是当前产物：**别拿上一次试打包残留的清单去对账**，否则会把旧版本号或错哈希写到线上（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」），两种都不会在打包阶段报错。
+- 差量的两个前提：缓存 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（上一版安装包）在，且**源上旧版的 `.blockmap` 不删**。generic 源支持 `multipart/byteranges` 才是真差量（不支持就优雅退化为全量，不报错）；GitHub 资产 CDN 对多段 Range 返回 501，但 `BaseGitHubProvider` 写死单段逐段请求（206 可用），所以 GitHub 源差量可用。
+- 网络现实：国内直连 GitHub 时 `checkForUpdates` 可能直接 `ERR_CONNECTION_TIMED_OUT`（真机见过）。这不是 bug：失败会按规则重试且不阻断使用；要稳定就换源（`LIANTAI_UPDATE_FEED`）。
 - 本地验更新链路不必真装：`LIANTAI_UPDATE_FEED=http://127.0.0.1:<port>/` 指向一个放好 `latest.yml` + 安装包 + `.blockmap` 的目录，跑 `dist/win-unpacked/综应练习台.exe` 即可（generic 源）。
 
 ## 端口与存储（桌面壳）

@@ -30,6 +30,11 @@ const src = [
   readFileSync(join(here, "assertions.js"), "utf8"),
 ].join("\n");
 
+// 先跑壳侧自检（update.js 状态机）。**必须在页面自检之前**：
+// 下面那个 data: 模块会把全局 setTimeout/setInterval 换成桩子（页面脚本在 node 里不需要真定时器），
+// 换完再跑壳侧的话，状态机的定时器全是空转。
+await import(new URL("./shell.mjs", import.meta.url).href);
+
 // 以 data: 模块执行：桩子、应用、断言同处一个模块作用域，且支持顶层 await（异步自检用）
 const b64 = Buffer.from(src, "utf8").toString("base64");
 await import("data:text/javascript;base64," + b64);

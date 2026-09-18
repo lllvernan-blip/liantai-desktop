@@ -18,6 +18,7 @@ globalThis.document = {
   querySelector: s => __els[s] || (__els[s] = makeEl(s)),
   querySelectorAll: () => [],
   addEventListener: () => {},
+  removeEventListener: () => {},
   createElement: () => makeEl("a"),
   documentElement: makeEl("html"),
   body: makeEl("body")
