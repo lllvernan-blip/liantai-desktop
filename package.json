@@ -1,8 +1,8 @@
 {
   "name": "liantai-desktop",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
-  "description": "综应练习台桌面版（Electron 壳）",
+  "description": "练习台桌面版（Electron 壳）",
   "main": "main.js",
   "author": "lllvernan",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "build": {
     "appId": "com.lllvernan.liantai",
-    "productName": "综应练习台",
+    "productName": "练习台",
     "directories": {
       "output": "dist"
     },
@@ -38,14 +38,14 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "综应练习台-Setup-${version}.exe",
-      "shortcutName": "综应练习台",
+      "artifactName": "练习台-Setup-${version}.exe",
+      "shortcutName": "练习台",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false
     },
     "portable": {
-      "artifactName": "综应练习台.exe"
+      "artifactName": "练习台.exe"
     },
     "publish": [
       {

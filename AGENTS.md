@@ -30,7 +30,13 @@
 - 对账前会校验 `dist/latest.yml` 的 `version` 与 `sha512` 是否就是当前产物：**别拿上一次试打包残留的清单去对账**，否则会把旧版本号或错哈希写到线上（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」），两种都不会在打包阶段报错。
 - 差量的两个前提：缓存 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（上一版安装包）在，且**源上旧版的 `.blockmap` 不删**。generic 源支持 `multipart/byteranges` 才是真差量（不支持就优雅退化为全量，不报错）；GitHub 资产 CDN 对多段 Range 返回 501，但 `BaseGitHubProvider` 写死单段逐段请求（206 可用），所以 GitHub 源差量可用。
 - 网络现实：国内直连 GitHub 时 `checkForUpdates` 可能直接 `ERR_CONNECTION_TIMED_OUT`（真机见过）。这不是 bug：失败会按规则重试且不阻断使用；要稳定就换源（`LIANTAI_UPDATE_FEED`）。
-- 本地验更新链路不必真装：`LIANTAI_UPDATE_FEED=http://127.0.0.1:<port>/` 指向一个放好 `latest.yml` + 安装包 + `.blockmap` 的目录，跑 `dist/win-unpacked/综应练习台.exe` 即可（generic 源）。
+- - **镜像兜底**：主源永远是包内 `app-update.yml`（GitHub 官方）；它连不通时 `update.js` 按 `MIRROR_FEEDS` 顺序退到 GitHub 加速镜像，全试过才落 error（下一轮从主源重新开始）。镜像列表在 `update.js` 顶部：2026-09-18 在这台机器实测 `ghproxy.net` / `gh-proxy.com` / `gh.ddlc.top` 可用且都支持 Range（差量照旧），直连 github.com 则是连接超时。设了 `LIANTAI_UPDATE_FEED` 就只认那一个源，不再兜底。**代价得知道**：镜像能把 `latest.yml` 和安装包一起换掉，等于把信任交给第三方——所以主源永远留给官方，镜像只是路不通时的替代。
+  - 本地验更新链路不必真装：`LIANTAI_UPDATE_FEED=http://127.0.0.1:<port>/` 指向一个放好 `latest.yml` + 安装包 + `.blockmap` 的目录，跑 `dist/win-unpacked/练习台.exe` 即可（generic 源）。
+
+## 名称与版本（别乱动的三样）
+
+- 界面上叫「练习台」；内部 id 永远保持 `liantai-desktop`：`package.json` 的 `name`、`build.appId`。**不要给 package.json 加顶层 `productName`**——Electron 用顶层 `name` / `productName` 决定 userData 目录，一改用户数据就搬去新目录（用户会以为记录全丢了）。`build.productName` 只影响安装包/快捷方式的显示名，改它安全。（历史上这项目叫过「规范表达」→「综应练习台」→「练习台」，界面上改名字从不影响数据。）另外：`app/index.html` 里还有两处 `orgName === "综应练习台"` 的迁移分支 —— 那是把旧版写进用户数据的机关名改成「模拟练习专用」用的（测试里有对应断言），**不是产品名，别跟着一起改**。
+- 版本号：测试阶段只走 `0.x.x`（用户拍板：「现在还算在测试」），他明确说发正式版才跳 1.x。
 
 ## 端口与存储（桌面壳）
 
@@ -71,7 +77,7 @@ node tools/probe.mjs 我的探针.js
 - 先读周边代码和现有测试，再做最小范围修改。
 - `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 一改，必须同步 `题型规范.md`。那张表被代码注释与本文档当作「数值依据」引用，却曾经整体落后于代码（申论半张表四个模块的子类型与维度数全不符），是含金量最高的一处文档债。
 - 打包走 `npm run dist`：它先跑 `tools/stamp-build.mjs` 生成 `app/build.json`（应用设置面板底部会显示这个构建时间，用来确认装的是不是新版），再调 electron-builder。**不要用文本工具改 `打包.bat`**：它是 GBK 编码（配 `chcp 936`），会被写坏；要给打包加步骤就改 `package.json` 的 `scripts.dist`。
-- electron-builder 偶发在 `downloaded label=electron progress=100%` 之后长时间不动（extraction 已完成但零写入，实测停 13 分钟）。确认卡死后结束进程、删掉 `dist/win-unpacked.tmp` 与 `.tmp.lock` 再重跑，通常 2–3 分钟就过。**打包中途失败不会破坏 `dist/综应练习台.exe`**（builder 写的是新目录，最后才替换），所以用户手上那一版始终可用。
+- electron-builder 偶发在 `downloaded label=electron progress=100%` 之后长时间不动（extraction 已完成但零写入，实测停 13 分钟）。确认卡死后结束进程、删掉 `dist/win-unpacked.tmp` 与 `.tmp.lock` 再重跑，通常 2–3 分钟就过。**打包中途失败不会破坏 `dist/练习台.exe`**（builder 写的是新目录，最后才替换），所以用户手上那一版始终可用。
 - 不提交 API Key、真实个人资料或真实练习备份；`node_modules/`、`dist/`、`logs/` 不进 Git。
 - 不把一次性开发流水账写进本文件；稳定的使用方式和边界写在 `README.md`，历史通过 Git 记录。
 - 不删除用户未授权的文件或数据；临时调试产物结束前清理。

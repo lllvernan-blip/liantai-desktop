@@ -1,5 +1,5 @@
 /*
- * 综应练习台 —— 零依赖自检
+ * 练习台 —— 零依赖自检
  *   node tests/run.mjs
  *
  * 它做的事：把 app/index.html 里的 <script> 抠出来，配上最小 DOM 桩子，

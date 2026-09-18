@@ -31,6 +31,17 @@ const PERIODIC_CHECK_MS = 6 * 60 * 60 * 1000; // 开着不动也每 6 小时看�
 const ERROR_RETRY_MS = 30 * 60 * 1000;        // 失败后 30 分钟再试（网络问题多半是一时的）
 const CHECK_TIMEOUT_MS = 2 * 60 * 1000;       // 检查接口半挂：2 分钟没回话就算失败
 const DOWNLOAD_STALL_MS = 10 * 60 * 1000;     // 下载 10 分钟没有任何进展也算失败
+const MIRROR_RETRY_MS = 1500;                 // 切镜像后隔一下再试
+
+/* 镜像兜底：国内直连 GitHub 实测常常直接连不通（连接被重置 / 超时），而 GitHub 加速镜像能取到
+   同一份 Release 资产。2026-09-18 实测可用且都支持 Range（差量照旧）：ghproxy.net、gh-proxy.com、gh.ddlc.top。
+   主源永远是包内 app-update.yml（GitHub 官方）——只有它先失败才退到镜像，免得把信任全交给第三方。
+   镜像自己也会挂（实测里 ghproxy.cc 证书过期、ghfast.top 连不通），所以按顺序试，全失败就照常报错+重试。 */
+const MIRROR_FEEDS = [
+  'https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/',
+  'https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/',
+  'https://gh.ddlc.top/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/',
+];
 
 let autoUpdater = null;
 let log = () => {};
@@ -38,6 +49,12 @@ let notify = () => {};
 let timer = null;
 let stallTimer = null;
 let stopped = false;   // 应用正在退出：不再发任何更新请求，别和退出流程抢
+let explicitFeed = ''; // 用户/调试显式指定的源：那是唯一来源，不拿镜像去改它
+let mirrorIndex = -1;  // -1 = 还在用包内 app-update.yml；否则是在用 MIRROR_FEEDS[mirrorIndex]
+let switchedAway = false;  // 已经换离主源（只影响日志措辞）
+/* 每次尝试一个编号：electron-updater 对同一次失败既 emit('error') 又会 reject，
+   有编号才能保证只处理一次；迟到的旧错误（编号已被下一次尝试顶掉）直接丢掉。 */
+let attempt = 0;
 
 const status = {
   phase: PHASE.IDLE,
@@ -50,6 +67,7 @@ const status = {
   lastCheckAt: '',
   feed: '',              // 生效的更新源（默认是包内 app-update.yml 里的配置）
   releasesUrl: '',       // 给免安装版/手动兜底用的发布页
+  feedHost: '',          // 走镜像时给页面一个短名字（ghproxy.net 这种）
 };
 
 function snapshot() {
@@ -63,6 +81,7 @@ function snapshot() {
     error: status.error,
     lastCheckAt: status.lastCheckAt,
     feed: status.feed,
+    feedHost: status.feedHost,
     releasesUrl: status.releasesUrl,
   };
 }
@@ -134,6 +153,8 @@ function initUpdate(options) {
     try {
       autoUpdater.setFeedURL({ provider: 'generic', url: feed });
       status.feed = feed;
+      status.feedHost = hostOf(feed);
+      explicitFeed = feed;   // 显式指定的源是唯一来源：失败也不自作主张换镜像
     } catch (err) {
       log('update-feed-error', (err && err.message) || String(err));
     }
@@ -183,14 +204,11 @@ function initUpdate(options) {
 
   autoUpdater.on('error', (err) => {
     clearStallWatchdog();
-    status.error = (err && err.message) || String(err);
-    setPhase(PHASE.ERROR, status.error);
-    schedule(ERROR_RETRY_MS);   // 网络抖一下就永久放弃是不行的
+    handleFailure(attempt, (err && err.message) || String(err));
   });
 
   status.supported = true;
   setPhase(PHASE.IDLE, '初始化完成，源=' + (status.feed || '包内 app-update.yml'));
-
   schedule(BOOT_CHECK_DELAY_MS);
   return status;
 }
@@ -205,9 +223,7 @@ function armStallWatchdog() {
     stallTimer = null;
     if (stopped) return;
     const where = status.phase === PHASE.DOWNLOADING ? '下载' : '检查更新';
-    status.error = where + '超过 ' + Math.round(DOWNLOAD_STALL_MS / 60000) + ' 分钟没有进展';
-    setPhase(PHASE.ERROR, status.error);
-    schedule(ERROR_RETRY_MS);
+    handleFailure(attempt, where + '超过 ' + Math.round(DOWNLOAD_STALL_MS / 60000) + ' 分钟没有进展');
   }, DOWNLOAD_STALL_MS);
   if (stallTimer && typeof stallTimer.unref === 'function') stallTimer.unref();
 }
@@ -239,9 +255,50 @@ function stopUpdate() {
   }
 }
 
+function hostOf(url) {
+  const m = /^https?:\/\/([^\/]+)/.exec(String(url || ''));
+  return m ? m[1] : '';
+}
+
+/* 换到下一个镜像。返回 true 表示已经换成并用新源重试。 */
+function useNextMirror() {
+  if (explicitFeed) return false;                            // 显式指定的源是唯一来源
+  if (mirrorIndex + 1 >= MIRROR_FEEDS.length) return false;   // 主源 + 镜像都试过了
+  mirrorIndex++;
+  const url = MIRROR_FEEDS[mirrorIndex];
+  try {
+    autoUpdater.setFeedURL({ provider: 'generic', url });
+    status.feed = url;
+    status.feedHost = hostOf(url);
+    log('update-info', (switchedAway ? '再换下一个镜像重试：' : '主源连不上，换镜像重试：') + url);
+    switchedAway = true;
+    return true;
+  } catch (err) {
+    log('update-warn', '切镜像失败：' + ((err && err.message) || String(err)));
+    return false;
+  }
+}
+
+/* 一次失败的统一处理：能换镜像就换（只在“检查”阶段——下载阶段失败换源也没意义），
+   换不动（都没了/显式指定了源）就报错并按 30 分钟重试。 */
+function handleFailure(id, msg) {
+  if (id !== attempt) return;   // 同一次失败的第二次回调，或者迟到的旧错误
+  if (status.phase === PHASE.CHECKING && useNextMirror()) {
+    status.error = '';
+    setPhase(PHASE.IDLE, '主源连不上，换镜像重试');
+    schedule(MIRROR_RETRY_MS);
+    return;
+  }
+  mirrorIndex = -1;   // 下一轮从主源重新开始（GitHub 通了就该回到官方源）
+  status.error = msg;
+  setPhase(PHASE.ERROR, msg);
+  schedule(ERROR_RETRY_MS);   // 网络抖一下就永久放弃是不行的
+}
+
 async function checkUpdate() {
   if (stopped || !status.supported || !autoUpdater) return snapshot();
   if (status.phase === PHASE.CHECKING || status.phase === PHASE.DOWNLOADING) return snapshot();
+  const id = ++attempt;
   try {
     const p = autoUpdater.checkForUpdates();
     p.catch(() => {});   // 竞速输掉的那一边也要有人接住，否则会冒 unhandledRejection
@@ -252,9 +309,7 @@ async function checkUpdate() {
     status.lastCheckAt = new Date().toISOString();
     if (status.phase === PHASE.UP_TO_DATE) schedule(PERIODIC_CHECK_MS);
   } catch (err) {
-    status.error = (err && err.message) || String(err);
-    setPhase(PHASE.ERROR, status.error);
-    schedule(ERROR_RETRY_MS);
+    handleFailure(id, (err && err.message) || String(err));
   }
   return snapshot();
 }

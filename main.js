@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * 综应练习台 — Electron 桌面壳（第 1 步：只做壳，业务代码原样保留）
+ * 练习台 — Electron 桌面壳（第 1 步：只做壳，业务代码原样保留）
  *
  * 设计要点：
  *  - 用 node http 在 127.0.0.1 上起一个极小的静态文件服务，把 app/ 目录挂起来；
@@ -19,8 +19,10 @@ const update = require('./update.js');
 
 const APP_DIR = path.join(__dirname, 'app');
 /* 开发版：日志跟着项目走（__dirname 可写）；
-   打包版：asar 包内只读，日志必须写进 userData（%APPDATA%\综应练习台\logs），
-   否则写入被静默吞掉——打包版出问题将没有任何排查抓手。 */
+   打包版：asar 包内只读，日志必须写进 userData（%APPDATA%\liantai-desktop\logs），
+   否则写入被静默吞掉——打包版出问题将没有任何排查抓手。
+   注意：这个目录名来自 package.json 的 name（不是 build.productName）——
+   给 package.json 加顶层 productName、或改 name，都会让用户数据搬去新目录（用户会以为记录全丢了）。 */
 const LOG_DIR = app.isPackaged
   ? path.join(app.getPath('userData'), 'logs')
   : path.join(__dirname, 'logs');
@@ -275,7 +277,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 900,
-    title: '综应练习台',
+    title: '练习台',
     autoHideMenuBar: true,
     backgroundColor: '#ffffff',
     show: true,

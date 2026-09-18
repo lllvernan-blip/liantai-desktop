@@ -133,7 +133,7 @@ function reconcileRelease() {
     return ["latest.yml"];
   }
   const remoteSetupName = m[1].trim();
-  const localSetup = join(root, "dist", "综应练习台-Setup-" + pkg.version + ".exe");
+  const localSetup = join(root, "dist", setupLocalName());
   const localBlockmap = localSetup + ".blockmap";
 
   /* 清单里的 sha512 必须就是本地产物的 sha512。
@@ -191,12 +191,12 @@ function reconcileRelease() {
 /* 本地产物名（中文，用户看着舒服）与 gh 上的资产名（ASCII，避免各种下载器乱码）是两套名字。
    上游 electron-builder 发布时会用 package name 替换产品名，所以我们按同样的规则推算。 */
 function setupLocalName() {
-  const tpl = (pkg.build && pkg.build.nsis && pkg.build.nsis.artifactName) || "综应练习台-Setup-${version}.exe";
+  const tpl = (pkg.build && pkg.build.nsis && pkg.build.nsis.artifactName) || "练习台-Setup-${version}.exe";
   return tpl.replace("${version}", pkg.version);
 }
 
 function portableLocalName() {
-  const tpl = (pkg.build && pkg.build.portable && pkg.build.portable.artifactName) || "综应练习台.exe";
+  const tpl = (pkg.build && pkg.build.portable && pkg.build.portable.artifactName) || "练习台.exe";
   return tpl.replace("${version}", pkg.version);
 }
 

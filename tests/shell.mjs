@@ -73,7 +73,7 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
 }
 {
   const { mod, restore } = loadUpdate({ autoUpdater: new FakeUpdater() });
-  process.env.PORTABLE_EXECUTABLE_FILE = "X:\\tmp\\综应练习台.exe";
+  process.env.PORTABLE_EXECUTABLE_FILE = "X:\\tmp\\练习台.exe";
   try {
     mod.initUpdate({ log, isPackaged: true, currentVersion: "1.0.0" });
     const st = mod.getStatus();
@@ -145,6 +145,53 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   const afterStop = fake.calls.checkForUpdates;
   await mod.checkUpdate();
   ok(fake.calls.checkForUpdates === afterStop, "壳: 退出流程中不再发更新请求");
+  restore();
+}
+
+/* ---- 3. 直连 GitHub 不通时退到镜像（国内实况：连接被重置） ---- */
+{
+  const fake = new FakeUpdater();
+  const { mod, restore } = loadUpdate({ autoUpdater: fake });
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
+
+  const failOnce = () => {
+    fake.emit("checking-for-update");
+    fake.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+  };
+
+  failOnce();
+  ok(fake.calls.setFeedURL.length === 1 && fake.calls.setFeedURL[0].provider === "generic" && /^https:\/\//.test(fake.calls.setFeedURL[0].url),
+     "壳: 主源连不通 -> 自动退到 GitHub 镜像源（generic）");
+  ok(mod.getStatus().phase === "idle" && mod.getStatus().error === "",
+     "壳: 换镜像重试途中不把错误糊到界面上");
+  ok(!!mod.getStatus().feedHost, "壳: 状态里带上镜像主机名（页面能说清在走谁）");
+  ok(logs.some((l) => l.indexOf("换镜像") >= 0), "壳: 换源这件事写进日志（排查有抓手）");
+
+  failOnce();
+  ok(fake.calls.setFeedURL.length === 2 && fake.calls.setFeedURL[1].url !== fake.calls.setFeedURL[0].url,
+     "壳: 镜像也不通 -> 按顺序换下一个（不绕圈）");
+
+  failOnce();
+  ok(fake.calls.setFeedURL.length === 3, "壳: 第三个镜像也试过了");
+
+  const before = fake.calls.setFeedURL.length;
+  failOnce();
+  const st = mod.getStatus();
+  ok(fake.calls.setFeedURL.length === before && st.phase === "error" && /ERR_CONNECTION_RESET/.test(st.error),
+     "壳: 全都试过才落 error（不无限换源），并且留下原因");
+
+  // 显式指定源的人不该被悄悄换走（本地验更新、自建源都用这条路）
+  const f2 = new FakeUpdater();
+  const two = loadUpdate({ autoUpdater: f2 });
+  two.mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2", feed: "http://127.0.0.1:9/" });
+  f2.emit("checking-for-update");
+  f2.emit("error", new Error("net::ERR_CONNECTION_REFUSED"));
+  ok(f2.calls.setFeedURL.length === 1 && f2.calls.setFeedURL[0].url === "http://127.0.0.1:9/",
+     "壳: 显式指定的源是唯一来源（不拿镜像去改它）");
+
+  two.mod.stopUpdate();
+  two.restore();
+  mod.stopUpdate();
   restore();
 }
 
