@@ -301,6 +301,15 @@
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
+      <div class="field" id="updateField">
+        <label>版本与更新</label>
+        <div class="note" id="updateNote">正在读取更新状态…</div>
+        <div class="actions" style="margin-top:8px">
+          <button type="button" id="btnCheckUpdate" hidden>检查更新</button>
+          <button type="button" id="btnInstallUpdate" hidden>重启并更新</button>
+          <button type="button" id="btnOpenReleases" hidden>打开发布页</button>
+        </div>
+      </div>
         <div id="buildNote" style="margin:18px 0 0;text-align:center;font-size:12px;color:#aaa"></div>
       </div>
     </div>
@@ -2890,7 +2899,7 @@ function handleErr(e, keepView){
   if(!keepView) renderStart();
 }
 
-/* 构建标识：回答「我装的是不是新版」。唯一来源是 app/build.json，打包时由 打包.bat 写入，页面只读。
+/* 构建标识：回答「我装的是不是新版」。唯一来源是 app/build.json，打包时由 stamp-build.mjs 写入，页面只读。
    包里没有这个文件就是源码直跑（双击 html / 预览窗），显示「开发版」。失败一律静默，不影响启动。 */
 function loadBuildNote(){
   const el = $("#buildNote"); if(!el) return;
@@ -2899,13 +2908,113 @@ function loadBuildNote(){
   if(typeof fetch !== "function" || !/^https?:$/.test(proto)) return;
   fetch("build.json", { cache: "no-store" })
     .then(r => (r && r.ok) ? r.json() : null)
-    .then(d => { if(d && d.builtAt) el.textContent = "综应练习台 · 构建 " + d.builtAt; })
+    .then(d => { if(d && d.builtAt) el.textContent = "综应练习台 · " + (d.version? "v"+d.version+" · ":"") + "构建 " + d.builtAt; })
     .catch(() => {});
+}
+
+/* ============ 版本与更新（桌面壳接口） ============
+   壳在同一个 127.0.0.1 源上另开了 /__update/*：GET /status 读状态，POST /check、/install 触发动作。
+   源码直跑（node 自检、浏览器直开）没有这个接口，一切降级成文案——绝不能因为读不到状态就报错。
+   状态以壳主动推的 __updatePush 为准，页面再兜底轮询：壳重启过、或推送丢了也能自愈。 */
+const UPDATE_API = "/__update";
+let updateInfo = null;
+let updateAnnounced = "";
+
+function updateApiReady(){
+  return typeof fetch === "function" && typeof location !== "undefined" && /^https?:$/.test(location.protocol);
+}
+function fetchUpdateStatus(){
+  if(!updateApiReady()) return Promise.resolve(null);
+  return fetch(UPDATE_API + "/status", { cache:"no-store" })
+    .then(r => (r && r.ok) ? r.json() : null)
+    .catch(() => null);
+}
+function postUpdateAction(name){
+  if(!updateApiReady()) return Promise.resolve(null);
+  return fetch(UPDATE_API + "/" + name, { method:"POST", headers:{ "x-liantai":"1" }, cache:"no-store" })
+    .then(r => (r && r.ok) ? r.json() : null)
+    .catch(() => null);
+}
+function fmtMB(n){ return n? Math.round(n/1048576*10)/10 + "MB" : ""; }
+
+/* 纯函数：状态 -> 一句话。测试直接核这里，不需要真壳。 */
+function updateNoteText(s){
+  if(!s) return "正在读取更新状态…";
+  if(!s.supported){
+    if(s.reason === "dev") return "开发版（源码直跑），不检查更新。";
+    if(s.reason === "portable") return "免安装版不自动更新：下载新版 exe 覆盖原文件即可。练习记录与 Key 都在用户数据目录里，不受影响。";
+    if(s.reason === "missing-module") return "更新组件缺失，无法自动更新（" + esc(s.error||"未知") + "）。";
+    return "当前构建不支持自动更新。";
+  }
+  if(s.phase === "checking") return "正在检查更新…";
+  if(s.phase === "up-to-date") return "已是最新版本 v" + esc(s.currentVersion) + "。";
+  if(s.phase === "available") return "发现新版本 v" + esc(s.latestVersion) + "，正在后台下载…";
+  if(s.phase === "downloading"){
+    const p = s.progress || {};
+    return "正在后台下载 v" + esc(s.latestVersion) + " … " + (p.percent||0) + "%"
+      + (p.total? "（" + fmtMB(p.transferred) + " / " + fmtMB(p.total) + "）" : "")
+      + "，期间可以照常练题。";
+  }
+  if(s.phase === "downloaded") return "v" + esc(s.latestVersion) + " 已下载完成。点「重启并更新」立即生效；直接关掉应用也行，下次打开就是新版。";
+  if(s.phase === "error") return "检查更新失败：" + esc(s.error||"未知错误") + "（不影响使用，稍后会自动重试）。";
+  return "当前 v" + esc(s.currentVersion) + "，启动后会自动检查更新。";
+}
+
+function renderUpdateNote(){
+  const el = $("#updateNote");
+  if(el) el.textContent = updateNoteText(updateInfo);
+  const s = updateInfo || {};
+  const canCheck = !!s.supported && (s.phase === "idle" || s.phase === "up-to-date" || s.phase === "error");
+  const canInstall = s.phase === "downloaded";
+  const showLink = !s.supported && s.reason !== "dev";
+  const bc = $("#btnCheckUpdate"); if(bc){ bc.hidden = !canCheck; bc.disabled = (s.phase === "checking"); }
+  const bi = $("#btnInstallUpdate"); if(bi) bi.hidden = !canInstall;
+  const bl = $("#btnOpenReleases"); if(bl) bl.hidden = !showLink;
+}
+
+/* 壳推来的状态。下载完成只提示一次，不反复打扰。 */
+function __updatePush(s){
+  if(!s || typeof s !== "object") return;
+  updateInfo = s;
+  renderUpdateNote();
+  if(s.phase === "downloaded" && updateAnnounced !== s.latestVersion){
+    updateAnnounced = s.latestVersion;
+    banner("新版本 v" + esc(s.latestVersion||"") + " 已下载完成——到「设置 → 版本与更新」点「重启并更新」即可生效（下次打开也会自动生效）。");
+  }
+}
+
+function pollUpdateStatus(){
+  fetchUpdateStatus().then(s => { if(s) __updatePush(s); });
+}
+
+function initUpdateUi(){
+  renderUpdateNote();
+  const bc = $("#btnCheckUpdate");
+  if(bc) bc.onclick = ()=>{
+    bc.disabled = true;
+    const el = $("#updateNote"); if(el) el.textContent = "正在检查更新…";
+    postUpdateAction("check").then(r =>{
+      bc.disabled = false;
+      __updatePush(r && r.status ? r.status : updateInfo);
+      renderUpdateNote();
+    });
+  };
+  const bi = $("#btnInstallUpdate");
+  if(bi) bi.onclick = ()=>{ bi.disabled = true; postUpdateAction("install"); };
+  const bl = $("#btnOpenReleases");
+  if(bl) bl.onclick = ()=>{
+    const url = (updateInfo && updateInfo.releasesUrl) || "";
+    if(url && typeof window !== "undefined") window.open(url, "_blank");   // 壳会把它交给系统浏览器
+  };
+  // 启动后 4 秒对一次表（壳开机 12 秒才查，那时会主动推），之后每分钟兜底轮询
+  setTimeout(pollUpdateStatus, 4000);
+  setInterval(pollUpdateStatus, 60000);
 }
 
 /* ============ 初始化 ============ */
 function init(){
   loadBuildNote();
+  initUpdateUi();
   ensureActive();
   installFlowListeners();   // 找点步的全局监听只装一次
   fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderStart();
@@ -2939,7 +3048,7 @@ function init(){
   document.querySelectorAll("#segReason button").forEach(b=> b.onclick = ()=>{ state.settings.reasonLevel = b.dataset.lv; setReasonUI(); });
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
-  $("#btnSettings").onclick = ()=> openModal("modalSettings");
+  $("#btnSettings").onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
   $("#btnProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   document.querySelectorAll(".modal .mhead .x").forEach(b=> b.onclick = closeModals);
   document.querySelectorAll(".modal").forEach(m=> m.addEventListener("click", e=>{ if(e.target===m) closeModals(); }));

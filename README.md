@@ -2,18 +2,35 @@
 
 AI 原生综应 A 练习工具，打包成可双击运行的 Windows 桌面应用。覆盖公文写作、归纳概括、综合分析、提出对策和案例实务五类训练，提供学习卡、作答、AI 阅卷、采分点对照、画像和自适应推送。
 
-> 这是正在演进的「集大成」项目：目标是逐步把规范表达练习（含判别训练）与素材/取材能力并入同一个应用。
-> 历史版本（网页单文件版、规范表达练习、ai-native）已归档到 [`../demo/`](../demo/)，只读保留、不再开发。
+> 这是从多年零散练习工具里长出来的「集大成」项目：网页单文件版、规范表达练习、ai-native 都已并入这里，并原样归档到 [`../demo/`](../demo/)（只读保留、不再开发）。
+> 申论练习（含判别训练）与素材/取材能力的并入已完成，名称也从「规范表达」统一改成了「申论」。
+
+## 下载与安装（Windows 10/11 x64）
+
+从 [Releases](https://github.com/lllvernan-blip/liantai-desktop/releases) 下最新一版，两种形态选一个：
+
+| 形态 | 文件 | 自动更新 |
+| --- | --- | --- |
+| **安装版（推荐）** | `综应练习台-Setup-x.y.z.exe` | ✅ 启动后后台检查，只下载变化的部分（差量），下完点「重启并更新」；不点也行，下次打开就是新版 |
+| 免安装版 | `综应练习台.exe` | ❌ 双击即用、不需安装，但新版来了要自己下载覆盖 |
+
+两种形态**共用同一份用户数据**（`%APPDATA%\liantai-desktop`），互相切换不会丢记录。
+
+> **更新不会动你的数据。** 练习记录、画像、草稿、划线、API Key 都在 `%APPDATA%\liantai-desktop` 的用户数据目录里，更新只替换安装目录里的程序文件——不是「删了重装」，所以没有任何东西需要重新填、重新下载。
+
+应用本身不含 API Key：首次运行要在「设置」里填自己的 Key（推荐 DeepSeek，OpenAI 兼容接口均可）。
 
 ## 结构
 
 | 路径 | 作用 |
 | --- | --- |
 | `main.js` | Electron 主进程：窗口、单实例锁、把 `app/` 挂到 `127.0.0.1` 的本地 http 源、启动日志 |
+| `update.js` | 自动更新（electron-updater）：检查 / 差量下载 / 重启安装 / 状态机；免安装版与开发版自动置为禁用 |
 | `app/index.html` | **应用本体**（单文件 HTML + CSS + JS，零依赖）；业务代码改这里 |
 | `tests/` | 零依赖自检：从 `app/index.html` 抽取唯一 `<script>`，配合 DOM 桩在 Node 里跑 |
+| `题型规范.md` | 各模块子类型与评分维度的数值依据（改 `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 必须同步它） |
 | `打包.bat` | 双击自助出包：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
-| `tools/` | 打包辅助：`stamp-build.mjs` 在打包前写 `app/build.json`（设置面板底部显示构建时间）；`probe.mjs` 跑一次性探针 |
+| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本 + 构建时间）；`release.mjs` 一键发布到 GitHub Release；`probe.mjs` 跑一次性探针 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
@@ -24,15 +41,28 @@ npm install     # 首次：只装 electron（本机已有二进制缓存，命�
 npm start       # 开发运行：起本地 http 源 + 独立窗口
 ```
 
-打包成成品（给没装 node 的人用）：
+打包成成品（`dist/` 里同时出**安装版**和**免安装版**；打包前先关掉正在运行的应用）：
 
 ```powershell
-npm run dist      # 产物在 dist/，单文件免安装 exe；打包前先关掉正在运行的应用
+npm run dist
 ```
 
 或者直接双击 `打包.bat`。打包器要从网上拉组件，`打包.bat` 已内置国内镜像源（直连 GitHub 常 TLS 断连）；手动跑 `npm run dist` 遇到下载失败，先设 `ELECTRON_MIRROR` 与 `ELECTRON_BUILDER_BINARIES_MIRROR` 为 npmmirror 再试。
 
+发布新版本（先改 `package.json` 里的 `version`，再一键传上 GitHub Release）：
+
+```powershell
+npm run release
+```
+
 首次运行要在应用内「设置」里填一次 API Key —— 桌面应用的存储与浏览器那份是分开的，不会自动继承。
+
+## 自动更新（安装版）
+
+- **源**：GitHub Release。配置在 `package.json` 的 `build.publish`，打包时生成包内 `app-update.yml`；换源不必改代码，设环境变量 `LIANTAI_UPDATE_FEED` 指向任意 generic 源（目录里放 `latest.yml` + 安装包 + `.blockmap`）即可，本地验证与镜像切换都走它。
+- **差量**：NSIS 目标会一并出 `latest.yml` 与 `.blockmap`，更新时只下载与上一版**不同的数据块**（80MB 的包通常只需几 MB）。注意：缓存里没有上一版安装包时（比如手工装的第一版）首次更新会退化成全量下载，之后就常态走差量。
+- **免安装版不自动更新**：对 portable 包做 quitAndInstall 只会「装出一个新副本」，所以检测到就禁用，并在设置页说明原因。
+- **失败不阻断**：任何更新错误只写日志与设置页一行提示，30 分钟后自动重试；排查看 `logs/startup.log` 里的 `update-*` 行。
 
 ## 自检
 

@@ -3,7 +3,7 @@
 ## 边界
 
 - 形态是「Electron 桌面壳 + 零依赖单文件应用本体」：业务代码全在 `app/index.html`，不要给它引入 npm 依赖、构建步骤或框架。
-- 壳 `main.js` 只用 electron + Node 标准库。需要本地文件、抓取、凭据等能力时，优先走 Node 标准库或 Electron 内置 API。
+- 壳 `main.js` 只用 electron + Node 标准库；**唯一的例外是 electron-updater**（差量自动更新非它不可，见下文「依赖与更新」）。再加任何依赖前先问用户。
 - API Key、答案、练习记录和本地笔记不得写入 Git。API Key 只允许由用户在设置界面填写。
 - **备份文件永不携带 API Key**：`exportJSON` 走 `exportPayload()`（克隆 state 后删掉 `settings.apiKey`）。导入端同样不吃文件里的 Key，也不因文件没带而清空本机 Key——Key 只认本机设置界面填的。理由：备份会被分享/传网盘，而别人给的备份也不该能换掉你的 Key 或把你的请求拐到别的 baseUrl。改动导出/导入时这条不得回退；`tests/assertions.js` 15.4 节是哨兵。
 - 用户答案是不可再生资产。异步失败、换题和页面渲染不得无故清空题目、答案或草稿。
@@ -17,6 +17,16 @@
 - 模型候选的唯一出口是自绘下拉 `#modelMenu`：原生 datalist 会按输入框已有文字过滤（填了模型名后另一个就「看不见」，曾致「只拉到一个模型」的误报），外挂 chips 也已并入。别恢复 datalist 或 chips——这两个方案已在两个 agent 之间来回拉锯两轮。
 - 模型能力**不按名字猜**：曾因 `deepseek-flash` 不带 v4 被误判无档位。`THINK_FAMILIES` 只收参数发法特殊的家族（qwen3 / glm），其余一律默认按 reasoning_effort 实测试探；`modelCaps`（ok / rejected，被拒自动降级并顶栏 banner 明示）与 `modelProbe`（思考字数 / 耗时，两档攒够后在设置页给「切换是否有效」结论）是持久状态，load / importJSON 已做迁移，别绕过它们另建能力判定。
 - 综应A 学习卡阶段不亮题面（题目、要求、分值等点「开始作答」才出现）；学习卡的 `example` 是「这类题长什么样」的全新示例，prompt 明令不得复用本题背景材料情节。翻卡计次只属作答阶段的抽屉，卡阶段平铺不算翻卡。
+
+## 依赖与更新（桌面壳）
+
+- 依赖边界：业务本体 `app/index.html` 永远零依赖；壳只允许 `electron-updater` 一个额外依赖（它负责差量更新：NSIS + `.blockmap`，只下载变化的块——用 Node 标准库写不出重建安装器的逻辑）。新增任何依赖前先问用户。
+- 更新模块是 `update.js`，状态机 `idle / checking / available / downloading / downloaded / up-to-date / error / disabled`；壳通过本地源上的 `GET /__update/status` 暴露状态，页面用 `__updatePush()` 接（壳主动推），动作用 `POST /__update/check` 与 `POST /__update/install` 触发。**POST 一律要求自定义头 `x-liantai: 1`**：跨站请求会先发 OPTIONS 预检，而本服务从不回 CORS 头，预检就过不了——别把它改成免头路由。
+- **免安装版必须禁用自动更新**：portable 进程里带 `PORTABLE_EXECUTABLE_FILE`，对它 quitAndInstall 只会「装出一个新副本」。检测到就置 `disabled`，由设置页说明原因。
+- 更新不得碰用户数据：用户数据在 `%APPDATA%\liantai-desktop`，更新只替换安装目录里的程序文件；`nsis.deleteAppDataOnUninstall` 保持 `false`（卸载也不删练习记录）。
+- 更新失败绝不阻断使用：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，后台自动重试（出错后 30 分钟、常驻每 6 小时）。不要在启动路径上弹阻断式对话框。
+- 发布：`npm run release`（`tools/release.mjs`：取 `gh auth token` → 盖章 → `electron-builder --publish always`）。**发布前必须先把 `package.json` 的 `version` 提高**——版本号不变，老用户永远收不到这一版；tag 重复会被脚本直接挡下。
+- 本地验更新链路不必真装：`LIANTAI_UPDATE_FEED=http://127.0.0.1:<port>/` 指向一个放好 `latest.yml` + 安装包 + `.blockmap` 的目录，跑 `dist/win-unpacked/综应练习台.exe` 即可（generic 源）。
 
 ## 端口与存储（桌面壳）
 

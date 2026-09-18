@@ -1188,6 +1188,26 @@ importJSON(JSON.stringify({ settings:{}, history:[] }));
 ok(state.settings.apiKey === __keyCanary, "导入: 文件没带 Key 也不清空本机 Key");
 state.settings.apiKey = __keyBefore;
 
+/* 15.5 版本与更新：文案与入口都是纯函数，不需要真壳就能核 */
+ok(typeof __updatePush === "function" && typeof updateNoteText === "function" && typeof initUpdateUi === "function",
+   "更新: 页面暴露壳状态入口（__updatePush / updateNoteText / initUpdateUi）");
+ok(updateNoteText(null).indexOf("正在读取") >= 0, "更新: 状态未到时给占位文案，不报错");
+ok(updateNoteText({ supported:false, reason:"dev" }).indexOf("开发版") >= 0, "更新: 开发版不检查更新");
+ok(updateNoteText({ supported:false, reason:"portable" }).indexOf("免安装版不自动更新") >= 0,
+   "更新: 免安装版明确说明不自动更新（并告诉用户数据不受影响）");
+ok(updateNoteText({ supported:true, phase:"up-to-date", currentVersion:"1.0.0" }).indexOf("1.0.0") >= 0, "更新: 已最新时报当前版本");
+ok(updateNoteText({ supported:true, phase:"downloading", latestVersion:"1.0.1", progress:{ percent:42, transferred:1048576*3, total:1048576*8 } }).indexOf("42%") >= 0,
+   "更新: 下载中显示百分比与进度");
+ok(updateNoteText({ supported:true, phase:"downloaded", latestVersion:"1.0.1" }).indexOf("重启并更新") >= 0, "更新: 下载完成给出重启入口");
+ok(updateNoteText({ supported:true, phase:"error", error:"ERR_CONNECTION_REFUSED" }).indexOf("不影响使用") >= 0,
+   "更新: 失败文案不吓人且说明会自动重试");
+__updatePush({ supported:true, phase:"downloaded", latestVersion:"9.9.9", currentVersion:"1.0.0", releasesUrl:"https://example.invalid" });
+ok(el("#bannerSlot").innerHTML.indexOf("9.9.9") >= 0, "更新: 下载完成后顶栏提示一次（带版本号）");
+ok(el("#updateNote").textContent.indexOf("9.9.9") >= 0, "更新: 设置面板同步显示下载完成状态");
+ok(updateInfo && updateInfo.phase === "downloaded", "更新: 壳推来的状态落在 updateInfo 里");
+__updatePush(null);
+ok(updateInfo && updateInfo.phase === "downloaded", "更新: 非法推送不抛错也不清状态");
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

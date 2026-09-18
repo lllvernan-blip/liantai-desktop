@@ -7,7 +7,7 @@
  *  - 用 node http 在 127.0.0.1 上起一个极小的静态文件服务，把 app/ 目录挂起来；
  *    窗口通过 http:// 源加载，而不是 file://。
  *    原因：后续要在页面里直接抓取外部网页/素材，http 源能规避 file:// 下的 CORS 限制。
- *  - 只使用 electron + node 标准库，零额外依赖。
+ *  - 业务依赖为零；壳里唯一的额外依赖是 electron-updater（差量自动更新，见 update.js）。
  *  - 关键事件追加写入 logs/startup.log，便于在没有截图的情况下验证启动。
  */
 
@@ -15,6 +15,7 @@ const { app, BrowserWindow, Menu, shell } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const update = require('./update.js');
 
 const APP_DIR = path.join(__dirname, 'app');
 /* 开发版：日志跟着项目走（__dirname 可写）；
@@ -32,6 +33,11 @@ const HOST = '127.0.0.1';
 const PREFERRED_PORT = 18743;
 const PORT_BUSY_RETRY = 3;      // 先反复试首选端口（上一个实例可能正在退出）
 const PORT_FALLBACK_STEPS = 5;  // 仍被占用时退到邻近端口，并显式告警
+
+/* 更新源：默认读包内 app-update.yml（由 package.json 的 build.publish 生成，指向 GitHub Release）。
+   LIANTAI_UPDATE_FEED 只是「不改包也能换源」的开关：本地验证差量更新、或 GitHub 连不上时指到镜像/自建源。 */
+const UPDATE_FEED_ENV = 'LIANTAI_UPDATE_FEED';
+const RELEASES_URL = 'https://github.com/lllvernan-blip/liantai-desktop/releases';
 
 let mainWindow = null;
 let server = null;
@@ -108,6 +114,12 @@ function handleRequest(req, res) {
     return;
   }
 
+  // 更新接口优先于静态文件：它不属于 app/ 目录，也不能被路径拼接碰到
+  if (pathname.indexOf('/__update/') === 0) {
+    handleUpdateRoute(req, res, pathname);
+    return;
+  }
+
   if (pathname === '/' || pathname === '') pathname = '/index.html';
   // Windows 上用 / 作分隔符，统一后交给 path
   const safeSuffix = path.normalize(pathname).replace(/^([/\\])+/, '');
@@ -140,6 +152,54 @@ function handleRequest(req, res) {
     });
     stream.pipe(res);
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* 更新接口（供页面调用）                                              */
+/* ------------------------------------------------------------------ */
+
+/* 只有 GET /status 是免头的（跨站也读不到响应，没有 CORS 头）；
+   其余动作一律要 x-liantai 自定义头——跨站请求会先触发 OPTIONS 预检，
+   而本服务从不回 CORS 头，预检不过就发不出来。防线不靠「端口没人知道」。
+   再叠一道 Origin 校验：同源页面发的 POST 带 Origin，与本机源不符就拒（防 DNS rebinding / 代理篡改）。 */
+function handleUpdateRoute(req, res, pathname) {
+  const json = (code, body) => send(res, code, JSON.stringify(body), { 'Content-Type': 'application/json; charset=utf-8' });
+  const action = pathname.slice('/__update'.length);
+
+  if (req.method === 'GET' && action === '/status') {
+    json(200, update.getStatus());
+    return;
+  }
+
+  const expectedOrigin = 'http://' + HOST + ':' + serverPort;
+  const origin = req.headers.origin;
+  if (origin && origin !== expectedOrigin) {
+    log('update-forbidden', 'origin=' + origin + ' ' + req.method + ' ' + pathname);
+    json(403, { ok: false, error: 'forbidden' });
+    return;
+  }
+
+  if (req.headers['x-liantai'] !== '1') {
+    log('update-forbidden', req.method + ' ' + pathname);
+    json(403, { ok: false, error: 'forbidden' });
+    return;
+  }
+
+  if (req.method === 'POST' && action === '/check') {
+    update.checkUpdate()
+      .then((s) => json(200, { ok: true, status: s }))
+      .catch(() => json(200, { ok: false, status: update.getStatus() }));
+    return;
+  }
+
+  if (req.method === 'POST' && action === '/install') {
+    const ok = update.installUpdate();
+    log('update-install-request', ok ? 'accepted' : 'rejected :: phase=' + update.getStatus().phase);
+    json(ok ? 200 : 409, { ok, status: update.getStatus() });
+    return;
+  }
+
+  json(404, { ok: false, error: 'unknown update route' });
 }
 
 function listenOn(port) {
@@ -235,6 +295,14 @@ function createWindow() {
 
   wc.on('did-finish-load', () => {
     log('did-finish-load', wc.getURL());
+    // 页面刚加载完：把当前更新状态推过去（开机后 12 秒才查，这里通常还是 idle，页面会自己接着轮询）
+    try {
+      wc.executeJavaScript(
+        'try { typeof __updatePush === "function" && __updatePush(' + JSON.stringify(update.getStatus()) + '); } catch (e) {}'
+      ).catch(() => {});
+    } catch (err) {
+      log('update-push-failed', (err && err.message) || String(err));
+    }
     // 端口退让 = origin 变了 = 用户会看到一套空存储。必须打在界面上：只写日志不行（打包版日志还写不进包内）。
     if (serverPort !== PREFERRED_PORT) {
       const msg = '<b>注意：</b>本次启动端口 ' + serverPort +
@@ -294,6 +362,27 @@ function createWindow() {
 }
 
 /* ------------------------------------------------------------------ */
+/* 更新                                                                */
+/* ------------------------------------------------------------------ */
+
+function setupUpdate() {
+  update.initUpdate({
+    log: log,
+    isPackaged: app.isPackaged,
+    currentVersion: app.getVersion(),
+    releasesUrl: RELEASES_URL,
+    feed: process.env[UPDATE_FEED_ENV] || '',
+    // 状态变了就推给页面（页面自己决定怎么显示：顶栏提示 / 设置面板里的行）
+    onStatusChange: (s) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.executeJavaScript(
+        'try { typeof __updatePush === "function" && __updatePush(' + JSON.stringify(s) + '); } catch (e) {}'
+      ).catch(() => {});
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* 进程级异常                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -339,6 +428,7 @@ if (!gotLock) {
     return startServer();
   }).then(() => {
     createWindow();
+    setupUpdate();
   }).catch((err) => {
     log('startup-failed', (err && err.stack) || String(err));
     app.quit();
@@ -352,6 +442,7 @@ if (!gotLock) {
 
   app.on('before-quit', () => {
     log('before-quit');
+    update.stopUpdate();
     stopServer();
   });
 
