@@ -466,7 +466,8 @@ const DEFAULT_STATE = {
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
   cache:{ studyCards:{}, notes:{} },
-  modelCache:{}
+  modelCache:{},
+  modelCaps:{}   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
 };
 
 /* ============ 七步训练链（申论：读材料→找点→归类→一稿→批改→回改→沉淀） ============ */
@@ -575,6 +576,8 @@ function load(){
       if(cm.changed){ s.cache[f] = cm.map; migrated = true; }
     }
     s.modelCache = s.modelCache||{};
+    s.modelCaps = s.modelCaps||{};
+    Object.keys(s.modelCaps).forEach(k=>{ if(s.modelCaps[k]!=="ok" && s.modelCaps[k]!=="rejected") delete s.modelCaps[k]; });
     // 经验闭环（两科共用）：缺省补空数组；条目不合法的丢弃，不整包失败
     s.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
     // 训练链：非法 step 丢弃该项、缺失字段补默认（sanitizeFlows 幂等，二次 load 不再变化）
@@ -730,17 +733,24 @@ async function callLLM(system, user, expectJson, onDelta){
   const messages = [{role:"system",content:system},{role:"user",content:user}];
   const model = s.model;
   const fam = reasonFamily(model);
-  // 认得出的模型按它自己的「思考」发法组首选请求；认不出的没有推理档位，只按标准温度发
-  const r = REASON_LEVELS[fam ? s.reasonLevel : "standard"] || REASON_LEVELS.standard;
+  state.modelCaps = state.modelCaps || {};
+  const cap = state.modelCaps[model];
+  // 认得出的模型按它自己的「思考」发法组首选请求；被拒收过的（cap=rejected）和认不出的都直接按标准温度发
+  const adaptive = !!(fam && cap !== "rejected");
+  const r = REASON_LEVELS[adaptive ? s.reasonLevel : "standard"] || REASON_LEVELS.standard;
   const streaming = typeof onDelta === "function";
 
   // 首选仍可能被某家拒收：先降回纯 temperature，再退到最裸的请求体，保证任何模型都能跑通。
+  // 降级同时把「此模型拒收思考参数」记进 modelCaps，下次直接跳过首选，界面也如实收起三档。
   const primary = {model,messages,temperature:r.temp};
-  if(fam) Object.assign(primary, fam.build(s.reasonLevel));
-  const ladder = [primary, {model,messages,temperature:r.temp}, {model,messages}];
+  if(adaptive) Object.assign(primary, fam.build(s.reasonLevel));
+  const ladder = adaptive
+    ? [primary, {model,messages,temperature:r.temp}, {model,messages}]
+    : [{model,messages,temperature:r.temp}, {model,messages}];
 
   let last = null;
-  for(const base of ladder){
+  for(let ri=0; ri<ladder.length; ri++){
+    const base = ladder[ri];
     const body = Object.assign({}, base, streaming? {stream:true} : null);
     let out;
     if(streaming){
@@ -760,6 +770,7 @@ async function callLLM(system, user, expectJson, onDelta){
       if(out.status!==400 && out.status!==422) break; // 仅参数类错误才降级重试
       continue;
     }
+    if(fam){ state.modelCaps[model] = (adaptive && ri===0) ? "ok" : "rejected"; save(); setReasonUI(); }
     if(expectJson) return parseJsonLoose(out.content);
     return out.content;
   }
@@ -2423,12 +2434,15 @@ function renderProfile(){
 /* ============ 设置 ============ */
 function setReasonUI(){
   const lv = state.settings.reasonLevel || "standard";
-  const fam = reasonFamily($("#setModel").value.trim());
-  $("#segReason").style.display = fam ? "" : "none";   // 档位控件随模型显隐：认不出就不摆三档
+  const model = $("#setModel").value.trim();
+  const fam = reasonFamily(model);
+  const cap = (state.modelCaps||{})[model];
+  $("#segReason").style.display = (fam && cap !== "rejected") ? "" : "none";   // 档位控件随模型显隐：认不出或实测被拒过就不摆三档
   document.querySelectorAll("#segReason button").forEach(b=> b.classList.toggle("active", b.dataset.lv===lv));
   const note = $("#reasonNote"); if(!note) return;
-  note.textContent = fam ? fam.note(lv)
-    : "此模型没有推理档位的概念：请求按标准温度发送，无需选档。";
+  note.textContent = (fam && cap !== "rejected") ? fam.note(lv)
+    : (fam ? "上次实测：此模型拒收思考参数（已记住，之后直接按标准温度发送）。"
+    : "此模型没有推理档位的概念：请求按标准温度发送，无需选档。");
 }
 function fillProviderSelect(){
   $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
@@ -2649,6 +2663,8 @@ function importJSON(file){
       }
       const mc = plainObj(s.modelCache);
       if(mc) state.modelCache = plainPick(mc);
+      const cp = plainObj(s.modelCaps);
+      if(cp){ state.modelCaps = plainPick(cp); Object.keys(state.modelCaps).forEach(k=>{ if(state.modelCaps[k]!=="ok" && state.modelCaps[k]!=="rejected") delete state.modelCaps[k]; }); }
       // 经验闭环：逐条校验；训练链走 sanitizeFlows（非法 step 丢弃，不整包失败）
       state.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
       state.flows = sanitizeFlows(Array.isArray(s.flows)? s.flows : []);

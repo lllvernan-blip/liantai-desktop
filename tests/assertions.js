@@ -373,6 +373,31 @@ ok(el("#segReason").style.display !== "none", "适配: 有档位的模型显示�
 el("#setModel").value = "gpt-4o-mini"; setReasonUI();
 ok(el("#segReason").style.display === "none", "适配: 无档位的模型隐藏三档并说明");
 globalThis.fetch = realFetch8;
+
+/* 8.4 档位实测记忆：被拒过就记住，之后不再白发被拒请求 */
+const realFetch84 = globalThis.fetch;
+capBodies.length = 0;
+globalThis.fetch = (url, opt) => { const b = JSON.parse(opt.body); capBodies.push(b);
+  if(b.reasoning_effort) return Promise.resolve({ ok:false, status:400, json: async()=>({}), headers:{ get:()=>"application/json" }, text: async()=>"bad param" });
+  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" }); };
+state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
+await callLLM("s","u",false);
+ok(capBodies.filter(b=>b.reasoning_effort).length === 1 && state.modelCaps["deepseek-v4-pro"] === "rejected",
+   "实测记忆: 参数被拒自动降级成功，并记住此模型拒收思考参数");
+const nB84 = capBodies.length;
+await callLLM("s","u",false);
+ok(capBodies.length === nB84 + 1 && !("reasoning_effort" in capBodies.at(-1)),
+   "实测记忆: 之后直接按温度发，不再白发一次被拒请求");
+el("#setModel").value = "deepseek-v4-pro"; setReasonUI();
+ok(el("#segReason").style.display === "none" && el("#reasonNote").textContent.indexOf("拒收") >= 0,
+   "实测记忆: 界面收起三档并说明原因");
+globalThis.fetch = (url, opt) => { const b = JSON.parse(opt.body); capBodies.push(b);
+  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" }); };
+state.settings.model = "deepseek-v4-flash";
+await callLLM("s","u",false);
+ok(state.modelCaps["deepseek-v4-flash"] === "ok" && "reasoning_effort" in capBodies.at(-1),
+   "实测记忆: 参数被接受则记住 ok，一次请求就成功");
+globalThis.fetch = realFetch84;
 ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
   const kk = state.settings.apiKey, mm = state.settings.model;
   state.settings.apiKey = "sk-test"; state.settings.model = "";
