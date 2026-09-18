@@ -19,7 +19,8 @@
     --hei:"SimHei","黑体","Microsoft YaHei","sans-serif";
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html{scrollbar-gutter:stable;} /* 滚动条一出现不再把整页往左挤（快判落地页比别的页高，进页瞬间会有位移） */
+html,body{margin:0;padding:0;}
   body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:14.5px;line-height:1.7;-webkit-font-smoothing:antialiased;}
 
   button{font-family:var(--fangsong);font-size:14px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:2px;transition:background .15s,border-color .15s;}
@@ -51,7 +52,12 @@
   .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
   .subjbtn.active{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
-  .chip{border:1px solid var(--line);background:#fff;padding:7px 14px;cursor:pointer;font-size:13.5px;border-radius:16px;}
+/* 快判落地页：三种形式并排一小行，整页高度向综应A/申论落地页看齐 */
+.pdforms{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 auto;max-width:640px;text-align:left;}
+.pdforms .pdform{border:1px solid var(--line);background:#fff;padding:10px 12px;}
+.pdforms .pdform b{font-family:var(--hei);font-size:13.5px;}
+.pdforms .pdform .pdformdesc{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5;}
+  .chip{border:1px solid var(--line);background:#fff;padding:6px 12px;cursor:pointer;font-size:13px;border-radius:16px;}
 .model-item{display:block;width:100%;text-align:left;padding:9px 14px;border:none;background:none;cursor:pointer;font-size:13.5px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
@@ -67,7 +73,7 @@
   .modlabel{text-align:center;font-family:var(--hei);font-size:13px;color:var(--muted);margin:4px 0 0;letter-spacing:1px;}
 
   /* 起始区 —— 醒目主入口 */
-  .startbox{text-align:center;padding:52px 20px 46px;min-height:440px;display:flex;flex-direction:column;justify-content:center;}
+  .startbox{text-align:center;padding:34px 20px 46px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */}
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:13.5px;margin:0 0 26px;}
   .startbox .big{min-width:260px;}
@@ -1562,19 +1568,19 @@ const PD_FORMS = {
   "fact-select":{
     name:"事实选择",
     optCount:2,
-    desc:"判断关于材料的说法哪一条站得住：主体、范围、数量、时间、因果，一个限定语都不能被悄悄改动。",
+    desc:"判断关于材料的说法哪条站得住——限定语被悄悄改动就是坑。",
     spec:"每题给一段 120-200 字的材料节选（context，贴近所给主题，有场景有细节、含数字与限定语），再问「下列关于……的说法哪一项准确」。正确项在节选里能找到逐字出处，限定语一个不改；干扰项只能从这几类里造：换主体（村集体出资说成镇政府出资）、改范围（部分小区说成全部、试点说成全面推行）、改数量时限（5个工作日说成15个）、改关系（并列说成因果）、错位拼接（甲段的做法接到乙段的成效上）。"
   },
   "group-summarize":{
     name:"分组概括",
     optCount:[2,3],
-    desc:"把分散在材料里的几处同类事实，归到正确的概括句下面：不漏、不重、层级一致。",
+    desc:"把材料里分散的同类事实归到正确的概括句下，不漏不重。",
     spec:"每题给一段 120-200 字的材料节选（context，内含 2-3 类并列的做法或问题），再问「上述做法可以概括为哪一条」。正确项覆盖节选中全部（至少两处）同类信息；干扰项只能从这几类里造：以偏概全（只取其中一类，最常犯）、混类（把做法与成效、问题与建议并成一条）、层级错位（具体做法与上位概念互换）、同义重复（同一处信息换个说法充两条）。"
   },
   "expression-compare":{
     name:"表达比较",
     optCount:[2,3],
-    desc:"几句改写里选更规范的那句，说清为什么：主体明确、范围准确、因果清楚、不改变原意。",
+    desc:"几句改写里挑不改原意又规范的那句。",
     spec:"每题给一段 120-200 字的材料节选（context，含平均数、限定语、目标与结果这类易被改写坏的敏感点），再对节选中某句话给出几种改写，问「哪一项改变了原意」或「哪一种最规范」。每题只涉及一处错误（主体、范围、因果或语体）；干扰项只能从这几类里造：把平均数说成人人如此（平均跑一点一次说成只需跑一点一次）、把目标说成结果（拟推行说成已推行）、抹掉限定语（基本解决说成彻底解决）、并列改成因果。"
   },
   /* 综合判别：三种形式混在一轮。练的是“不告诉你这是哪类题”的实战眼力——
@@ -1660,13 +1666,11 @@ function renderPDLanding(){
   const recent = pdRecentTheme();
   let html = `<div class="startbox">
     <h2>快判 · 从材料里做判断</h2>
-    <p>不写长篇作答：看材料 → 点选答案 → 立刻对错。一轮 5 题；练的是信息取舍与表达规范的眼力。</p>
-    <div class="actions" style="justify-content:center;margin:2px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
-    <p class="hint" style="margin:10px auto 24px;max-width:560px">三种形式混着来、不给提示——考试里没人先告诉你这道题考的是主体、范围还是因果。只想单练一类，用下面的入口。</p>
-    ${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="ogroup" style="text-align:left"><b>${f.name}</b><div style="margin-top:4px">${f.desc}</div><div class="actions" style="margin-top:8px"><button data-pdform="${id}">只练「${f.name}」</button></div></div>`; }).join("")}
-    <div class="sec-title" style="text-align:left">主题（可自填，留空则随机）</div>
-    <input type="text" id="pdTheme" placeholder="想练什么主题？如：养老服务">
-    <div class="subtypechips" style="margin-top:10px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
+    <p style="margin:0 0 18px">不写长篇作答：看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。综合快判三种形式混着出、不给提示——考试里没人先告诉你考的是哪类。</p>
+    <div class="actions" style="justify-content:center;margin:0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
+    <div class="pdforms">${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="pdform"><b>${f.name}</b><div class="pdformdesc">${f.desc}</div><div class="actions" style="margin:8px 0 0"><button data-pdform="${id}">只练这类</button></div></div>`; }).join("")}</div>
+    <input type="text" id="pdTheme" placeholder="主题：想练什么就填什么，留空随机（如：养老服务）" style="margin-top:10px">
+    <div class="subtypechips" style="margin-top:8px;max-width:760px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
   </div>`;
   docBody.innerHTML = html; renderHeader();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
