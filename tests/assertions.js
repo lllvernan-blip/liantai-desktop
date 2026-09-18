@@ -19,8 +19,8 @@ ok(ALL_MODULE_KEYS.every(k=>MODULES[k] && MODULES[k].name && MODULES[k].dims.len
    "模块键: 每个模块都有名字、评分维度和材料长度档");
 ok(ALL_MODULE_KEYS.every(k=>k.split(".").length === 2 && SUBJECTS[k.split(".")[0]]),
    "模块键: 都带科目前缀（科目.模块）");
-ok(SUBJECT_ORDER.map(s=>SUBJECTS[s].modules.length).join(",") === "5,4",
-   "科目: 综应A 五模块 / 申论 四模块");
+ok(SUBJECT_ORDER.map(s=>SUBJECTS[s].modules.length).join(",") === "5,5",
+   "科目: 综应A 五模块 / 申论 五模块（小题四类 + 申发论述）");
 ok(SUBJECT_ORDER.every(s=>SUBJECTS[s].name && SUBJECTS[s].role && SUBJECTS[s].note), "科目: name / role / note 齐备");
 ok(subjectOf("zy.gongwen") === "zy" && subjectOf("sl.guanche") === "sl" && subjectOf("gongwen") === null,
    "科目归属: 按模块键前缀解析，裸键不算任何科目");
@@ -49,7 +49,14 @@ ok(wordLimit({ requirements:"写一份倡议书（350字以内）。" }) === 350
 ok(wordLimit({ requirements:"写一份公开信，字数450左右。" }) === 450, "字数上限: 字数N左右");
 ok(wordLimit({ requirements:"写一份函。" }) === null, "字数上限: 无要求返回 null");
 ok(MODULES["zy.gongwen"].matLen[0] === 300 && MODULES["zy.guina"].matLen[1] === 900, "材料分档: 按模块给真实长度");
-ok(GONGWEN_TYPES.some(t=>t.type==="公文改错"), "题型: 公文改错已入池");
+ok(!GONGWEN_TYPES.some(t=>t.type==="公文改错"), "题型: 公文改错不在池中 (综应A 不含改错类题型，改错属综应B 校阅改错)");
+ok(GONGWEN_TYPES.length === 21, "题型: 公文写作池 = 21 个文种 (got " + GONGWEN_TYPES.length + ")");
+/* 法定公文：《党政机关公文处理工作条例》第八条共 15 种，本池收 11 种 */
+const GW_STATUTORY = GONGWEN_TYPES.filter(t=>t.cat === "法定公文").map(t=>t.type);
+ok(GW_STATUTORY.length === 11 && GW_STATUTORY.indexOf("通告") >= 0,
+   "题型: 法定公文 11 种且含通告 -> " + GW_STATUTORY.join("/"));
+ok(["决议","命令","公报","议案"].every(t=>GONGWEN_TYPES.every(x=>x.type !== t)),
+   "题型: 决议/命令/公报/议案 不收（高层级发文，综应A 命题场景出不到）");
 
 /* 1.5 流式 */
 ok(sseDelta('data: {"choices":[{"delta":{"content":"你好"}}]}') === "你好", "SSE: 增量解析");
@@ -109,6 +116,33 @@ state.history = [ { module:"zy.gongwen", subtype:"通知", grade:{ total:80, sco
                   { module:"zy.gongwen", subtype:"通知", grade:{ total:60, scores: scoresFor("zy.gongwen",12) } } ];
 renderProfile();
 ok(el("#profileBody").innerHTML.indexOf(">71<") >= 0, "画像: 文种统计近期加权 (71 而非 70)");
+
+/* 4.5 总分口径唯一：模块「均分」必须吃 grade.total，不能被维度分带偏 */
+state.history = [{ module:"zy.gongwen", subtype:"通知", grade:{ total:60, scores: scoresFor("zy.gongwen",15) } }];
+ok(moduleAvg("zy.gongwen") === 60, "口径: 模块均分取总分（同一条记录维度分全是 15 也不改口）");
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("均分 60") >= 0 && el("#profileBody").innerHTML.indexOf("均分 75") < 0,
+   "口径: 画像显示「均分 60」，与练习记录表的总分是同一个数");
+ok(el("#profileBody").innerHTML.indexOf("width:75%") >= 0, "口径: 维度条照旧按维度分铺 75%（诊断层不受影响）");
+
+/* 4.6 recordTotal：有总分用总分，老记录才回退维度分，都没有就不计入 */
+ok(recordTotal({ module:"zy.guina", grade:{ total:42, scores: scoresFor("zy.guina",20) } }) === 42,
+   "recordTotal: 有总分就以总分为准");
+ok(recordTotal({ module:"zy.guina", grade:{ scores: scoresFor("zy.guina",20) } }) === 100,
+   "recordTotal: 老记录没存总分时，用维度分折算");
+ok(recordTotal({ module:"zy.guina", grade:{} }) === null, "recordTotal: 总分与维度都没有，返回 null 而不是 0");
+ok(recordTotal({ track:"pd", form:"fact-select", correct:3, total:5 }) === null,
+   "recordTotal: 判别轨记录没有 module，天然不计入");
+
+/* 4.7 维度缺失不再把折算分拉低 */
+ok(dimTotal({ a:20, b:20 }, ["a","b"]) === 100 && dimTotal({ a:20, b:20 }, ["a","b","c"]) === 100,
+   "dimTotal: 没给的维度不进分母（不再按 0 分算）");
+ok(dimTotal({}, ["a","b"]) === 0, "dimTotal: 一个维度都没有时返回 0，不冒 NaN");
+
+/* 4.8 调度：模块基准分与子类型基准分同刻度，不再一个掂维度、一个掂总分 */
+ok(Math.round(moduleAvg("zy.gongwen")) === Math.round(subtypeStat("zy.gongwen","通知").avg),
+   "调度: 同一批记录下模块基准分与子类型基准分是同一个数");
+
 state.settings.orgName = "测试单位";
 state.history = [];
 current = { module:"zy.gongwen", subtype:"通知", question:q1, cardPeeks:0 };
@@ -288,9 +322,11 @@ await fetchModels(true);
 ok(Array.isArray(state.modelCache["https://api.test.com/v1"]) && state.modelCache["https://api.test.com/v1"].length === 3, "实拉: 名单入库缓存");
 ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 静默模式不改写当前模型（名单可能不全）");
 ok(el("#modelOptions").innerHTML.indexOf("a-flash-model") >= 0, "实拉: 下拉候选来自接口");
-ok((function(){ const h = el("#modelChips").innerHTML;
-  return h.indexOf("z-model") >= 0 && h.indexOf("a-flash-model") >= 0 && h.indexOf("m-chat") >= 0;
-})(), "实拉: 拉到的模型以可点 chips 明面呈现（datalist 会按输入框已有文字过滤，不能只靠它）");
+ok(el("#modelOptions").innerHTML.indexOf("z-model") >= 0 && el("#modelOptions").innerHTML.indexOf("m-chat") >= 0,
+   "实拉: 整份名单都进下拉候选");
+ok(el("#modelChips").innerHTML.indexOf("a-flash-model") >= 0 && el("#modelChips").innerHTML.indexOf("z-model") >= 0,
+   "实拉: 整份名单同时以可点按键明面呈现（点谁填谁，不受下拉按文字过滤影响）");
+ok(PROVIDERS.every(p=>!p.models), "预设: 服务商只预设地址，模型名一个都不写死（手写的名字迟早过期）");
 el("#setModel").value = "";
 await fetchModels(true);
 ok(el("#setModel").value === "a-flash-model", "实拉: 当前为空时自动补最快模型");
@@ -300,6 +336,24 @@ el("#setModel").value = "deepseek-v4-flash";
 await fetchModels(false);
 ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
 globalThis.fetch = realFetch;
+
+/* 8.2 没有实拉结果时不编名字：候选可以空，模型名不可以瞎写 */
+el("#setKey").value = "";   // 清掉 Key，避免换服务商时触发后台实拉，让本段只考验「没有名单时怎么办」
+el("#setProvider").value = "kimi";
+onProviderChange();
+ok(el("#modelOptions").innerHTML === "" && el("#setModel").value === "",
+   "换服务商: 这家没实拉缓存就不编候选，也不把上一家的模型名留在框里");
+el("#setProvider").value = "deepseek";
+onProviderChange();
+ok(el("#setModel").value === "" && el("#modelOptions").innerHTML.indexOf("deepseek") < 0,
+   "换服务商: 模型栏留空等实拉，不含任何写死的名字");
+ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
+  const kk = state.settings.apiKey, mm = state.settings.model;
+  state.settings.apiKey = "sk-test"; state.settings.model = "";
+  let code = ""; try{ await callLLM("s","u",false); }catch(e){ code = e && e.code; }
+  state.settings.apiKey = kk; state.settings.model = mm;
+  return code;
+})() === "NO_MODEL", "没有模型时: 直接报 NO_MODEL，不兜底成某个写死的名字");
 
 /* 8.5 科目分叉：申论走七步链（读材料→找点→…→沉淀），综应A 走两阶段（学习卡 → 作答 → 批改） */
 ok(usesFlowChain("sl.guina") && usesFlowChain("sl.guanche"), "分叉: 申论走七步链");
@@ -467,6 +521,7 @@ ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SUBJECTS.zy.role) <
 ok(cap.sys.indexOf("归纳概括") >= 0 && cap.sys.indexOf(GEN_POINT_RULES) >= 0, "出题 prompt: 保留模块说明与采分点规则");
 await gen("zy.gongwen", "通知", null, false);
 ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf(SUBJECTS.sl.role) < 0, "出题 prompt: 综应模块用综应A 口径");
+ok(cap.sys.indexOf("不超过500字") >= 0, "出题 prompt: 公文写作把文种的字数上限写死进 prompt（通知 500），不再让模型自己编");
 await grade("sl.guanche", "讲话稿", { background:"b" }, [], "答案");
 ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SCORING_RULES) >= 0 && cap.sys.indexOf("80%") >= 0,
    "阅卷 prompt: 申论口径 + 三档计分规则原样保留");
@@ -476,7 +531,7 @@ ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf("维度分只用于
 callLLM = realCallLLM;
 
 /* 10. 申论模块按申论阅卷口径写，不照抄综应A */
-const SL_DIM_VOCAB = ["要点全面","归类准确","表述精炼","条理清晰","语言准确","问题对应","对策可行","针对性强","观点明确","分析深入","论证充分","结论稳妥","格式规范","内容完整","身份贴切","语言得体"];
+const SL_DIM_VOCAB = ["要点全面","归类准确","表述精炼","条理清晰","语言准确","问题对应","对策可行","针对性强","观点明确","分析深入","论证充分","结论稳妥","格式规范","内容完整","身份贴切","语言得体","立意准确","结构完整","语言规范","结合材料"];
 for(const k of SUBJECTS.sl.modules){
   const m = MODULES[k];
   ok(m.dims.length >= 4 && m.dims.length <= 5 && m.dims.every(d=>SL_DIM_VOCAB.indexOf(d) >= 0),
@@ -494,12 +549,23 @@ ok(MODULES["zy.gongwen"].dims.indexOf("文种适配") >= 0 && MODULES["zy.shiwu"
    "综应A: 原模块口径加前缀后未被动过");
 
 /* 10.5 作答上限与材料长度：以题型规范为准（本地表是唯一口径） */
-ok(MODULES["sl.guina"].ansLen === 250 && MODULES["sl.fenxi"].ansLen === 300 && MODULES["sl.duice"].ansLen === 400 && MODULES["sl.guanche"].ansLen === 500,
-   "作答上限: 申论四题型按题型规范 (250/300/400/500)");
+ok(MODULES["sl.guina"].ansLen === 250 && MODULES["sl.fenxi"].ansLen === 300 && MODULES["sl.duice"].ansLen === 400 && MODULES["sl.guanche"].ansLen === 500 && MODULES["sl.zuowen"].ansLen === 1000,
+   "作答上限: 申论五题型按题型规范 (250/300/400/500/1000)");
 ok(MODULES["zy.guina"].ansLen === 300 && MODULES["zy.fenxi"].ansLen === 300 && MODULES["zy.duice"].ansLen === 300 && MODULES["zy.shiwu"].ansLen === 400,
    "作答上限: 综应A 按规范沿用 (300/300/300/400)");
 ok(MODULES["zy.gongwen"].ansLen === undefined, "作答上限: 公文写作按文种定，不设单一上限");
-ok(SUBJECTS.sl.modules.every(k=>MODULES[k].matLen[0] === 600 && MODULES[k].matLen[1] === 900), "材料长度: 申论四题型统一 600-900");
+const SL_SMALL = SUBJECTS.sl.modules.filter(k=>k !== "sl.zuowen");
+ok(SL_SMALL.every(k=>MODULES[k].matLen[0] === 600 && MODULES[k].matLen[1] === 900), "材料长度: 申论小题四类统一 600-900");
+ok(MODULES["sl.zuowen"].matLen[0] === 1200 && MODULES["sl.zuowen"].matLen[1] === 1800,
+   "材料长度: 申发论述高一档 1200-1800（立意与分论点都得从材料里找）");
+
+/* 10.6 申发论述：申论大纲「文字表达能力」对应的题型，真题里分值最高，不能缺 */
+ok(MODULES["sl.zuowen"] && MODULES["sl.zuowen"].name === "申发论述", "申发论述: 模块在场");
+ok(MODULES["sl.zuowen"].dims.join("/") === "立意准确/结构完整/论证充分/语言规范/结合材料",
+   "申发论述: 维度是立意/结构/论证/语言/结合材料 -> " + MODULES["sl.zuowen"].dims.join("/"));
+ok((MODULES["sl.zuowen"].subtypes||[]).length >= 2, "申发论述: 有细分 -> " + (MODULES["sl.zuowen"].subtypes||[]).join("/"));
+ok(usesFlowChain("sl.zuowen") && MODULES["sl.zuowen"].dims.indexOf("文种适配") < 0,
+   "申发论述: 归申论、走七步链，不套公文那套维度");
 
 /* 11. 七步训练链：状态机 / 找点 / 归类 / 提纲进批改 / 迁移 / 裁剪 */
 /* ① 同题复用 / 换题关闭且草稿保留 */
@@ -569,7 +635,20 @@ ok(state.history[0].answer.indexOf("二十个字") >= 0 && state.history[0].grad
 ok(enforceWordLimit("sl.guina", { requirements:"概括主要问题，不超过300字。" }).requirements.indexOf("不超过250字") >= 0,
    "本地口径: 模型给的 300 被纠正为本地表 250");
 ok(ansLimitFor("sl.guina", { requirements:"不超过300字" }) === 250 && ansLimitFor("zy.gongwen", { requirements:"不超过300字" }) === 300,
-   "作答上限: 本地表优先，公文回落到材料解析");
+   "作答上限: 模块表优先，公文没有模块上限时回落到题干解析");
+
+/* ②.2 公文写作按文种定上限：本地表给数字 → 盖在题目上 → 模型写的字数被纠偏 */
+ok(GONGWEN_TYPES.every(t=>t.ansLen > 0), "作答上限: " + GONGWEN_TYPES.length + " 个文种每个都有 ansLen（不再交给模型自己编）");
+ok(localAnsLen("zy.gongwen","讲话稿") === 800 && localAnsLen("zy.gongwen","编者按") === 250,
+   "作答上限: 文种表优先于模块表（讲话稿 800 / 编者按 250）");
+const gwQ = { requirements:"以街道办名义写一份讲话稿，不超过300字。" };
+enforceWordLimit("zy.gongwen", gwQ, "讲话稿");
+ok(gwQ.ansLen === 800 && gwQ.requirements.indexOf("不超过800字") >= 0 && ansLimitFor("zy.gongwen", gwQ) === 800,
+   "作答上限: 公文按文种把模型给的 300 纠成 800，下游读的也是本地表那个数");
+const gwQ2 = { requirements:"写一份编者按。" };
+enforceWordLimit("zy.gongwen", gwQ2, "编者按");
+ok(gwQ2.ansLen === 250 && gwQ2.requirements.indexOf("不超过250字") >= 0,
+   "作答上限: 题干没写字数时按文种补上（编者按 250）");
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"超字数材料。", requirements:"概括主要问题，不超过250字。" }, cardPeeks:0 };
 renderQuestion(); flowGoStep("draft");
 el("#answer").value = "字".repeat(300);   // 超出 250 上限 50 字
@@ -801,6 +880,16 @@ state.experiences = [];
 await genPDRound("fact-select", "生态环保");
 ok(!JSON.parse(capPD.user).experiences, "判别出题: 无经验时不带 experiences 键");
 
+/* ②.5 选项个数：散文规范与 JSON 示例同源，不能一个说 2 个、示例却给 3 个 */
+ok(pdOptSample(PD_FORMS["fact-select"]) === '["选项1","选项2"]',
+   "判别出题: fact-select 的 JSON 示例只给 2 个选项 (got " + pdOptSample(PD_FORMS["fact-select"]) + ")");
+ok(pdSchema(PD_FORMS["fact-select"]).indexOf("选项3") < 0 && pdSchema(PD_FORMS["group-summarize"]).indexOf("选项3") > 0,
+   "判别出题: 示例的选项个数跟着形式走（fact-select 2 个 / 另两个最多 3 个）");
+ok(PD_FORMS["fact-select"].spec.indexOf("2 个选项") < 0,
+   "判别出题: 规范散文里不再重复写个数（个数只在 optCount 一处）");
+ok(capPD.sys.indexOf("选项个数：固定 2 个选项") >= 0 && capPD.sys.indexOf("选项3") < 0,
+   "判别出题: 系统提示里 fact-select 只说 2 个，示例里也不再有第 3 项");
+
 /* ③ 判分：命中 / 误选 / 未答三态，不套三档 */
 ok(pdScoreOf({answer:1}, 1) === "hit" && pdScoreOf({answer:1}, 0) === "miss" && pdScoreOf({answer:1}, null) === "skip",
    "判分: 命中/误选/未答三态");
@@ -985,6 +1074,12 @@ ok(getNote("zy.gongwen","通知") === "防抖笔记", "输入防抖: 笔记输�
 persistFlush();
 ok((JSON.parse(localStorage.getItem("gw_state")).cache.notes||{})["zy.gongwen::通知"] === "防抖笔记",
    "输入防抖: persistFlush 立即落盘（失焦/关页兜底）");
+
+/* 15.3 构建标识：唯一来源 app/build.json（打包时由 tools/stamp-build.mjs 写入），读不到就是源码直跑的开发版 */
+ok(!!el("#buildNote"), "构建标识: 设置面板底部有承载元素");
+ok(el("#buildNote").textContent.indexOf("开发版") >= 0,
+   "构建标识: 读不到 build.json 时显示开发版 -> " + el("#buildNote").textContent);
+ok(typeof loadBuildNote === "function", "构建标识: 有独立装载函数（init 里调用，失败静默不影响启动）");
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);

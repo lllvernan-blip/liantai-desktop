@@ -12,6 +12,8 @@ AI 原生综应 A 练习工具，打包成可双击运行的 Windows 桌面应�
 | `main.js` | Electron 主进程：窗口、单实例锁、把 `app/` 挂到 `127.0.0.1` 的本地 http 源、启动日志 |
 | `app/index.html` | **应用本体**（单文件 HTML + CSS + JS，零依赖）；业务代码改这里 |
 | `tests/` | 零依赖自检：从 `app/index.html` 抽取唯一 `<script>`，配合 DOM 桩在 Node 里跑 |
+| `打包.bat` | 双击自助出包：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
+| `tools/` | 打包辅助：`stamp-build.mjs` 在打包前写 `app/build.json`（设置面板底部显示构建时间）；`probe.mjs` 跑一次性探针 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
@@ -25,8 +27,10 @@ npm start       # 开发运行：起本地 http 源 + 独立窗口
 打包成成品（给没装 node 的人用）：
 
 ```powershell
-npx electron-builder --win portable   # 产物在 dist/，单文件 exe
+npm run dist      # 产物在 dist/，单文件免安装 exe；打包前先关掉正在运行的应用
 ```
+
+或者直接双击 `打包.bat`。打包器要从网上拉组件，`打包.bat` 已内置国内镜像源（直连 GitHub 常 TLS 断连）；手动跑 `npm run dist` 遇到下载失败，先设 `ELECTRON_MIRROR` 与 `ELECTRON_BUILDER_BINARIES_MIRROR` 为 npmmirror 再试。
 
 首次运行要在应用内「设置」里填一次 API Key —— 桌面应用的存储与浏览器那份是分开的，不会自动继承。
 
@@ -43,7 +47,7 @@ node tests/run.mjs
 - 窗口通过 `http://127.0.0.1:18743` 加载。**端口固定是刻意的，不是随手写的**：`localStorage` 按 origin（含端口）分区，端口一变就是另一套存储空间，用户的设置、练习记录、草稿、划线会「凭空消失」（数据还在磁盘上，只是换了 key 空间）。
 - 端口被占用时依次退让到邻近端口，并在 `logs/startup.log` 里写 `port-fallback-warning`。**看到这条告警，就意味着这次启动读不到旧数据。**
 - 存储键：`gw_state`（设置 / 画像 / 学习卡 / 笔记）、`gw_history`（练习记录，写满裁最旧）、`gw_draft`（草稿，最多 8 份）、`gw_marks`（划线，最多 8 份）。
-- 应用数据目录：`%APPDATA%\liantai-desktop`。Chromium 的存储是异步落盘的，**强杀进程（任务管理器、`Stop-Process -Force`）可能丢掉最近几次写入**；正常关窗口不受影响。
+- 应用数据目录：`%APPDATA%\liantai-desktop`（打包版与开发版共用同一目录，Key 和记录只填一次）。Chromium 的存储是异步落盘的，**强杀进程（任务管理器、`Stop-Process -Force`）可能丢掉最近几次写入**；正常关窗口不受影响。
 
 ## 维护提示
 

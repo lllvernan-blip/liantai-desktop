@@ -127,13 +127,14 @@
   .comment{margin-top:10px;font-size:14px;line-height:1.85;}
   .nextrow{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
-  .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:auto;}
+  /* 弹层整体不滚：边框与抬头（含关闭键）固定，只有 .panel-body 的内容滚动 */
+  .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:hidden;}
   .modal[hidden]{display:none;}
-  .modal .box{background:var(--paper);border:1px solid var(--line);width:100%;max-width:760px;box-shadow:0 12px 40px rgba(0,0,0,.18);}
-  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f7f5f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;}
+  .modal .box{background:var(--paper);border:1px solid var(--line);width:100%;max-width:760px;box-shadow:0 12px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;max-height:90vh;}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f7f5f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;flex:0 0 auto;}
   .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:2px 8px;}
   .mhead .x:hover{color:var(--gov-red);}
-  .panel-body{padding:16px;}
+  .panel-body{padding:16px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
   /* 学习卡抽屉 + 我的笔记 + 翻卡浮标 */
   .drawer{position:fixed;inset:0;z-index:60;background:rgba(31,31,31,.35);}
   .drawer[hidden]{display:none;}
@@ -255,7 +256,7 @@
       <div class="field">
         <label>AI 服务商</label>
         <select id="setProvider"></select>
-        <div class="note">选好服务商会自动填接口地址并推荐模型；推荐 DeepSeek，国内直连、便宜。</div>
+        <div class="note">选好服务商会自动填好接口地址；模型名一律从接口实拉，不预置。推荐 DeepSeek，国内直连、便宜。</div>
       </div>
       <div class="field">
         <label>接口地址（Base URL）</label>
@@ -270,12 +271,12 @@
       <div class="field">
         <label>模型</label>
         <div style="display:flex;gap:8px;">
-          <input type="text" id="setModel" list="modelOptions" placeholder="点右侧按钮自动拉取，或手动输入模型名" style="flex:1">
+          <input type="text" id="setModel" list="modelOptions" placeholder="点输入框展开候选，或手动输入模型名" style="flex:1">
           <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
         </div>
         <div class="subtypechips" id="modelChips" style="display:none"></div>
         <datalist id="modelOptions"></datalist>
-        <div class="note" id="modelNote">有 Key 时每次启动自动从接口实拉；拉不到或未填 Key 时回退到预设推荐，也可手动输入模型名。</div>
+        <div class="note" id="modelNote">候选名单一律从接口实拉：有 Key 时每次启动自动刷新，点「拉取模型列表」可手动重拉。拉不到就手动输入模型名。</div>
       </div>
       <div class="field">
         <label>推理程度</label>
@@ -299,6 +300,7 @@
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
+        <div id="buildNote" style="margin:18px 0 0;text-align:center;font-size:12px;color:#aaa"></div>
       </div>
     </div>
   </div>
@@ -315,20 +317,17 @@
 
 <script>
 /* ============ 服务商预设 ============ */
+/* 这里只预设「地址」这类稳定信息，模型名一个都不写死——
+   服务商改名的速度比这份文件更新得快，手写的候选迟早变成误导（列了却调不通，或好模型根本没列上）。
+   候选名单只有一个来源：从 /models 实拉，拉到什么就是什么。 */
 const PROVIDERS = [
-  { id:"deepseek", name:"DeepSeek（推荐 · 国内直连）", baseUrl:"https://api.deepseek.com/v1",
-    models:["deepseek-v4-flash","deepseek-v4-pro"] },
-  { id:"kimi", name:"Kimi 月之暗面", baseUrl:"https://api.moonshot.cn/v1",
-    models:["kimi-k3","kimi-k2.6","kimi-k2.7-code"] },
-  { id:"qwen", name:"通义千问（阿里百炼）", baseUrl:"https://dashscope.aliyuncs.com/compatible-mode/v1",
-    models:["qwen-plus","qwen3.8-max","qwen-flash","qwen-long"] },
-  { id:"glm", name:"智谱 GLM", baseUrl:"https://open.bigmodel.cn/api/paas/v4",
-    models:["glm-4.6","glm-4.5","glm-4-plus","glm-4-flash"] },
-  { id:"siliconflow", name:"硅基流动 SiliconFlow", baseUrl:"https://api.siliconflow.cn/v1",
-    models:["deepseek-ai/DeepSeek-V4-Flash","deepseek-ai/DeepSeek-V4-Pro","Qwen/Qwen3-32B","zai/GLM-4.5-Air","moonshotai/Kimi-K2.6"] },
-  { id:"openai", name:"OpenAI（需自备网络）", baseUrl:"https://api.openai.com/v1",
-    models:["gpt-5.4-mini","gpt-4.1","gpt-5.5"] },
-  { id:"custom", name:"自定义 / 其他", baseUrl:"", models:[] }
+  { id:"deepseek", name:"DeepSeek（推荐 · 国内直连）", baseUrl:"https://api.deepseek.com/v1" },
+  { id:"kimi", name:"Kimi 月之暗面", baseUrl:"https://api.moonshot.cn/v1" },
+  { id:"qwen", name:"通义千问（阿里百炼）", baseUrl:"https://dashscope.aliyuncs.com/compatible-mode/v1" },
+  { id:"glm", name:"智谱 GLM", baseUrl:"https://open.bigmodel.cn/api/paas/v4" },
+  { id:"siliconflow", name:"硅基流动 SiliconFlow", baseUrl:"https://api.siliconflow.cn/v1" },
+  { id:"openai", name:"OpenAI（需自备网络）", baseUrl:"https://api.openai.com/v1" },
+  { id:"custom", name:"自定义 / 其他", baseUrl:"" }
 ];
 
 /* ============ 模块定义 ============ */
@@ -349,7 +348,7 @@ const MODULES = {
   "zy.shiwu":{ name:"案例实务", note:"会务 / 信访 / 应急 / 沟通协调",
     dims:["角色意识","处置得当","程序合规","沟通协调"], matLen:[400,800], ansLen:400,
     subtypes:["会务组织","信访处理","应急处置","沟通协调"] },
-  // —— 申论：小题为主，阅卷口径是「要点 + 条理 + 语言」，材料更长；不套用综应A 的实务维度 ——
+  // —— 申论：小题 + 申发论述，阅卷口径是「要点 / 观点 + 条理 + 语言」，材料更长；不套用综应A 的实务维度 ——
   "sl.guina":{ name:"归纳概括", note:"概括问题 / 原因 / 做法 / 成效 / 特点",
     dims:["要点全面","归类准确","表述精炼","条理清晰","语言准确"], matLen:[600,900], ansLen:250,
     subtypes:["概括问题","概括原因","概括做法","概括成效","概括特点"] },
@@ -361,23 +360,41 @@ const MODULES = {
     subtypes:["词句理解","观点评析","现象分析"] },
   "sl.guanche":{ name:"贯彻执行", note:"按身份与场合写讲话稿 / 倡议书 / 意见建议",
     dims:["格式规范","内容完整","身份贴切","语言得体","条理清晰"], matLen:[600,900], ansLen:500,
-    subtypes:["讲话稿","倡议书","意见建议"] }
+    subtypes:["讲话稿","倡议书","意见建议"] },
+  // 申发论述（大作文）：申论大纲五大能力里「文字表达能力」对应的题型，也是真题里分值最高的那道
+  // （中公：申论五大能力对应归纳概括 / 提出对策 / 综合分析 / 贯彻执行 / 申发论述五类题型）。
+  // 材料比小题高一档（1200-1800）：立意和分论点都要从材料里找，材料不够就撑不起 2-3 个分论点。
+  // 作答上限取 1000：国考副省级 1000-1200、市地级 1000 左右、省考 800-1200。
+  "sl.zuowen":{ name:"申发论述", note:"议论文写作：立意 / 结构 / 论证 / 语言",
+    dims:["立意准确","结构完整","论证充分","语言规范","结合材料"], matLen:[1200,1800], ansLen:1000,
+    subtypes:["命题作文","话题作文","句意引发","关系思辨"] }
 };
 // matLen：各模块材料长度档；ansLen：作答字数上限——唯一口径是这张本地表，出题 prompt 与字数统计都以它为准
 // （公文写作按文种定、无单一上限，回落到材料解析；数值依据见 题型规范.md）
+// ansLen：单题作答字数上限。公文写作**按文种定**、没有统一上限，所以数字写在这一层，不写进 MODULES。
+// 取值依据：综应A 公文写作真题以 400–500 字最常见，长文书（讲话稿 / 工作方案 / 调研报告 / 汇报材料）
+// 到 600–800 字；短文书（公告 / 通告 / 请示 / 批复 / 编者按）相应下调。这是**待拍板**的默认值，改数字只改这张表。
+// 法定公文收录 11 种。依据《党政机关公文处理工作条例》第八条（共 15 种），未收的 4 种是
+// 决议 / 命令(令) / 公报 / 议案：都是高层级发文（人大会议、政府首长、党的会议公报），
+// 综应A 面向基层管理岗，命题场景里出不到，收了只会白占练习额度；通告常与公告并列考，故补上。
 const GONGWEN_TYPES = [
-  {type:"通知",cat:"法定公文"},{type:"通报",cat:"法定公文"},
-  {type:"请示",cat:"法定公文"},{type:"报告",cat:"法定公文"},
-  {type:"函",cat:"法定公文"},{type:"公告",cat:"法定公文"},
-  {type:"意见",cat:"法定公文"},{type:"批复",cat:"法定公文"},
-  {type:"决定",cat:"法定公文"},{type:"纪要",cat:"法定公文"},
-  {type:"讲话稿",cat:"应用文"},{type:"倡议书",cat:"应用文"},
-  {type:"公开信",cat:"应用文"},{type:"新闻稿",cat:"应用文"},
-  {type:"短评",cat:"应用文"},{type:"工作方案",cat:"应用文"},
-  {type:"调研报告",cat:"应用文"},{type:"汇报材料",cat:"应用文"},
-  {type:"编者按",cat:"应用文"},{type:"宣传稿",cat:"应用文"},
-  {type:"公文改错",cat:"专项"}
+  {type:"通知",cat:"法定公文",ansLen:500},{type:"通报",cat:"法定公文",ansLen:500},
+  {type:"请示",cat:"法定公文",ansLen:300},{type:"报告",cat:"法定公文",ansLen:500},
+  {type:"函",cat:"法定公文",ansLen:400},{type:"公告",cat:"法定公文",ansLen:300},
+  {type:"通告",cat:"法定公文",ansLen:400},
+  {type:"意见",cat:"法定公文",ansLen:500},{type:"批复",cat:"法定公文",ansLen:300},
+  {type:"决定",cat:"法定公文",ansLen:500},{type:"纪要",cat:"法定公文",ansLen:500},
+  {type:"讲话稿",cat:"应用文",ansLen:800},{type:"倡议书",cat:"应用文",ansLen:500},
+  {type:"公开信",cat:"应用文",ansLen:500},{type:"新闻稿",cat:"应用文",ansLen:500},
+  {type:"短评",cat:"应用文",ansLen:400},{type:"工作方案",cat:"应用文",ansLen:800},
+  {type:"调研报告",cat:"应用文",ansLen:800},{type:"汇报材料",cat:"应用文",ansLen:800},
+  {type:"编者按",cat:"应用文",ansLen:250},{type:"宣传稿",cat:"应用文",ansLen:500}
 ];
+// 本池曾有一条「公文改错」（cat:"专项"），2026-09-17 移除：综应A 不含改错类题型。
+// 依据官方大纲 §5.1.2.3，综应A 的命题内容是「观点归纳、资料分类、草拟信函、会务安排、应急处理、联络通知」，
+// 里面没有改错；改错类题型（校阅改错）是综应B 独有的必考题。
+// 将来若要加回来，除补一行数据，还必须给它专属出题口径：现在 gen 只发一句「文种：XX」，
+// 模型收到会照常出一题「写一份公文」，那就不是改错题了。
 
 /* ============ 科目定义 ============ */
 // 科目只回答两件事：有哪些模块、用哪套教练/阅卷口径（role）。模块内容仍写在 MODULES 里。
@@ -385,9 +402,9 @@ const SUBJECTS = {
   zy:{ name:"综应A", role:"事业单位综合管理类（综应A）",
        note:"事业单位综合管理类，公文与案例分析为主",
        modules:["zy.gongwen","zy.guina","zy.fenxi","zy.duice","zy.shiwu"] },
-  sl:{ name:"申论", role:"公务员申论（小题为主）",
-       note:"公务员申论，给定材料、小题作答为主",
-       modules:["sl.guina","sl.duice","sl.fenxi","sl.guanche"] }
+  sl:{ name:"申论", role:"公务员申论（小题 + 申发论述）",
+       note:"公务员申论，给定材料；小题与申发论述",
+       modules:["sl.guina","sl.duice","sl.fenxi","sl.guanche","sl.zuowen"] }
 };
 const SUBJECT_ORDER = ["zy","sl"];
 const DEFAULT_SUBJECT = "zy";
@@ -439,7 +456,8 @@ function migrateHistory(list){
 /* 画像聚合字段（dims.sum/n、weakDims/strongDims/types）已删除：画像全部由练习记录即时推导，
    两份聚合迟早对不上。profile.modules 降级为旧数据 pass-through 容器（load/import 只做键迁移，不再写入这些字段）。 */
 const DEFAULT_STATE = {
-  settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"deepseek-v4-flash",
+  // model 默认为空：名字一律等实拉，不预置任何可能已经过期的模型名
+  settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
@@ -686,10 +704,12 @@ async function postStream(url, body, headers, onDelta){
 async function callLLM(system, user, expectJson, onDelta){
   const s = state.settings;
   if(!s.apiKey) throw {code:"NO_KEY"};
+  // 模型名不再兜底成某个写死的名字：与其拿一个可能已下线的名字去撞 400，不如直接说清楚
+  if(!s.model) throw {code:"NO_MODEL"};
   const url = (s.baseUrl||"https://api.deepseek.com/v1").replace(/\/+$/,"") + "/chat/completions";
   const headers = {"Content-Type":"application/json","Authorization":"Bearer "+s.apiKey};
   const messages = [{role:"system",content:system},{role:"user",content:user}];
-  const model = s.model||"deepseek-v4-flash";
+  const model = s.model;
   const r = REASON[s.reasonLevel] || REASON.standard;
   const think = isThinkingModel(model);
   const streaming = typeof onDelta === "function";
@@ -790,6 +810,18 @@ function parseJsonLoose(text){
 // 所以不做终身平均，而是按近期加权：最新一次权重 1，往前每次 ×0.85（约 4 次前权重减半）。
 // 练习记录是唯一事实源，画像不再单独存聚合值——存两份迟早对不上。
 const RECENCY_DECAY = 0.85;
+/* 一条记录的「总分」（百分制）——画像里所有模块级/子类型级比较都用它，只有一个口径。
+   优先采分点折出来的 grade.total；只有老记录没存这个值时，才用维度分折算，
+   规则与 submitAnswer 写入 total 时完全一致，不引入第二套算法。
+   拿不到就返回 null（判别轨记录没有 module，天然落到这里）。 */
+function recordTotal(h){
+  const k = h && h.module;
+  if(!k || !MODULES[k]) return null;
+  const g = h.grade || {};
+  const t = (g.total == null)? NaN : Number(g.total);
+  if(isFinite(t)) return t;
+  return g.scores? dimTotal(g.scores, MODULES[k].dims) : null;
+}
 function dimStat(k, dim){
   let sum=0, wsum=0, n=0;
   for(const h of state.history){
@@ -807,8 +839,8 @@ function subtypeStat(k, t){
   let sum=0, wsum=0, n=0;
   for(const h of state.history){
     if(h.module !== k || (h.subtype||null) !== t) continue;
-    const v = Number(h.grade && h.grade.total);
-    if(!isFinite(v)) continue;
+    const v = recordTotal(h);
+    if(v == null || !isFinite(v)) continue;
     const w = Math.pow(RECENCY_DECAY, n);
     sum += v*w; wsum += w; n++;
   }
@@ -816,17 +848,17 @@ function subtypeStat(k, t){
 }
 
 /* ============ 自适应选择 ============ */
+/* 模块水平 = 该模块记录的「总分」按近期加权求平均（口径见 recordTotal）。
+   以前这里是拿维度分平均当模块水平，于是画像的「均分」和练习记录表的「总分」是两个数：
+   同一条答卷可以既显示均分 75 又显示总分 60。维度分是诊断用的，不该在这里代表水平。 */
 function moduleAvg(k){
-  const dims = MODULES[k].dims;
   let sum=0, wsum=0, n=0;
   for(const h of state.history){
     if(h.module !== k) continue;
-    const g = h.grade && h.grade.scores; if(!g) continue;
-    let s=0;
-    for(const d of dims){ const v=Number(g[d]); if(!isFinite(v)){ s=null; break; } s+=v; }
-    if(s==null) continue;
+    const v = recordTotal(h);
+    if(v == null || !isFinite(v)) continue;
     const w = Math.pow(RECENCY_DECAY, n);
-    sum += (s/dims.length)*w; wsum += w; n++;
+    sum += v*w; wsum += w; n++;
   }
   return n? sum/wsum : null;
 }
@@ -852,9 +884,9 @@ function recentCount(k){
   return last.filter(x=>x===k).length;
 }
 function moduleScore(k){
-  const p = moduleAvg(k);
+  const p = moduleAvg(k);          // 已是百分制，与下面的 COLD_START / 惩罚项同一刻度
   if(p==null) return COLD_START_SCORE;
-  return Math.round(p/20*100) + recentCount(k)*REPEAT_PENALTY - (recentPeeks(k)||0)*PEEK_WEIGHT;
+  return Math.round(p) + recentCount(k)*REPEAT_PENALTY - (recentPeeks(k)||0)*PEEK_WEIGHT;
 }
 function weakestModule(subject){
   const keys = moduleKeysOf(subject || curSubject());   // 「综合」只在当前科目内综合
@@ -911,19 +943,19 @@ function scoresSchema(k){ return `{${MODULES[k].dims.map(d=>`"${d}":0`).join(","
 
 // 难度跟着画像走：练得好就加码，练不动就退一档，不再永远“适中”
 function difficultyFor(k){
-  const a = moduleAvg(k);
+  const a = moduleAvg(k);          // 已是百分制
   if(a == null) return "适中";
-  const p = a/20*100;
-  return p >= 80 ? "较难" : (p < 55 ? "简单" : "适中");
+  return a >= 80 ? "较难" : (a < 55 ? "简单" : "适中");
 }
 async function gen(k, subtype, focusDim, needCard, onDelta){
   const m = MODULES[k];
   const scope = subtype? `${subtypeWord(k)}：「${subtype}」` : `题型：综合`;
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
   const matSpec = `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）`;
-  // 字数口径唯一来源是本地表（ansLen）：prompt 里写死数字，生成结果再由 enforceWordLimit 纠偏——以本地表为准，不信模型
-  const reqSpec = m.ansLen? `作答要求（含作答身份、对象，明确写「不超过${m.ansLen}字」）`
-                          : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
+  // 字数口径唯一来源是本地表：模块表或文种表里的数字写死进 prompt，生成结果再由 enforceWordLimit 纠偏，不信模型
+  const localLimit = localAnsLen(k, subtype);
+  const reqSpec = localLimit? `作答要求（含作答身份、对象，明确写「不超过${localLimit}字」）`
+                            : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const exps = expBlock(k);   // 经验闭环：当前模块未停用的经验（≤3 条）注入出题，两科都带
   const note = (needCard
     ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
@@ -1203,7 +1235,7 @@ function renderModuleLanding(k){
   let html = `<div class="startbox">
     <h2>${esc(subj.name)} · ${esc(m.name)}</h2>
     <p>${esc(m.note)}</p>
-    <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg/20*100)} 分 · 练过 ${n} 次` : "还没练过——第一次会带你过一遍"}<br>评分维度：${m.dims.join("、")}</p>
+    <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过——第一次会带你过一遍"}<br>评分维度：${m.dims.join("、")}</p>
     <div class="subtypechips">
     ${subtypeListOf(k).map(t=>{
       const st = subtypeStat(k,t);
@@ -1255,7 +1287,7 @@ async function loadQuestion(k, subtype){
     if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
     if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
     if(!data.question) throw {code:"JSON"};
-    enforceWordLimit(k, data.question);   // 字数口径以本地表为准，不信模型
+    enforceWordLimit(k, data.question, subtype);   // 字数口径以本地表为准（公文按文种），不信模型
     current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard, cardPeeks:0, phase:"card" };
     renderHeader(); renderQuestion();
   }catch(e){
@@ -1370,35 +1402,47 @@ let pdActive = false;   // 判别轨是入口模式，不落盘：重启回到�
 let pdForm = null;      // 当前判别形式 id
 let pdRound = null;     // 进行中的一轮 { form, theme, items:[{context,stem,options,answer,trap,explain,done,picked,ok}], idx, correct, done }
 const PD_ROUND_SIZE = 5;
+// optCount 是选项个数的**唯一口径**：规范散文里不再重复写个数，JSON 示例的选项个数也从它生成。
+// 起因：原先 fact-select 的规范写「固定用 2 个选项」，三个形式共用的 JSON 示例却给 3 个；
+// 示例是 prompt 最后一段、最具体的形态，模型照抄它，等于把规范那句作废。
 const PD_FORMS = {
   "fact-select":{
     name:"事实选择",
+    optCount:2,
     desc:"判断关于材料的说法哪一条站得住：主体、范围、数量、时间、因果，一个限定语都不能被悄悄改动。",
-    spec:"每题给一段 120-200 字的材料节选（context，贴近所给主题，有场景有细节、含数字与限定语），再问「下列关于……的说法哪一项准确」。正确项在节选里能找到逐字出处，限定语一个不改；干扰项只能从这几类里造：换主体（村集体出资说成镇政府出资）、改范围（部分小区说成全部、试点说成全面推行）、改数量时限（5个工作日说成15个）、改关系（并列说成因果）、错位拼接（甲段的做法接到乙段的成效上）。fact-select 固定用 2 个选项。"
+    spec:"每题给一段 120-200 字的材料节选（context，贴近所给主题，有场景有细节、含数字与限定语），再问「下列关于……的说法哪一项准确」。正确项在节选里能找到逐字出处，限定语一个不改；干扰项只能从这几类里造：换主体（村集体出资说成镇政府出资）、改范围（部分小区说成全部、试点说成全面推行）、改数量时限（5个工作日说成15个）、改关系（并列说成因果）、错位拼接（甲段的做法接到乙段的成效上）。"
   },
   "group-summarize":{
     name:"分组概括",
+    optCount:[2,3],
     desc:"把分散在材料里的几处同类事实，归到正确的概括句下面：不漏、不重、层级一致。",
-    spec:"每题给一段 120-200 字的材料节选（context，内含 2-3 类并列的做法或问题），再问「上述做法可以概括为哪一条」。正确项覆盖节选中全部（至少两处）同类信息；干扰项只能从这几类里造：以偏概全（只取其中一类，最常犯）、混类（把做法与成效、问题与建议并成一条）、层级错位（具体做法与上位概念互换）、同义重复（同一处信息换个说法充两条）。用 2-3 个选项。"
+    spec:"每题给一段 120-200 字的材料节选（context，内含 2-3 类并列的做法或问题），再问「上述做法可以概括为哪一条」。正确项覆盖节选中全部（至少两处）同类信息；干扰项只能从这几类里造：以偏概全（只取其中一类，最常犯）、混类（把做法与成效、问题与建议并成一条）、层级错位（具体做法与上位概念互换）、同义重复（同一处信息换个说法充两条）。"
   },
   "expression-compare":{
     name:"表达比较",
+    optCount:[2,3],
     desc:"几句改写里选更规范的那句，说清为什么：主体明确、范围准确、因果清楚、不改变原意。",
-    spec:"每题给一段 120-200 字的材料节选（context，含平均数、限定语、目标与结果这类易被改写坏的敏感点），再对节选中某句话给出 2-3 种改写，问「哪一项改变了原意」或「哪一种最规范」。每题只涉及一处错误（主体、范围、因果或语体）；干扰项只能从这几类里造：把平均数说成人人如此（平均跑一点一次说成只需跑一点一次）、把目标说成结果（拟推行说成已推行）、抹掉限定语（基本解决说成彻底解决）、并列改成因果。"
+    spec:"每题给一段 120-200 字的材料节选（context，含平均数、限定语、目标与结果这类易被改写坏的敏感点），再对节选中某句话给出几种改写，问「哪一项改变了原意」或「哪一种最规范」。每题只涉及一处错误（主体、范围、因果或语体）；干扰项只能从这几类里造：把平均数说成人人如此（平均跑一点一次说成只需跑一点一次）、把目标说成结果（拟推行说成已推行）、抹掉限定语（基本解决说成彻底解决）、并列改成因果。"
   }
 };
 const PD_FORM_ORDER = ["fact-select","group-summarize","expression-compare"];
 const PD_TOPICS = ["基层治理","乡村振兴","政务服务","生态环保","科技创新","就业服务","养老托育","文化传承","城市更新","应急管理"];
-const PD_SCHEMA = `{
+// 散文口径（pdOptWord）与 JSON 示例（pdOptSample）都从 optCount 生成，所以个数只有一处可以改
+function pdOptWord(f){ const n = f.optCount; return Array.isArray(n)? `${n[0]}-${n[1]} 个选项` : `固定 ${n} 个选项`; }
+function pdOptSample(f){
+  const n = f.optCount, k = Array.isArray(n)? n[1] : n;
+  return "[" + Array.from({length:k}, (_,i)=>`"选项${i+1}"`).join(",") + "]";
+}
+function pdSchema(f){ return `{
   "items":[{
     "context":"材料节选 120-200 字（贴近所给主题，有场景有细节，含数字与限定语）",
     "stem":"题干（明确问什么）",
-    "options":["选项1","选项2","选项3"],
+    "options":${pdOptSample(f)},
     "answer":0,
     "trap":"干扰项类别（如：换主体 / 改范围 / 以偏概全 / 抹掉限定语）",
     "explain":"一句话解析：这题对在哪、错在哪、下次怎么辨（60字内）"
   }]
-}`;
+}`; }
 function sysPD(){ return "你是公考判别训练的命题助手。只输出 JSON，不要 markdown 代码块，不要任何解释。"; }
 
 function enterPD(){
@@ -1464,8 +1508,9 @@ async function genPDRound(form, theme){
       + (exps? " 用户在 experiences 里这些点上栽过跟头：干扰项请优先针对这些点设置，检验是否已经补上。" : ""),
     experiences: exps || undefined });
   const sys = sysPD() + "\n本次形式：「" + f.name + "」。" + f.spec
+    + `\n选项个数：${pdOptWord(f)}，严格照此数量，不得多给或少给（下面 JSON 示例里的个数就是它）。`
     + "\n禁令：不得虚构材料里没有的事实、数字、主体、时间；不得出有歧义或多解的题（逐字读一遍必须只有一项成立，两项都说得通就换题）；正确项不得永远最长、不得总在同一个位置；不得出「找原词/同义替换」式的字面题。"
-    + "\n返回 JSON：\n" + PD_SCHEMA;
+    + "\n返回 JSON：\n" + pdSchema(f);
   try{
     const data = await callLLM(sys, user, true, onDelta);
     if(mySeq !== reqSeq) return;   // 已被更晚的请求取代：丢弃结果
@@ -2222,9 +2267,13 @@ async function submitAnswer(){
   }
 }
 
+// 只按「实际给出的维度」归一化：模型漏给一个维度时不该按 0 分算（那会把总分压低），
+// 分母跟着能用的维度走。一个都没有才返回 0。
 function dimTotal(scores, dims){
-  const raw = dims.reduce((a,d)=> a + (Number(scores[d])||0), 0);
-  return Math.round(raw / (dims.length*20) * 100);
+  const used = (dims||[]).filter(d=> isFinite(Number(scores && scores[d])));
+  if(!used.length) return 0;
+  const raw = used.reduce((a,d)=> a + Number(scores[d]), 0);
+  return Math.round(raw / (used.length*20) * 100);
 }
 // 采分点分值口径：总分就是各子项实得分之和。返回 null 表示这份阅卷没有分值信息（老数据），交给上层回退。
 function pointsOf(hits){
@@ -2301,13 +2350,13 @@ function renderGrade(g, total){
 
 /* ============ 画像 ============ */
 function renderProfile(){
-  let html = `<div class="hint" style="margin-bottom:10px">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。按科目分组看：先综应A各模块，再申论各模块。</div>`;
+  let html = `<div class="hint" style="margin-bottom:10px">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；下面的维度分只用来诊断弱在哪，不参与均分。按科目分组看：先综应A各模块，再申论各模块。</div>`;
   for(const sid of SUBJECT_ORDER){
     const subj = SUBJECTS[sid];
     html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div>`;
     for(const k of subj.modules){
       const avg=moduleAvg(k);
-      html += `<div class="modblock"><h4>${esc(MODULES[k].name)}${avg!=null?` · 均分 ${Math.round(avg/20*100)}`:" · 未练"}</h4><div class="dimscores">`;
+      html += `<div class="modblock"><h4>${esc(MODULES[k].name)}${avg!=null?` · 均分 ${Math.round(avg)}`:" · 未练"}</h4><div class="dimscores">`;
       const weak=[], strong=[];
       for(const d of MODULES[k].dims){
         const st = dimStat(k,d);
@@ -2370,32 +2419,47 @@ function fillProviderSelect(){
 function providerById(id){ return PROVIDERS.find(p=>p.id===id) || PROVIDERS[PROVIDERS.length-1]; }
 function baseKey(){ return ($("#setBase").value.trim()||"").replace(/\/+$/,""); }
 function renderModelList(list){
-  /* 候选模型的可点 chips：datalist 的下拉会按输入框里已有的文字过滤（自动填了模型名后另一个就“看不见”了），
-     所以拉到的名单必须同时以明面 chips 呈现，点谁填谁。 */
+  /* 拉到几个就明面摆几个：datalist 的下拉会按输入框已有文字过滤（填了模型名后另一个就“看不见”了），
+     所以名单同时以可点 chips 呈现，点谁填谁（一次仍只用一个模型）；datalist 留给手动输入。 */
   const box = $("#modelChips");
+  const ids = list||[];
   if(box){
-    const ids = list||[];
     box.style.display = ids.length? "":"none";
     box.innerHTML = ids.map(m=>`<button type="button" class="chip" data-m="${esc(m)}">${esc(m)}</button>`).join("");
     box.querySelectorAll(".chip").forEach(b=> b.onclick = ()=>{ $("#setModel").value = b.dataset.m; setReasonUI(); });
   }
-  $("#modelOptions").innerHTML = (list||[]).map(m=>`<option value="${esc(m)}"></option>`).join("");
+  $("#modelOptions").innerHTML = ids.map(m=>`<option value="${esc(m)}"></option>`).join("");
 }
 function useCachedModels(base){
   const cache = state.modelCache && state.modelCache[(base||"").replace(/\/+$/,"")];
   if(cache && cache.length){ renderModelList(cache); return true; }
   return false;
 }
+function cachedModels(base){
+  const c = state.modelCache && state.modelCache[(base||"").replace(/\/+$/,"")];
+  return (c && c.length)? c : null;
+}
+/* 模型栏文案的唯一出处：只说清「候选从哪来」，不假装有个官方推荐值 */
+function modelNoteText(hasKey, cached){
+  if(cached) return hasKey
+    ? "候选来自上次实拉的名单，正在后台刷新最新版；点输入框从下拉里选，也可手动输入。"
+    : "候选来自上次实拉的名单；填上 Key 可随时刷新。";
+  return hasKey
+    ? "正在从接口实拉候选名单…（拉不到就手动输入模型名）"
+    : "候选只能从接口实拉：填上 Key 后点「拉取模型列表」。也可手动输入模型名。";
+}
 function onProviderChange(){
   const p = providerById($("#setProvider").value);
   $("#setBase").value = p.baseUrl || $("#setBase").value;
-  renderModelList(p.models||[]);
-  if($("#setModel").value.trim()==="") $("#setModel").value = (p.models&&p.models[0])||"";
-  $("#modelNote").textContent = $("#setKey").value.trim()
-    ? "已填入该服务商的推荐模型；正在后台从接口实拉最新名单。"
-    : "已填入该服务商的推荐模型；填上 Key 后会自动从接口实拉最新名单。";
+  const hasKey = !!$("#setKey").value.trim();
+  const cached = cachedModels(baseKey());
+  // 换服务商＝换一整套模型名。上一家的名字在这家基本一定不存在，
+  // 所以按新地址的实拉缓存重新定；没有缓存就留空等实拉，绝不塞任何手写的名字。
+  renderModelList(cached || []);
+  $("#setModel").value = cached? pickFast(cached) : "";
+  $("#modelNote").textContent = modelNoteText(hasKey, cached);
   setReasonUI();
-  if($("#setKey").value.trim() && !useCachedModels(baseKey())) fetchModels(true);
+  if(hasKey && !cached) fetchModels(true);
 }
 const MARK_COLORS = ["#fde68a","#a7f3d0","#bfdbfe","#fbcfe8","#fed7aa"];
 function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_COLORS[1]); }
@@ -2409,8 +2473,11 @@ function fillSettings(){
   const p = providerById($("#setProvider").value);
   $("#setBase").value = state.settings.baseUrl || p.baseUrl || "";
   $("#setKey").value = state.settings.apiKey||"";
-  $("#setModel").value = state.settings.model || (p.models&&p.models[0]) || "";
-  renderModelList((state.modelCache && state.modelCache[baseKey()]) || p.models || []);
+  // 模型名与候选名单都只认实拉结果：值来自上次存下的选择，候选来自该地址的实拉缓存
+  $("#setModel").value = state.settings.model || "";
+  const cached = cachedModels(baseKey());
+  renderModelList(cached || []);
+  $("#modelNote").textContent = modelNoteText(!!state.settings.apiKey, cached);
   state.settings.reasonLevel = state.settings.reasonLevel || "standard";
   setReasonUI();
   $("#setOrg").value = state.settings.orgName||"";
@@ -2459,35 +2526,38 @@ async function fetchModels(silent){
       : `已从接口实拉 ${ids.length} 个模型；点下方模型名直接选用，也可手动输入。`;
     if(!silent) $("#setMsg").textContent = "已拉取 " + ids.length + " 个模型 ✓";
   }catch(e){
-    const p = providerById($("#setProvider").value);
+    // 拉不到就保持现状：上次拉到过就继续用它，没有就留空等人手动输入。
+    // 不再回退到任何手写的「推荐模型」——那正是会写错模型名的来源。
+    const cached = cachedModels(base);
+    const tail = cached? "候选保持上次实拉的名单。" : "还没有候选名单，可手动输入模型名。";
     if(silent){
-      // 自动（静默）拉取失败：不报警，温柔回退到推荐模型
-      $("#modelNote").textContent = "已填入推荐模型（自动拉取未成功，可点「拉取模型列表」手动尝试，或手动输入模型名）。";
+      $("#modelNote").textContent = cached
+        ? `自动刷新未成功，候选仍是上次实拉的 ${cached.length} 个；可点「拉取模型列表」重试，或手动输入模型名。`
+        : "自动实拉未成功（可能没网或被拦截）；可点「拉取模型列表」重试，或手动输入模型名。";
       return;
     }
-    renderModelList(p.models||[]);
     if(e && e.code==="API"){
       const body = String(e.text||"").replace(/\s+/g," ").slice(0,100);
       let reason;
       if(e.status===401 || e.status===403) reason = "API Key 无效或没有权限（请核对 Key）";
       else if(e.status===404) reason = "接口地址不对：该路径未提供 /models，请检查 Base URL 是否带 /v1";
       else reason = "接口返回 HTTP " + e.status;
-      $("#modelNote").textContent = `拉取失败：${reason}。已回退到推荐模型列表，也可手动输入模型名。` + (body? ("（"+body+"）") : "");
+      $("#modelNote").textContent = `拉取失败：${reason}。${tail}` + (body? ("（"+body+"）") : "");
       $("#setMsg").textContent = `拉取失败（${e.status}）：${reason}`;
     } else if(e && e.code==="EMPTY"){
-      $("#modelNote").textContent = "接口返回 200，但模型列表字段结构不符（未找到 data.data / data.models）。已回退到推荐模型；可直接手动输入模型名。";
-      $("#setMsg").textContent = "拉取成功但结构不符，已用推荐模型";
+      $("#modelNote").textContent = "接口返回 200，但没找到模型列表字段（data.data / data.models）。" + tail;
+      $("#setMsg").textContent = "拉取成功但没找到模型字段";
     } else if(e && e.code==="BADJSON"){
       $("#modelNote").textContent = "接口返回内容不是 JSON（可能是 HTML 错误页）。请确认 Base URL 是否正确（需带 /v1）。";
       $("#setMsg").textContent = "返回内容非 JSON，检查地址";
     } else if(e && e.code==="TIMEOUT"){
-      $("#modelNote").textContent = "拉取模型列表超时（30 秒无响应），已回退到推荐模型；也可手动输入模型名。";
+      $("#modelNote").textContent = "拉取模型列表超时（30 秒无响应）。" + tail;
       $("#setMsg").textContent = "拉取超时";
     } else {
       // 真正的网络/异常：把真实报错透出来，并给针对性提示（区分预览窗 CSP / 真网络）
       const nm = (e && e.name) || "";
       const ms = (e && e.message) || "";
-      $("#modelNote").textContent = `拉取失败（${nm||"网络"}：${ms}）。已回退到推荐模型，也可手动输入模型名。${networkFailHint()}`;
+      $("#modelNote").textContent = `拉取失败（${nm||"网络"}：${ms}）。${tail}${networkFailHint()}`;
       $("#setMsg").textContent = `拉取失败：${nm? nm+": ":""}${ms}`;
     }
   }
@@ -2508,6 +2578,7 @@ async function testConnection(){
     if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
   }catch(e){
     if(e && e.code==="NO_KEY") msg.textContent = "请先填 API Key";
+    else if(e && e.code==="NO_MODEL") msg.textContent = "请先点「拉取模型列表」选一个模型（或手动输入）";
     else if(e && e.code==="API") msg.textContent = `失败（${e.status}）：${(e.text||"").slice(0,90)}`;
     else msg.textContent = "失败：" + ((e && e.message) || "未知错误") + ((cspBlocked||isPreviewHost())? "（预览窗 CSP 可能拦截了对外请求，请用本地浏览器打开本文件）":"");
   }
@@ -2627,10 +2698,20 @@ function wordLimit(q){
   return m? Number(m[1]) : null;
 }
 // 作答上限唯一口径：本地表 ansLen 优先；公文写作按文种定（无单一上限），回落到材料解析
-function ansLimitFor(k, q){ const m = MODULES[k]; return (m && m.ansLen) || wordLimit(q); }
+// 作答上限三级口径：文种表（公文写作按文种定）→ 模块表（本地 ansLen）→ 题干解析（兜底）。
+// 命中本地表时把数字**盖在题目上**（q.ansLen），下游 ansLimitFor 直接读，不必层层传子类型。
+function localAnsLen(k, subtype){
+  if(k === GONGWEN_KEY && subtype){
+    const t = GONGWEN_TYPES.find(x=>x.type === subtype);
+    if(t && t.ansLen) return t.ansLen;
+  }
+  return (MODULES[k] && MODULES[k].ansLen) || null;
+}
+function ansLimitFor(k, q){ return (q && q.ansLen) || localAnsLen(k, null) || wordLimit(q); }
 // 出题以本地表为准、不信模型：模型给的字数与本地表不符时，就地纠正 requirements
-function enforceWordLimit(k, q){
-  const limit = MODULES[k] && MODULES[k].ansLen;
+function enforceWordLimit(k, q, subtype){
+  const limit = localAnsLen(k, subtype);
+  if(q) q.ansLen = limit;   // 本地表没有就盖成 null，别让旧题残留一个模型自己编的数字
   if(!q || !limit || !q.requirements) return q;
   const cur = wordLimit(q);
   if(cur === limit) return q;
@@ -2698,6 +2779,7 @@ function materialHtml(q){
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
   if(e && e.code==="NO_KEY") banner("未配置 AI Key：点右上角「设置」，选服务商、填 Key 即可开启出题与阅卷。");
+  else if(e && e.code==="NO_MODEL") banner("还没选定模型：点右上角「设置」→ 模型栏点「拉取模型列表」从接口拉一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。");
   else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
       + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
       + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""));
@@ -2710,12 +2792,26 @@ function handleErr(e, keepView){
   if(!keepView) renderStart();
 }
 
+/* 构建标识：回答「我装的是不是新版」。唯一来源是 app/build.json，打包时由 打包.bat 写入，页面只读。
+   包里没有这个文件就是源码直跑（双击 html / 预览窗），显示「开发版」。失败一律静默，不影响启动。 */
+function loadBuildNote(){
+  const el = $("#buildNote"); if(!el) return;
+  el.textContent = "综应练习台 · 开发版（未打包）";
+  const proto = (typeof location !== "undefined" && location.protocol) || "";
+  if(typeof fetch !== "function" || !/^https?:$/.test(proto)) return;
+  fetch("build.json", { cache: "no-store" })
+    .then(r => (r && r.ok) ? r.json() : null)
+    .then(d => { if(d && d.builtAt) el.textContent = "综应练习台 · 构建 " + d.builtAt; })
+    .catch(() => {});
+}
+
 /* ============ 初始化 ============ */
 function init(){
+  loadBuildNote();
   ensureActive();
   installFlowListeners();   // 找点步的全局监听只装一次
   fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderStart();
-  // 有 Key 就按实拉名单走：预设只负责没 Key 时的起步建议
+  // 模型候选只有一个来源：这次启动就从接口实拉一遍（拉到什么就是什么）
   if(state.settings.apiKey) fetchModels(true);
   // 提示可以并列，不能互相覆盖
   const notices = [];
