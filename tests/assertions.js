@@ -402,6 +402,29 @@ await callLLM("s","u",false);
 ok(state.modelCaps["deepseek-v4-flash"] === "ok" && "reasoning_effort" in capBodies.at(-1),
    "实测记忆: 参数被接受则记住 ok，一次请求就成功");
 globalThis.fetch = realFetch84;
+
+/* 8.5 档位有效性观测：思考量/耗时按模型×档位累计，两档对比给结论 */
+state.modelProbe = {};
+recordProbe("m-x","quick",100,10); recordProbe("m-x","quick",100,10); recordProbe("m-x","deep",2000,80);
+let pn85 = probeNote("m-x");
+ok(pn85.indexOf("快速≈思考100字/10s") >= 0 && pn85.indexOf("深入≈思考2000字/80s") >= 0 && pn85.indexOf("切换有效") >= 0,
+   "档位观测: 两档思考量差距大 → 明确告知切换有效");
+recordProbe("m-y","quick",500,10); recordProbe("m-y","deep",520,11);
+ok(probeNote("m-y").indexOf("可能没真把档位当回事") >= 0,
+   "档位观测: 两档几乎无差 → 如实提示存疑，不假装生效");
+ok(probeNote("m-none") === "", "档位观测: 没有实测数据不下结论");
+ok(sseReasonDelta('data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}') === "思考中"
+   && sseDelta('data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}') === "",
+   "档位观测: SSE 思考增量单独可提取，不混入正文");
+state.modelProbe = {};
+delete state.modelCaps["deepseek-v4-pro"];   // 清掉 8.4 记下的拒收，不然探测被跳过
+const realFetch85 = globalThis.fetch;
+globalThis.fetch = (url, opt) => Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok", reasoning_content:"思考思考思考思考" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" });
+state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
+await callLLM("s","u",false);
+ok(state.modelProbe["deepseek-v4-pro"] && state.modelProbe["deepseek-v4-pro"].deep && state.modelProbe["deepseek-v4-pro"].deep.reason === 8,
+   "档位观测: 响应中的思考内容按模型×档位累计");
+globalThis.fetch = realFetch85;
 ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
   const kk = state.settings.apiKey, mm = state.settings.model;
   state.settings.apiKey = "sk-test"; state.settings.model = "";

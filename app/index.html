@@ -467,7 +467,8 @@ const DEFAULT_STATE = {
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
   cache:{ studyCards:{}, notes:{} },
   modelCache:{},
-  modelCaps:{}   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
+  modelCaps:{},   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
+  modelProbe:{}  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
 };
 
 /* ============ 七步训练链（申论：读材料→找点→归类→一稿→批改→回改→沉淀） ============ */
@@ -578,6 +579,7 @@ function load(){
     s.modelCache = s.modelCache||{};
     s.modelCaps = s.modelCaps||{};
     Object.keys(s.modelCaps).forEach(k=>{ if(s.modelCaps[k]!=="ok" && s.modelCaps[k]!=="rejected") delete s.modelCaps[k]; });
+    s.modelProbe = s.modelProbe||{};
     // 经验闭环（两科共用）：缺省补空数组；条目不合法的丢弃，不整包失败
     s.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
     // 训练链：非法 step 丢弃该项、缺失字段补默认（sanitizeFlows 幂等，二次 load 不再变化）
@@ -645,6 +647,27 @@ function reasonFamily(m){
   m = String(m||"").toLowerCase();
   return THINK_FAMILIES.find(f=>f.re.test(m)) || DEFAULT_FAMILY;
 }
+/* 档位有效性观测：参数被收下（200）≠ 模型真把它当回事。
+   能拿到的客观信号是思考量的差异——按「模型×档位」累计思考字数与耗时，
+   攒够两档的数据后直接给结论：差距大=切换有效，几乎无差=如实告知存疑。 */
+function recordProbe(model, level, reasonChars, secs){
+  state.modelProbe = state.modelProbe || {};
+  const m = state.modelProbe[model] = state.modelProbe[model] || {};
+  const e = m[level] = m[level] || { n:0, reason:0, secs:0 };
+  e.n++; e.reason += reasonChars; e.secs += secs;
+}
+function probeNote(model){
+  const p = state.modelProbe && state.modelProbe[model]; if(!p) return "";
+  const q = p.quick, d = p.deep;
+  if(!q || !d || !q.n || !d.n) return "";   // 两档都有实测才下结论，不瞎猜
+  const qr = Math.round(q.reason/q.n), dr = Math.round(d.reason/d.n);
+  const qs = Math.round(q.secs/q.n), ds = Math.round(d.secs/d.n);
+  const ratio = qr>0 ? dr/qr : (dr>0? Infinity : 0);
+  const verdict = ratio >= 1.5 ? "档位差异明显，切换有效"
+                : ratio <= 1.1 ? "两档实测思考量接近——此模型可能没真把档位当回事"
+                : "有一定差异，但不算大";
+  return `实测：快速≈思考${qr}字/${qs}s，深入≈思考${dr}字/${ds}s——${verdict}。`;
+}
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
 const IDLE_TIMEOUT    = 60000;  // 流式：连续多久没有新字节才算吊死——有字节流动就永远不算卡
@@ -666,6 +689,18 @@ function sseDelta(line){
     const j = JSON.parse(payload);
     const ch = j.choices && j.choices[0];
     return (ch && ((ch.delta && ch.delta.content) || ch.text)) || "";
+  }catch(e){ return ""; }
+}
+function sseReasonDelta(line){
+  // 与 sseDelta 同源解析，只取思考内容（reasoning_content）：它的量是「档位是否真生效」的可观测信号
+  const l = line.trim();
+  if(l.indexOf("data:") !== 0) return "";
+  const payload = l.slice(5).trim();
+  if(payload === "[DONE]") return "";
+  try{
+    const j = JSON.parse(payload);
+    const d = j.choices && j.choices[0] && j.choices[0].delta;
+    return (d && typeof d.reasoning_content === "string") ? d.reasoning_content : "";
   }catch(e){ return ""; }
 }
 
@@ -699,11 +734,11 @@ async function postStream(url, body, headers, onDelta){
     const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
     const c = msg.content || "";
     onDelta(c, c);
-    return { content:c };
+    return { content:c, reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0 };
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder("utf-8");
-  let buf = "", content = "", lastByte = Date.now();
+  let buf = "", content = "", reason = "", lastByte = Date.now();
   const idleTimer = setInterval(()=>{ if(Date.now() - lastByte > IDLE_TIMEOUT) ctrl.abort(); }, 1000);
   try{
     for(;;){
@@ -716,13 +751,14 @@ async function postStream(url, body, headers, onDelta){
         const line = buf.slice(0, idx); buf = buf.slice(idx+1);
         const d = sseDelta(line);
         if(d){ content += d; onDelta(d, content); }
+        reason += sseReasonDelta(line);
       }
     }
   }catch(err){
     if(ctrl.signal.aborted) throw {code:"TIMEOUT"};
     throw err;
   }finally{ clearInterval(idleTimer); clearTimeout(connectTimer); }
-  return { content };
+  return { content, reasonChars: reason.length };
 }
 
 async function callLLM(system, user, expectJson, onDelta){
@@ -753,6 +789,7 @@ async function callLLM(system, user, expectJson, onDelta){
   let last = null;
   for(let ri=0; ri<ladder.length; ri++){
     const base = ladder[ri];
+    const rungT0 = Date.now();
     const body = Object.assign({}, base, streaming? {stream:true} : null);
     let out;
     if(streaming){
@@ -763,7 +800,7 @@ async function callLLM(system, user, expectJson, onDelta){
       else{
         const data = await res.json();
         const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
-        out = { content: msg.content || "" };
+        out = { content: msg.content || "", reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0 };
       }
     }
     if(out.status !== undefined){  // 是一次 HTTP 错误响应，走降级阶梯
@@ -775,6 +812,7 @@ async function callLLM(system, user, expectJson, onDelta){
     if(adaptive){
       const rejected = ri>0;
       state.modelCaps[model] = rejected ? "rejected" : "ok";
+      if(!rejected) recordProbe(model, REASON_LEVELS[s.reasonLevel]? s.reasonLevel : "standard", out.reasonChars||0, (Date.now()-rungT0)/1000);
       save(); setReasonUI();
       if(rejected) banner(`实测「${esc(model)}」不收思考强度参数，已自动改按标准方式发送（已记住，之后不再尝试）。`);
     }
@@ -2452,9 +2490,10 @@ function setReasonUI(){
   $("#segReason").style.display = cap === "rejected" ? "none" : "";   // 只有实测被拒过才收档
   document.querySelectorAll("#segReason button").forEach(b=> b.classList.toggle("active", b.dataset.lv===lv));
   const note = $("#reasonNote"); if(!note) return;
-  note.textContent = cap === "rejected"
+  const pn = (cap !== "rejected") ? probeNote(model) : "";
+  note.textContent = (cap === "rejected"
     ? "上次实测：此模型拒收思考参数（已记住，之后直接按标准温度发送）。"
-    : reasonFamily(model).note(lv);
+    : reasonFamily(model).note(lv)) + (pn? "  "+pn : "");
 }
 function fillProviderSelect(){
   $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
@@ -2677,6 +2716,8 @@ function importJSON(file){
       if(mc) state.modelCache = plainPick(mc);
       const cp = plainObj(s.modelCaps);
       if(cp){ state.modelCaps = plainPick(cp); Object.keys(state.modelCaps).forEach(k=>{ if(state.modelCaps[k]!=="ok" && state.modelCaps[k]!=="rejected") delete state.modelCaps[k]; }); }
+      const pp = plainObj(s.modelProbe);
+      if(pp) state.modelProbe = plainPick(pp);
       // 经验闭环：逐条校验；训练链走 sanitizeFlows（非法 step 丢弃，不整包失败）
       state.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
       state.flows = sanitizeFlows(Array.isArray(s.flows)? s.flows : []);
