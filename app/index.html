@@ -1304,7 +1304,11 @@ function renderTabs(){
   if(sb){
     sb.innerHTML = SUBJECT_ORDER.map(id=>`<button class="subjbtn${!pdActive && id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("")
       + `<button class="subjbtn${pdActive?" active":""}" data-s="__pd" title="快判训练：看材料点答案，立刻对错。事实选择 / 分组概括 / 表达比较">快判</button>`;
-    sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=> b.dataset.s==="__pd"? enterPD() : switchSubject(b.dataset.s));
+    sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=>{
+      if(b.dataset.s === "__pd") return enterPD();
+      if(b.dataset.s === curSubject() && !pdActive) return backToStart();   // 再点当前科目 = 直接回综合，不用绕道切别的科目
+      switchSubject(b.dataset.s);
+    });
   }
   // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）。
   // 「综合」不设页签：点具体题型就推那个题型；不选题型（起始页）就是综合智能推送——两件事不该有两个入口。
@@ -1324,6 +1328,12 @@ function switchSubject(id){
 function tabClick(k){
   renderModuleLanding(k);
   $("#doc").scrollIntoView(true);
+}
+/* 返回综合：再点一次当前科目的按钮就回起始页（综合推送）。
+   落点与切科目后完全一致；不收口进行中的训练链——它保持可恢复，起始页会给出「继续上次没做完的题」。 */
+function backToStart(){
+  activeModule = lastModuleOf(curSubject());
+  renderTabs(); renderHeader(); renderStart();
 }
 /* ============ 弹层：设置 / 画像 ============ */
 // 文档是练题的舞台，一动不动；画像和设置是工具，用完即走——弹层保证关掉后精确回到原位

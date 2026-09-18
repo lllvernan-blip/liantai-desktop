@@ -946,6 +946,15 @@ switchSubject("zy");
 ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerHTML.indexOf("快判") >= 0,
    "快判: 切回综应A，页签齐全且快判入口仍在");
 
+/* ①b 返回综合：再点当前科目按钮 = 回起始页，不用绕道切科目再切回来 */
+renderModuleLanding("zy.gongwen");
+ok(el("#docBody").innerHTML.indexOf("开始今天的练习") < 0,
+   "返回综合: 前置——人在公文写作落地页");
+backToStart();
+ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0 && tabActiveKey === null,
+   "返回综合: 再点当前科目回到综合推送，页签全灭");
+ok(el("#modLabel").textContent.indexOf("综应A") === 0, "返回综合: 抬头仍是综应A");
+
 /* ② 出题：三种形式 prompt 各自成形，带主题与相关经验（拦 callLLM） */
 const realCallPD = callLLM;
 let capPD = null;
