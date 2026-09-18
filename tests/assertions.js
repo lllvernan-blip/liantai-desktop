@@ -1144,14 +1144,16 @@ state.experiences = [];
 
 /* 14.11 importJSON：类型加固 + 危险键过滤 */
 globalThis.FileReader = class { readAsText(f){ this.result = f; if(this.onload) this.onload(); } };
+const __keyAtImport = state.settings.apiKey;   // 本机已填的 Key（导入不得改动它）
 importJSON('{"settings":{"apiKey":"sk-x","__proto__":{"polluted":1}},"profile":{"modules":{"sl.guina":{"dims":{}}},"lastModules":["sl.guina"]},"cache":{"studyCards":{"sl.guina::概括问题":{"title":"卡"}},"notes":{}},"experiences":[{"title":"t","body":"b"},{"bad":1}],"flows":[{"id":"f1","step":"read","question":{"background":"b"}}],"history":[]}');
-ok(state.settings.apiKey === "sk-x" && ({}).polluted === undefined, "导入: __proto__ 键被过滤，不污染原型");
+ok(state.settings.apiKey === __keyAtImport && __keyAtImport !== "" && ({}).polluted === undefined,
+   "导入: __proto__ 键被过滤，不污染原型；文件里的 Key 不被采用且本机 Key 原样保留");
 ok(state.profile.lastModules[0] === "sl.guina", "导入: profile 合法字段收下");
 ok(state.cache.studyCards["sl.guina::概括问题"] && state.cache.studyCards["sl.guina::概括问题"].title === "卡", "导入: cache 合法字段收下且键保留");
 ok(state.experiences.length === 1, "导入: experiences 逐条校验，坏条目丢弃");
 ok(state.flows.length === 1 && state.flows[0].id === "f1", "导入: flows 走 sanitizeFlows");
 importJSON('{"settings":"bad","profile":[1,2],"cache":"x","flows":"y","experiences":"z","modelCache":5,"history":"no"}');
-ok(state.settings.provider === "deepseek" && state.settings.apiKey === "", "导入: settings 非对象丢用默认值，不整包失败");
+ok(state.settings.provider === "deepseek" && state.settings.apiKey === __keyAtImport, "导入: settings 非对象丢用默认值，不整包失败（本机 Key 不受影响）");
 ok(JSON.stringify(state.profile.modules) === "{}" && JSON.stringify(state.profile.lastModules) === "[]", "导入: profile 非对象丢用默认值");
 ok(state.cache.studyCards && typeof state.cache.studyCards === "object", "导入: cache 非对象丢用默认值");
 ok(Array.isArray(state.experiences) && Array.isArray(state.flows) && Array.isArray(state.history), "导入: experiences/flows/history 非数组丢用默认值");
@@ -1168,6 +1170,23 @@ ok(!!el("#buildNote"), "构建标识: 设置面板底部有承载元素");
 ok(el("#buildNote").textContent.indexOf("开发版") >= 0,
    "构建标识: 读不到 build.json 时显示开发版 -> " + el("#buildNote").textContent);
 ok(typeof loadBuildNote === "function", "构建标识: 有独立装载函数（init 里调用，失败静默不影响启动）");
+
+/* 15.4 备份文件的 Key 政策（之前这里是个真漏洞：导出整包 state，apiKey 明文跟着备份走） */
+const __keyCanary = "sk-canary-绝不能出现在备份里";
+const __keyBefore = state.settings.apiKey;
+state.settings.apiKey = __keyCanary;
+let __blobText = "";
+globalThis.Blob = class { constructor(parts){ __blobText = parts.join(""); } };
+globalThis.URL.createObjectURL = () => "blob:stub";
+exportJSON();
+ok(__blobText.length > 0 && __blobText.indexOf(__keyCanary) < 0 && __blobText.indexOf("apiKey") < 0,
+   "导出: 备份 JSON 既不携带 Key 值，也不留 apiKey 字段");
+ok(state.settings.apiKey === __keyCanary, "导出: 只读操作，不动内存里的本机 Key");
+importJSON(JSON.stringify({ settings:{ apiKey:"sk-attacker" }, history:[] }));
+ok(state.settings.apiKey === __keyCanary, "导入: 不采用文件里的 Key（别人的备份换不掉你的 Key）");
+importJSON(JSON.stringify({ settings:{}, history:[] }));
+ok(state.settings.apiKey === __keyCanary, "导入: 文件没带 Key 也不清空本机 Key");
+state.settings.apiKey = __keyBefore;
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);

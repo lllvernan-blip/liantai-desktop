@@ -54,6 +54,7 @@ node tests/run.mjs
 - 端口被占用时依次退让到邻近端口，并在 `logs/startup.log` 里写 `port-fallback-warning`。**看到这条告警，就意味着这次启动读不到旧数据。**
 - 存储键：`gw_state`（设置 / 画像 / 学习卡 / 笔记）、`gw_history`（练习记录，写满裁最旧）、`gw_draft`（草稿，最多 8 份）、`gw_marks`（划线，最多 8 份）。
 - 应用数据目录：`%APPDATA%\liantai-desktop`（打包版与开发版共用同一目录，Key 和记录只填一次）。Chromium 的存储是异步落盘的，**强杀进程（任务管理器、`Stop-Process -Force`）可能丢掉最近几次写入**；正常关窗口不受影响。
+- 导出 / 导入：备份 JSON **不含 API Key**（所以备份可以放心分享、传网盘）；导入时文件里的 Key 也不会被采用，本机已填的 Key 保持不变——换机迁移要在新机器上重填一次 Key。
 
 ## 维护提示
 

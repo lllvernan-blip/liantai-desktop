@@ -221,8 +221,8 @@
     <span class="spacer"></span>
     <button class="linkbtn" id="btnProfile">我的画像</button>
     <button class="linkbtn" id="btnSettings">设置</button>
-    <button class="linkbtn" id="btnExport">导出</button>
-    <button class="linkbtn" id="btnImport">导入</button>
+    <button class="linkbtn" id="btnExport" title="备份为 JSON（不含 API Key）">导出</button>
+    <button class="linkbtn" id="btnImport" title="从备份 JSON 恢复（文件里的 API Key 不会被采用）">导入</button>
     <input type="file" id="fileImport" accept="application/json" style="display:none">
   </div>
   <div class="modbar">
@@ -2665,14 +2665,24 @@ async function testConnection(){
 }
 
 /* ============ 导入导出 ============ */
+/* 备份文件的 Key 政策：导出不带 Key，导入也不吃文件里的 Key。
+   一份备份会被发到群里、丢进网盘、随手转给别人——API Key 是这台机器的凭证，不该跟着练习数据走。
+   反过来，别人给的（或网上捡的）备份里如果埋了 Key/baseURL，导入也不该把你的请求拐到别处去。
+   代价：换机迁移要在新机器上重填一次 Key，值。 */
+function exportPayload(){
+  const s = structuredClone(state);
+  if(s.settings) delete s.settings.apiKey;
+  return s;
+}
 function exportJSON(){
-  const blob = new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const blob = new Blob([JSON.stringify(exportPayload(),null,2)],{type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); const d = new Date();
   a.href = url;
   a.download = `综应练习台-备份-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  banner("已导出备份 ✓ 不含 API Key（备份可以放心分享，换机后在新机器重填一次 Key 即可）");
 }
 /* 导入白名单化重建：入口只收对象；profile/cache/flows/experiences 逐字段 typeof 校验，
    不合格字段丢弃用默认值，不整包失败；构造新对象时过滤 __proto__/constructor/prototype 键，防原型污染。 */
@@ -2691,9 +2701,12 @@ function importJSON(file){
     try{
       const s = JSON.parse(r.result);
       if(!s || typeof s !== "object" || Array.isArray(s)) throw new Error("格式不对");
+      const keepKey = state.settings.apiKey || "";   // 重建前先抓住本机已填的 Key
       state = structuredClone(DEFAULT_STATE);   // 从默认值重建，逐字段收合格的，不整包信任导入文件
       const st = plainObj(s.settings);
       if(st) state.settings = Object.assign({}, DEFAULT_STATE.settings, plainPick(st));
+      const hadKey = !!(st && st.apiKey);
+      state.settings.apiKey = keepKey;   // Key 只认本机填的：文件里的不采用，也不因文件没带而被清空
       if(state.settings.orgName === "综应练习台") state.settings.orgName = "模拟练习专用";
       if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
       // profile：modules 是旧数据 pass-through 容器（只迁移键，死字段不再重建）；lastModules 必须是数组
@@ -2725,7 +2738,8 @@ function importJSON(file){
       const openFlows = state.flows.filter(x=>!x.closedAt);
       if(openFlows.length) _flowId = openFlows[openFlows.length-1].id;
       current = null;   // 导入后内存里的旧题不再可信，回到起点
-      saveHistory(); save(); fillSettings(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile"); banner("已从备份恢复数据 ✓");
+      saveHistory(); save(); fillSettings(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
+      banner(hadKey? "已从备份恢复数据 ✓ 文件里的 API Key 未被采用（防他人备份覆盖你的 Key），本机 Key 保持不变。" : "已从备份恢复数据 ✓");
     }catch(e){ banner("导入失败：文件不是有效的备份 JSON。"); }
   };
   r.readAsText(file);
