@@ -1,5 +1,5 @@
 /*
- * 一键发布：盖章 → 出包（NSIS 安装版 + 免安装版）→ 上传到 GitHub Release。
+ * 一键发布：盖章 → 出包（NSIS 安装版）→ 上传到 GitHub Release。
  *
  *   npm run release
  *
@@ -73,20 +73,20 @@ if (!reconcileOnly) {
 }
 
 // 5) 出包（不发布：--publish never）
-/* 为什么不让 electron-builder 发布：它的 nsis / portable 两个 target 会各跑一次发布流程，
+/* 为什么不让 electron-builder 发布：它给每个 target 各跑一次发布流程，
    第二次撞「tag_name already_exists」而中断，而 latest.yml 与 *.blockmap 常就丢在那一步——
    少了 latest.yml，自动更新压根不会启动。所以打包只用它，发布交给下面的 gh。 */
 if (reconcileOnly) {
   console.log("\n跳过打包，只对账补齐。");
 } else {
-  step("出包（electron-builder --win nsis portable --publish never）");
+  step("出包（electron-builder --win nsis --publish never）");
   /* 组件源默认走 npmmirror：electron-builder 打包时要下 winCodeSign / nsis 这些组件，
      默认从 github.com 拉 —— 本机到 github.com 时通时断（实测 ETIMEDOUT 20.205.243.166:443）。
      外部（打包.bat 或环境变量）已经显式设置就尊重外部设置。 */
   const buildEnv = Object.assign({}, process.env);
   if (!buildEnv.ELECTRON_MIRROR) buildEnv.ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
   if (!buildEnv.ELECTRON_BUILDER_BINARIES_MIRROR) buildEnv.ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/";
-  const status = run(process.execPath, [BUILDER_CLI, "--win", "nsis", "portable", "--publish", "never"], { env: buildEnv });
+  const status = run(process.execPath, [BUILDER_CLI, "--win", "nsis", "--publish", "never"], { env: buildEnv });
   if (status !== 0) {
     console.error("\n打包报错了（多半是组件下载超时：本机到 github.com 时通时断）。");
     console.error("先跑一次 tools/release.mjs 重试；还不行就查 %LOCALAPPDATA%\\electron-builder\\Cache 少了哪个组件。");
@@ -162,9 +162,6 @@ function reconcileRelease() {
   const want = [];
   if (existsSync(localSetup)) want.push({ local: localSetup, name: remoteSetupName });
   if (existsSync(localBlockmap)) want.push({ local: localBlockmap, name: remoteSetupName + ".blockmap" });
-  // 免安装版也要在 Release 上（README 两种形态都提供；少了它，用免安装版的人只能找到旧版）
-  const portableLocal = join(root, "dist", portableLocalName());
-  if (existsSync(portableLocal)) want.push({ local: portableLocal, name: pkg.name + "-" + pkg.version + ".exe" });
   want.push({ local: ymlPath, name: "latest.yml" });
 
   const listed = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "assets", "--jq", ".assets[].name"], { cwd: root, encoding: "utf8" });
@@ -202,11 +199,6 @@ function reconcileRelease() {
    上游 electron-builder 发布时会用 package name 替换产品名，所以我们按同样的规则推算。 */
 function setupLocalName() {
   const tpl = (pkg.build && pkg.build.nsis && pkg.build.nsis.artifactName) || "练习台-Setup-${version}.exe";
-  return tpl.replace("${version}", pkg.version);
-}
-
-function portableLocalName() {
-  const tpl = (pkg.build && pkg.build.portable && pkg.build.portable.artifactName) || "练习台.exe";
   return tpl.replace("${version}", pkg.version);
 }
 

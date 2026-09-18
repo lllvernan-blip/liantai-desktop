@@ -22,7 +22,8 @@
 
 - 依赖边界：业务本体 `app/index.html` 永远零依赖；壳只允许 `electron-updater` 一个额外依赖（它负责差量更新：NSIS + `.blockmap`，只下载变化的块——用 Node 标准库写不出重建安装器的逻辑）。新增任何依赖前先问用户。
 - 更新模块是 `update.js`，状态机 `idle / checking / available / downloading / downloaded / up-to-date / error / disabled`；壳通过本地源上的 `GET /__update/status` 暴露状态，页面用 `__updatePush()` 接（壳主动推），动作用 `POST /__update/check` 与 `POST /__update/install` 触发。**POST 一律要求自定义头 `x-liantai: 1`**：跨站请求会先发 OPTIONS 预检，而本服务从不回 CORS 头，预检就过不了——别把它改成免头路由。
-- **免安装版必须禁用自动更新**：portable 进程里带 `PORTABLE_EXECUTABLE_FILE`，对它 quitAndInstall 只会「装出一个新副本」。检测到就置 `disabled`，由设置页说明原因。
+- **只发 NSIS 安装版，不要再加 `portable` target**（阿楠 2026-09-18 拍板：机器上只留一份、跟着更新走）。历史上发过的免安装版资产已从各 Release 删掉。
+- **免安装版必须禁用自动更新**（代码里这道防线留着，哪天又有人拿 portable 包去跑）：portable 进程带 `PORTABLE_EXECUTABLE_FILE`，对它 quitAndInstall 只会「装出一个新副本」，检测到就置 `disabled`，由设置页说明原因。
 - 更新不得碰用户数据：用户数据在 `%APPDATA%\liantai-desktop`，更新只替换安装目录里的程序文件；`nsis.deleteAppDataOnUninstall` 保持 `false`（卸载也不删练习记录）。
 - 更新失败绝不阻断使用：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，后台自动重试（出错后 30 分钟、常驻每 6 小时）。不要在启动路径上弹阻断式对话框。
 - 发布：`npm run release`（`tools/release.mjs`：取 `gh auth token` → 盖章 → `electron-builder --publish always`）。**发布前必须先把 `package.json` 的 `version` 提高**——版本号不变，老用户永远收不到这一版；tag 重复会被脚本直接挡下。
@@ -85,8 +86,9 @@ node tools/probe.mjs 我的探针.js
 - 先读周边代码和现有测试，再做最小范围修改。
 - `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 一改，必须同步 `题型规范.md`。那张表被代码注释与本文档当作「数值依据」引用，却曾经整体落后于代码（申论半张表四个模块的子类型与维度数全不符），是含金量最高的一处文档债。
 - 打包走 `npm run dist`：它先跑 `tools/stamp-build.mjs` 生成 `app/build.json`（应用设置面板底部会显示这个构建时间，用来确认装的是不是新版），再调 electron-builder。**不要用文本工具改 `打包.bat`**：它是 GBK 编码（配 `chcp 936`），会被写坏；要给打包加步骤就改 `package.json` 的 `scripts.dist`。
-- electron-builder 要下的组件（electron / winCodeSign / nsis）默认从 github.com 拉，本机到那里时通时断。**`tools/release.mjs` 和 `打包.bat` 里都设了 npmmirror 镜像兵底**（外部已设则不覆盖）；缓存里 `winCodeSign` 最容易缺，卡在打包第一步就是它。发布失败时若已经把 Release 建出来了（空壳），**先 `gh release delete vX.Y.Z --yes --cleanup-tag`** 再重出 —— 否则客户端会看到一个“有新版但没有资产”的坑。
-- electron-builder 偶发在 `downloaded label=electron progress=100%` 之后长时间不动（extraction 已完成但零写入，实测停 13 分钟）。确认卡死后结束进程、删掉 `dist/win-unpacked.tmp` 与 `.tmp.lock` 再重跑，通常 2–3 分钟就过。**打包中途失败不会破坏 `dist/练习台.exe`**（builder 写的是新目录，最后才替换），所以用户手上那一版始终可用。
+- **只出 NSIS 一种包**：`package.json` 的 `build.win.target` 只有 `nsis`，`scripts.dist` / `release.mjs` 也只带 `--win nsis`。免安装版（portable）不发了 —— 它每次更新只会「装出一个新副本」，得单独禁用，属于多一份心。
+- electron-builder 要下的组件（electron / winCodeSign / nsis）默认从 github.com 拉，本机到那里时通时断（实测 `connect ETIMEDOUT 20.205.243.166:443`，卡在 packaging 之后那一步就是缺 winCodeSign）。**`tools/release.mjs` 与 `打包.bat` 都设了 npmmirror 镜像兜底**（外部已设则不覆盖）。发布失败时若 Release 已经被建出来（空壳、没资产），**先 `gh release delete vX.Y.Z --yes --cleanup-tag` 再重出** —— 否则客户端会看到一个「有新版但没有资产」的坑。
+- electron-builder 偶发在 `downloaded label=electron progress=100%` 之后长时间不动（extraction 已完成但零写入，实测停 13 分钟）。确认卡死后结束进程、删掉 `dist/win-unpacked.tmp` 与 `.tmp.lock` 再重跑，通常 2–3 分钟就过。**打包中途失败不会破坏 `dist/` 里上一版的安装包**（builder 写的是新目录，最后才替换），所以用户手上那一版始终可用。
 - 不提交 API Key、真实个人资料或真实练习备份；`node_modules/`、`dist/`、`logs/` 不进 Git。
 - 不把一次性开发流水账写进本文件；稳定的使用方式和边界写在 `README.md`，历史通过 Git 记录。
 - 不删除用户未授权的文件或数据；临时调试产物结束前清理。

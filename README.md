@@ -9,14 +9,11 @@ AI 原生综应 A 练习工具，打包成可双击运行的 Windows 桌面应�
 
 ## 下载与安装（Windows 10/11 x64）
 
-从 [Releases](https://github.com/lllvernan-blip/liantai-desktop/releases) 下最新一版，两种形态选一个：
+从 [Releases](https://github.com/lllvernan-blip/liantai-desktop/releases) 下最新一版的安装包 `练习台-Setup-x.y.z.exe`，双击装上：
 
-| 形态 | 文件 | 自动更新 |
-| --- | --- | --- |
-| **安装版（推荐）** | `练习台-Setup-x.y.z.exe` | ✅ 启动后后台检查，只下载变化的部分（差量），下完点「重启并更新」；不点也行，下次打开就是新版 |
-| 免安装版 | `练习台.exe` | ❌ 双击即用、不需安装，但新版来了要自己下载覆盖 |
-
-两种形态**共用同一份用户数据**（`%APPDATA%\liantai-desktop`），互相切换不会丢记录。
+| 形态 | 自动更新 |
+| --- | --- |
+| **NSIS 安装版**（只发这一种） | ✅ 启动后后台检查，只下载变化的部分（差量），下完点「重启并更新」；不点也行，下次打开就是新版 |
 
 > **更新不会动你的数据。** 练习记录、画像、草稿、划线、API Key 都在 `%APPDATA%\liantai-desktop` 的用户数据目录里，更新只替换安装目录里的程序文件——不是「删了重装」，所以没有任何东西需要重新填、重新下载。
 
@@ -43,7 +40,7 @@ npm install     # 首次：只装 electron（本机已有二进制缓存，命�
 npm start       # 开发运行：起本地 http 源 + 独立窗口
 ```
 
-打包成成品（`dist/` 里同时出**安装版**和**免安装版**；打包前先关掉正在运行的应用）：
+打包成成品（`dist/` 里出 **NSIS 安装版**；打包前先关掉正在运行的应用）：
 
 ```powershell
 npm run dist
@@ -63,7 +60,7 @@ npm run release
 
 - **源**：GitHub Release。配置在 `package.json` 的 `build.publish`，打包时生成包内 `app-update.yml`；换源不必改代码，设环境变量 `LIANTAI_UPDATE_FEED` 指向任意 generic 源（目录里放 `latest.yml` + 安装包 + `.blockmap`）即可，本地验证与镜像切换都走它。
 - **差量**：NSIS 目标会一并出 `latest.yml` 与 `.blockmap`，更新时只下载与上一版**不同的数据块**（80MB 的包通常只需几 MB）。两个前提：缓存里有上一版安装包（手工装的第一版没有，首次会退化成全量，之后就常态走差量）、且**源上旧版的 `.blockmap` 别删**；不满足只会退成全量，不会出错。
-- **免安装版不自动更新**：对 portable 包做 quitAndInstall 只会「装出一个新副本」，所以检测到就禁用，并在设置页说明原因。
+- **不做免安装版**：只发 NSIS 安装版。免安装版对 quitAndInstall 只会「装出一个新副本」，得单独禁用它（代码里那道防线还留着，免得哪天又有人拿 portable 包去跑）。
 - **失败不阻断**：任何更新错误只写日志与设置页一行提示，30 分钟后自动重试；排查看 `logs/startup.log` 里的 `update-*` 行。
 - **连不上 GitHub 也能更新**：主源是 GitHub 官方，直连不通时自动按顺序退到 GitHub 加速镜像（2026-09-18 实测 ghproxy.net / gh-proxy.com / gh.ddlc.top 可用，差量照旧）；想指定自己的源就设 `LIANTAI_UPDATE_FEED`，设了就不再兜底。
 
