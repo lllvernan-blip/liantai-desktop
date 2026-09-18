@@ -91,5 +91,6 @@ node tools/probe.mjs 我的探针.js
 - electron-builder 要下的组件（electron / winCodeSign / nsis）默认从 github.com 拉，本机到那里时通时断（实测 `connect ETIMEDOUT 20.205.243.166:443`，卡在 packaging 之后那一步就是缺 winCodeSign）。**`tools/release.mjs` 与 `打包.bat` 都设了 npmmirror 镜像兜底**（外部已设则不覆盖）。发布失败时若 Release 已经被建出来（空壳、没资产），**先 `gh release delete vX.Y.Z --yes --cleanup-tag` 再重出** —— 否则客户端会看到一个「有新版但没有资产」的坑。
 - electron-builder 偶发在 `downloaded label=electron progress=100%` 之后长时间不动（extraction 已完成但零写入，实测停 13 分钟）。确认卡死后结束进程、删掉 `dist/win-unpacked.tmp` 与 `.tmp.lock` 再重跑，通常 2–3 分钟就过。**打包中途失败不会破坏 `dist/` 里上一版的安装包**（builder 写的是新目录，最后才替换），所以用户手上那一版始终可用。
 - 不提交 API Key、真实个人资料或真实练习备份；`node_modules/`、`dist/`、`logs/` 不进 Git。
+- 提交说明（commit message）只写描述性内容：改了什么、为什么、怎么验证的。**不引用对话、不写「阿楠说/用户说」这类原话**——提交历史是公开的，聊天腔一看就是 AI 代笔（阿楠 2026-09-18 明确要求）。
 - 不把一次性开发流水账写进本文件；稳定的使用方式和边界写在 `README.md`，历史通过 Git 记录。
 - 不删除用户未授权的文件或数据；临时调试产物结束前清理。
