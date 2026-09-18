@@ -937,6 +937,8 @@ ok(el("#modbar").innerHTML.indexOf("公文写作") < 0 && el("#modbar").innerHTM
 const pdLand = el("#docBody").innerHTML;
 ok(PD_FORM_ORDER.every(id=> pdLand.indexOf(PD_FORMS[id].name) >= 0) && pdLand.indexOf("开始") >= 0,
    "判别轨: 落地页三种形式各有说明与开始入口");
+ok(pdLand.indexOf("综合判别") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0,
+   "判别轨: 落地页给「综合判别」一个窗口（三种形式混在一轮），单练入口仍在");
 switchSubject("sl");
 ok(pdActive === false && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0,
    "判别轨: 从判别轨切申论，作答轨页签正常恢复");
@@ -1011,9 +1013,9 @@ ok(state.history.length === 1 && state.history[0].track === "pd" && state.histor
    && state.history[0].theme === "测试" && state.history[0].correct === 1 && state.history[0].total === 2,
    "轮次: 记录写入 history（track/form/theme/correct/total）");
 ok(JSON.stringify(state.history[0].items) === JSON.stringify([
-  { stem:"s1", options:["对","错"], answer:0, picked:0, ok:true, trap:"换主体", explain:"e1" },
-  { stem:"s2", options:["甲","乙"], answer:1, picked:0, ok:false, trap:"改范围", explain:"e2" } ]),
-   "轮次: items 带 stem/options/answer/picked/ok");
+  { form:"fact-select", stem:"s1", options:["对","错"], answer:0, picked:0, ok:true, trap:"换主体", explain:"e1" },
+  { form:"fact-select", stem:"s2", options:["甲","乙"], answer:1, picked:0, ok:false, trap:"改范围", explain:"e2" } ]),
+   "轮次: items 带 form/stem/options/answer/picked/ok");
 ok(JSON.parse(localStorage.getItem("gw_history"))[0].track === "pd", "轮次: 落盘 gw_history");
 ok(JSON.stringify(state.profile.modules) === pdDimsBefore, "隔离: 判别轨不写维度画像 dims");
 ok(state.profile.lastModules.length === pdLMBefore, "隔离: 判别轨不进 lastModules（不影响作答轨调度）");
@@ -1021,6 +1023,23 @@ ok(distilledPD === false, "隔离: 判别轨不触发经验提炼");
 renderProfile();
 const phPD = el("#profileBody").innerHTML;
 ok(phPD.indexOf("判别轨（点选即判") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 判别轨单独一节");
+
+/* ③ 综合判别：每题自带形式，统计按题归属（一轮里三种都有，按轮算会混成一笔） */
+const pdSan = sanitizePDItems([
+  { form:"group-summarize", context:"c", stem:"s", options:["a","b"], answer:0 },
+  { form:"乱填的", context:"c2", stem:"s2", options:["a","b"], answer:1 },
+  { context:"c3", stem:"s3", options:["a","b"], answer:0 } ], PD_MIX);
+ok(pdSan.length === 3 && pdSan[0].form === "group-summarize" && pdSan[1].form === "fact-select" && pdSan[2].form === "fact-select",
+   "综合判别: 认每题自带的 form；认不出的退回「事实选择」（形状最通用，不误导）");
+const __pdHistKeep = state.history;
+state.history = [ { ts:Date.now(), track:"pd", form:PD_MIX, theme:"t", correct:2, total:3,
+  items:[ { form:"fact-select", ok:true }, { form:"group-summarize", ok:false }, { form:"expression-compare", ok:true } ] } ];
+const __pdSt = pdFormStats();
+ok(__pdSt.st["fact-select"].q === 1 && __pdSt.st["fact-select"].c === 1 && __pdSt.st["group-summarize"].q === 1
+   && __pdSt.st["group-summarize"].c === 0 && __pdSt.st["expression-compare"].c === 1 && __pdSt.mixRounds === 1,
+   "综合判别: 统计按每题形式归属（不被按轮算混成一笔）");
+state.history = __pdHistKeep;
+ok(pdFormStats().st["fact-select"].q >= 1, "综合判别: 统计函数可重复调用（不污染 state）");
 ok(phPD.indexOf(">50%<") >= 0, "画像: 判别轨正确率 (1/2 = 50%)");
 ok(phPD.indexOf(">判别轨</td>") >= 0 && phPD.indexOf(">1/2<") >= 0, "画像: 记录表识别判别轨行（对/总题数）");
 distillExperience = realDistillPD;

@@ -38,6 +38,14 @@
 - 界面上叫「练习台」；内部 id 永远保持 `liantai-desktop`：`package.json` 的 `name`、`build.appId`。**不要给 package.json 加顶层 `productName`**——Electron 用顶层 `name` / `productName` 决定 userData 目录，一改用户数据就搬去新目录（用户会以为记录全丢了）。`build.productName` 只影响安装包/快捷方式的显示名，改它安全。（历史上这项目叫过「规范表达」→「综应练习台」→「练习台」，界面上改名字从不影响数据。）另外：`app/index.html` 里还有两处 `orgName === "综应练习台"` 的迁移分支 —— 那是把旧版写进用户数据的机关名改成「模拟练习专用」用的（测试里有对应断言），**不是产品名，别跟着一起改**。
 - 版本号：测试阶段只走 `0.x.x`（用户拍板：「现在还算在测试」），他明确说发正式版才跳 1.x。
 
+## 界面（UI/UX）约束
+
+- 顶栏 `.topbar` 是 sticky，高 92px（工具栏 + 页签栏）。**页签栏 `.modbar` 的高度必须锁死**（`min-height:47px`）：判别轨模式下不渲染页签，不锁就会矮 13px、整条顶栏看着像“往上跳”（用户报过的 bug）。
+- `.tab.active` 由全局 `tabActiveKey` 驱动：作答中 / 模块落地页 = 那个模块；起始页与判别轨 = `null`（别谎报“你在哪”）。调用点在 `renderModuleLanding` / `renderQuestion` / `renderStart` / `enterPD`，改页签渲染时四处都要跟上。
+- 点页签会 `$("#doc").scrollIntoView(true)`，而顶栏是 sticky——所以 `#doc` 有 `scroll-margin-top:100px`，否则红头会被顶栏盖住。
+- 动效三条自律（用户对“界面自走”极敏感）：只播一次、≤240ms、不循环不自动播放；只动 opacity / transform / 颜色；`prefers-reduced-motion` 下一律关。不引外部资源、不加依赖。
+- 颜色：**不要黄色系**（用户明确不喜欢），划线默认绿 `#a7f3d0`，主色一律 `--gov-red`；公文纸面风（直角、极小圆角）是刻意选的，别改成大圆角卡片风。
+
 ## 端口与存储（桌面壳）
 
 - 本地 http 源**必须使用固定端口**（`main.js` 里的 `PREFERRED_PORT`）。`localStorage` 按 origin（含端口）分区，随机端口会让用户的设置、记录、草稿、划线在每次重启后「消失」。改端口策略等于改所有用户的存储位置，属破坏性变更。

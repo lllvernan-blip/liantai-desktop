@@ -37,9 +37,13 @@
   .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:15.5px;color:var(--gov-red);letter-spacing:1.5px;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0;margin-left:8px;}
   .spacer{flex:1 1 auto;}
-  .modbar{display:flex;align-items:center;gap:4px;padding:0 14px;border-top:1px solid var(--line);}
-  .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;}
+  /* 行高锁死：判别轨模式下不渲染页签，如果不锁，这一栏会矮 13px——整条顶栏就“往上跳”了一下 */
+  .modbar{display:flex;align-items:center;gap:4px;padding:0 14px;border-top:1px solid var(--line);min-height:47px;}
+  .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;transition:background .15s ease,color .15s ease,border-color .15s ease;}
   .tab:hover{background:#f3f1ec;}
+  /* 当前模块：底部红线 + 淡红底。不加粗（加粗会把页签宽度撑变，又造成一次小位移） */
+  .tab.active{color:var(--ink);border-bottom-color:var(--gov-red);background:#fdf7f7;}
+  .tab.active:hover{background:#fbf1f1;}
   /* 科目切换：页签区左侧的两个科目按钮；页签只列当前科目的模块 */
   .subjbar{display:flex;align-items:center;gap:6px;padding-right:12px;margin-right:6px;border-right:1px solid var(--line);}
   .subjbtn{border:1px solid var(--line);background:#fff;color:var(--muted);font-family:var(--hei);font-size:12.5px;padding:5px 12px;cursor:pointer;border-radius:12px;letter-spacing:1px;}
@@ -211,6 +215,52 @@
 
   .foot{text-align:center;color:var(--muted);font-size:12px;margin:26px 0 0;}
   code{font-family:Consolas,Menlo,monospace;background:#f0eee8;padding:1px 5px;border-radius:2px;font-size:12.5px;}
+
+  /* ============ 精致度：过渡与微动效（克制的） ============
+     三条自律：① 每个动效只播一次、不超 240ms，绝不做循环/自动轮播（界面不自走）；
+     ② 只动 opacity / transform / 颜色，不触发布局重排；③ prefers-reduced-motion 下全关。 */
+  html{scroll-behavior:smooth;}
+  /* 点页签会 scrollIntoView('#doc')：顶栏是 sticky（高 92px），不抬这一手的话红头会被盖在顶栏下面 */
+  #doc{scroll-margin-top:100px;}
+  /* 主题输入框：不写宽度它就只占 placeholder 那么窄（startbox 是居中文本布局） */
+  .startbox input[type=text]{display:block;width:100%;max-width:560px;margin:0 auto;}
+  ::selection{background:rgba(192,21,26,.14);}
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,
+  .tab:focus-visible,.subjbtn:focus-visible,.chip:focus-visible,.pdopt:focus-visible{outline:2px solid rgba(192,21,26,.45);outline-offset:2px;}
+  button:active:not(:disabled){transform:translateY(1px);}
+  button,.subjbtn,.chip,.tab,.pdopt,mark.ms.on,summary{transition:background .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .2s ease;}
+  input[type=text]:focus,input[type=password]:focus,select:focus{border-color:var(--gov-red);box-shadow:0 0 0 3px rgba(192,21,26,.07);outline:none;}
+
+  /* 换页 / 换题：新内容轻微上浮淡入。挂在 docBody 的直接子元素上，重渲染就天然生效 */
+  @keyframes riseIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  #docBody>*{animation:riseIn .18s cubic-bezier(.22,.61,.36,1) both;}
+
+  /* 弹层 / 抽屉：轻微位移淡入（关掉时不做动画，别让人看着它飞走） */
+  @keyframes modalIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
+  @keyframes sheetIn{from{opacity:0;transform:translateX(14px);}to{opacity:1;transform:none;}}
+  .modal:not([hidden]) .box{animation:modalIn .2s cubic-bezier(.22,.61,.36,1) both;}
+  .drawer:not([hidden]) .sheet{animation:sheetIn .22s cubic-bezier(.22,.61,.36,1) both;}
+
+  /* 判完那一瞬：选项轻微“落定”（只动透明度，不缩放、不弹跳） */
+  @keyframes pdMarked{from{opacity:.55;}to{opacity:1;}}
+  .pdopt.good,.pdopt.bad{animation:pdMarked .22s ease-out both;}
+
+  /* 等 AI 时：一条慢慢呼吸的短线，只说“在等”，不是进度条 */
+  @keyframes breathe{0%,100%{opacity:.25;}50%{opacity:.75;}}
+  .loading{position:relative;}
+  .loading::after{content:"";display:block;width:56px;height:2px;margin:10px auto 0;background:var(--gov-red);border-radius:2px;animation:breathe 1.6s ease-in-out infinite;}
+
+  .chip:hover,.subjbtn:hover{transform:translateY(-1px);}
+  details.card>summary:hover{background:#f7f5f0;}
+  .hitline:hover{background:#fbfaf6;}
+  .flowrail .fstep{transition:background .16s ease,border-color .16s ease,color .16s ease;}
+
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto;}
+    *{transition:none !important;}
+    #docBody>*,.modal:not([hidden]) .box,.drawer:not([hidden]) .sheet,.pdopt.good,.pdopt.bad{animation:none !important;}
+    .loading::after{animation:none;opacity:.5;}
+  }
 </style>
 </head>
 <body>
@@ -522,6 +572,7 @@ function saveHistory(){
 }
 let state = load();
 let activeModule = null;   // 当前科目（state.settings.subject）下的模块，由 init() / 切科目时落定
+let tabActiveKey = null;   // 页签高亮：作答中/模块落地页 = 模块 key；起始页与判别轨 = null（不谎报“你在哪”）
 let current = null;
 function curSubject(){ return SUBJECTS[state.settings.subject] ? state.settings.subject : DEFAULT_SUBJECT; }
 // 「该科目上次练的模块」直接看近期练习记录（profile.lastModules），不另存一份聚合值；没有就取第一个
@@ -1257,7 +1308,7 @@ function renderTabs(){
   // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）。
   // 「综合」不设页签：点具体题型就推那个题型；不选题型（起始页）就是综合智能推送——两件事不该有两个入口。
   $("#modbar").innerHTML = pdActive? "" :
-    moduleKeysOf(subj).map(k=>`<button class="tab" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
+    moduleKeysOf(subj).map(k=>`<button class="tab${k===tabActiveKey?" active":""}" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
   if(!pdActive) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
 }
 function switchSubject(id){
@@ -1287,6 +1338,7 @@ function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">$
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
+  tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
@@ -1310,7 +1362,7 @@ function renderStart(){
 
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
 function renderModuleLanding(k){
-  activeModule = k; renderHeader();
+  activeModule = k; tabActiveKey = k; renderHeader(); renderTabs();
   const m = MODULES[k];
   const subj = SUBJECTS[subjectOf(k)] || SUBJECTS[curSubject()];
   const avg = moduleAvg(k);
@@ -1412,6 +1464,7 @@ function cardHtml(studyCard){
 /* 题目渲染入口：申论建链/复链走七步面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
   if(!current || !current.question){ renderStart(); return; }
+  tabActiveKey = activeModule; renderTabs();   // 作答中：高亮当前模块页签，一眼看出自己在哪
   if(!usesFlowChain(current.module)){ renderZyPage(); return; }
   ensureFlow(current.module, current.subtype, current.question, current.keyPoints);
   renderFlowStep();
@@ -1491,6 +1544,7 @@ let pdActive = false;   // 判别轨是入口模式，不落盘：重启回到�
 let pdForm = null;      // 当前判别形式 id
 let pdRound = null;     // 进行中的一轮 { form, theme, items:[{context,stem,options,answer,trap,explain,done,picked,ok}], idx, correct, done }
 const PD_ROUND_SIZE = 5;
+const PD_MIX = "__mix";   // 综合判别：不是第四种形式，而是把三种混在一轮里（用户要的「一个窗口装下全部内容」）
 // optCount 是选项个数的**唯一口径**：规范散文里不再重复写个数，JSON 示例的选项个数也从它生成。
 // 起因：原先 fact-select 的规范写「固定用 2 个选项」，三个形式共用的 JSON 示例却给 3 个；
 // 示例是 prompt 最后一段、最具体的形态，模型照抄它，等于把规范那句作废。
@@ -1512,6 +1566,14 @@ const PD_FORMS = {
     optCount:[2,3],
     desc:"几句改写里选更规范的那句，说清为什么：主体明确、范围准确、因果清楚、不改变原意。",
     spec:"每题给一段 120-200 字的材料节选（context，含平均数、限定语、目标与结果这类易被改写坏的敏感点），再对节选中某句话给出几种改写，问「哪一项改变了原意」或「哪一种最规范」。每题只涉及一处错误（主体、范围、因果或语体）；干扰项只能从这几类里造：把平均数说成人人如此（平均跑一点一次说成只需跑一点一次）、把目标说成结果（拟推行说成已推行）、抹掉限定语（基本解决说成彻底解决）、并列改成因果。"
+  },
+  /* 综合判别：三种形式混在一轮。练的是“不告诉你这是哪类题”的实战眼力——
+     考试里没人先告诉你这道题考的是主体、范围还是因果。 */
+  "__mix":{
+    name:"综合判别",
+    optCount:[2,3],
+    desc:"三种形式混在一轮里，不给提示——拿住材料就地判断，练的就是这种眼力。",
+    spec:"本轮三种混着出：事实选择（判断哪条说法站得住）、分组概括（哪条概括不漏不重）、表达比较（哪句改写改变了原意）。每题必须带 form 字段标明属于哪种。"
   }
 };
 const PD_FORM_ORDER = ["fact-select","group-summarize","expression-compare"];
@@ -1522,9 +1584,12 @@ function pdOptSample(f){
   const n = f.optCount, k = Array.isArray(n)? n[1] : n;
   return "[" + Array.from({length:k}, (_,i)=>`"选项${i+1}"`).join(",") + "]";
 }
-function pdSchema(f){ return `{
+function isPDMix(f){ return !!f && f.name === PD_FORMS[PD_MIX].name; }
+function pdSchema(f){
+  const formLine = isPDMix(f)? '    "form":"fact-select | group-summarize | expression-compare（本题用哪种形式，三选一）",\n' : "";
+  return `{
   "items":[{
-    "context":"材料节选 120-200 字（贴近所给主题，有场景有细节，含数字与限定语）",
+${formLine}    "context":"材料节选 120-200 字（贴近所给主题，有场景有细节，含数字与限定语）",
     "stem":"题干（明确问什么）",
     "options":${pdOptSample(f)},
     "answer":0,
@@ -1536,6 +1601,7 @@ function sysPD(){ return "你是公考判别训练的命题助手。只输出 JS
 
 function enterPD(){
   pdActive = true;
+  tabActiveKey = null;   // 判别轨不是题型：页签全灭（这一栏高度靠 CSS min-height 锁住，不会跳）
   renderTabs(); renderHeader(); renderPDLanding();
   $("#doc").scrollIntoView(true);
 }
@@ -1554,13 +1620,40 @@ function pdRecentTheme(){
   }
   return "";
 }
+/* 判别轨统计：按**每道题**的形式归属（综合判别一轮里三种都有，按轮算会把三类混成一笔）。
+   老记录（items 里没有 form）退回按轮的形式算，改口径不会把历史数据算丢。 */
+function pdFormStats(){
+  const st = {}; PD_FORM_ORDER.forEach(id=> st[id] = { q:0, c:0, rounds:0 });
+  let mixRounds = 0;
+  for(const h of state.history){
+    if(!h || h.track !== "pd") continue;
+    const items = Array.isArray(h.items)? h.items : [];
+    if(!items.length){   // 老记录：只有轮级 total/correct
+      const id = PD_FORM_ORDER.indexOf(h.form) >= 0? h.form : null;
+      if(id){ st[id].q += Number(h.total)||0; st[id].c += Number(h.correct)||0; st[id].rounds++; }
+      continue;
+    }
+    const seen = {};
+    for(const it of items){
+      const id = (it && PD_FORM_ORDER.indexOf(it.form) >= 0)? it.form : (PD_FORM_ORDER.indexOf(h.form) >= 0? h.form : null);
+      if(!id) continue;
+      st[id].q++; if(it && it.ok) st[id].c++;
+      if(!seen[id]){ seen[id] = 1; st[id].rounds++; }
+    }
+    if(h.form === PD_MIX) mixRounds++;
+  }
+  return { st, mixRounds };
+}
 function renderPDLanding(){
   pdForm = null; pdRound = null;
+  tabActiveKey = null; renderTabs();
   const recent = pdRecentTheme();
   let html = `<div class="startbox">
     <h2>判别轨 · 从材料里做判断</h2>
-    <p>不写长篇作答：看材料 → 点选答案 → 立刻对错。一轮 5 题，同一形式；练的是信息取舍与表达规范的眼力。</p>
-    ${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="ogroup" style="text-align:left"><b>${f.name}</b><div style="margin-top:4px">${f.desc}</div><div class="actions" style="margin-top:8px"><button class="primary" data-pdform="${id}">开始「${f.name}」</button></div></div>`; }).join("")}
+    <p>不写长篇作答：看材料 → 点选答案 → 立刻对错。一轮 5 题；练的是信息取舍与表达规范的眼力。</p>
+    <div class="actions" style="justify-content:center;margin:2px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合判别</button></div>
+    <p class="hint" style="margin:10px auto 24px;max-width:560px">三种形式混着来、不给提示——考试里没人先告诉你这道题考的是主体、范围还是因果。只想单练一类，用下面的入口。</p>
+    ${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="ogroup" style="text-align:left"><b>${f.name}</b><div style="margin-top:4px">${f.desc}</div><div class="actions" style="margin-top:8px"><button data-pdform="${id}">只练「${f.name}」</button></div></div>`; }).join("")}
     <div class="sec-title" style="text-align:left">主题（可自填，留空则随机）</div>
     <input type="text" id="pdTheme" placeholder="想练什么主题？如：养老服务">
     <div class="subtypechips" style="margin-top:10px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
@@ -1592,18 +1685,24 @@ async function genPDRound(form, theme){
   }, 1000);
   const onDelta = (d, full)=>{ const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`; };
   const exps = pdExperienceBlock(theme);
-  const user = JSON.stringify({ form, formName:f.name, theme, count:PD_ROUND_SIZE,
-    note:`出 ${PD_ROUND_SIZE} 道「${f.name}」判别题，每题各自给一段独立的材料节选，围绕主题的不同侧面；题目之间辨析点不重复。`
+  const mix = isPDMix(f);
+  const user = JSON.stringify({ form: mix? "mix" : form, formName:f.name, theme, count:PD_ROUND_SIZE,
+    note: (mix
+        ? `出 ${PD_ROUND_SIZE} 道判别题，三种形式混着来（每种至少 1 题，不要按形式分块），每题各自给一段独立的材料节选，围绕主题的不同侧面；题目之间辨析点不重复。`
+        : `出 ${PD_ROUND_SIZE} 道「${f.name}」判别题，每题各自给一段独立的材料节选，围绕主题的不同侧面；题目之间辨析点不重复。`)
       + (exps? " 用户在 experiences 里这些点上栽过跟头：干扰项请优先针对这些点设置，检验是否已经补上。" : ""),
     experiences: exps || undefined });
-  const sys = sysPD() + "\n本次形式：「" + f.name + "」。" + f.spec
-    + `\n选项个数：${pdOptWord(f)}，严格照此数量，不得多给或少给（下面 JSON 示例里的个数就是它）。`
+  const sys = sysPD() + (mix
+      ? "\n本轮是综合判别：三种形式混着出，别按形式分块。\n" + PD_FORM_ORDER.map(id=>`【${PD_FORMS[id].name}】${PD_FORMS[id].spec}`).join("\n")
+        + "\n每题必须带 form 字段（fact-select / group-summarize / expression-compare），且与题干相符；选项个数：事实选择固定 2 个，分组概括与表达比较 2-3 个。"
+      : "\n本次形式：「" + f.name + "」。" + f.spec
+        + `\n选项个数：${pdOptWord(f)}，严格照此数量，不得多给或少给（下面 JSON 示例里的个数就是它）。`)
     + "\n禁令：不得虚构材料里没有的事实、数字、主体、时间；不得出有歧义或多解的题（逐字读一遍必须只有一项成立，两项都说得通就换题）；正确项不得永远最长、不得总在同一个位置；不得出「找原词/同义替换」式的字面题。"
     + "\n返回 JSON：\n" + pdSchema(f);
   try{
     const data = await callLLM(sys, user, true, onDelta);
     if(mySeq !== reqSeq) return;   // 已被更晚的请求取代：丢弃结果
-    const items = sanitizePDItems(data && data.items);
+    const items = sanitizePDItems(data && data.items, form);
     if(!items.length) throw {code:"JSON"};
     pdRound = { form, theme, items, idx:0, correct:0, done:false };
     renderPDRound();
@@ -1616,10 +1715,14 @@ async function genPDRound(form, theme){
   finally{ clearInterval(tick); }
 }
 // 只收结构完整的题：材料、题干、至少两个选项、答案下标在范围内；不满 5 道有几道算几道，一道都凑不出就报格式异常
-function sanitizePDItems(list){
+function sanitizePDItems(list, fallbackForm){
   const out = [];
   for(const it of (Array.isArray(list)? list : [])){
     if(!it || typeof it !== "object") continue;
+    /* 每题自带形式（综合判别靠它标注与统计）。模型没给/给了个不认的：
+       单形式轮退回本轮形式；综合轮退回「事实选择」——它的形状（下列哪一项准确）最通用，不会误导。 */
+    const form = (PD_FORM_ORDER.indexOf(it.form) >= 0)? it.form
+      : (fallbackForm === PD_MIX || PD_FORM_ORDER.indexOf(fallbackForm) < 0)? PD_FORM_ORDER[0] : fallbackForm;
     const context = String(it.context||"").trim();
     const stem = String(it.stem||"").trim();
     // 选项去重：文字完全相同的两项只留一个；answerKey 按选项文本重映射（不按下标硬搬）。
@@ -1631,7 +1734,7 @@ function sanitizePDItems(list){
     const ansText = (Number.isInteger(answer) && answer >= 0 && answer < raw.length)? raw[answer] : null;
     const ansIdx = (ansText != null)? options.indexOf(ansText) : -1;
     if(!context || !stem || options.length < 2 || ansIdx < 0) continue;
-    out.push({ context, stem, options, answer:ansIdx, trap:String(it.trap||"").trim().slice(0,20), explain:String(it.explain||"").trim().slice(0,120) });
+    out.push({ form, context, stem, options, answer:ansIdx, trap:String(it.trap||"").trim().slice(0,20), explain:String(it.explain||"").trim().slice(0,120) });
     if(out.length >= PD_ROUND_SIZE) break;
   }
   return out;
@@ -1663,7 +1766,7 @@ function pdFinish(){
   r.done = true;
   // 判别轨记录带 track:'pd'（区分于作答轨）；只写 gw_history，不写 dims、不进 lastModules、不触发经验提炼
   state.history.unshift({ ts:Date.now(), track:"pd", form:r.form, theme:r.theme,
-    items:r.items.map(it=>({ stem:it.stem, options:it.options, answer:it.answer, picked:it.done? it.picked : null, ok:!!it.ok, trap:it.trap||"", explain:it.explain||"" })),
+    items:r.items.map(it=>({ form:it.form||r.form, stem:it.stem, options:it.options, answer:it.answer, picked:it.done? it.picked : null, ok:!!it.ok, trap:it.trap||"", explain:it.explain||"" })),
     correct:r.correct, total:r.items.length });
   if(state.history.length>200) state.history.length=200;
   saveHistory();
@@ -2472,15 +2575,13 @@ function renderProfile(){
     }
   }
   // 判别轨单独一节：记录带 track:'pd'，不进 dims 维度画像，不与综应A/申论混算
+  const pds = pdFormStats();
   html += `<div class="sec-title">判别轨（点选即判 · 只看正确率，不计入维度画像）</div><div class="modblock"><h4>三种形式</h4>`;
-  const pdHas = PD_FORM_ORDER.some(id=> state.history.some(h=>h && h.track==="pd" && h.form===id));
-  if(pdHas){
+  if(PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
     html += `<div class="typestat">` + PD_FORM_ORDER.map(id=>{
-      const rounds = state.history.filter(h=>h && h.track==="pd" && h.form===id);
-      let q=0,c=0; for(const r of rounds){ q += Number(r.total)||0; c += Number(r.correct)||0; }
-      const rate = q? Math.round(c/q*100) : 0;
-      return `<span class="t">${PD_FORMS[id].name} <b class="${rate<70?"lo":"hi"}">${rate}%</b><small style="color:#999"> (${rounds.length}轮/${q}题)</small></span>`;
-    }).join("") + `</div>`;
+      const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
+      return `<span class="t">${PD_FORMS[id].name} <b class="${rate<70?"lo":"hi"}">${rate}%</b><small style="color:#999"> (${t.rounds}轮/${t.q}题)</small></span>`;
+    }).join("") + (pds.mixRounds? `<span class="t">综合判别 <small style="color:#999">${pds.mixRounds} 轮混着出，已按题归入上面三类</small></span>` : "") + `</div>`;
   } else {
     html += `<div class="hint">还没练过判别轨。点科目栏的「判别轨」开一轮。</div>`;
   }
