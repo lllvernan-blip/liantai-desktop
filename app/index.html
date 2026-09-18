@@ -621,13 +621,10 @@ const REASON_LEVELS = {
   standard:{ label:"标准", temp:0.7 },
   deep:    { label:"深入", temp:1.0 }
 };
-/* 各家「思考」的开法不一样：认得出的家族各写各的发法（build 产出附加字段，note 给界面明示），
-   认不出的模型就没有推理档位——界面不显三档，只按标准温度发。新家族先查文档再加进来，别瞎猜参数。 */
+/* 各家「思考」的开法不一样：特殊家族（参数长得不一样的）在这里各写各的发法；
+   其余所有模型一律默认按「思考强度」（reasoning_effort）试探——是否真支持以实测为准，
+   被拒会记进 modelCaps 并自动改按温度发，不再拿名字猜能力（曾因 deepseek-flash 不带 v4 被冤枉过）。 */
 const THINK_FAMILIES = [
-  { name:"effort",
-    re:/reasoner|thinking|-think|deepseek-v4|deepseek-r1|\/r1|\bo1\b|\bo3\b|\bo4\b|gpt-5|kimi-k[23]|qwq/i,
-    build:lv=> ({ reasoning_effort: lv==="quick"?"low" : lv==="deep"?"high" : "medium" }),
-    note:lv=> `此模型按「思考强度」发送：reasoning_effort = ${lv==="quick"?"low":lv==="deep"?"high":"medium"}（不支持时自动降级）。` },
   { name:"qwen3",
     re:/qwen3/i,
     build:lv=> lv==="quick" ? { enable_thinking:false }
@@ -639,9 +636,14 @@ const THINK_FAMILIES = [
     build:lv=> ({ thinking:{ type: lv==="quick" ? "disabled" : "enabled" } }),
     note:lv=> `此模型：thinking.type = ${lv==="quick"?"disabled":"enabled"}。` }
 ];
+const DEFAULT_FAMILY = {
+  name:"effort",
+  build:lv=> ({ reasoning_effort: lv==="quick"?"low" : lv==="deep"?"high" : "medium" }),
+  note:lv=> `此模型按「思考强度」发送：reasoning_effort = ${lv==="quick"?"low":lv==="deep"?"high":"medium"}；是否真支持以实测为准，被拒会自动记住并改按温度发。`
+};
 function reasonFamily(m){
   m = String(m||"").toLowerCase();
-  return THINK_FAMILIES.find(f=>f.re.test(m)) || null;
+  return THINK_FAMILIES.find(f=>f.re.test(m)) || DEFAULT_FAMILY;
 }
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
@@ -735,8 +737,8 @@ async function callLLM(system, user, expectJson, onDelta){
   const fam = reasonFamily(model);
   state.modelCaps = state.modelCaps || {};
   const cap = state.modelCaps[model];
-  // 认得出的模型按它自己的「思考」发法组首选请求；被拒收过的（cap=rejected）和认不出的都直接按标准温度发
-  const adaptive = !!(fam && cap !== "rejected");
+  // 默认都按思考参数试探；被拒收过的（cap=rejected）直接按标准温度发，不再白发
+  const adaptive = cap !== "rejected";
   const r = REASON_LEVELS[adaptive ? s.reasonLevel : "standard"] || REASON_LEVELS.standard;
   const streaming = typeof onDelta === "function";
 
@@ -770,7 +772,7 @@ async function callLLM(system, user, expectJson, onDelta){
       if(out.status!==400 && out.status!==422) break; // 仅参数类错误才降级重试
       continue;
     }
-    if(fam){ state.modelCaps[model] = (adaptive && ri===0) ? "ok" : "rejected"; save(); setReasonUI(); }
+    if(adaptive){ state.modelCaps[model] = (ri===0) ? "ok" : "rejected"; save(); setReasonUI(); }
     if(expectJson) return parseJsonLoose(out.content);
     return out.content;
   }
@@ -2435,14 +2437,13 @@ function renderProfile(){
 function setReasonUI(){
   const lv = state.settings.reasonLevel || "standard";
   const model = $("#setModel").value.trim();
-  const fam = reasonFamily(model);
   const cap = (state.modelCaps||{})[model];
-  $("#segReason").style.display = (fam && cap !== "rejected") ? "" : "none";   // 档位控件随模型显隐：认不出或实测被拒过就不摆三档
+  $("#segReason").style.display = cap === "rejected" ? "none" : "";   // 只有实测被拒过才收档
   document.querySelectorAll("#segReason button").forEach(b=> b.classList.toggle("active", b.dataset.lv===lv));
   const note = $("#reasonNote"); if(!note) return;
-  note.textContent = (fam && cap !== "rejected") ? fam.note(lv)
-    : (fam ? "上次实测：此模型拒收思考参数（已记住，之后直接按标准温度发送）。"
-    : "此模型没有推理档位的概念：请求按标准温度发送，无需选档。");
+  note.textContent = cap === "rejected"
+    ? "上次实测：此模型拒收思考参数（已记住，之后直接按标准温度发送）。"
+    : reasonFamily(model).note(lv);
 }
 function fillProviderSelect(){
   $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");

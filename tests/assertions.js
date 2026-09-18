@@ -364,14 +364,14 @@ ok(capBodies.at(-1).enable_thinking === false, "适配: qwen3 快速档=直接�
 state.settings.reasonLevel = "deep";
 await callLLM("s","u",false);
 ok(capBodies.at(-1).enable_thinking === true && capBodies.at(-1).thinking_budget === 24576, "适配: qwen3 深入档=大思考预算");
-state.settings.model = "gpt-4o-mini";
+state.settings.model = "gpt-4o-mini"; state.settings.reasonLevel = "standard";
 await callLLM("s","u",false);
-ok(!("reasoning_effort" in capBodies.at(-1)) && capBodies.at(-1).temperature === 0.7,
-   "适配: 认不出的模型没有档位，只按标准温度发送");
+ok(capBodies.at(-1).reasoning_effort === "medium" && capBodies.at(-1).temperature === 0.7,
+   "适配: 未识别的模型也按思考强度试探，是否支持以实测为准");
 el("#setModel").value = "deepseek-v4-pro"; setReasonUI();
 ok(el("#segReason").style.display !== "none", "适配: 有档位的模型显示三档");
 el("#setModel").value = "gpt-4o-mini"; setReasonUI();
-ok(el("#segReason").style.display === "none", "适配: 无档位的模型隐藏三档并说明");
+ok(el("#segReason").style.display !== "none", "适配: 未识别的模型默认也显示三档（被拒才收）");
 globalThis.fetch = realFetch8;
 
 /* 8.4 档位实测记忆：被拒过就记住，之后不再白发被拒请求 */
