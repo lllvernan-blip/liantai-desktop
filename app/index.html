@@ -47,6 +47,8 @@
   .subjbtn.active{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
   .chip{border:1px solid var(--line);background:#fff;padding:7px 14px;cursor:pointer;font-size:13.5px;border-radius:16px;}
+.model-item{display:block;width:100%;text-align:left;padding:9px 14px;border:none;background:none;cursor:pointer;font-size:13.5px;color:var(--ink);}
+.model-item:hover{background:var(--canvas);}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
   .chip small{color:var(--muted);}
 
@@ -270,12 +272,11 @@
       </div>
       <div class="field">
         <label>模型</label>
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="setModel" list="modelOptions" placeholder="点输入框展开候选，或手动输入模型名" style="flex:1">
+        <div style="display:flex;gap:8px;position:relative;">
+          <input type="text" id="setModel" placeholder="点输入框展开候选，或手动输入模型名" autocomplete="off" style="flex:1">
           <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
+          <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:8px;max-height:220px;overflow:auto;"></div>
         </div>
-        <div class="subtypechips" id="modelChips" style="display:none"></div>
-        <datalist id="modelOptions"></datalist>
         <div class="note" id="modelNote">候选名单一律从接口实拉：有 Key 时每次启动自动刷新，点「拉取模型列表」可手动重拉。拉不到就手动输入模型名。</div>
       </div>
       <div class="field">
@@ -2419,16 +2420,14 @@ function fillProviderSelect(){
 function providerById(id){ return PROVIDERS.find(p=>p.id===id) || PROVIDERS[PROVIDERS.length-1]; }
 function baseKey(){ return ($("#setBase").value.trim()||"").replace(/\/+$/,""); }
 function renderModelList(list){
-  /* 拉到几个就明面摆几个：datalist 的下拉会按输入框已有文字过滤（填了模型名后另一个就“看不见”了），
-     所以名单同时以可点 chips 呈现，点谁填谁（一次仍只用一个模型）；datalist 留给手动输入。 */
-  const box = $("#modelChips");
-  const ids = list||[];
-  if(box){
-    box.style.display = ids.length? "":"none";
-    box.innerHTML = ids.map(m=>`<button type="button" class="chip" data-m="${esc(m)}">${esc(m)}</button>`).join("");
-    box.querySelectorAll(".chip").forEach(b=> b.onclick = ()=>{ $("#setModel").value = b.dataset.m; setReasonUI(); });
-  }
-  $("#modelOptions").innerHTML = ids.map(m=>`<option value="${esc(m)}"></option>`).join("");
+  /* 候选唯一出口：点输入框展开的自绘菜单。原生 datalist 会按输入框已有文字过滤（填了模型名后另一个就“看不见”），
+     所以菜单自己画：展开时全量列出，正在打字时才按字筛；点谁填谁，一次仍只用一个模型。 */
+  const menu = $("#modelMenu");
+  if(menu) menu.innerHTML = (list||[]).map(m=>`<button type="button" class="model-item" data-m="${esc(m)}">${esc(m)}</button>`).join("");
+}
+function modelMenuShow(show){
+  const menu = $("#modelMenu"); if(!menu) return;
+  menu.style.display = (show && menu.innerHTML)? "":"none";
 }
 function useCachedModels(base){
   const cache = state.modelCache && state.modelCache[(base||"").replace(/\/+$/,"")];
@@ -2522,8 +2521,8 @@ async function fetchModels(silent){
     // 不静默改写当前模型——实测有服务商名单不全（名字不在列表里照样能用），不能拿列表当生死簿。
     if(cur==="" || (!silent && !ids.includes(cur))) $("#setModel").value = pickFast(ids);
     $("#modelNote").textContent = silent
-      ? `已从接口实拉 ${ids.length} 个模型（每次启动自动刷新）；点下方模型名直接选用，也可手动输入。`
-      : `已从接口实拉 ${ids.length} 个模型；点下方模型名直接选用，也可手动输入。`;
+      ? `已从接口实拉 ${ids.length} 个模型（每次启动自动刷新）；点输入框展开候选，点谁用谁。`
+      : `已从接口实拉 ${ids.length} 个模型；点输入框展开候选，点谁用谁。`;
     if(!silent) $("#setMsg").textContent = "已拉取 " + ids.length + " 个模型 ✓";
   }catch(e){
     // 拉不到就保持现状：上次拉到过就继续用它，没有就留空等人手动输入。
@@ -2820,8 +2819,25 @@ function init(){
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
+  const setModelEl = $("#setModel");
+  setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
+  setModelEl.addEventListener("click", ()=> modelMenuShow(true));
+  setModelEl.addEventListener("input", ()=>{
+    setReasonUI();
+    const q = setModelEl.value.trim().toLowerCase();
+    const menu = $("#modelMenu");
+    if(menu) menu.querySelectorAll(".model-item").forEach(b=>{ b.style.display = (!q || b.dataset.m.toLowerCase().includes(q)) ? "" : "none"; });
+    modelMenuShow(true);
+  });
+  setModelEl.addEventListener("blur", ()=> setTimeout(()=> modelMenuShow(false), 120));
+  const modelMenuEl = $("#modelMenu");
+  if(modelMenuEl) modelMenuEl.addEventListener("mousedown", (e)=>{
+    const b = e.target && e.target.closest ? e.target.closest(".model-item") : null;
+    if(!b) return;
+    e.preventDefault();   // 防止先触发输入框 blur 把菜单收走
+    $("#setModel").value = b.dataset.m; setReasonUI(); modelMenuShow(false);
+  });
   document.querySelectorAll("#segReason button").forEach(b=> b.onclick = ()=>{ state.settings.reasonLevel = b.dataset.lv; setReasonUI(); });
-  $("#setModel").addEventListener("input", setReasonUI);
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
   $("#btnSettings").onclick = ()=> openModal("modalSettings");

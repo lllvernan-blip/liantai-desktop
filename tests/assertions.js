@@ -321,11 +321,9 @@ globalThis.fetch = () => Promise.resolve({ ok:true, status:200, json: async()=>(
 await fetchModels(true);
 ok(Array.isArray(state.modelCache["https://api.test.com/v1"]) && state.modelCache["https://api.test.com/v1"].length === 3, "实拉: 名单入库缓存");
 ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 静默模式不改写当前模型（名单可能不全）");
-ok(el("#modelOptions").innerHTML.indexOf("a-flash-model") >= 0, "实拉: 下拉候选来自接口");
-ok(el("#modelOptions").innerHTML.indexOf("z-model") >= 0 && el("#modelOptions").innerHTML.indexOf("m-chat") >= 0,
-   "实拉: 整份名单都进下拉候选");
-ok(el("#modelChips").innerHTML.indexOf("a-flash-model") >= 0 && el("#modelChips").innerHTML.indexOf("z-model") >= 0,
-   "实拉: 整份名单同时以可点按键明面呈现（点谁填谁，不受下拉按文字过滤影响）");
+ok(el("#modelMenu").innerHTML.indexOf("a-flash-model") >= 0, "实拉: 候选菜单来自接口");
+ok(el("#modelMenu").innerHTML.indexOf("z-model") >= 0 && el("#modelMenu").innerHTML.indexOf("m-chat") >= 0,
+   "实拉: 展开候选时整份名单全量列出（不受已填文字过滤，自绘菜单替代原生 datalist）");
 ok(PROVIDERS.every(p=>!p.models), "预设: 服务商只预设地址，模型名一个都不写死（手写的名字迟早过期）");
 el("#setModel").value = "";
 await fetchModels(true);
@@ -341,11 +339,11 @@ globalThis.fetch = realFetch;
 el("#setKey").value = "";   // 清掉 Key，避免换服务商时触发后台实拉，让本段只考验「没有名单时怎么办」
 el("#setProvider").value = "kimi";
 onProviderChange();
-ok(el("#modelOptions").innerHTML === "" && el("#setModel").value === "",
+ok(el("#modelMenu").innerHTML === "" && el("#setModel").value === "",
    "换服务商: 这家没实拉缓存就不编候选，也不把上一家的模型名留在框里");
 el("#setProvider").value = "deepseek";
 onProviderChange();
-ok(el("#setModel").value === "" && el("#modelOptions").innerHTML.indexOf("deepseek") < 0,
+ok(el("#setModel").value === "" && el("#modelMenu").innerHTML.indexOf("deepseek") < 0,
    "换服务商: 模型栏留空等实拉，不含任何写死的名字");
 ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
   const kk = state.settings.apiKey, mm = state.settings.model;
