@@ -26,8 +26,8 @@
 - **免安装版必须禁用自动更新**（代码里这道防线留着，哪天又有人拿 portable 包去跑）：portable 进程带 `PORTABLE_EXECUTABLE_FILE`，对它 quitAndInstall 只会「装出一个新副本」，检测到就置 `disabled`，由设置页说明原因。
 - 更新不得碰用户数据：用户数据在 `%APPDATA%\liantai-desktop`，更新只替换安装目录里的程序文件；`nsis.deleteAppDataOnUninstall` 保持 `false`（卸载也不删练习记录）。
 - 更新失败绝不阻断使用：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，后台自动重试（出错后 30 分钟、常驻每 6 小时）。不要在启动路径上弹阻断式对话框。
-- 发布：`npm run release`（`tools/release.mjs`：取 `gh auth token` → 盖章 → `electron-builder --publish always`）。**发布前必须先把 `package.json` 的 `version` 提高**——版本号不变，老用户永远收不到这一版；tag 重复会被脚本直接挡下。
-- **发布必须对账**：nsis / portable 两个 target 各跑一次发布，第二次撞 `tag_name already_exists` 中断——`latest.yml` 与 `.blockmap` 常就在这一步丢，而少了 `latest.yml` 自动更新压根不会启动。所以 `release.mjs` 不信返回码，出完包按产物逐个对账、缺的用 `gh` 补传；`latest.yml` 永远覆盖上传（它是指针，留着旧的会被当成「已有」跳过）。`npm run release -- --reconcile-only` 只对账不出包。
+- 发布：`npm run release`（`tools/release.mjs`：盖章 → 出包（`--publish never`，组件源内置 npmmirror 兕底）→ 建 Release → 逐个 `gh` 上传并对账）。**发布前必须先把 `package.json` 的 `version` 提高**——版本号不变，老用户永远收不到这一版；tag 重复会被脚本直接挡下。发布失败若已建出空壳 Release，先 `gh release delete vX.Y.Z --yes --cleanup-tag` 再重出。
+- **发布必须对账**：electron-builder 给每个 target 各跑一次发布流程，第二个 target 会撞 `tag_name already_exists` 中断——`latest.yml` 与 `.blockmap` 常就在这一步丢，而少了 `latest.yml` 自动更新压根不会启动。所以 `release.mjs` 不信返回码，出完包按产物逐个对账、缺的用 `gh` 补传；`latest.yml` 永远覆盖上传（它是指针，留着旧的会被当成「已有」跳过）。`npm run release -- --reconcile-only` 只对账不出包。
 - 对账前会校验 `dist/latest.yml` 的 `version` 与 `sha512` 是否就是当前产物：**别拿上一次试打包残留的清单去对账**，否则会把旧版本号或错哈希写到线上（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」），两种都不会在打包阶段报错。
 - 差量的两个前提：缓存 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（上一版安装包）在，且**源上旧版的 `.blockmap` 不删**。generic 源支持 `multipart/byteranges` 才是真差量（不支持就优雅退化为全量，不报错）；GitHub 资产 CDN 对多段 Range 返回 501，但 `BaseGitHubProvider` 写死单段逐段请求（206 可用），所以 GitHub 源差量可用。
 - 网络现实：国内直连 GitHub 时 `checkForUpdates` 可能直接 `ERR_CONNECTION_TIMED_OUT`（真机见过）。这不是 bug：失败会按规则重试且不阻断使用；要稳定就换源（`LIANTAI_UPDATE_FEED`）。
@@ -46,6 +46,7 @@
 - 点页签会 `$("#doc").scrollIntoView(true)`，而顶栏是 sticky——所以 `#doc` 有 `scroll-margin-top:100px`，否则红头会被顶栏盖住。
 - 动效三条自律（用户对“界面自走”极敏感）：只播一次、≤240ms、不循环不自动播放；只动 opacity / transform / 颜色；`prefers-reduced-motion` 下一律关。不引外部资源、不加依赖。
 - 颜色：**不要黄色系**（用户明确不喜欢），划线默认绿 `#a7f3d0`，主色一律 `--gov-red`；公文纸面风（直角、极小圆角）是刻意选的，别改成大圆角卡片风。
+- 文案写宽泛、贴用户视角，**别写死实现**：说「本地」，不说「这台电脑/本机浏览器/localStorage」这类以后实现一变就要跟着改的词（阿楠 2026-09-18 明确要求）。
 
 ## 端口与存储（桌面壳）
 
