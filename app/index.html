@@ -319,7 +319,7 @@
       <div class="field">
         <label>API Key</label>
         <input type="password" id="setKey" placeholder="粘贴你的 API Key">
-        <div class="note">只保存在这台电脑上，不会上传到任何第三方；调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
+        <div class="note">只保存在本地，不会上传到任何第三方；调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
       </div>
       <div class="field">
         <label>模型</label>
@@ -373,7 +373,7 @@
     </div>
   </div>
 
-  <p class="foot">练习台 · 出题 · 阅卷 · 画像 · 快判 · 数据仅存本机</p>
+  <p class="foot">练习台 · 出题 · 阅卷 · 画像 · 快判 · 数据仅存本地</p>
 </div>
 
 <script>
@@ -2796,7 +2796,7 @@ async function testConnection(){
 
 /* ============ 导入导出 ============ */
 /* 备份文件的 Key 政策：导出不带 Key，导入也不吃文件里的 Key。
-   一份备份会被发到群里、丢进网盘、随手转给别人——API Key 是这台机器的凭证，不该跟着练习数据走。
+   一份备份会被发到群里、丢进网盘、随手转给别人——API Key 是存在本地的凭证，不该跟着练习数据走。
    反过来，别人给的（或网上捡的）备份里如果埋了 Key/baseURL，导入也不该把你的请求拐到别处去。
    代价：换机迁移要在新机器上重填一次 Key，值。
    另外：草稿与划线不在 state 里（独立键 gw_draft / gw_marks），必须显式带上——
@@ -2889,7 +2889,7 @@ function importJSON(file){
       if(openFlows.length) _flowId = openFlows[openFlows.length-1].id;
       current = null;   // 导入后内存里的旧题不再可信，回到起点
       saveHistory(); save(); fillSettings(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
-      banner(hadKey? "已从备份恢复数据 ✓ 文件里的 API Key 未被采用（防他人备份覆盖你的 Key），本机 Key 保持不变。" : "已从备份恢复数据 ✓");
+      banner(hadKey? "已从备份恢复数据 ✓ 文件里的 API Key 未被采用（防他人备份覆盖你的 Key），本地已填的 Key 保持不变。" : "已从备份恢复数据 ✓");
     }catch(e){ banner("导入失败：文件不是有效的备份 JSON。"); }
   };
   r.readAsText(file);
