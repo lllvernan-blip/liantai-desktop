@@ -531,7 +531,7 @@ const DEFAULT_STATE = {
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
-  cache:{ studyCards:{}, notes:{} },
+  cache:{ studyCards:{}, notes:{}, qnotes:{} },
   modelCache:{},
   modelCaps:{},   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
   modelProbe:{}  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
@@ -1130,12 +1130,14 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],
-    "comment":"总体点评（80字内，指出下一步该补哪里）"
+    "comment":"总体点评（80字内，指出下一步该补哪里）",
+    "modelAnswer":"本题的完整参考答案：一篇成文范文，按题目分值定长短，结构规范、语言正式，供考生整篇对照学习"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定（考生用自己的话表达，意思到位即算命中，不得苛求原文），再由命中情况推导各维度分数。` +
     `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
     `\n归类提纲（organizeOutline，可能为空）是考生作答前对材料的归类草稿：只用于诊断其归类与结构意识，不参与计分，也不要求答案与其一致；总分仍只看子项覆盖。` +
+    `\n另请在返回中附上 modelAnswer：一篇本题的完整参考答案（成文范文）。它不参与计分，仅供考生整篇对照。` +
     (rewrite? `\n本次答卷（mode=rewrite）是考生按上一轮批改（previousReview）回改后的新一稿：请对照 previousReview 核对上轮指出的问题是否改正；计分口径不变。` : "") +
     "\n" + SCORING_RULES +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。同一份答卷重复阅卷，总分分差应控制在±3以内。` +
@@ -2240,6 +2242,8 @@ function draftPanelHtml(f){
       <span class="hint" id="gradeLive"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
+  html += marksRecapHtml(question);   // 划线随写随看：不用翻回上方材料
+  html += qNoteHtml(module, subtype, question);
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
   html += `<details class="notebox"${note? " open":""}><summary>我的笔记${note? "":"（还没有）"} — 作答时只看这个</summary><div class="notebody" id="noteBody">${note? esc(note) : '<span class="hint">还没记笔记。回「读材料」步的学习卡里补记，或点右下角翻卡时顺手记。</span>'}</div></details>`;
   html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
@@ -2278,7 +2282,7 @@ function wireMarks(){
     pop.style.top = (r.top + window.scrollY - 38) + "px";
     pop.style.display = "block";
   };
-  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); };
+  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); const rc = $("#marksRecap"); if(rc) rc.outerHTML = marksRecapHtml(current.question); };
   if(mbox){
     mbox.addEventListener("mouseup", ()=> setTimeout(showPop, 0));
     mbox.addEventListener("click", e=>{
@@ -2310,6 +2314,8 @@ function wireDraft(f){
   const question = current.question;
   if(module===GONGWEN_KEY && $("#btnTpl")) $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
+  const qn = $("#qNote");
+  if(qn){ qn.addEventListener("input", ()=> saveQNote(qSig(current.question), qn.value)); qn.addEventListener("blur", persistFlush); }
   const openDrawer = ()=>{
     current.cardPeeks = (current.cardPeeks||0)+1;
     $("#peekBadge").textContent = `本次已翻 ${current.cardPeeks} 次（越少越熟）`;
@@ -2542,6 +2548,7 @@ function gradeHtml(g, total){
     }
     html += `</div>`;
   }
+  if(g.modelAnswer) html += `<details class="notebox" open style="margin-top:12px"><summary>参考答案（范文，仅供对照）</summary><div class="notebody">${esc(g.modelAnswer)}</div></details>`;
   if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
   html += `<div class="nextrow">
       <button class="primary big" id="btnNext">智能推送下一题</button>
@@ -3026,6 +3033,37 @@ function materialHtml(q){
     i = j;
   }
   return html;
+}
+
+/* 已划句子提取：把字符级标记还原成一段段原文（保持出现顺序），供作答区下方随写随看 */
+function markedRuns(q){
+  const text = String((q&&q.background)||"");
+  const marks = loadMarks(qSig(q));
+  const runs = []; let i = 0;
+  while(i < text.length){
+    if(!marks.has(i)){ i++; continue; }
+    let j = i; while(j < text.length && marks.has(j)) j++;
+    runs.push(text.slice(i, j)); i = j;
+  }
+  return runs;
+}
+function marksRecapHtml(q){
+  const runs = markedRuns(q);
+  return `<details class="notebox" open id="marksRecap"><summary>我划的重点（${runs.length} 处）— 作答时随看，不用翻回材料</summary><div class="notebody">${
+    runs.length? runs.map(t=>`<div class="tpl">${esc(t)}</div>`).join("") : '<span class="hint">还没划——在上方材料里选中几个字，点「划线」。</span>'
+  }</div></details>`;
+}
+
+/* 作答笔记：按题目签名存，与学习卡笔记（按模块+子类型）是两本账；展示时放在一起看 */
+function getQNote(sig){ return (state.cache.qnotes && state.cache.qnotes[sig]) || ""; }
+function saveQNote(sig, text){ if(!state.cache.qnotes) state.cache.qnotes = {}; state.cache.qnotes[sig] = text; save(); }
+function qNoteHtml(module, subtype, question){
+  const sig = qSig(question);
+  const cardNote = getNote(module, subtype);
+  return `<details class="notebox"${cardNote? " open":""}><summary>本题笔记（只属于这道题）${cardNote? " + 学习卡笔记":""}</summary><div class="notebody">
+    ${cardNote? `<div class="hint" style="margin:0 0 6px"><b>学习卡笔记（这一类题通用）：</b>${esc(cardNote)}</div>` : ""}
+    <textarea class="noteedit" id="qNote" placeholder="这道题的思路、踩过的坑、想记住的表述——写在这里，和学习卡笔记分开记。">${esc(getQNote(sig))}</textarea>
+  </div></details>`;
 }
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
