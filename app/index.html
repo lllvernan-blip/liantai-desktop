@@ -109,7 +109,12 @@ html,body{margin:0;padding:0;}
   .card-body li{margin:3px 0;}
   .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:13.5px;white-space:pre-wrap;color:#333;}
 
-  .answer-wrap{margin-top:18px;}
+  .answer-wrap{margin-top:18px;position:relative;}
+  /* 作答区两侧的空白在宽屏上拿来挂笔记侧栏：左学习卡笔记（通用），右本题笔记；窄屏自动回到作答区上方堆叠 */
+  .sidenote{position:absolute;width:232px;margin:0;text-align:left;}
+  .sidenote-left{right:calc(100% + 22px);top:0;}
+  .sidenote-right{left:calc(100% + 22px);top:0;}
+  @media (max-width:1299px){ .sidenote{position:static;width:auto;margin:12px 0 0;} }
   textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:15px;line-height:1.95;border:1px solid var(--line);padding:16px 18px;background:#fffdfa;color:var(--ink);border-radius:2px;}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);}
   .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center;}
@@ -2255,8 +2260,8 @@ function draftPanelHtml(f){
   }
   if(outline) html += `<details class="notebox" open style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
   html += marksRecapHtml(question);   // 划线随写随看：放作答区上方，写之前展开瞟一眼，不用翻到 textarea 下面
-  html += qNoteHtml(module, subtype, question);
   html += `<div class="answer-wrap" id="answerArea">
+    ${sideNoteHtml(module, subtype, question)}
     <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
@@ -3091,14 +3096,14 @@ function marksRecapHtml(q){
 /* 作答笔记：按题目签名存，与学习卡笔记（按模块+子类型）是两本账；展示时放在一起看 */
 function getQNote(sig){ return (state.cache.qnotes && state.cache.qnotes[sig]) || ""; }
 function saveQNote(sig, text){ if(!state.cache.qnotes) state.cache.qnotes = {}; state.cache.qnotes[sig] = text; save(); }
-function qNoteHtml(module, subtype, question){
+function sideNoteHtml(module, subtype, question){
   const sig = qSig(question);
   const cardNote = getNote(module, subtype);
   const my = getQNote(sig);
-  return `<details class="notebox"${my? " open":""}><summary>本题笔记（只属于这道题）${my? "· 已记":"（空，点开记）"}${cardNote? " + 学习卡笔记":""}</summary><div class="notebody">
-    ${cardNote? `<div class="hint" style="margin:0 0 6px"><b>学习卡笔记（这一类题通用）：</b>${esc(cardNote)}</div>` : ""}
-    <textarea class="noteedit" id="qNote" placeholder="这道题的思路、踩过的坑、想记住的表述——写在这里，和学习卡笔记分开记。">${esc(my)}</textarea>
-  </div></details>`;
+  return `<details class="notebox sidenote sidenote-left"${cardNote? " open":""}><summary>学习卡笔记（这一类题通用）</summary><div class="notebody">${
+    cardNote? esc(cardNote) : '<span class="hint">这一类题还没有笔记。在「读材料」步的学习卡里记，或答题页右下角翻卡时顺手记。</span>'
+  }</div></details>` +
+    `<details class="notebox sidenote sidenote-right"${my? " open":""}><summary>本题笔记（只属于这道题）</summary><div class="notebody"><textarea class="noteedit" id="qNote" placeholder="这道题的思路、踩过的坑、想记住的表述——和学习卡笔记分开记。">${esc(my)}</textarea></div></details>`;
 }
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
