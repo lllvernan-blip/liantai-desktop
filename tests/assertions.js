@@ -457,7 +457,7 @@ current = { module:"sl.guina", subtype:"概括原因", question:{ background:"�
 renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "申论七步链: 步骤条在场，落点是读材料");
 ok(activeFlow() && activeFlow().module === "sl.guina", "申论七步链: 渲染即建链");
-ok(el("#docBody").innerHTML.indexOf("题目（模块") >= 0, "读材料: 题目与材料同屏");
+ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。第二句！") >= 0, "读材料: 题目与材料同屏");
 ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡折叠并入本步（展开可看）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
 ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
