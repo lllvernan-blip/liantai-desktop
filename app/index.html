@@ -52,17 +52,16 @@ html,body{margin:0;padding:0;}
   .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
   .subjbtn.active{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
-/* 快判落地页：三种形式各占一行（名 / 说明 / 按钮横排）。
-   高度是硬要求：startbox 的下限是 440px，快判页内容一旦超出，整页就比别的页高，
-   切页时文档高度变化会把红头推上去（用户看到的“往上缩一下”）。这里按 440px 收口。
-   为什么横排而不是三栏卡片：三张卡的说明文字长短差很多（25/24/16 字），
-   并排时行数不一致、视觉重心不齐；横排后文字长短只影响自身行宽，三行天然等高。 */
-.pdforms{display:grid;grid-template-columns:1fr;gap:4px;margin:10px auto 0;max-width:640px;text-align:left;}
-.pdforms .pdform{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:#fff;padding:5px 11px;}
-.pdforms .pdform b{font-family:var(--hei);font-size:13.5px;flex:0 0 68px;}
-.pdforms .pdform .pdformdesc{font-size:12.5px;color:var(--muted);line-height:1.35;flex:1 1 auto;}
-.pdforms .pdform .actions{margin:0 !important;flex:0 0 auto;}
-.pdforms .pdform .actions button{padding:3px 10px;font-size:13px;white-space:nowrap;}
+/* 快判落地页：三种形式并排三张卡片（名 / 说明 / 一行「只练这类」），整卡可点。
+   高度是硬要求：startbox 下限 440px，内容一旦超出，整页就比别的页高，切页时文档高度变化会把红头推上去。
+   三栏卡片通过 flex 纵排 + 说明区 flex:1 自动等高，底部的「只练这类」三张齐平，不靠行数碰运气。 */
+.pdforms{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px auto 0;max-width:660px;text-align:left;}
+.pdforms .pdform{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:13px 14px;background:#fff;border:1px solid var(--line);text-align:left;border-radius:2px;}
+.pdforms .pdform:hover{border-color:#b9b2a2;}
+.pdforms .pdform b{font-family:var(--hei);font-size:13.5px;color:var(--ink);}
+.pdforms .pdform .pdformdesc{font-size:12.5px;color:var(--muted);line-height:1.6;flex:1 1 auto;}
+.pdforms .pdform .pdformgo{font-size:12px;color:var(--muted);}
+.pdforms .pdform:hover .pdformgo{color:var(--gov-red);}
   .chip{border:1px solid var(--line);background:#fff;padding:6px 12px;cursor:pointer;font-size:13px;border-radius:16px;}
 .model-item{display:block;width:100%;text-align:left;padding:9px 14px;border:none;background:none;cursor:pointer;font-size:13.5px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
@@ -1695,9 +1694,9 @@ function renderPDLanding(){
     <h2>快判 · 从材料里做判断</h2>
     <p style="margin:0 0 14px">看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。</p>
     <div class="actions" style="justify-content:center;margin:0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
-    <div class="pdforms">${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="pdform"><b>${f.name}</b><div class="pdformdesc">${f.desc}</div><div class="actions"><button data-pdform="${id}">只练这类</button></div></div>`; }).join("")}</div>
-    <input type="text" id="pdTheme" placeholder="主题：想练什么就填什么，留空随机（如：养老服务）" style="margin:6px auto 0">
-    <div class="subtypechips" style="margin:6px auto 0;max-width:760px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
+    <div class="pdforms">${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<button class="pdform" data-pdform="${id}"><b>${f.name}</b><span class="pdformdesc">${f.desc}</span><span class="pdformgo">只练这类 ›</span></button>`; }).join("")}</div>
+    <input type="text" id="pdTheme" placeholder="主题：想练什么就填什么，留空随机（如：养老服务）" style="margin:8px auto 0">
+    <div class="subtypechips" style="margin:8px auto 0;max-width:760px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
   </div>`;
   docBody.innerHTML = html; renderHeader();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
