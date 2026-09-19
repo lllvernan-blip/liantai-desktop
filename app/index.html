@@ -20,6 +20,12 @@
   }
   *{box-sizing:border-box;}
   html{scrollbar-gutter:stable;} /* 滚动条一出现不再把整页往左挤（快判落地页比别的页高，进页瞬间会有位移） */
+  /* 滚动条：系统默认的灰色宽条压在暖白纸面上很扎眼，改成细的暖灰拇指、透明轨道 */
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#cfcac0;border:3px solid transparent;background-clip:content-box;border-radius:8px;}
+  ::-webkit-scrollbar-thumb:hover{background:#b3ada1;background-clip:content-box;}
+  ::-webkit-scrollbar-corner{background:transparent;}
 html,body{margin:0;padding:0;}
   body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:14.5px;line-height:1.7;-webkit-font-smoothing:antialiased;}
 
@@ -56,10 +62,10 @@ html,body{margin:0;padding:0;}
    高度是硬要求：startbox 下限 440px，内容一旦超出，整页就比别的页高，切页时文档高度变化会把红头推上去。 */
 .pdonly{margin-top:12px;font-size:13px;color:var(--muted);}
 .pdonly button.linkbtn{padding:2px 4px;font-size:13px;}
-.pdopts{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);}
+.pdsetup{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);}
 .pdoptlabel{font-size:12.5px;color:var(--muted);}
-.pdopts .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:7px;max-width:700px;}
-.pdopts .chip{padding:4px 8px;font-size:12.5px;}
+.pdsetup .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:7px;max-width:700px;}
+.pdsetup .chip{padding:4px 8px;font-size:12.5px;}
   .chip{border:1px solid var(--line);background:#fff;padding:6px 12px;cursor:pointer;font-size:13px;border-radius:16px;}
 .model-item{display:block;width:100%;text-align:left;padding:9px 14px;border:none;background:none;cursor:pointer;font-size:13.5px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
@@ -81,7 +87,10 @@ html,body{margin:0;padding:0;}
   .startbox p{color:var(--muted);font-size:13.5px;margin:0 0 26px;}
   .startbox .big{min-width:260px;}
 
-  .qtop{display:flex;justify-content:flex-end;margin-top:14px;}
+  .qtop{display:flex;justify-content:flex-end;margin-top:6px;}
+  /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
+  .qtop button.linkbtn{border:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 12px;font-size:12.5px;}
+  .qtop button.linkbtn:hover{background:#fff;border-color:var(--gov-red);}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;}
   .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-family:var(--fangsong);font-size:15.5px;line-height:1.85;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--gov-red);font-size:13px;margin-bottom:6px;}
@@ -115,6 +124,17 @@ html,body{margin:0;padding:0;}
   .counter{font-size:12.5px;color:var(--muted);}
   .counter b{font-family:var(--hei);color:var(--gov-red);}
   .counter b.over{color:#fff;background:#b3261e;padding:0 5px;}
+  /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
+  .pdreview{border:1px solid var(--line);text-align:left;margin-top:4px;}
+  .pdreview .pditem{padding:10px 12px;border-bottom:1px dashed var(--line);}
+  .pdreview .pditem:last-child{border-bottom:none;}
+  .pdreview .pdhead{display:flex;gap:8px;align-items:baseline;font-size:13.5px;line-height:1.6;}
+  .pdreview .pdmk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
+  .pdreview .pditem.ok .pdmk{color:#2f7d32;}
+  .pdreview .pditem.miss .pdmk{color:#b3261e;}
+  .pdreview .pdq{font-family:var(--hei);flex:0 0 auto;}
+  .pdreview .pdtrap{color:var(--muted);font-size:12.5px;}
+  .pdreview .pdexp{color:var(--muted);font-size:13px;line-height:1.75;margin-top:4px;padding-left:26px;white-space:pre-wrap;}
   .hits{border:1px solid var(--line);}
   .hitline{display:flex;gap:8px;padding:6px 10px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.6;align-items:baseline;}
   .hitline:last-child{border-bottom:none;}
@@ -157,7 +177,8 @@ html,body{margin:0;padding:0;}
   .drawer[hidden]{display:none;}
   .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:14px 16px 20px;}
-  .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:22px;padding:10px 16px;box-shadow:0 4px 14px rgba(0,0,0,.22);font-family:var(--hei);}
+  .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:22px;padding:9px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.10);font-family:var(--hei);}
+  .fab:hover{background:#fff;border-color:#b9b2a2;}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--gov-red);}
   .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line);padding:10px 12px;background:#fffdf0;color:var(--ink);border-radius:2px;}
   .noteedit:focus{outline:none;border-color:var(--gov-red);}
@@ -165,6 +186,8 @@ html,body{margin:0;padding:0;}
   .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13px;padding:9px 12px;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
   .notebody{padding:2px 12px 12px;font-size:14px;line-height:1.85;white-space:pre-wrap;}
+  /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
+  .modelanswer{font-family:var(--fangsong);font-size:15.5px;line-height:1.95;-webkit-text-stroke:0.3px currentColor;}
   .field{margin-bottom:15px;}
   .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:6px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
@@ -1383,7 +1406,7 @@ function renderStart(){
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
     <p>不选具体题型，就按综合来推：AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
-    <button class="primary big" id="btnStart">智能推送下一题</button>
+    <div class="actions" style="justify-content:center;margin:0"><button class="primary big" id="btnStart">智能推送下一题</button></div>
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
   $("#btnStart").onclick = startSmart;
@@ -1404,11 +1427,11 @@ function renderStart(){
 function renderModuleLanding(k){
   activeModule = k; tabActiveKey = k; renderHeader(); renderTabs();
   const m = MODULES[k];
-  const subj = SUBJECTS[subjectOf(k)] || SUBJECTS[curSubject()];
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module===k) n++;
+  // 标题只写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要
   let html = `<div class="startbox">
-    <h2>${esc(subj.name)} · ${esc(m.name)}</h2>
+    <h2>${esc(m.name)}</h2>
     <p>${esc(m.note)}</p>
     <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过——第一次会带你过一遍"}<br>评分维度：${m.dims.join("、")}</p>
     <div class="subtypechips">
@@ -1512,18 +1535,23 @@ function renderQuestion(){
 
 /* ============ 综应A 两阶段：学习卡（折叠+笔记+翻卡计数）→ 我已学习，开始作答 → 作答页；结果页与申论共用 gradeHtml ============ */
 // 不建训练链、不渲染步骤条；翻卡计次照旧进练习记录、参与调度（PEEK_WEIGHT）。
+function metaLineHtml(q){
+  // 分值与难度本属同一层元信息，各占一行会把题面抬得很高，并成一行更省版面
+  const parts = [];
+  if(q && q.score) parts.push(`<b>分值：</b>${esc(q.score)} 分`);
+  if(q && q.difficulty) parts.push(`<b>难度：</b>${esc(q.difficulty)}`);
+  return parts.length? `<div class="require">${parts.join("　　")}</div>` : "";
+}
 function zyHeadHtml(showQuestion){
-  const {module, subtype, question} = current;
+  const {question} = current;
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
   if(showQuestion === false){   // 学习卡阶段不亮题面：题目等点了「开始作答」再见面
-    html += `<div class="sec-title">${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}</div>`;
     html += `<div class="hint" style="margin:8px 0">题目先不亮出来——看完卡，点「我已学习，开始作答」再见面。</div>`;
     return html;
   }
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  if(question.score) html += `<div class="require"><b>分值：</b>${esc(question.score)} 分</div>`;
-  if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
+  html += metaLineHtml(question);
   return html;
 }
 function zyCardHtml(){
@@ -1693,7 +1721,7 @@ function renderPDLanding(){
     <p style="margin:0">看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。</p>
     <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
     <div class="pdonly">或只练一类：${PD_FORM_ORDER.map(id=>`<button class="linkbtn" data-pdform="${id}" title="${PD_FORMS[id].desc}">${PD_FORMS[id].name}</button>`).join(" · ")}</div>
-    <div class="pdopts">
+    <div class="pdsetup">
       <div class="pdoptlabel">主题（可留空，随机出题）</div>
       <input type="text" id="pdTheme" placeholder="如：养老服务" style="margin:7px auto 0;max-width:420px">
       <div class="subtypechips" style="margin:9px auto 0;max-width:700px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
@@ -1819,7 +1847,7 @@ function renderPDRound(){
   pdForm = r.form;
   const f = PD_FORMS[r.form];
   const it = r.items[r.idx];
-  let html = `<div class="qtop"><span class="hint">快判 · ${f.name} · 主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题</span></div>`;
+  let html = `<div class="qtop"><span class="hint">主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题</span></div>`;
   html += `<div class="material"><div class="label">材料节选</div>${esc(it.context)}</div>`;
   html += `<div class="require" style="margin-top:12px"><b>题干：</b>${esc(it.stem)}</div>`;
   html += `<div class="pdopts">` + it.options.map((o,i)=>{
@@ -1847,13 +1875,15 @@ function renderPDSummary(){
   const r = pdRound; if(!r) return;
   const f = PD_FORMS[r.form];
   const misses = r.items.map((it,i)=>({i,it})).filter(x=>!x.it.ok);
-  let html = `<div class="startbox"><h2>本轮小结 · ${f.name}</h2><p>主题「${esc(r.theme)}」 · ${r.items.length} 题对了 ${r.correct} 题</p></div>`;
-  html += `<div class="hits">` + r.items.map((it,i)=>`<div class="hitline ${it.ok?"hit":"miss"}"><span class="mk">${it.ok?"✓":(it.picked==null?"○":"✗")}</span><span class="pt">第${i+1}题${it.trap? "（"+esc(it.trap)+"）":""}</span><span class="ev">${esc(it.explain||"")}</span></div>`).join("") + `</div>`;
+  let html = `<div class="startbox"><h2>本轮小结 · ${f.name}</h2><p>主题「${esc(r.theme)}」 · ${r.items.length} 题对了 ${r.correct} 题</p>`;
+  // 逐题回顾跟小结标题同属一块内容：拆成两个兄弟节点会撑开一大片空白
+  html += `<div class="pdreview">` + r.items.map((it,i)=>{ const cls = it.ok? "ok" : "miss"; const mk = it.ok? "✓" : (it.picked==null? "○" : "✗");
+    return `<div class="pditem ${cls}"><div class="pdhead"><span class="pdmk">${mk}</span><span class="pdq">第 ${i+1} 题</span>${it.trap? `<span class="pdtrap">辨析点：${esc(it.trap)}</span>`:""}</div>${it.explain? `<div class="pdexp">${esc(it.explain)}</div>`:""}</div>`; }).join("") + `</div>`;
   const traps = {};
   for(const x of misses){ const t = x.it.trap || "其他"; traps[t] = (traps[t]||0)+1; }
   const trapStr = Object.keys(traps).map(t=>`${t}（${traps[t]}题）`).join("、");
-  html += `<p class="hint" style="margin-top:10px">${misses.length? "答错的集中在："+esc(trapStr)+"——下次出题会在这些辨析点上再考你。" : "全对——这个形式的辨析点你站得稳。"}</p>`;
-  html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div>`;
+  html += `<p class="hint" style="margin:14px 0 0">${misses.length? "答错的集中在："+esc(trapStr)+"——下次出题会在这些辨析点上再考你。" : "全对——这个形式的辨析点你站得稳。"}</p>`;
+  html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div></div>`;
   docBody.innerHTML = html; renderHeader();
   $("#pdAgain").onclick = ()=> genPDRound(r.form, r.theme);
   $("#pdSwitch").onclick = renderPDLanding;
@@ -2195,13 +2225,12 @@ function renderFlowStep(){
     f.groups = groupAutoSplit(f.selections); save();   // 第一次进归类：按选区数均衡分组
   }
   const step = f? f.step : (lastGrade? "review" : "draft");
-  const {module, subtype, question} = current;
+  const {question} = current;
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  html += `<div class="sec-title">题目（模块：${esc(MODULES[module].name)}${subtype?` · ${subtypeWord(module)}：${esc(subtype)}`:""}）</div>`;
+  html += `<div class="sec-title">题目</div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  if(question.score) html += `<div class="require"><b>分值：</b>${esc(question.score)} 分</div>`;
-  if(question.difficulty) html += `<div class="require"><b>难度：</b>${esc(question.difficulty)}</div>`;
+  html += metaLineHtml(question);
   if(f) html += railHtml(f);
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
   if(f) html += navHtml(step, f);
@@ -2587,7 +2616,7 @@ function gradeHtml(g, total){
     }
     html += `</div>`;
   }
-  if(g.modelAnswer) html += `<details class="notebox" open style="margin-top:12px"><summary>参考答案（范文，仅供对照）</summary><div class="notebody">${esc(g.modelAnswer)}</div></details>`;
+  if(g.modelAnswer) html += `<details class="notebox" open style="margin-top:12px"><summary>参考答案（范文，仅供对照）</summary><div class="notebody modelanswer">${esc(g.modelAnswer)}</div></details>`;
   if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
   html += `<div class="nextrow">
       <button class="primary big" id="btnNext">智能推送下一题</button>
@@ -2612,7 +2641,7 @@ function renderGrade(g, total){
 
 /* ============ 画像 ============ */
 function renderProfile(){
-  let html = `<div class="hint" style="margin-bottom:10px">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；下面的维度分只用来诊断弱在哪，不参与均分。按科目分组看：先综应A各模块，再申论各模块。</div>`;
+  let html = `<details class="notebox" style="margin:0 0 14px"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；下面的维度分只用来诊断弱在哪，不参与均分。按科目分组看：先综应A各模块，再申论各模块。</div></details>`;
   for(const sid of SUBJECT_ORDER){
     const subj = SUBJECTS[sid];
     html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div>`;
