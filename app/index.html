@@ -70,6 +70,8 @@ html,body{margin:0;padding:0;}
   .chip small{color:var(--muted);}
 
   .wrap{max-width:880px;margin:20px auto 60px;padding:0 14px;}
+  /* 作答页纸面加宽：右栏与正文同在一张纸上（见 .docgrid），批注栏要挂得下 */
+  .wrap:has(.docgrid){max-width:1264px;}
   .doc{background:var(--paper);border:1px solid var(--line);padding:34px 46px 44px;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 10px;}
@@ -109,16 +111,19 @@ html,body{margin:0;padding:0;}
   .card-body li{margin:3px 0;}
   .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:13.5px;white-space:pre-wrap;color:#333;}
 
-  .answer-wrap{margin-top:18px;position:relative;}
-  /* 作答区两侧的空白在宽屏上拿来挂笔记侧栏：左学习卡笔记（通用），右本题笔记；窄屏自动回到作答区上方堆叠。
-     侧栏与公文纸同底色、细实线边、微投影——是纸面的延伸，不是贴上去的便利贴 */
-  .sidenote{position:absolute;width:232px;margin:0;text-align:left;background:var(--paper);border:1px solid var(--line) !important;border-left:1px solid var(--line) !important;box-shadow:none;}
-  .sidenote>summary{color:var(--muted);font-size:12.5px;padding:8px 12px;}
-  .sidenote .notebody{font-size:13px;line-height:1.75;padding:2px 13px 12px;}
-  .sidenote .noteedit{background:#fff;font-size:13px;resize:none;}
-  .sidenote-left{right:calc(100% + 22px);top:0;}
-  .sidenote-right{left:calc(100% + 22px);top:0;}
-  @media (max-width:1299px){ .sidenote{position:static;width:auto;margin:12px 0 0;} }
+  .answer-wrap{margin-top:18px;}
+  /* 作答页：正文一栏 + 右侧批注栏（与书页齐平、细线分隔、跟着滚动），窄屏自动落到正文下方 */
+  .docgrid{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:30px;align-items:start;}
+  .docrail{border-left:1px solid var(--line);padding-left:26px;position:sticky;top:96px;max-height:calc(100vh - 122px);overflow:auto;}
+  .railsection{margin:0 0 24px;}
+  .railsection+.railsection{border-top:1px solid var(--line);padding-top:20px;}
+  .railsection h4{font-family:var(--hei);font-size:12.5px;color:var(--muted);margin:0 0 10px;font-weight:600;letter-spacing:.02em;}
+  .railrun{border-left:2px solid #a7f3d0;padding-left:9px;margin:0 0 7px;font-size:12.5px;line-height:1.65;}
+  .railtext{font-size:12.5px;line-height:1.7;white-space:pre-wrap;}
+  @media (max-width:1150px){
+    .docgrid{grid-template-columns:minmax(0,1fr);gap:0;}
+    .docrail{border-left:none;border-top:1px solid var(--line);padding:20px 0 0;position:static;max-height:none;overflow:visible;}
+  }
   textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:15px;line-height:1.95;border:1px solid var(--line);padding:16px 18px;background:#fffdfa;color:var(--ink);border-radius:2px;}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);}
   .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center;}
@@ -1561,8 +1566,10 @@ function renderZyPage(){
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
+    html += `<div class="docgrid"><div class="docmain">`;
     html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
     html += draftPanelHtml(null);
+    html += `</div><aside class="docrail" id="docRail">${railPanelsHtml(current.module, current.subtype, current.question)}</aside></div>`;
   } else {
     html += zyCardHtml();
   }
@@ -2243,7 +2250,9 @@ function stepPanelHtml(step, f){
       <div id="pickList">${f? pickListHtml(f) : ""}</div>`;
   }
   if(step === "organize") return f? organizePanelHtml(f) : `<div class="hint" style="margin-top:10px">没有进行中的训练链。</div>`;
-  if(step === "draft" || step === "revise") return draftPanelHtml(f);
+  if(step === "draft" || step === "revise"){
+    return `<div class="docgrid"><div class="docmain">${draftPanelHtml(f)}</div><aside class="docrail" id="docRail">${railPanelsHtml(module, subtype, question)}</aside></div>`;
+  }
   if(step === "review"){
     if(!lastGrade) return `<div class="hint" style="margin-top:10px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
     return gradeHtml(lastGrade.g, lastGrade.total);
@@ -2263,9 +2272,7 @@ function draftPanelHtml(f){
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
   if(outline) html += `<details class="notebox" open style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
-  html += marksRecapHtml(question);   // 划线随写随看：放作答区上方，写之前展开瞟一眼，不用翻到 textarea 下面
   html += `<div class="answer-wrap" id="answerArea">
-    ${sideNoteHtml(module, subtype, question)}
     <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
@@ -2278,7 +2285,6 @@ function draftPanelHtml(f){
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
-  html += `<details class="notebox"${note? " open":""}><summary>我的笔记${note? "":"（还没有）"} — 作答时只看这个</summary><div class="notebody" id="noteBody">${note? esc(note) : '<span class="hint">还没记笔记。回「读材料」步的学习卡里补记，或点右下角翻卡时顺手记。</span>'}</div></details>`;
   html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
   html += `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
       <div class="mhead"><span>学习卡 <span class="tag" id="peekBadge">本次已翻 ${current.cardPeeks||0} 次（越少越熟）</span></span><button class="x" id="btnDrawerClose" title="关闭">✕</button></div>
@@ -2315,7 +2321,7 @@ function wireMarks(){
     pop.style.top = (r.top + window.scrollY - 38) + "px";
     pop.style.display = "block";
   };
-  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); const rc = $("#marksRecap"); if(rc){ const wasOpen = rc.open; rc.outerHTML = marksRecapHtml(current.question); const nc = $("#marksRecap"); if(nc) nc.open = wasOpen; } };
+  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); const rc = $("#marksRecap"); if(rc) rc.outerHTML = marksRecapHtml(current.question); };
   if(mbox){
     mbox.addEventListener("mouseup", ()=> setTimeout(showPop, 0));
     mbox.addEventListener("click", e=>{
@@ -3092,22 +3098,20 @@ function markedRuns(q){
 }
 function marksRecapHtml(q){
   const runs = markedRuns(q);
-  return `<details class="notebox" id="marksRecap"><summary>我划的重点（${runs.length} 处）${runs.length? " — 写作答时点开随看":"（在上方材料里选中几个字，点「划线」）"}</summary><div class="notebody">${
-    runs.length? runs.map(t=>`<div class="tpl">${esc(t)}</div>`).join("") : '<span class="hint">还没划——在上方材料里选中几个字，点「划线」。</span>'
-  }</div></details>`;
+  return `<div class="railsection" id="marksRecap"><h4>我划的重点（${runs.length} 处）</h4>${
+    runs.length? runs.map(t=>`<div class="railrun">${esc(t)}</div>`).join("") : '<div class="hint">还没划。在上方材料里选中几个字，点「划线」。</div>'
+  }</div>`;
 }
 
 /* 作答笔记：按题目签名存，与学习卡笔记（按模块+子类型）是两本账；展示时放在一起看 */
 function getQNote(sig){ return (state.cache.qnotes && state.cache.qnotes[sig]) || ""; }
 function saveQNote(sig, text){ if(!state.cache.qnotes) state.cache.qnotes = {}; state.cache.qnotes[sig] = text; save(); }
-function sideNoteHtml(module, subtype, question){
-  const sig = qSig(question);
+function railPanelsHtml(module, subtype, question){
   const cardNote = getNote(module, subtype);
-  const my = getQNote(sig);
-  return `<details class="notebox sidenote sidenote-left"${cardNote? " open":""}><summary>学习卡笔记（这一类题通用）</summary><div class="notebody">${
-    cardNote? esc(cardNote) : '<span class="hint">这一类题还没有笔记。在「读材料」步的学习卡里记，或答题页右下角翻卡时顺手记。</span>'
-  }</div></details>` +
-    `<details class="notebox sidenote sidenote-right"${my? " open":""}><summary>本题笔记（只属于这道题）</summary><div class="notebody"><textarea class="noteedit" id="qNote" placeholder="这道题的思路、踩过的坑、想记住的表述——和学习卡笔记分开记。">${esc(my)}</textarea></div></details>`;
+  const my = getQNote(qSig(question));
+  return marksRecapHtml(question) +
+    `<div class="railsection"><h4>本题笔记（只属于这道题）</h4><textarea class="noteedit" id="qNote" placeholder="思路、踩过的坑、想记住的表述——和学习卡笔记分开记。">${esc(my)}</textarea></div>` +
+    `<div class="railsection"><h4>学习卡笔记（这一类题通用）</h4>${cardNote? `<div class="railtext">${esc(cardNote)}</div>` : '<div class="hint">这一类题还没有笔记。在「读材料」步的学习卡里记，或翻卡时顺手记。</div>'}</div>`;
 }
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
