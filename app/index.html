@@ -110,8 +110,12 @@ html,body{margin:0;padding:0;}
   .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:13.5px;white-space:pre-wrap;color:#333;}
 
   .answer-wrap{margin-top:18px;position:relative;}
-  /* 作答区两侧的空白在宽屏上拿来挂笔记侧栏：左学习卡笔记（通用），右本题笔记；窄屏自动回到作答区上方堆叠 */
-  .sidenote{position:absolute;width:232px;margin:0;text-align:left;}
+  /* 作答区两侧的空白在宽屏上拿来挂笔记侧栏：左学习卡笔记（通用），右本题笔记；窄屏自动回到作答区上方堆叠。
+     侧栏与公文纸同底色、细实线边、微投影——是纸面的延伸，不是贴上去的便利贴 */
+  .sidenote{position:absolute;width:232px;margin:0;text-align:left;background:var(--paper);border:1px solid var(--line) !important;border-left:1px solid var(--line) !important;box-shadow:none;}
+  .sidenote>summary{color:var(--muted);font-size:12.5px;padding:8px 12px;}
+  .sidenote .notebody{font-size:13px;line-height:1.75;padding:2px 13px 12px;}
+  .sidenote .noteedit{background:#fff;font-size:13px;resize:none;}
   .sidenote-left{right:calc(100% + 22px);top:0;}
   .sidenote-right{left:calc(100% + 22px);top:0;}
   @media (max-width:1299px){ .sidenote{position:static;width:auto;margin:12px 0 0;} }
@@ -168,8 +172,8 @@ html,body{margin:0;padding:0;}
   .fab b{color:var(--gov-red);}
   .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line);padding:10px 12px;background:#fffdf0;color:var(--ink);border-radius:2px;}
   .noteedit:focus{outline:none;border-color:var(--gov-red);}
-  .notebox{border:1px dashed #d8c48a;border-left:3px solid #b8860b;background:#fffcf0;margin-top:14px;}
-  .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13.5px;padding:9px 12px;list-style:none;color:#8a6d00;}
+  .notebox{border:1px solid var(--line);background:var(--paper);margin-top:14px;}
+  .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13px;padding:9px 12px;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
   .notebody{padding:2px 12px 12px;font-size:14px;line-height:1.85;white-space:pre-wrap;}
   .field{margin-bottom:15px;}
