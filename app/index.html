@@ -70,8 +70,6 @@ html,body{margin:0;padding:0;}
   .chip small{color:var(--muted);}
 
   .wrap{max-width:880px;margin:20px auto 60px;padding:0 14px;}
-  /* 作答页纸面加宽：三栏（材料 / 作答 / 批注）要挂得下 */
-  .wrap:has(.docgrid){max-width:1330px;}
   .doc{background:var(--paper);border:1px solid var(--line);padding:34px 46px 44px;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 10px;}
@@ -112,30 +110,7 @@ html,body{margin:0;padding:0;}
   .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:13.5px;white-space:pre-wrap;color:#333;}
 
   .answer-wrap{margin-top:18px;}
-  /* 作答页：材料一栏、作答一栏、右侧批注栏（细线分隔、跟着滚动）。
-     窗口够宽（≥1450）时三栏并排，写的时候材料就在左边；窄屏逐级回退：材料回正文上方 → 再合为单栏 */
-  .docgrid{display:grid;gap:30px;align-items:start;grid-template-columns:minmax(0,1fr) 290px;grid-template-areas:"mat rail" "main rail";}
-  .docgrid.nomat{grid-template-areas:"main rail";}
-  .docmat{grid-area:mat;min-width:0;}
-  .docmain{grid-area:main;min-width:0;}
-  .docrail{grid-area:rail;border-left:1px solid var(--line);padding-left:26px;position:sticky;top:96px;max-height:calc(100vh - 122px);overflow:auto;}
-  .railsection{margin:0 0 24px;}
-  .railsection+.railsection{border-top:1px solid var(--line);padding-top:20px;}
-  .railsection h4{font-family:var(--hei);font-size:12.5px;color:var(--muted);margin:0 0 10px;font-weight:600;letter-spacing:.02em;}
-  .railrun{border-left:2px solid #a7f3d0;padding-left:9px;margin:0 0 7px;font-size:12.5px;line-height:1.65;}
-  .railtext{font-size:12.5px;line-height:1.7;white-space:pre-wrap;}
-  @media (min-width:1450px){
-    .docgrid{grid-template-columns:minmax(0,420px) minmax(0,1fr) 264px;grid-template-areas:"mat main rail";gap:26px;}
-    .docgrid.nomat{grid-template-columns:minmax(0,1fr) 264px;grid-template-areas:"main rail";}
-    /* 材料与作答之间一道折线：像对开的两页，而不是三块工具并排 */
-    .docgrid:not(.nomat) .docmat{border-right:1px solid var(--line);padding-right:24px;}
-  }
-  @media (max-width:1150px){
-    .docgrid{grid-template-columns:minmax(0,1fr);grid-template-areas:"mat" "main" "rail";gap:0;}
-    .docgrid.nomat{grid-template-areas:"main" "rail";}
-    .docrail{border-left:none;border-top:1px solid var(--line);padding:20px 0 0;position:static;max-height:none;overflow:visible;}
-    .docmat{margin-bottom:18px;}
-  }
+  .markrun{border-left:2px solid #a7f3d0;padding-left:9px;margin:0 0 7px;font-size:13px;line-height:1.7;}
   textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:15px;line-height:1.95;border:1px solid var(--line);padding:16px 18px;background:#fffdfa;color:var(--ink);border-radius:2px;}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);}
   .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center;}
@@ -563,7 +538,7 @@ const DEFAULT_STATE = {
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
-  cache:{ studyCards:{}, notes:{}, qnotes:{} },
+  cache:{ studyCards:{}, notes:{} },
   modelCache:{},
   modelCaps:{},   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
   modelProbe:{}  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
@@ -1578,10 +1553,8 @@ function renderZyPage(){
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="docgrid">`;
-    html += `<div class="docmat"><div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div></div>`;
-    html += `<div class="docmain">${draftPanelHtml(null)}</div>`;
-    html += `<aside class="docrail" id="docRail">${railPanelsHtml(current.module, current.subtype, current.question)}</aside></div>`;
+    html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
+    html += draftPanelHtml(null);
   } else {
     html += zyCardHtml();
   }
@@ -2262,9 +2235,7 @@ function stepPanelHtml(step, f){
       <div id="pickList">${f? pickListHtml(f) : ""}</div>`;
   }
   if(step === "organize") return f? organizePanelHtml(f) : `<div class="hint" style="margin-top:10px">没有进行中的训练链。</div>`;
-  if(step === "draft" || step === "revise"){
-    return `<div class="docgrid nomat"><div class="docmain">${draftPanelHtml(f)}</div><aside class="docrail" id="docRail">${railPanelsHtml(module, subtype, question)}</aside></div>`;
-  }
+  if(step === "draft" || step === "revise") return draftPanelHtml(f);
   if(step === "review"){
     if(!lastGrade) return `<div class="hint" style="margin-top:10px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
     return gradeHtml(lastGrade.g, lastGrade.total);
@@ -2275,7 +2246,6 @@ function stepPanelHtml(step, f){
 function draftPanelHtml(f){
   const {module, subtype} = current;
   const question = current.question;
-  const note = getNote(module, subtype);
   const outline = f? buildOrganizeOutline(f.groups, f.selections) : "";
   const rewriting = !!(f && f.step === "revise");   // 回改稿：同一面板，多一份回改清单与差异对照
   let html = "";
@@ -2284,6 +2254,8 @@ function draftPanelHtml(f){
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
   if(outline) html += `<details class="notebox" open style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
+  html += cardNoteHtml(module, subtype);   // 材料之后：这一类题通用的笔记
+  html += marksRecapHtml(question);        // 再往下：我在材料里划的句子
   html += `<div class="answer-wrap" id="answerArea">
     <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
@@ -2333,7 +2305,7 @@ function wireMarks(){
     pop.style.top = (r.top + window.scrollY - 38) + "px";
     pop.style.display = "block";
   };
-  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); const rc = $("#marksRecap"); if(rc) rc.outerHTML = marksRecapHtml(current.question); };
+  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); refreshMarksRecap(); };
   if(mbox){
     mbox.addEventListener("mouseup", ()=> setTimeout(showPop, 0));
     mbox.addEventListener("click", e=>{
@@ -2360,13 +2332,19 @@ function wireMarks(){
     document.addEventListener("mousedown", _markOutsideHandler);
   }
 }
+/* 划线变了：只刷新「我划的重点」列表本身，不动折叠状态 */
+function refreshMarksRecap(){
+  const body = $("#marksRecapBody"); if(!body || !current || !current.question) return;
+  const runs = markedRuns(current.question);
+  body.innerHTML = marksRunsHtml(runs);
+  const sm = body.parentElement && body.parentElement.querySelector("summary");
+  if(sm) sm.textContent = `我划的重点（${runs.length} 处）`;
+}
 function wireDraft(f){
   const {module, subtype} = current;
   const question = current.question;
   if(module===GONGWEN_KEY && $("#btnTpl")) $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
-  const qn = $("#qNote");
-  if(qn){ qn.addEventListener("input", ()=> saveQNote(qSig(current.question), qn.value)); qn.addEventListener("blur", persistFlush); }
   const openDrawer = ()=>{
     current.cardPeeks = (current.cardPeeks||0)+1;
     $("#peekBadge").textContent = `本次已翻 ${current.cardPeeks} 次（越少越熟）`;
@@ -3110,21 +3088,20 @@ function markedRuns(q){
 }
 function marksRecapHtml(q){
   const runs = markedRuns(q);
-  return `<div class="railsection" id="marksRecap"><h4>我划的重点（${runs.length} 处）</h4>${
-    runs.length? runs.map(t=>`<div class="railrun">${esc(t)}</div>`).join("") : '<div class="hint">还没划。在上方材料里选中几个字，点「划线」。</div>'
-  }</div>`;
+  return `<details class="notebox"${runs.length? " open":""} id="marksRecap"><summary>我划的重点（${runs.length} 处）</summary><div class="notebody" id="marksRecapBody">${marksRunsHtml(runs)}</div></details>`;
+}
+function marksRunsHtml(runs){
+  return runs.length? runs.map(t=>`<div class="markrun">${esc(t)}</div>`).join("") : '<span class="hint">还没划。在上方材料里选中几个字，点「划线」。</span>';
+}
+/* 学习卡笔记：这一类题通用的，只读展示；要改去「读材料」步或翻卡时写 */
+function cardNoteHtml(module, subtype){
+  const cardNote = getNote(module, subtype);
+  return `<details class="notebox"${cardNote? " open":""}><summary>学习卡笔记（这一类题通用）${cardNote? "":" — 还没有"}</summary><div class="notebody">${
+    cardNote? esc(cardNote) : '<span class="hint">这一类题还没有笔记。在「读材料」步的学习卡里记，或翻卡时顺手记。</span>'
+  }</div></details>`;
 }
 
-/* 作答笔记：按题目签名存，与学习卡笔记（按模块+子类型）是两本账；展示时放在一起看 */
-function getQNote(sig){ return (state.cache.qnotes && state.cache.qnotes[sig]) || ""; }
-function saveQNote(sig, text){ if(!state.cache.qnotes) state.cache.qnotes = {}; state.cache.qnotes[sig] = text; save(); }
-function railPanelsHtml(module, subtype, question){
-  const cardNote = getNote(module, subtype);
-  const my = getQNote(qSig(question));
-  return marksRecapHtml(question) +
-    `<div class="railsection"><h4>本题笔记（只属于这道题）</h4><textarea class="noteedit" id="qNote" placeholder="思路、踩过的坑、想记住的表述——和学习卡笔记分开记。">${esc(my)}</textarea></div>` +
-    `<div class="railsection"><h4>学习卡笔记（这一类题通用）</h4>${cardNote? `<div class="railtext">${esc(cardNote)}</div>` : '<div class="hint">这一类题还没有笔记。在「读材料」步的学习卡里记，或翻卡时顺手记。</div>'}</div>`;
-}
+/* 作答笔记已下线（阿楠：题目笔记不要了）；学习卡笔记仍按模块+子类型存 */
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
