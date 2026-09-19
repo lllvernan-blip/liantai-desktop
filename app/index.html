@@ -42,6 +42,9 @@ html,body{margin:0;padding:0;}
   /* 顶栏 */
   .topbar{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);}
   .toolbar{display:flex;align-items:center;gap:6px;padding:9px 18px;}
+  /* 右上四个入口是工具，比品牌弱，但它们是纯文字、热区只有 13px 高：撑到能稳点中的高度，并给一点悬停反馈 */
+  .toolbar button.linkbtn{padding:6px 11px;font-size:13px;}
+  .toolbar button.linkbtn:hover{background:#f4f1eb;border-radius:2px;}
   .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:15.5px;color:var(--gov-red);letter-spacing:1.5px;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0;margin-left:8px;}
   .spacer{flex:1 1 auto;}
