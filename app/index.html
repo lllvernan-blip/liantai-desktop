@@ -52,11 +52,17 @@ html,body{margin:0;padding:0;}
   .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
   .subjbtn.active{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
-/* 快判落地页：三种形式并排一小行，整页高度向综应A/申论落地页看齐 */
-.pdforms{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 auto;max-width:640px;text-align:left;}
-.pdforms .pdform{border:1px solid var(--line);background:#fff;padding:10px 12px;}
-.pdforms .pdform b{font-family:var(--hei);font-size:13.5px;}
-.pdforms .pdform .pdformdesc{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5;}
+/* 快判落地页：三种形式各占一行（名 / 说明 / 按钮横排）。
+   高度是硬要求：startbox 的下限是 440px，快判页内容一旦超出，整页就比别的页高，
+   切页时文档高度变化会把红头推上去（用户看到的“往上缩一下”）。这里按 440px 收口。
+   为什么横排而不是三栏卡片：三张卡的说明文字长短差很多（25/24/16 字），
+   并排时行数不一致、视觉重心不齐；横排后文字长短只影响自身行宽，三行天然等高。 */
+.pdforms{display:grid;grid-template-columns:1fr;gap:4px;margin:10px auto 0;max-width:640px;text-align:left;}
+.pdforms .pdform{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:#fff;padding:5px 11px;}
+.pdforms .pdform b{font-family:var(--hei);font-size:13.5px;flex:0 0 68px;}
+.pdforms .pdform .pdformdesc{font-size:12.5px;color:var(--muted);line-height:1.35;flex:1 1 auto;}
+.pdforms .pdform .actions{margin:0 !important;flex:0 0 auto;}
+.pdforms .pdform .actions button{padding:3px 10px;font-size:13px;white-space:nowrap;}
   .chip{border:1px solid var(--line);background:#fff;padding:6px 12px;cursor:pointer;font-size:13px;border-radius:16px;}
 .model-item{display:block;width:100%;text-align:left;padding:9px 14px;border:none;background:none;cursor:pointer;font-size:13.5px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
@@ -1332,9 +1338,27 @@ function switchSubject(id){
   state.settings.subject = id; save();
   renderTabs(); renderHeader(); renderStart();
 }
+/* 换页后把红头带回视野——**只在它真的看不见时才滚**。
+   原来的做法是无条件 scrollIntoView('#doc')，但换页本身不会让页面滚动，
+   #doc 自然就停在 170px（顶栏只有 92px 高，从没盖住过它），于是这一滚纯属多余：
+   它把页面平白推上去 70px，连同 #doc 上面的 banner 一起顶到顶栏底下（banner 只露一半）。
+   该滚的场景只有一个：用户已经滚到下面（比如在读长材料），点页签要拉回顶部。
+   判据用顶栏的真实高度，不写死数字。
+   注意 `.bottom` 要判类型：node 侧 DOM 桩子对未定义属性返回函数而非 undefined，
+   只写 `topbar ? ...` 兜不住它（会得到 NaN，让判断静默失效）。 */
+function revealDocHeading(){
+  const doc = document.querySelector("#doc");
+  if(!doc || typeof doc.getBoundingClientRect !== "function") return;
+  const docBox = doc.getBoundingClientRect();
+  if(!docBox || typeof docBox.top !== "number") return;   // 量不到就别瞎滚
+  const topbar = document.querySelector(".topbar");
+  const barBox = (topbar && typeof topbar.getBoundingClientRect === "function")? topbar.getBoundingClientRect() : null;
+  const barBottom = (barBox && typeof barBox.bottom === "number")? barBox.bottom : 0;
+  if(barBottom - docBox.top > 0) doc.scrollIntoView(true);   // 只补被盖住的那部分；可见时一动不动
+}
 function tabClick(k){
   renderModuleLanding(k);
-  $("#doc").scrollIntoView(true);
+  revealDocHeading();
 }
 /* 返回综合：再点一次当前科目的按钮就回起始页（综合推送）。
    落点与切科目后完全一致；不收口进行中的训练链——它保持可恢复，起始页会给出「继续上次没做完的题」。 */
@@ -1621,7 +1645,7 @@ function enterPD(){
   pdActive = true;
   tabActiveKey = null;   // 判别轨不是题型：页签全灭（这一栏高度靠 CSS min-height 锁住，不会跳）
   renderTabs(); renderHeader(); renderPDLanding();
-  $("#doc").scrollIntoView(true);
+  revealDocHeading();    // 只在红头真被盖住时才滚（见该函数注释）
 }
 // 判别轨的经验注入：不按模块取（判别轨不属于任何科目），按主题相关性取——title/body 命中主题词的优先，不足用最近未停用的补，最多 3 条
 function pdExperienceBlock(theme){
@@ -1668,11 +1692,11 @@ function renderPDLanding(){
   const recent = pdRecentTheme();
   let html = `<div class="startbox">
     <h2>快判 · 从材料里做判断</h2>
-    <p style="margin:0 0 18px">不写长篇作答：看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。综合快判三种形式混着出、不给提示——考试里没人先告诉你考的是哪类。</p>
+    <p style="margin:0 0 14px">看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。</p>
     <div class="actions" style="justify-content:center;margin:0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
-    <div class="pdforms">${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="pdform"><b>${f.name}</b><div class="pdformdesc">${f.desc}</div><div class="actions" style="margin:8px 0 0"><button data-pdform="${id}">只练这类</button></div></div>`; }).join("")}</div>
-    <input type="text" id="pdTheme" placeholder="主题：想练什么就填什么，留空随机（如：养老服务）" style="margin-top:10px">
-    <div class="subtypechips" style="margin-top:8px;max-width:760px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
+    <div class="pdforms">${PD_FORM_ORDER.map(id=>{ const f=PD_FORMS[id]; return `<div class="pdform"><b>${f.name}</b><div class="pdformdesc">${f.desc}</div><div class="actions"><button data-pdform="${id}">只练这类</button></div></div>`; }).join("")}</div>
+    <input type="text" id="pdTheme" placeholder="主题：想练什么就填什么，留空随机（如：养老服务）" style="margin:6px auto 0">
+    <div class="subtypechips" style="margin:6px auto 0;max-width:760px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
   </div>`;
   docBody.innerHTML = html; renderHeader();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
@@ -2230,6 +2254,8 @@ function draftPanelHtml(f){
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
   if(outline) html += `<details class="notebox" open style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
+  html += marksRecapHtml(question);   // 划线随写随看：放作答区上方，写之前展开瞟一眼，不用翻到 textarea 下面
+  html += qNoteHtml(module, subtype, question);
   html += `<div class="answer-wrap" id="answerArea">
     <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
@@ -2242,8 +2268,6 @@ function draftPanelHtml(f){
       <span class="hint" id="gradeLive"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
-  html += marksRecapHtml(question);   // 划线随写随看：不用翻回上方材料
-  html += qNoteHtml(module, subtype, question);
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
   html += `<details class="notebox"${note? " open":""}><summary>我的笔记${note? "":"（还没有）"} — 作答时只看这个</summary><div class="notebody" id="noteBody">${note? esc(note) : '<span class="hint">还没记笔记。回「读材料」步的学习卡里补记，或点右下角翻卡时顺手记。</span>'}</div></details>`;
   html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
@@ -2282,7 +2306,7 @@ function wireMarks(){
     pop.style.top = (r.top + window.scrollY - 38) + "px";
     pop.style.display = "block";
   };
-  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); const rc = $("#marksRecap"); if(rc) rc.outerHTML = marksRecapHtml(current.question); };
+  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); const rc = $("#marksRecap"); if(rc){ const wasOpen = rc.open; rc.outerHTML = marksRecapHtml(current.question); const nc = $("#marksRecap"); if(nc) nc.open = wasOpen; } };
   if(mbox){
     mbox.addEventListener("mouseup", ()=> setTimeout(showPop, 0));
     mbox.addEventListener("click", e=>{
@@ -2416,13 +2440,23 @@ function installFlowListeners(){
   });
 }
 
+let _tplArm = 0;   // 两步确认的落点：不用 window.confirm —— Electron 里弹过原生对话框后窗口焦点会坏（打不了字、光标消失）
 function insertSkeleton(){
   const t=$("#answer"); if(!t) return;
-  // 骨架是覆盖写：已经写了东西就先问一声。标签说「插入」，别真的把用户手写的正文抹掉——答案不可再生
-  if(t.value.trim() && typeof window !== "undefined" && !window.confirm("插入骨架会覆盖当前已写的内容（草稿也会跟着变），确定吗？")) return;
+  // 骨架是覆盖写：已经写了东西就先问一声（页面内两步确认，不弹原生框）。标签说「插入」，别真的把用户手写的正文抹掉——答案不可再生
+  const btnTpl = $("#btnTpl");
+  if(t.value.trim() && Date.now() - _tplArm > 4000){
+    _tplArm = Date.now();
+    if(btnTpl){ btnTpl.textContent = "再点一次确认覆盖"; setTimeout(()=>{ const b=$("#btnTpl"); if(b && Date.now() - _tplArm >= 3900) b.textContent = "插入公文骨架"; }, 4100); }
+    return;
+  }
+  _tplArm = 0;
   const type = current.subtype || "公文";
   t.value = `（标题）关于……的${type}\n\n主送机关：\n\n　　正文：……\n\n　　　　　　　　　　　　${state.settings.orgName||"XX单位"}\n　　　　　　　　　　　　${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日`;
+  const caret = t.value.length;
   t.focus();
+  if(t.setSelectionRange) t.setSelectionRange(caret, caret);   // 光标明示落在末尾，别让用户找竖线
+  if(btnTpl) btnTpl.textContent = "插入公文骨架";
   syncAnswer(qSig(current.question), t, ansLimitFor(current.module, current.question));  // 骨架也是草稿的一部分，同样要计数、要保存
 }
 
@@ -3049,7 +3083,7 @@ function markedRuns(q){
 }
 function marksRecapHtml(q){
   const runs = markedRuns(q);
-  return `<details class="notebox" open id="marksRecap"><summary>我划的重点（${runs.length} 处）— 作答时随看，不用翻回材料</summary><div class="notebody">${
+  return `<details class="notebox" id="marksRecap"><summary>我划的重点（${runs.length} 处）${runs.length? " — 写作答时点开随看":"（在上方材料里选中几个字，点「划线」）"}</summary><div class="notebody">${
     runs.length? runs.map(t=>`<div class="tpl">${esc(t)}</div>`).join("") : '<span class="hint">还没划——在上方材料里选中几个字，点「划线」。</span>'
   }</div></details>`;
 }
@@ -3060,9 +3094,10 @@ function saveQNote(sig, text){ if(!state.cache.qnotes) state.cache.qnotes = {}; 
 function qNoteHtml(module, subtype, question){
   const sig = qSig(question);
   const cardNote = getNote(module, subtype);
-  return `<details class="notebox"${cardNote? " open":""}><summary>本题笔记（只属于这道题）${cardNote? " + 学习卡笔记":""}</summary><div class="notebody">
+  const my = getQNote(sig);
+  return `<details class="notebox"${my? " open":""}><summary>本题笔记（只属于这道题）${my? "· 已记":"（空，点开记）"}${cardNote? " + 学习卡笔记":""}</summary><div class="notebody">
     ${cardNote? `<div class="hint" style="margin:0 0 6px"><b>学习卡笔记（这一类题通用）：</b>${esc(cardNote)}</div>` : ""}
-    <textarea class="noteedit" id="qNote" placeholder="这道题的思路、踩过的坑、想记住的表述——写在这里，和学习卡笔记分开记。">${esc(getQNote(sig))}</textarea>
+    <textarea class="noteedit" id="qNote" placeholder="这道题的思路、踩过的坑、想记住的表述——写在这里，和学习卡笔记分开记。">${esc(my)}</textarea>
   </div></details>`;
 }
 
