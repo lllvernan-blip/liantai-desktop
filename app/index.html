@@ -73,7 +73,7 @@ html,body{margin:0;padding:0;}
 .model-item{display:block;width:100%;text-align:left;padding:9px 14px;border:none;background:none;cursor:pointer;font-size:13.5px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
-  .chip small{color:var(--muted);}
+  .chip small{color:var(--muted);font-variant-numeric:tabular-nums;}
 
   .wrap{max-width:880px;margin:20px auto 60px;padding:0 14px;}
   .doc{background:var(--paper);border:1px solid var(--line);padding:34px 46px 44px;}
@@ -96,15 +96,15 @@ html,body{margin:0;padding:0;}
   .qtop button.linkbtn:hover{background:#fff;border-color:var(--gov-red);}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;}
   .material{background:#faf8f2;border:1px solid var(--line);padding:14px 16px;font-family:var(--fangsong);font-size:15.5px;line-height:1.85;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
-  .material .label{font-family:var(--hei);color:var(--gov-red);font-size:13px;margin-bottom:6px;}
+  .material .label{font-family:var(--hei);color:var(--ink);font-size:13px;margin-bottom:6px;}
   .ms{cursor:pointer;border-radius:2px;}
-  mark.ms.on{background:var(--mark,#fde68a);color:var(--ink);}
+  mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
   .swatches{display:flex;gap:8px;}
   .swatch{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0;}
   .swatch.sel{border-color:var(--gov-red);box-shadow:0 0 0 2px rgba(192,21,26,.2);}
   .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:4px;padding:3px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}
   .markpop button{background:transparent;border:none;color:#fff;font-size:12.5px;padding:3px 10px;cursor:pointer;font-family:var(--fangsong);}
-  .markpop button:hover{color:#fde68a;}
+  .markpop button:hover{color:#a7f3d0;}
   .require{margin-top:12px;font-size:14.5px;white-space:pre-wrap;}
   .require b{font-family:var(--hei);}
 
@@ -113,7 +113,7 @@ html,body{margin:0;padding:0;}
   details.card>summary::-webkit-details-marker{display:none;}
   details.card>summary .tag{font-family:var(--fangsong);font-weight:400;font-size:12.5px;color:var(--muted);}
   .card-body{padding:4px 16px 16px;font-size:14px;line-height:1.85;}
-  .card-body h4{font-family:var(--hei);font-size:13.5px;margin:14px 0 6px;color:var(--gov-red);}
+  .card-body h4{font-family:var(--hei);font-size:13.5px;margin:14px 0 6px;color:var(--ink);}
   .card-body ul{margin:4px 0;padding-left:20px;}
   .card-body li{margin:3px 0;}
   .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:13.5px;white-space:pre-wrap;color:#333;}
@@ -125,7 +125,7 @@ html,body{margin:0;padding:0;}
   .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center;}
   .hint{font-size:12.5px;color:var(--muted);}
   .counter{font-size:12.5px;color:var(--muted);}
-  .counter b{font-family:var(--hei);color:var(--gov-red);}
+  .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
   .counter b.over{color:#fff;background:#b3261e;padding:0 5px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
   .pdreview{border:1px solid var(--line);text-align:left;margin-top:4px;}
@@ -137,29 +137,31 @@ html,body{margin:0;padding:0;}
   .pdreview .pditem.miss .pdmk{color:#b3261e;}
   .pdreview .pdq{font-family:var(--hei);flex:0 0 auto;}
   .pdreview .pdtrap{color:var(--muted);font-size:12.5px;}
-  .pdreview .pdexp{color:var(--muted);font-size:13px;line-height:1.75;margin-top:4px;padding-left:26px;white-space:pre-wrap;}
+  .pdreview .pdexp{color:var(--muted);font-size:13.5px;line-height:1.75;margin-top:4px;padding-left:26px;white-space:pre-wrap;}
   .hits{border:1px solid var(--line);}
   .hitline{display:flex;gap:8px;padding:6px 10px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.6;align-items:baseline;}
   .hitline:last-child{border-bottom:none;}
   .hitline .mk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
   .hitline.hit .mk{color:#2f7d32;}
-  .hitline.part .mk{color:#b8860b;}
+  .hitline.part .mk{color:#b45309;}
   .hitline.miss .mk,.hitline.miss .pt{color:#b3261e;}
-  .hitline .sc{font-family:var(--hei);font-size:12.5px;color:var(--muted);flex:0 0 auto;}
+  .hitline .sc{font-family:var(--hei);font-size:13px;color:var(--muted);flex:0 0 auto;font-variant-numeric:tabular-nums;}
   .hitline.hit .sc{color:#2f7d32;}
-  .hitline.part .sc{color:#b8860b;}
+  .hitline.part .sc{color:#b45309;}
   .hitline.miss .sc{color:#b3261e;}
-  .hitline .ev{color:var(--muted);font-size:12.5px;}
+  .hitline .ev{color:var(--muted);font-size:13.5px;}
 
   .grade{margin-top:22px;border-top:2px solid var(--gov-red);padding-top:16px;}
-  .grade .total{font-family:var(--hei);font-size:26px;color:var(--gov-red);font-weight:700;}
+  .grade .total{font-family:var(--hei);font-size:26px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
   .dimscores{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0;}
   .dim{border:1px solid var(--line);padding:8px 10px;}
   .dim .name{font-family:var(--hei);font-size:13px;}
-  .dim .bar{height:6px;background:#eee;margin-top:6px;}
-  .dim .bar>i{display:block;height:100%;background:var(--gov-red);}
-  .dim .val{font-size:12px;color:var(--muted);float:right;}
+  .dim .bar{height:6px;background:#eceae4;margin-top:6px;}
+  /* 维度条是诊断数据，不是警示：默认中性墨灰，只有低于合格线（满分 20 的 60%）才染红 */
+  .dim .bar>i{display:block;height:100%;background:#8f8c84;}
+  .dim .bar>i.lo{background:#b3261e;}
+  .dim .val{font-size:13px;color:var(--muted);float:right;font-variant-numeric:tabular-nums;}
   .pills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px;}
   .pill{padding:4px 10px;font-size:12.5px;border-radius:2px;}
   .pill.good{background:#eef6ee;border:1px solid #cfe6cf;color:#2f7d32;}
@@ -171,8 +173,8 @@ html,body{margin:0;padding:0;}
   .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:hidden;}
   .modal[hidden]{display:none;}
   .modal .box{background:var(--paper);border:1px solid var(--line);width:100%;max-width:760px;box-shadow:0 12px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;max-height:90vh;}
-  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f7f5f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;flex:0 0 auto;}
-  .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:2px 8px;}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f1f2f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;flex:0 0 auto;}
+  .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:6px 10px;}
   .mhead .x:hover{color:var(--gov-red);}
   .panel-body{padding:16px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
   /* 学习卡抽屉 + 我的笔记 + 翻卡浮标 */
@@ -182,7 +184,7 @@ html,body{margin:0;padding:0;}
   .drawer .card-body{padding:14px 16px 20px;}
   .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:22px;padding:9px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.10);font-family:var(--hei);}
   .fab:hover{background:#fff;border-color:#b9b2a2;}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
-  .fab b{color:var(--gov-red);}
+  .fab b{color:var(--ink);}
   .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line);padding:10px 12px;background:#fffdf0;color:var(--ink);border-radius:2px;}
   .noteedit:focus{outline:none;border-color:var(--gov-red);}
   .notebox{border:1px solid var(--line);background:var(--paper);margin-top:14px;}
@@ -206,16 +208,16 @@ html,body{margin:0;padding:0;}
   details.more .inner{padding:2px 12px 12px;}
 
   .modblock{border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;}
-  .modblock h4{font-family:var(--hei);font-size:14px;margin:0 0 10px;color:var(--gov-red);}
+  .modblock h4{font-family:var(--hei);font-size:14px;margin:0 0 10px;color:var(--ink);}
   .typestat{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
-  .typestat .t{padding:4px 9px;font-size:12.5px;border:1px solid var(--line);}
+  .typestat .t{padding:4px 9px;font-size:13px;border:1px solid var(--line);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
-  .typestat .t .lo{color:var(--gov-red);}
+  .typestat .t .lo{color:#b3261e;}
   .typestat .t .hi{color:#2f7d32;}
   .hist{max-height:240px;overflow:auto;border:1px solid var(--line);margin-top:12px;}
-  .hist table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .hist table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
   .hist th,.hist td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;}
-  .hist th{font-family:var(--hei);background:#f7f5f0;position:sticky;top:0;}
+  .hist th{font-family:var(--hei);background:#f1f2f0;position:sticky;top:0;}
   .banner{background:#fff4f4;border:1px solid #f0c9c9;color:#9c1115;padding:10px 14px;font-size:13.5px;margin-bottom:14px;border-radius:2px;}
   .loading{font-size:13px;color:var(--muted);padding:40px 0;text-align:center;}
   .peek{display:none;max-height:130px;overflow:hidden;margin:10px auto 0;padding:8px 12px;text-align:left;background:#f7f5f0;border:1px dashed var(--line);font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
@@ -240,14 +242,18 @@ html,body{margin:0;padding:0;}
   .dline.del{color:#b3261e;text-decoration:line-through;}
   /* 判别轨：可点的行块选项，判完对的绿、错的红、正解标出（沿用克制的红绿，不加新色） */
   .pdopts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
-  .pdopt{border:1px solid var(--line);background:#fff;padding:10px 14px;font-size:14.5px;line-height:1.7;cursor:pointer;}
-  .pdopt:hover{border-color:var(--gov-red);}
+  /* 快判选项：原生 button（键盘可达），所以要把 button 的字体/居中复位成段落式左对齐 */
+  .pdopt{display:block;width:100%;text-align:left;font-family:var(--yahei);border:1px solid var(--line);background:#fff;padding:10px 14px;font-size:14.5px;line-height:1.7;cursor:pointer;border-radius:2px;}
+  .pdopt:hover{border-color:var(--gov-red);background:#f7f8f6;}
   .pdopt.good{border-color:#2f7d32;background:#f2f8f2;color:#2f7d32;cursor:default;}
-  .pdopt.good:hover{border-color:#2f7d32;}
+  .pdopt.good:hover{border-color:#2f7d32;background:#f2f8f2;}
   .pdopt.bad{border-color:#b3261e;background:#fdf1f1;color:#b3261e;cursor:default;}
-  .pdopt.bad:hover{border-color:#b3261e;}
+  .pdopt.bad:hover{border-color:#b3261e;background:#fdf1f1;}
   .pdopt.dim{color:var(--muted);cursor:default;}
-  .pdopt.dim:hover{border-color:var(--line);}
+  .pdopt.dim:hover{border-color:var(--line);background:#fff;}
+  /* 判完即 disabled（不再可点），但外观不能跟着变淡——结果色得看得很清楚 */
+  .pdopt:disabled{opacity:1;}
+  .pdopt:disabled:hover{border-color:inherit;}
   .pdexplain{font-size:13.5px;background:#faf8f2;border:1px dashed var(--line);padding:8px 12px;line-height:1.8;}
 
   .foot{text-align:center;color:var(--muted);font-size:12px;margin:26px 0 0;}
@@ -263,7 +269,7 @@ html,body{margin:0;padding:0;}
   .startbox input[type=text]{display:block;width:100%;max-width:560px;margin:0 auto;}
   ::selection{background:rgba(192,21,26,.14);}
   button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,
-  .tab:focus-visible,.subjbtn:focus-visible,.chip:focus-visible,.pdopt:focus-visible{outline:2px solid rgba(192,21,26,.45);outline-offset:2px;}
+  .tab:focus-visible,.subjbtn:focus-visible,.chip:focus-visible,.pdopt:focus-visible,mark.ms.on:focus-visible,summary:focus-visible{outline:2px solid rgba(192,21,26,.8);outline-offset:2px;}
   button:active:not(:disabled){transform:translateY(1px);}
   button,.subjbtn,.chip,.tab,.pdopt,mark.ms.on,summary{transition:background .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .2s ease;}
   input[type=text]:focus,input[type=password]:focus,select:focus{border-color:var(--gov-red);box-shadow:0 0 0 3px rgba(192,21,26,.07);outline:none;}
@@ -289,7 +295,7 @@ html,body{margin:0;padding:0;}
 
   .chip:hover,.subjbtn:hover{transform:translateY(-1px);}
   details.card>summary:hover{background:#f7f5f0;}
-  .hitline:hover{background:#fbfaf6;}
+  /* 采分点对照行不是可点元素，不给 hover——加上去会让人以为能点（hover 只给交互元素） */
   .flowrail .fstep{transition:background .16s ease,border-color .16s ease,color .16s ease;}
 
   @media (prefers-reduced-motion:reduce){
@@ -1391,14 +1397,48 @@ function backToStart(){
 }
 /* ============ 弹层：设置 / 画像 ============ */
 // 文档是练题的舞台，一动不动；画像和设置是工具，用完即走——弹层保证关掉后精确回到原位
+let _focusBack = null;   // 弹层打开前的焦点落点（声明在 openModal 之前，避开 TDZ）
 function openModal(id){
+  _focusBack = document.activeElement;   // 关掉弹层把焦点还给原来那个按钮，键盘用户不会掉到页首
   ["modalSettings","modalProfile"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
   document.body.style.overflow = "hidden";
+  const m = $("#"+id);
+  const box = (m && typeof m.querySelector === "function")? m.querySelector(".box") : null;
+  if(box && typeof box.setAttribute === "function"){
+    box.setAttribute("tabindex","-1");
+    if(typeof box.focus === "function"){ try{ box.focus({preventScroll:true}); }catch(e){} }
+  }
 }
 function closeModals(){
   $("#modalSettings").hidden = true; $("#modalProfile").hidden = true;
   document.body.style.overflow = "";
+  if(_focusBack && typeof _focusBack.focus === "function"){ try{ _focusBack.focus({preventScroll:true}); }catch(e){} }
+  _focusBack = null;
 }
+/* 弹层开着时把 Tab 圈在弹层里：否则焦点会跑到遮罩后面的页面上，看着焦点环消失、回车却改了背后那页 */
+function openModalEl(){
+  for(const id of ["modalSettings","modalProfile"]){
+    const m = $("#"+id);
+    if(m && !m.hidden) return m;
+  }
+  return null;
+}
+function modalFocusables(root){
+  if(!root || typeof root.querySelectorAll !== "function") return [];
+  const sel = 'button,[href],input,select,textarea,summary,[tabindex]:not([tabindex="-1"])';   // summary 也是原生可聚焦元素，漏了它 Tab 会从折叠框那里跑出弹层
+  return Array.from(root.querySelectorAll(sel)).filter(el=> el && !el.disabled && !el.hidden);
+}
+document.addEventListener("keydown", e=>{
+  if(e.key !== "Tab") return;
+  const open = openModalEl();
+  if(!open) return;
+  const list = modalFocusables(open);
+  if(!list.length){ e.preventDefault(); return; }
+  const first = list[0], last = list[list.length-1], cur = document.activeElement;
+  const atEdgeStart = (cur === first) || !open.contains(cur);
+  if(e.shiftKey && atEdgeStart){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && cur === last){ e.preventDefault(); first.focus(); }
+});
 function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">${html}</div>`:""; }
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
@@ -1857,7 +1897,8 @@ function renderPDRound(){
     let cls = "pdopt";
     if(it.done){ if(i===it.answer) cls += " good"; else if(it.picked===i) cls += " bad"; else cls += " dim"; }
     const mark = it.done? (i===it.answer? "✓" : (it.picked===i? "✗" : "　")) : String.fromCharCode(65+i)+"．";
-    return `<div class="${cls}"${it.done? "" : ` data-pdopt="${i}"`}>${mark} ${esc(o)}</div>`;
+    // 原生 button：Tab 能到、Enter/Space 能触发；判完即 disabled（外观不变淡，结果色照旧）
+    return `<button type="button" class="${cls}"${it.done? " disabled" : ` data-pdopt="${i}"`}>${mark} ${esc(o)}</button>`;
   }).join("") + `</div>`;
   if(!it.done){
     html += `<div class="actions"><span class="hint">点选即判，不用等整组做完。</span><button class="linkbtn" id="pdSkip">直接看答案（算未答）</button></div>`;
@@ -2602,7 +2643,7 @@ function gradeHtml(g, total){
   let html = `<div class="grade"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
   html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div><div class="dimscores">`;
   for(const d of dims){ const v=Number(g.scores[d])||0; const pct=Math.round(v/20*100);
-    html += `<div class="dim"><span class="val">${v}/20</span><div class="name">${d}</div><div class="bar"><i style="width:${pct}%"></i></div></div>`; }
+    html += `<div class="dim"><span class="val">${v}/20</span><div class="name">${d}</div><div class="bar"><i class="${pct<60?"lo":""}" style="width:${pct}%"></i></div></div>`; }
   html += `</div>`;
   const goods=(g.strengths||[]).map(s=>`<span class="pill good">+ ${esc(s)}</span>`).join("");
   const bads=(g.weaknesses||[]).map(s=>`<span class="pill bad">− ${esc(s)}</span>`).join("");
