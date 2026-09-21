@@ -16,6 +16,10 @@
     "directories": {
       "output": "dist"
     },
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
     "files": [
       "main.js",
       "update.js",

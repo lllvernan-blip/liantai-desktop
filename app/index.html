@@ -3235,7 +3235,7 @@ function loadBuildNote(){
   if(typeof fetch !== "function" || !/^https?:$/.test(proto)) return;
   fetch("build.json", { cache: "no-store" })
     .then(r => (r && r.ok) ? r.json() : null)
-    .then(d => { if(d && d.builtAt) el.textContent = "练习台 · " + (d.version? "v"+d.version+" · ":"") + "构建 " + d.builtAt; })
+    .then(d => { if(d && d.version) el.textContent = "练习台 · v" + d.version; })
     .catch(() => {});
 }
 
