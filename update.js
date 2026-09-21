@@ -36,11 +36,17 @@ const MIRROR_RETRY_MS = 1500;                 // 切镜像后隔一下再试
 /* 镜像兜底：国内直连 GitHub 实测常常直接连不通（连接被重置 / 超时），而 GitHub 加速镜像能取到
    同一份 Release 资产。2026-09-18 实测可用且都支持 Range（差量照旧）：ghproxy.net、gh-proxy.com、gh.ddlc.top。
    主源永远是包内 app-update.yml（GitHub 官方）——只有它先失败才退到镜像，免得把信任全交给第三方。
-   镜像自己也会挂（实测里 ghproxy.cc 证书过期、ghfast.top 连不通），所以按顺序试，全失败就照常报错+重试。 */
+   镜像自己也会挂（实测里 ghproxy.cc 证书过期、ghfast.top 连不通），所以按顺序试，全失败就照常报错+重试。
+   镜像只是兜底不是新默认：某轮借镜像走通后，下一轮检查开始时仍回到官方源（backToOfficialFeed）。 */
+const GITHUB_OWNER = 'lllvernan-blip';
+const GITHUB_REPO = 'liantai-desktop';
+/* 等价于包内 app-update.yml（provider github + owner/repo；未签名无 pubkey；缓存目录名与
+   electron-updater 按应用名算出的默认值一致），换回它 = 换回包内配置。 */
+const OFFICIAL_FEED = { provider: 'github', owner: GITHUB_OWNER, repo: GITHUB_REPO };
 const MIRROR_FEEDS = [
-  'https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/',
-  'https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/',
-  'https://gh.ddlc.top/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/',
+  'https://ghproxy.net/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  'https://gh-proxy.com/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  'https://gh.ddlc.top/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
 ];
 
 let autoUpdater = null;
@@ -260,6 +266,22 @@ function hostOf(url) {
   return m ? m[1] : '';
 }
 
+/* 把 feed 拨回官方源。只在新一轮检查开始时调（下载中绝不换源）；显式指定的源是唯一来源，不碰。
+   switchedAway 表示当前 feed 已经不在官方源上——「借镜像走通了」和「镜像全灭后报错」两种情况都算。 */
+function backToOfficialFeed() {
+  if (explicitFeed || !switchedAway) return;
+  try {
+    autoUpdater.setFeedURL(Object.assign({}, OFFICIAL_FEED));
+    mirrorIndex = -1;
+    switchedAway = false;
+    status.feed = '';
+    status.feedHost = '';
+    log('update-info', '上一轮走了镜像，本轮检查回到官方源');
+  } catch (err) {
+    log('update-warn', '回到官方源失败：' + ((err && err.message) || String(err)));
+  }
+}
+
 /* 换到下一个镜像。返回 true 表示已经换成并用新源重试。 */
 function useNextMirror() {
   if (explicitFeed) return false;                            // 显式指定的源是唯一来源
@@ -298,6 +320,7 @@ function handleFailure(id, msg) {
 async function checkUpdate() {
   if (stopped || !status.supported || !autoUpdater) return snapshot();
   if (status.phase === PHASE.CHECKING || status.phase === PHASE.DOWNLOADING) return snapshot();
+  backToOfficialFeed();
   const id = ++attempt;
   try {
     const p = autoUpdater.checkForUpdates();

@@ -116,6 +116,14 @@ function handleRequest(req, res) {
     return;
   }
 
+  // 解码后若还含 NUL 字符（如 %00），fs.stat 对含 \0 的路径会同步抛 TypeError，
+  // 直接把请求处理打进 uncaughtException——这种请求只配 400，不配碰文件系统。
+  if (pathname.indexOf('\0') !== -1) {
+    log('http-badrequest', pathname);
+    send(res, 400, 'Bad Request', { 'Content-Type': 'text/plain; charset=utf-8' });
+    return;
+  }
+
   // 更新接口优先于静态文件：它不属于 app/ 目录，也不能被路径拼接碰到
   if (pathname.indexOf('/__update/') === 0) {
     handleUpdateRoute(req, res, pathname);

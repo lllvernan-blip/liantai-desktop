@@ -558,16 +558,25 @@ function migrateKeyedObject(src){
 }
 function migrateHistory(list){
   let changed = false;
-  const out = (list||[]).map((h,i)=>{
-    if(!h || typeof h !== "object") return h;
+  const out = [];
+  (list||[]).forEach((h,i)=>{
+    // 准入检查：坏记录不进 state（画像/记录页会照单全收它的字段，一条垃圾能坏一页）。
+    // 逐条校验，单条不合格丢弃、不整包失败；load() 与导入共用这一道闸。
+    // 注意不引用 PD_FORMS：本函数在 let state = load() 之前调用，而 PD_FORMS 声明在其后，会撞 TDZ。
+    if(!h || typeof h !== "object"){ changed = true; return; }
+    if(h.track === "pd"){
+      // pdFormStats 对缺 items 的老记录自带退路（按轮级 total/correct 算），这里只把关 form
+      if(typeof h.form !== "string"){ changed = true; return; }
+    }
     let nh = h, touched = false;
     const nk = migrateModuleKey(h.module);
     if(nk !== h.module){ nh = Object.assign({}, nh, { module:nk }); touched = true; }
+    else if(h.track !== "pd" && !MODULES[h.module]){ changed = true; return; }   // 键迁移后仍不是已知模块：不可信，丢弃
     // 旧记录没有训练链：补占位 flowId，让记录与七步链的关联从第一天就是显式的（幂等：补过就不再动）。
     // 判别轨记录（track:'pd'）不建训练链，不补占位。
     if(!nh.flowId && h.track !== "pd"){ nh = Object.assign({}, nh, { flowId: "legacy-" + (h.ts == null? i : h.ts) }); touched = true; }
-    if(touched){ changed = true; return nh; }
-    return h;
+    if(touched){ changed = true; out.push(nh); return; }
+    out.push(h);
   });
   return { list:out, changed };
 }
@@ -1459,6 +1468,7 @@ function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">$
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
+  reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
   activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
   tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
@@ -2780,6 +2790,13 @@ function modelMenuShow(show){
   const menu = $("#modelMenu"); if(!menu) return;
   menu.style.display = (show && menu.innerHTML)? "":"none";
 }
+/* 键盘选中与鼠标选中共用：置值 → 刷新档位 UI → 收菜单 → 焦点回输入框。
+   click 路径由键盘 Enter/空格触发；鼠标路径 mousedown 已选中过一次，这里再走一遍是幂等的。 */
+function pickModelItem(b){
+  const inp = $("#setModel");
+  if(inp){ inp.value = b.dataset.m; setReasonUI(); inp.focus(); }
+  modelMenuShow(false);
+}
 function useCachedModels(base){
   const cache = state.modelCache && state.modelCache[(base||"").replace(/\/+$/,"")];
   if(cache && cache.length){ renderModelList(cache); return true; }
@@ -3360,14 +3377,46 @@ function init(){
     if(menu) menu.querySelectorAll(".model-item").forEach(b=>{ b.style.display = (!q || b.dataset.m.toLowerCase().includes(q)) ? "" : "none"; });
     modelMenuShow(true);
   });
-  setModelEl.addEventListener("blur", ()=> setTimeout(()=> modelMenuShow(false), 120));
-  const modelMenuEl = $("#modelMenu");
-  if(modelMenuEl) modelMenuEl.addEventListener("mousedown", (e)=>{
-    const b = e.target && e.target.closest ? e.target.closest(".model-item") : null;
-    if(!b) return;
-    e.preventDefault();   // 防止先触发输入框 blur 把菜单收走
-    $("#setModel").value = b.dataset.m; setReasonUI(); modelMenuShow(false);
+  // 焦点只要还在 输入框/菜单 里就不收菜单；真正离开（点了别处）才收——这是键盘上下键的前提
+  const menuHideIfLeft = ()=> setTimeout(()=>{
+    const a = document.activeElement, menu = $("#modelMenu");
+    if(menu && a && (a === setModelEl || menu.contains(a))) return;
+    modelMenuShow(false);
+  }, 120);
+  setModelEl.addEventListener("blur", menuHideIfLeft);
+  // 键盘通路：输入框 ↑/↓ 进入菜单并落在首/末可见项；菜单内 ↑/↓ 循环移动；Enter/空格原生触发 click 选中
+  setModelEl.addEventListener("keydown", (e)=>{
+    if(e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const menu = $("#modelMenu");
+    const items = menu ? Array.from(menu.querySelectorAll(".model-item")).filter(b=> b.style.display !== "none") : [];
+    if(!items.length) return;
+    e.preventDefault();
+    modelMenuShow(true);
+    (e.key === "ArrowDown" ? items[0] : items[items.length-1]).focus();
   });
+  const modelMenuEl = $("#modelMenu");
+  if(modelMenuEl){
+    modelMenuEl.addEventListener("focusout", menuHideIfLeft);
+    modelMenuEl.addEventListener("keydown", (e)=>{
+      if(e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      const items = Array.from(modelMenuEl.querySelectorAll(".model-item")).filter(b=> b.style.display !== "none");
+      const i = items.indexOf(document.activeElement);
+      if(i < 0) return;
+      e.preventDefault();
+      items[e.key === "ArrowDown" ? (i+1) % items.length : (i-1+items.length) % items.length].focus();
+    });
+    modelMenuEl.addEventListener("mousedown", (e)=>{
+      const b = e.target && e.target.closest ? e.target.closest(".model-item") : null;
+      if(!b) return;
+      e.preventDefault();   // 防止先触发输入框 blur 把菜单收走
+      pickModelItem(b);
+    });
+    modelMenuEl.addEventListener("click", (e)=>{   // 键盘选中的唯一入口
+      const b = e.target && e.target.closest ? e.target.closest(".model-item") : null;
+      if(!b) return;
+      pickModelItem(b);
+    });
+  }
   document.querySelectorAll("#segReason button").forEach(b=> b.onclick = ()=>{ state.settings.reasonLevel = b.dataset.lv; setReasonUI(); });
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
