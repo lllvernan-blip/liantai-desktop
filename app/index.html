@@ -538,7 +538,7 @@ function moduleKeysOf(subject){ const s = SUBJECTS[subject]; return s? s.modules
 function moduleName(k){ return (MODULES[k] && MODULES[k].name) || String(k==null?"":k); }
 function subjectName(k){ const s = subjectOf(k); return s? SUBJECTS[s].name : ""; }
 function roleOf(k){ const s = subjectOf(k); return (s && SUBJECTS[s].role) || SUBJECTS[DEFAULT_SUBJECT].role; }
-// 流程分叉：七步链（找点/归类/一稿/回改/沉淀）只归申论；综应A 走「学习卡 → 作答 → 批改」两阶段
+// 流程分叉：六步链（找点/归类/一稿/沉淀）只归申论；综应A 走「学习卡 → 作答 → 批改」两阶段
 function usesFlowChain(k){ return subjectOf(k) === "sl"; }
 
 /* ============ 旧数据迁移：裸模块键 -> 科目前缀 ============ */
@@ -602,11 +602,11 @@ const DEFAULT_STATE = {
   modelProbe:{}  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
 };
 
-/* ============ 七步训练链（申论：读材料→找点→归类→一稿→批改→回改→沉淀） ============ */
+/* ============ 七步训练链（申论：读材料→找点→归类→一稿→批改→沉淀；回改已下线） ============ */
 // 只有申论走全链（usesFlowChain）；综应A 恢复「学习卡 → 作答 → 批改」两阶段（renderZyPage）。
 // 沉淀/经验闭环两科共用：批改成功后自动提炼，注入后续出题与阅卷（见「经验闭环」一节）。
-const FLOW_STEPS  = ["read","extract","organize","draft","review","revise","distill"];
-const FLOW_LABELS = { read:"读材料", extract:"找点", organize:"归类", draft:"一稿", review:"批改", revise:"回改", distill:"沉淀" };
+const FLOW_STEPS  = ["read","extract","organize","draft","review","distill"];   // 回改已下线（阿楠：批改后直接沉淀）；revise 机制保留供历史数据与测试路径
+const FLOW_LABELS = { read:"读材料", extract:"找点", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
 const MAX_OPEN_FLOWS = 20;   // state.flows 只留最近 20 条；有未提交草稿的 flow 永不自动裁剪
 let _flowId = null;          // 当前进行中的训练链 id
 /* 必须定义在 let state = load() 之前：load() 的 flows 迁移要读 FLOW_STEPS，放后面会撞 TDZ 被静默吞掉 */
@@ -1964,7 +1964,7 @@ function renderPDSummary(){
 }
 
 /* ============ 七步训练链：生命周期 ============ */
-// 读材料 → 找点 → 归类 → 一稿 → 批改 → 回改 → 沉淀。换题、切科目、导入恢复都经 ensureFlow/closeFlow 走同一条生命周期。
+// 读材料 → 找点 → 归类 → 一稿 → 批改 → 沉淀。换题、切科目、导入恢复都经 ensureFlow/closeFlow 走同一条生命周期。
 // closeFlow 只置收口标记：草稿、选区、批改记录全部保留——用户内容绝不因换题或收口而消失。
 function genFlowId(){ return "flow_" + Date.now() + "_" + Math.random().toString(36).slice(2,8); }
 function activeFlow(){
@@ -2055,13 +2055,6 @@ function flowGoStep(step){
   if(step === "review" && !(f.attempts && f.attempts.length)){
     banner("还没有批改结果——先在「一稿」提交阅卷，才能进入「批改」步。");
     return false;   // 不允许空批改
-  }
-  if(step === "revise" && f.attempts.length){   // 进回改：把上一稿压栈 flow.drafts（{text,ts,step}，上限 10 条）
-    const prev = String(f.attempts[f.attempts.length-1].answer || "");
-    if(!f.drafts.length || f.drafts[0].text !== prev){
-      f.drafts.unshift({ text: prev, ts: Date.now(), step: "revise" });
-      if(f.drafts.length > 10) f.drafts.length = 10;
-    }
   }
   f.step = step; save();
   renderFlowStep();
@@ -2288,8 +2281,7 @@ function navHtml(step, f){
   if(prev) html += `<button class="linkbtn" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
   // read 靠「开始找点」推进、draft 靠「提交阅卷」推进——这两步不摆 Next
   if(next && step !== "read" && step !== "draft") html += `<button id="btnFlowNext">下一步：${FLOW_LABELS[next]}</button>`;
-  // 回到一稿重做：撤销该链最近一次批改（回滚 history 与画像累计，草稿保留），比「上一步」多一层回滚语义
-  if((step === "review" || step === "revise") && f && f.attempts.length) html += `<button class="linkbtn" id="btnRedraft">回到一稿重做</button>`;
+  // 回到一稿重做已下线：批改后直接沉淀，重做就换一题重新来
   return html + `</div>`;
 }
 function renderFlowStep(){
@@ -2332,7 +2324,7 @@ function stepPanelHtml(step, f){
     return html;
   }
   if(step === "extract"){
-    return `<div class="hint" style="margin-top:10px">点选整句，或在材料里划选至少 4 个字；点已选的内容取消。找点是作答建议——不选任何点也不影响交卷。</div>
+    return `<div class="hint" style="margin-top:10px">点选整句，或按住拖动自选片段（至少 4 字）；点已选的内容取消。找点是作答建议——不选任何点也不影响交卷。</div>
       <div class="material"><div class="label">背景材料 · 找点</div><div id="extractBox">${f? extractHtml(f) : ""}</div></div>
       <div class="hint" id="pickCount">已选 ${f? f.selections.length : 0} 处</div>
       <div id="pickList">${f? pickListHtml(f) : ""}</div>`;
@@ -2356,9 +2348,9 @@ function draftPanelHtml(f){
     html += `<div class="hint" style="margin-top:10px">按批改回改：对照下面的清单修改，提交后重新阅卷（记为同一题的新一次尝试，总分口径不变）。</div>`;
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
-  if(outline) html += `<details class="notebox" open style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
+  if(outline) html += `<details class="notebox" style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
   html += cardNoteHtml(module, subtype);   // 材料之后：这一类题通用的笔记
-  html += marksRecapHtml(question);        // 再往下：我在材料里划的句子
+  if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
     <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
@@ -2408,7 +2400,12 @@ function wireMarks(){
     pop.style.top = (r.top + window.scrollY - 38) + "px";
     pop.style.display = "block";
   };
-  const renderMaterial = ()=>{ if(mbox) mbox.innerHTML = materialHtml(current.question); refreshMarksRecap(); };
+/* 划线变更：优先局部替换（只重建受影响的几个片段，不整块重铺——整块 innerHTML 重建会肉眼可见地闪一下） */
+  const renderMaterial = (s, e)=>{
+    if(!mbox) return;
+    if(s == null || !updateMaterialRange(mbox, current.question, s, e)) mbox.innerHTML = materialHtml(current.question);
+    refreshMarksRecap();
+  };
   if(mbox){
     mbox.addEventListener("mouseup", ()=> setTimeout(showPop, 0));
     mbox.addEventListener("click", e=>{
@@ -2419,7 +2416,7 @@ function wireMarks(){
         const set = loadMarks(sig);
         for(let i=Number(sp.dataset.s); i<Number(sp.dataset.e); i++) set.delete(i);
         saveMarks(sig, set);
-        renderMaterial();
+        renderMaterial(Number(sp.dataset.s), Number(sp.dataset.e));
       }
     });
   }
@@ -2428,7 +2425,7 @@ function wireMarks(){
       const s = Number(pop.dataset.s), e = Number(pop.dataset.e), set = loadMarks(sig);
       for(let i=s; i<e; i++){ if(pop.dataset.mode === "on") set.add(i); else set.delete(i); }
       saveMarks(sig, set);
-      hidePop(); renderMaterial();
+      hidePop(); renderMaterial(s, e);
     };
     if(_markOutsideHandler) document.removeEventListener("mousedown", _markOutsideHandler);
     _markOutsideHandler = e=>{ if(!pop.contains(e.target)) hidePop(); };
@@ -2502,7 +2499,6 @@ function wireStep(step, f){
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
-  const brd = $("#btnRedraft"); if(brd) brd.onclick = ()=>{ if(rollbackFlowFrom("review")) renderFlowStep(); };
   if(step === "read"){
     wireMarks();
     const be = $("#btnToExtract"); if(be) be.onclick = ()=> flowGoStep("extract");
@@ -3185,6 +3181,43 @@ function materialHtml(q){
   return html;
 }
 
+/* 局部重建 [rs,re) 的片段（边界对齐到现有片段边界），替代整块材料重铺 */
+function materialRangeHtml(q, rs, re){
+  const text = String((q&&q.background)||"");
+  const marks = loadMarks(qSig(q));
+  let html = "", i = rs;
+  while(i < re){
+    const on = marks.has(i);
+    let j = i;
+    while(j < re && marks.has(j) === on) j++;
+    const seg = esc(text.slice(i, j));
+    html += on
+      ? `<mark class="ms on" data-s="${i}" data-e="${j}">${seg}</mark>`
+      : `<span class="ms" data-s="${i}" data-e="${j}">${seg}</span>`;
+    i = j;
+  }
+  return html;
+}
+function updateMaterialRange(mbox, q, s, e){
+  let startNode = null, endNode = null;
+  for(const k of mbox.children){
+    const ks = Number(k.dataset.s), ke = Number(k.dataset.e);
+    if(ke <= s || ks >= e) continue;
+    if(!startNode) startNode = k;
+    endNode = k;
+  }
+  if(!startNode) return false;
+  const rs = Math.min(s, Number(startNode.dataset.s));
+  const re = Math.max(e, Number(endNode.dataset.e));
+  const tpl = document.createElement("template");
+  tpl.innerHTML = materialRangeHtml(q, rs, re);
+  mbox.insertBefore(tpl.content, startNode);
+  const stop = endNode.nextSibling;
+  let node = startNode;
+  while(node && node !== stop){ const nxt = node.nextSibling; mbox.removeChild(node); node = nxt; }
+  return true;
+}
+
 /* 已划句子提取：把字符级标记还原成一段段原文（保持出现顺序），供作答区下方随写随看 */
 function markedRuns(q){
   const text = String((q&&q.background)||"");
@@ -3207,7 +3240,7 @@ function marksRunsHtml(runs){
 /* 学习卡笔记：这一类题通用的，只读展示；要改去「读材料」步或翻卡时写 */
 function cardNoteHtml(module, subtype){
   const cardNote = getNote(module, subtype);
-  return `<details class="notebox"${cardNote? " open":""}><summary>学习卡笔记（这一类题通用）${cardNote? "":" — 还没有"}</summary><div class="notebody">${
+  return `<details class="notebox"><summary>学习卡笔记（这一类题通用）${cardNote? " — 已有笔记":" — 还没有"}</summary><div class="notebody">${
     cardNote? esc(cardNote) : '<span class="hint">这一类题还没有笔记。在「读材料」步的学习卡里记，或翻卡时顺手记。</span>'
   }</div></details>`;
 }
@@ -3232,12 +3265,12 @@ function handleErr(e, keepView){
 
 /* 更新日志：发版时在最上面加一条；纯静态不联网，走哪个更新源都能看。 */
 const CHANGELOG = [
-  ["0.0.8", "一批稳定性加固；安装包瘦身（只保留中英文界面语言）；新增本更新日志"],
-  ["0.0.7", "界面与交互打磨：插入模板后可正常打字，布局与无障碍细节收口"],
-  ["0.0.6", "划线回顾随页显示、作答笔记、参考答案全文"],
-  ["0.0.5", "滚动条与页面细节修复"],
-  ["0.0.4", "「判别轨」更名为「快判」，界面与字体全面升级"],
-  ["0.0.3", "更新下载增加镜像兜底，更稳"],
+  ["0.0.8", "一批稳定性加固；安装包瘦身；新增更新日志"],
+  ["0.0.7", "界面与交互打磨"],
+  ["0.0.6", "划线回顾、作答笔记、参考答案全文"],
+  ["0.0.5", "界面细节修复"],
+  ["0.0.4", "「判别轨」更名为「快判」"],
+  ["0.0.3", "更新下载更稳"],
   ["0.0.2", "自动更新上线"],
   ["0.0.1", "首个发布版本"]
 ];

@@ -684,7 +684,7 @@ ok(fB.sig === qSig(fqB) && fB.step === "read" && fB.subject === "zy", "flow: 新
 ok(flowGoStep("review") === false && activeFlow().step === "read", "批改门槛: 无批改结果进批改步被拒");
 /* ② syncRail 三态 */
 const rail = syncRail({ step:"organize" });
-ok(rail.map(x=>x.state).join(",") === "done,done,active,pending,pending,pending,pending", "步骤条: i<cur done / = active / > pending");
+ok(rail.map(x=>x.state).join(",") === "done,done,active,pending,pending,pending", "步骤条: i<cur done / = active / > pending（回改已下线，六步）");
 ok(rail[2].label === "归类" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
 
 /* ④ 句子表切分与选区偏移 */
@@ -815,7 +815,9 @@ callLLM = async (sys, user)=>{ cap12 = { sys, user }; return { hits:[ {point:"�
 await submitAnswer();
 ok(fR.step === "review" && fR.attempts.length === 1, "回改: 一稿提交进入批改步");
 ok(JSON.parse(cap12.user).mode === undefined, "回改: 一稿提交不带 rewrite 标记");
-flowGoStep("revise");
+/* 回改进页面板：revise 已不在 FLOW_STEPS（用户不可达），按 flowGoStep 原压栈逻辑直接设步 */
+fR.drafts.unshift({ text: String(fR.attempts[fR.attempts.length-1].answer || ""), ts: Date.now(), step: "revise" });
+fR.step = "revise"; renderFlowStep();
 ok(fR.drafts.length === 1 && fR.drafts[0].step === "revise" && fR.drafts[0].text.indexOf("第一稿") >= 0, "回改: 上一稿压栈 flow.drafts");
 ok(el("#answer").value.indexOf("第一稿") >= 0, "回改: 作答区预填上一稿");
 ok(el("#docBody").innerHTML.indexOf("要点一") >= 0 && el("#docBody").innerHTML.indexOf("【缺：关键对策】") >= 0, "回改: 回改清单列出 ✗/◐ 子项与缺失标注");
