@@ -1,6 +1,6 @@
 {
   "name": "liantai-desktop",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "private": true,
   "description": "练习台桌面版（Electron 壳）",
   "main": "main.js",
