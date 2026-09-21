@@ -59,7 +59,7 @@ npm run release
 - **差量**：NSIS 目标会一并出 `latest.yml` 与 `.blockmap`，更新时只下载与上一版**不同的数据块**（80MB 的包通常只需几 MB）。两个前提：缓存里有上一版安装包（手工装的第一版没有，首次会退化成全量，之后就常态走差量）、且**源上旧版的 `.blockmap` 别删**；不满足只会退成全量，不会出错。
 - **不做免安装版**：只发 NSIS 安装版。免安装版对 quitAndInstall 只会「装出一个新副本」，得单独禁用它（代码里那道防线还留着，免得哪天又有人拿 portable 包去跑）。
 - **失败不阻断**：任何更新错误只写日志与设置页一行提示，30 分钟后自动重试；排查看 `logs/startup.log` 里的 `update-*` 行。
-- **连不上 GitHub 也能更新**：主源是 GitHub 官方，直连不通时自动按顺序退到 GitHub 加速镜像（2026-09-18 实测 ghproxy.net / gh-proxy.com / gh.ddlc.top 可用，差量照旧）；想指定自己的源就设 `LIANTAI_UPDATE_FEED`，设了就不再兜底。
+- **连不上 GitHub 也能更新**：主源是 GitHub 官方，直连不通时自动换备选线路继续，差量照旧，不用手动做什么；想指定自己的源就设 `LIANTAI_UPDATE_FEED`，设了就不再兜底。
 
 ## 自检
 
