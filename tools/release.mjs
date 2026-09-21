@@ -103,6 +103,7 @@ step("上传并对账发布资产");
 const missing = reconcileRelease();
 if (missing.length) {
   console.error("发布资产仍不完整：" + missing.join("、") + "（自动更新会因为缺 latest.yml / blockmap 而不可用）");
+  console.error("若不想留一个空壳 Release，可清掉后重出：gh release delete " + tag + " --yes --cleanup-tag");
   process.exit(1);
 }
 
