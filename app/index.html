@@ -418,6 +418,10 @@ html,body{margin:0;padding:0;}
           <button type="button" id="btnInstallUpdate" hidden>重启并更新</button>
           <button type="button" id="btnOpenReleases" hidden>打开发布页</button>
         </div>
+        <details class="more" style="margin-top:8px">
+          <summary>更新日志</summary>
+          <div class="inner" id="changelogBody"></div>
+        </details>
       </div>
         <div id="buildNote" style="margin:18px 0 0;text-align:center;font-size:12px;color:#aaa"></div>
       </div>
@@ -3226,6 +3230,22 @@ function handleErr(e, keepView){
   if(!keepView) renderStart();
 }
 
+/* 更新日志：发版时在最上面加一条；纯静态不联网，走哪个更新源都能看。 */
+const CHANGELOG = [
+  ["0.0.8", "一批稳定性加固；安装包瘦身（只保留中英文界面语言）；新增本更新日志"],
+  ["0.0.7", "界面与交互打磨：插入模板后可正常打字，布局与无障碍细节收口"],
+  ["0.0.6", "划线回顾随页显示、作答笔记、参考答案全文"],
+  ["0.0.5", "滚动条与页面细节修复"],
+  ["0.0.4", "「判别轨」更名为「快判」，界面与字体全面升级"],
+  ["0.0.3", "更新下载增加镜像兜底，更稳"],
+  ["0.0.2", "自动更新上线"],
+  ["0.0.1", "首个发布版本"]
+];
+function renderChangelog(){
+  const el = $("#changelogBody"); if(!el) return;
+  el.innerHTML = CHANGELOG.map(function(it){ return '<div style="margin:0 0 6px"><b>v' + esc(it[0]) + '</b>　' + esc(it[1]) + '</div>'; }).join("");
+}
+
 /* 构建标识：回答「我装的是不是新版」。唯一来源是 app/build.json，打包时由 stamp-build.mjs 写入，页面只读。
    包里没有这个文件就是源码直跑（双击 html / 预览窗），显示「开发版」。失败一律静默，不影响启动。 */
 function loadBuildNote(){
@@ -3354,6 +3374,7 @@ function initUpdateUi(){
 /* ============ 初始化 ============ */
 function init(){
   loadBuildNote();
+renderChangelog();
   initUpdateUi();
   ensureActive();
   installFlowListeners();   // 找点步的全局监听只装一次
