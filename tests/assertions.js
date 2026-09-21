@@ -479,6 +479,18 @@ const flowGate = activeFlow();
 ok(flowGoStep("review") === false && flowGate.step === "draft", "批改门槛: 无批改结果不得进入批改步");
 ok(el("#bannerSlot").innerHTML.indexOf("批改") >= 0, "批改门槛: 拒绝时有明确提示");
 
+/* 申论学习卡：内置课堂笔记版，不走 AI 生成、不占「换一张」 */
+state.history = []; state.flows = []; _flowId = null; current = null; state.cache.studyCards = {};
+const realCallCard = callLLM;
+let genCallsCard = 0;
+callLLM = async ()=>{ genCallsCard++; return { question:{ background:"内置卡测试材料。第二句！", requirements:"不超过250字。" }, keyPoints:[] }; };
+await loadQuestion("sl.guina","概括问题");
+ok(genCallsCard === 1 && current && current.studyCard === SL_STUDY_CARDS["sl.guina"], "申论学习卡: 内置卡直挂，AI 只被调去出题");
+ok(el("#docBody").innerHTML.indexOf("归纳概括·学习卡") >= 0 && el("#docBody").innerHTML.indexOf("btnNewCard") < 0, "申论学习卡: 读材料步渲染内置卡，且无「换一张」");
+ok(!state.cache.studyCards["sl.guina::概括问题"], "申论学习卡: 内置卡不写缓存");
+callLLM = realCallCard;
+current = null; state.cache.studyCards = {};
+
 /* 综应A：两阶段——不建链、不渲染步骤条；学习卡（折叠+笔记+翻卡计数）→ 开始作答 → 作答页；翻卡计次照旧 */
 saveNote("zy.gongwen","通知","综应要点：格式三件套");
 state.history = [{ module:"zy.gongwen", subtype:"通知", cardPeeks:2, grade:{ total:70, scores:{} } }];
