@@ -31,7 +31,7 @@
 - 对账前会校验 `dist/latest.yml` 的 `version` 与 `sha512` 是否就是当前产物：**别拿上一次试打包残留的清单去对账**，否则会把旧版本号或错哈希写到线上（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」），两种都不会在打包阶段报错。
 - 差量的两个前提：缓存 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（上一版安装包）在，且**源上旧版的 `.blockmap` 不删**。generic 源支持 `multipart/byteranges` 才是真差量（不支持就优雅退化为全量，不报错）；GitHub 资产 CDN 对多段 Range 返回 501，但 `BaseGitHubProvider` 写死单段逐段请求（206 可用），所以 GitHub 源差量可用。
 - 网络现实：国内直连 GitHub 时 `checkForUpdates` 可能直接 `ERR_CONNECTION_TIMED_OUT`（真机见过）。这不是 bug：失败会按规则重试且不阻断使用；要稳定就换源（`LIANTAI_UPDATE_FEED`）。
-- - **镜像兜底**：主源永远是包内 `app-update.yml`（GitHub 官方）；它连不通时 `update.js` 按 `MIRROR_FEEDS` 顺序退到 GitHub 加速镜像，全试过才落 error（下一轮从主源重新开始）。镜像列表在 `update.js` 顶部：2026-09-18 在这台机器实测 `ghproxy.net` / `gh-proxy.com` / `gh.ddlc.top` 可用且都支持 Range（差量照旧），直连 github.com 则是连接超时。设了 `LIANTAI_UPDATE_FEED` 就只认那一个源，不再兜底。**代价得知道**：镜像能把 `latest.yml` 和安装包一起换掉，等于把信任交给第三方——所以主源永远留给官方，镜像只是路不通时的替代。
+- **镜像兜底**：主源永远是包内 `app-update.yml`（GitHub 官方）；它连不通时 `update.js` 按 `MIRROR_FEEDS` 顺序退到 GitHub 加速镜像，全试过才落 error（下一轮从主源重新开始）。镜像列表在 `update.js` 顶部：2026-09-18 在这台机器实测 `ghproxy.net` / `gh-proxy.com` / `gh.ddlc.top` 可用且都支持 Range（差量照旧），直连 github.com 则是连接超时。设了 `LIANTAI_UPDATE_FEED` 就只认那一个源，不再兜底。**代价得知道**：镜像能把 `latest.yml` 和安装包一起换掉，等于把信任交给第三方——所以主源永远留给官方，镜像只是路不通时的替代。
   - 本地验更新链路不必真装：`LIANTAI_UPDATE_FEED=http://127.0.0.1:<port>/` 指向一个放好 `latest.yml` + 安装包 + `.blockmap` 的目录，跑 `dist/win-unpacked/练习台.exe` 即可（generic 源）。
 
 ## 名称与版本（别乱动的三样）

@@ -13,7 +13,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -181,10 +181,9 @@ function reconcileRelease() {
       stillMissing.push(w.name);
       continue;
     }
-    // gh 上传后的资产名就是本地文件名，所以先复制成目标名再传
-    const staged = join(root, "dist", w.name);
-    if (staged !== w.local) copyFileSync(w.local, staged);
-    const up = spawnSync("gh", ["release", "upload", tag, staged, "--repo", REPO, "--clobber"], { cwd: root, stdio: "inherit" });
+    // gh 支持「本地路径#远端显示名」：直接上传中文本地产物，不在 dist/ 复制一份英文副本
+    const uploadArg = w.local + "#" + w.name;
+    const up = spawnSync("gh", ["release", "upload", tag, uploadArg, "--repo", REPO, "--clobber"], { cwd: root, stdio: "inherit" });
     if (up.status === 0) {
       console.log("  补传   " + w.name);
     } else {
