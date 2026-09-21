@@ -13,7 +13,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -182,9 +182,20 @@ function reconcileRelease() {
       stillMissing.push(w.name);
       continue;
     }
-    // gh 支持「本地路径#远端显示名」：直接上传中文本地产物，不在 dist/ 复制一份英文副本
-    const uploadArg = w.local + "#" + w.name;
-    const up = spawnSync("gh", ["release", "upload", tag, uploadArg, "--repo", REPO, "--clobber"], { cwd: root, stdio: "inherit" });
+    /* 实证过的坑（v0.0.8）：gh 的「路径#显示名」只是 UI 标签，资产名永远取本地文件名，
+       而 GitHub 会把名字里的非 ASCII 字符剥掉 —— 中文本地名传上去就成了「-Setup-x.y.z.exe」，
+       客户端按 latest.yml 里的 ASCII 名来下，必然 404。
+       所以用硬链接把同一份产物以 ASCII 名挂出来再传（同盘零拷贝，不留英文副本），传完即拆。 */
+    let uploadFrom = w.local;
+    const localBase = w.local.split(/[\\/]/).pop();
+    if (localBase !== w.name) {
+      const alias = join(root, "dist", w.name);
+      try { unlinkSync(alias); } catch {}
+      linkSync(w.local, alias);
+      uploadFrom = alias;
+    }
+    const up = spawnSync("gh", ["release", "upload", tag, uploadFrom, "--repo", REPO, "--clobber"], { cwd: root, stdio: "inherit" });
+    if (uploadFrom !== w.local) { try { unlinkSync(uploadFrom); } catch {} }
     if (up.status === 0) {
       console.log("  补传   " + w.name);
     } else {
