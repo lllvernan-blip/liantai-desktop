@@ -608,20 +608,23 @@ const DEFAULT_STATE = {
 const FLOW_STEPS  = ["read","extract","organize","draft","review","distill"];   // 回改已下线（阿楠：批改后直接沉淀）；revise 机制保留供历史数据与测试路径
 const FLOW_LABELS = { read:"读材料", extract:"找点", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
 
-/* 申论学习卡：内置静态卡（源：阿楠中公申论课堂笔记 2026-06/07），不走 AI 生成、不进缓存，也不提供「换一张」。
-   贯彻执行与申发论述暂无对应笔记，先用通用常识垫底，有笔记后再替换。 */
+/* 申论学习卡资料库（源：阿楠中公申论课堂笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
+   AI 据此生成学习卡（照综应口径缓存、可「换一张」、对弱维度定向）；AI 未返回卡时也作兜底。
+   贯彻执行与申发论述暂无对应笔记，用通用常识垫底，有笔记后再替换。 */
 const SL_STUDY_CARDS = {
   "sl.guina": {
     title: "归纳概括·学习卡",
     points: [
-      "审题三定：定题型（要求里「全面、准确、条理」占其二即是）、定问法（问什么答什么，问法决定写法）、定主体（只围绕主体找答案）",
-      "高频词：一个词在一段反复出现、或多个段落同时出现——多段合并为一个要点，这个词就是概括词",
-      "首尾句：段落呈总分/分总/总分总结构时，只抄总结句，其他不抄，省字数",
-      "看人下菜：专家、学者、领导等「有身份」的话藏答案；村民、网友等泛泛发言一般没有",
-      "标点信号：引号单词有实际操作意义是踩分词（比喻象征不算）；问号在段首看问句核心词；省略号看后不看前（后面没字再回头看前）；冒号前有实义名词只抄名词，后面都是解释",
-      "连词信号：并列（同时/一方面）前后各一个要点；转折（但是/然而）只要后面的；为+目的+做法、通过+做法+影响——接的都是答案",
-      "时间线与术语：「如今/近年来」接要点；「以往/传统」+问题放段首，反写问题就是概括句；材料提示词要联想到规范术语（党建引领、盘活闲置资源、依法治国十六字方针等）",
-      "上位词：水利、交通、便民设施→基础设施；题干带引号的词，概括词就围绕它写"
+      "第一步 审题三定：定题型（要求含「全面、准确、条理」任二即是）、定问法（问什么答什么，问法决定写法）、定主体（只围绕主体找答案）",
+      "第二步 带问读材料，边画边注：先抓题干关键词，再逐段对照",
+      "找点·高频词：一段反复出现、或多段同时出现的词——多段合并为一个要点，该词就是概括词",
+      "找点·首尾句：段落呈总分/分总/总分总结构时，只抄总结句，省字数",
+      "找点·人物话语：专家、学者、领导等「有身份」的话藏答案；村民、网友等泛泛发言一般没有",
+      "找点·标点：引号单词有实际操作意义是踩分词（比喻象征不算）；问号在段首看问句核心词；设问要点在答不在问；省略号看后不看前（后面没字再回头看前）；冒号前有实义名词只抄名词，后面都是解释",
+      "找点·连词：并列（同时/一方面）前后各一个要点；转折（但是/然而）只要后面的；为+目的+做法、通过+做法+影响——接的都是答案",
+      "找点·时间线与术语：「如今/近年来」接要点；「以往/传统」+问题放段首，反写问题就是概括句；提示词要联想到规范术语（党建引领、盘活闲置资源等）",
+      "找点·上位词：具体列举往上收（水利、交通、便民设施→基础设施）；题干带引号的词，概括词就围绕它写",
+      "第三步 成文：总括句+1234，或「概括词：具体要点」分条；20 分钟内完成"
     ],
     pitfalls: [
       "忽视问法直接抄材料——问法决定写法：概括做法=动词+名词；「变化」按「新X」分条；「特色」先自拟概括词",
@@ -635,12 +638,13 @@ const SL_STUDY_CARDS = {
   "sl.duice": {
     title: "提出对策·学习卡",
     points: [
-      "审题三判：判题型（要求含「针对性、可行性、可操作性」任一即是）、判问数、判身份（限身份按权限答；没限定默认政府身份，所有问题都要解决）",
+      "第一步 审题三判：判题型（要求含「针对性、可行性、可操作性」任一即是）、判问数、判身份（限身份按权限答；没限定默认政府身份，所有问题都要解决）",
       "两问的三种信号：题干出现「并」；要求里隐藏一问；题干问题模糊无具体指代，需先概括问题再提对策",
-      "材料两类：给了问题+对策=依靠材料，直接抄或反写；只给大问题=依靠自己，围绕问题自撰对策，言之有理即可",
+      "第二步 判材料类型：给了问题+对策=依靠材料，直接抄或反写；只给大问题=依靠自己，围绕问题自撰对策，言之有理即可",
       "反写问题就是对策：反写大问题=概括句，反写解决小问题=具体要点；正面例子直接抄经验，反面例子反写教训",
-      "三性定分：针对性（对着问题）决定有没有分；可行性决定对不对；可操作性（具体切实）决定分高不高",
-      "热点类题目用主体分析法：围绕热点的不同主体分别挖问题、写对策"
+      "第三步 提对策守三性：针对性（对着问题）决定有没有分；可行性决定对不对；可操作性（谁来做、怎么做）决定分高不高",
+      "热点类题目用主体分析法：围绕热点的不同主体分别挖问题、写对策",
+      "第四步 成文：对策=概括句：具体要点；两问时问题不超过三分之一字数，分数重点在对策"
     ],
     pitfalls: [
       "两问时问题写太多——问题不超过总字数三分之一，分数重点在对策",
@@ -654,13 +658,13 @@ const SL_STUDY_CARDS = {
   "sl.fenxi": {
     title: "综合分析·学习卡",
     points: [
-      "先判类型：认识理解类（谈对一句话/一个词的认识）、评价分析类（评价他人观点或社会热点）、启示类（A 案例对 B 的启示）",
+      "第一步 判类型：认识理解类（谈对一句话/一个词的认识）、评价分析类（评价他人观点或社会热点）、启示类（A 案例对 B 的启示）",
       "认识理解=三段公式：解释说明（2-3分）→ 多角度分析（10-14分）→ 总结对策（二选一，不是每题都有）",
       "解释去出处找：划横线/加粗句的出处段落，上段结尾+下段开头就是解释；反复出现的词多在首尾段有定义，材料中下定义的句子直接照抄",
-      "多角度看材料类型：案例型围绕核心词有什么抄什么；人物型按群体数量数要点，一个人就按他做的几件事数",
-      "评价分析：亮明观点要客观全面（他人观点多片面，热点看材料立场）→ 多角度分析好与坏 → 总结对策",
+      "多角度按材料类型：案例型围绕核心词有什么抄什么；人物型按群体数量数要点，一个人就按他做的几件事数",
+      "评价分析=三段公式：亮明观点（客观全面，热点以材料立场为准）→ 好/坏两面多角度分析 → 总结对策",
       "启示类只看 A 不管 B：正面例子当归纳概括的经验题答；反面例子当依靠自己类的对策题答",
-      "全文写成一段，用过渡词连缀要点——逻辑分 1-2 分"
+      "成文：全文写成一段，用过渡词连缀要点——逻辑分 1-2 分"
     ],
     pitfalls: [
       "解释说明漏掉或自己乱编——出处段落里现成有",
@@ -1257,11 +1261,13 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   const reqSpec = localLimit? `作答要求（含作答身份、对象，明确写「不超过${localLimit}字」）`
                             : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const exps = expBlock(k);   // 经验闭环：当前模块未停用的经验（≤3 条）注入出题，两科都带
+  const lib = SL_STUDY_CARDS[k];   // 申论内置资料库（课堂笔记提炼）：学习卡以此为纲生成
+  const libNote = (needCard && lib)? "学习卡必须以内置资料库（library 字段）的方法论为纲，按本题场景重新组织措辞，不得偏离或遗漏资料库要点。" : "";
   const note = (needCard
     ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式，另附一个 example：两三句话的示例小案例 + 典型问法，让用户认出这类题的样子；example 必须是全新编的示例，严禁使用本题背景材料的情节）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。")
     + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "");
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note, experiences: exps || undefined });
+  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined });
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
@@ -1648,13 +1654,12 @@ async function loadQuestion(k, subtype){
     const focusDim = weakestDimOf(k);
     const cacheKey = k + (subtype? "::"+subtype : "");
     const cached = state.cache.studyCards[cacheKey];
-    const staticCard = SL_STUDY_CARDS[k];   // 申论学习卡：内置课堂笔记版，不走 AI、不占生成时间
-    const data = await gen(k, subtype, focusDim, !cached && !staticCard, onDelta);
+    const data = await gen(k, subtype, focusDim, !cached, onDelta);
     if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
-    if(!cached && !staticCard && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
+    if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
     if(!data.question) throw {code:"JSON"};
     enforceWordLimit(k, data.question, subtype);   // 字数口径以本地表为准（公文按文种），不信模型
-    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: staticCard || cached || data.studyCard, cardPeeks:0, phase:"card" };
+    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard || SL_STUDY_CARDS[k], cardPeeks:0, phase:"card" };
     renderHeader(); renderQuestion();
   }catch(e){
     if(mySeq !== reqSeq) return;
@@ -2411,7 +2416,7 @@ function stepPanelHtml(step, f){
         <div class="card-body">${cardHtml(current.studyCard)}
           <h4>我的笔记</h4>
           <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-          ${SL_STUDY_CARDS[module]? "" : '<div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>'}
+          <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
           ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
         </div></details>`;
     }

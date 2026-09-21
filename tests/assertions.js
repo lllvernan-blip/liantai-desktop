@@ -479,15 +479,19 @@ const flowGate = activeFlow();
 ok(flowGoStep("review") === false && flowGate.step === "draft", "批改门槛: 无批改结果不得进入批改步");
 ok(el("#bannerSlot").innerHTML.indexOf("批改") >= 0, "批改门槛: 拒绝时有明确提示");
 
-/* 申论学习卡：内置课堂笔记版，不走 AI 生成、不占「换一张」 */
+/* 申论学习卡：内置资料库随出题注入，AI 生成卡（照综应口径缓存、可换一张）；AI 未带卡时回退资料库 */
 state.history = []; state.flows = []; _flowId = null; current = null; state.cache.studyCards = {};
 const realCallCard = callLLM;
-let genCallsCard = 0;
-callLLM = async ()=>{ genCallsCard++; return { question:{ background:"内置卡测试材料。第二句！", requirements:"不超过250字。" }, keyPoints:[] }; };
+let capCard = null; let genCallsCard = 0;
+callLLM = async (sys, user)=>{ genCallsCard++; capCard = { sys, user }; return { question:{ background:"内置卡测试材料。第二句！", requirements:"不超过250字。" }, keyPoints:[] }; };
 await loadQuestion("sl.guina","概括问题");
-ok(genCallsCard === 1 && current && current.studyCard === SL_STUDY_CARDS["sl.guina"], "申论学习卡: 内置卡直挂，AI 只被调去出题");
-ok(el("#docBody").innerHTML.indexOf("归纳概括·学习卡") >= 0 && el("#docBody").innerHTML.indexOf("btnNewCard") < 0, "申论学习卡: 读材料步渲染内置卡，且无「换一张」");
-ok(!state.cache.studyCards["sl.guina::概括问题"], "申论学习卡: 内置卡不写缓存");
+ok(genCallsCard === 1 && current && current.studyCard === SL_STUDY_CARDS["sl.guina"], "申论学习卡: AI 未带卡时回退内置资料库卡");
+ok(JSON.parse(capCard.user).library && JSON.parse(capCard.user).library.points.length >= 5, "申论学习卡: 资料库随出题注入（library 字段在场）");
+ok(el("#docBody").innerHTML.indexOf("归纳概括·学习卡") >= 0 && el("#docBody").innerHTML.indexOf("btnNewCard") >= 0, "申论学习卡: 读材料步渲染，且照综应口径可「换一张」");
+const cachedCard = { title:"AI 生成的卡", points:["x"], pitfalls:[], templates:"" };
+state.cache.studyCards["sl.guina::概括问题2"] = cachedCard;
+await loadQuestion("sl.guina","概括问题2");
+ok(current.studyCard === cachedCard, "申论学习卡: 有缓存用缓存（AI 卡优先）");
 callLLM = realCallCard;
 current = null; state.cache.studyCards = {};
 
