@@ -191,6 +191,35 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
 
   two.mod.stopUpdate();
   two.restore();
+
+  /* ---- 3b. 镜像链重试必须真走镜像（0.0.9 回归：schedule 重试也走 checkUpdate，
+          若开头就被拨回官方源，镜像永远轮不到、永远卡在第一个镜像） ---- */
+  {
+    const f3 = new FakeUpdater();
+    const three = loadUpdate({ autoUpdater: f3 });
+    three.mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
+
+    const failRound = async () => {
+      await three.mod.checkUpdate();
+      f3.emit("checking-for-update");
+      f3.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+      await wait(20);
+    };
+
+    await failRound();   // 官方挂 -> 换镜像0
+    ok(f3.calls.setFeedURL.some(c => c.provider === "generic"), "壳: 官方失败退到镜像");
+
+    const genericCount = f3.calls.setFeedURL.filter(c => c.provider === "generic").length;
+    await failRound();   // 模拟 1.5s 后的重试：真机路径 schedule -> checkUpdate
+    ok(!f3.calls.setFeedURL.some((c, i) => i > 0 && c.provider === "github"),
+       "壳: 镜像重试不被拨回官方源（0.0.9 回归哨兵）");
+    ok(f3.calls.setFeedURL.filter(c => c.provider === "generic").length === genericCount + 1,
+       "壳: 重试失败后按顺序推进到下一个镜像");
+
+    three.mod.stopUpdate();
+    three.restore();
+  }
+
   mod.stopUpdate();
   restore();
 }

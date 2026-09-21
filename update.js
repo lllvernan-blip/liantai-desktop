@@ -57,6 +57,7 @@ let stallTimer = null;
 let stopped = false;   // 应用正在退出：不再发任何更新请求，别和退出流程抢
 let explicitFeed = ''; // 用户/调试显式指定的源：那是唯一来源，不拿镜像去改它
 let mirrorIndex = -1;  // -1 = 还在用包内 app-update.yml；否则是在用 MIRROR_FEEDS[mirrorIndex]
+let mirrorRetry = false;   // 镜像链重试标记：schedule 重试也走 checkUpdate，但不能被拨回官方源（0.0.9 回归：拨回去镜像就永远轮不到）
 let switchedAway = false;  // 已经换离主源（只影响日志措辞）
 /* 每次尝试一个编号：electron-updater 对同一次失败既 emit('error') 又会 reject，
    有编号才能保证只处理一次；迟到的旧错误（编号已被下一次尝试顶掉）直接丢掉。 */
@@ -307,10 +308,12 @@ function handleFailure(id, msg) {
   if (id !== attempt) return;   // 同一次失败的第二次回调，或者迟到的旧错误
   if (status.phase === PHASE.CHECKING && useNextMirror()) {
     status.error = '';
+    mirrorRetry = true;
     setPhase(PHASE.IDLE, '主源连不上，换镜像重试');
     schedule(MIRROR_RETRY_MS);
     return;
   }
+  mirrorRetry = false;
   mirrorIndex = -1;   // 下一轮从主源重新开始（GitHub 通了就该回到官方源）
   status.error = msg;
   setPhase(PHASE.ERROR, msg);
@@ -320,7 +323,11 @@ function handleFailure(id, msg) {
 async function checkUpdate() {
   if (stopped || !status.supported || !autoUpdater) return snapshot();
   if (status.phase === PHASE.CHECKING || status.phase === PHASE.DOWNLOADING) return snapshot();
-  backToOfficialFeed();
+  if (mirrorRetry) {
+    mirrorRetry = false;   // 镜像链重试：沿用当前镜像继续往下试，不能拨回官方源（拨回去镜像就永远轮不到）
+  } else {
+    backToOfficialFeed();
+  }
   const id = ++attempt;
   try {
     const p = autoUpdater.checkForUpdates();
