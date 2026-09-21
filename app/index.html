@@ -607,6 +607,100 @@ const DEFAULT_STATE = {
 // 沉淀/经验闭环两科共用：批改成功后自动提炼，注入后续出题与阅卷（见「经验闭环」一节）。
 const FLOW_STEPS  = ["read","extract","organize","draft","review","distill"];   // 回改已下线（阿楠：批改后直接沉淀）；revise 机制保留供历史数据与测试路径
 const FLOW_LABELS = { read:"读材料", extract:"找点", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
+
+/* 申论学习卡：内置静态卡（源：阿楠中公申论课堂笔记 2026-06/07），不走 AI 生成、不进缓存，也不提供「换一张」。
+   贯彻执行与申发论述暂无对应笔记，先用通用常识垫底，有笔记后再替换。 */
+const SL_STUDY_CARDS = {
+  "sl.guina": {
+    title: "归纳概括·学习卡",
+    points: [
+      "审题三定：定题型（要求里「全面、准确、条理」占其二即是）、定问法（问什么答什么，问法决定写法）、定主体（只围绕主体找答案）",
+      "高频词：一个词在一段反复出现、或多个段落同时出现——多段合并为一个要点，这个词就是概括词",
+      "首尾句：段落呈总分/分总/总分总结构时，只抄总结句，其他不抄，省字数",
+      "看人下菜：专家、学者、领导等「有身份」的话藏答案；村民、网友等泛泛发言一般没有",
+      "标点信号：引号单词有实际操作意义是踩分词（比喻象征不算）；问号在段首看问句核心词；省略号看后不看前（后面没字再回头看前）；冒号前有实义名词只抄名词，后面都是解释",
+      "连词信号：并列（同时/一方面）前后各一个要点；转折（但是/然而）只要后面的；为+目的+做法、通过+做法+影响——接的都是答案",
+      "时间线与术语：「如今/近年来」接要点；「以往/传统」+问题放段首，反写问题就是概括句；材料提示词要联想到规范术语（党建引领、盘活闲置资源、依法治国十六字方针等）",
+      "上位词：水利、交通、便民设施→基础设施；题干带引号的词，概括词就围绕它写"
+    ],
+    pitfalls: [
+      "忽视问法直接抄材料——问法决定写法：概括做法=动词+名词；「变化」按「新X」分条；「特色」先自拟概括词",
+      "把案例细节当要点——归纳概括一般不看案例",
+      "只抄不并：该用高频词合并的段落没合并，要点碎了",
+      "概括词漏写或照抄原文——概括词要按问法自拟贴合（如「心系群众」「时间选取优」）"
+    ],
+    templates: "三步：① 审题（题型/问法/主体）→ ② 带着问题看材料，边画边注 → ③ 成文。答案写法二选一：总括句+1234；或「概括词：具体要点」分条。20 分钟内完成。",
+    example: { scene: "材料介绍某村普法工作：在宪法日等节点集中宣传、针对不同人群精准普法、把法治宣传融入地方戏曲、组建志愿宣讲队伍。", ask: "概括该村普法工作的特色。（要求：全面、准确、有条理）" }
+  },
+  "sl.duice": {
+    title: "提出对策·学习卡",
+    points: [
+      "审题三判：判题型（要求含「针对性、可行性、可操作性」任一即是）、判问数、判身份（限身份按权限答；没限定默认政府身份，所有问题都要解决）",
+      "两问的三种信号：题干出现「并」；要求里隐藏一问；题干问题模糊无具体指代，需先概括问题再提对策",
+      "材料两类：给了问题+对策=依靠材料，直接抄或反写；只给大问题=依靠自己，围绕问题自撰对策，言之有理即可",
+      "反写问题就是对策：反写大问题=概括句，反写解决小问题=具体要点；正面例子直接抄经验，反面例子反写教训",
+      "三性定分：针对性（对着问题）决定有没有分；可行性决定对不对；可操作性（具体切实）决定分高不高",
+      "热点类题目用主体分析法：围绕热点的不同主体分别挖问题、写对策"
+    ],
+    pitfalls: [
+      "两问时问题写太多——问题不超过总字数三分之一，分数重点在对策",
+      "对策只有概括句没有具体要点——「改良技术」后面必须接谁来做、怎么做",
+      "依靠材料类自己膀编——白白丢掉现成踩分点",
+      "没按身份答：限了身份却越权解决，或没限身份却漏掉该解决的问题"
+    ],
+    templates: "对策写法=概括句：具体要点。两问写法二选一：问题一段+对策一段；或问题1+对策1逐对对应。例：改良种植技术：村委邀请农技专家到村开展培训，理论讲解+实操演示，改变种植意识。",
+    example: { scene: "材料反映老年人再就业难题：求职渠道少、年轻人不理解、缺乏再就业技能、无法签订劳动合同。", ask: "请提出解决老年人再就业难题的建议。（30 分）" }
+  },
+  "sl.fenxi": {
+    title: "综合分析·学习卡",
+    points: [
+      "先判类型：认识理解类（谈对一句话/一个词的认识）、评价分析类（评价他人观点或社会热点）、启示类（A 案例对 B 的启示）",
+      "认识理解=三段公式：解释说明（2-3分）→ 多角度分析（10-14分）→ 总结对策（二选一，不是每题都有）",
+      "解释去出处找：划横线/加粗句的出处段落，上段结尾+下段开头就是解释；反复出现的词多在首尾段有定义，材料中下定义的句子直接照抄",
+      "多角度看材料类型：案例型围绕核心词有什么抄什么；人物型按群体数量数要点，一个人就按他做的几件事数",
+      "评价分析：亮明观点要客观全面（他人观点多片面，热点看材料立场）→ 多角度分析好与坏 → 总结对策",
+      "启示类只看 A 不管 B：正面例子当归纳概括的经验题答；反面例子当依靠自己类的对策题答",
+      "全文写成一段，用过渡词连缀要点——逻辑分 1-2 分"
+    ],
+    pitfalls: [
+      "解释说明漏掉或自己乱编——出处段落里现成有",
+      "只罗列要点不连缀，白丢逻辑分",
+      "启示类把 B 的内容抄进去——只能从 A 案例提炼",
+      "评价类加入个人立场——评他人观点要公平客观全面，评热点以材料观点为准"
+    ],
+    templates: "认识理解：这个词指的是……（解释）+ 具体表现为：1…2…3…（多角度）+ 因此，要……（总结）。评价分析：亮明观点 → 好的一面/问题的一面 → 对策收束。",
+    example: { scene: "题干：请谈谈对「柔性引才」的理解。「柔性」一词在材料中反复出现，首段末尾有下定义的句子。", ask: "谈谈你对「柔性引才」的理解。（15 分）" }
+  },
+  "sl.guanche": {
+    title: "贯彻执行·学习卡",
+    points: [
+      "审题五定：定文种（通知/倡议书/短文/提纲…）、定身份、定对象、定目的、定格式",
+      "格式看文种：正式文书要标题、称谓、正文、落款齐备；提纲、短文等轻格式题不必全套",
+      "内容仍是材料为王：开头交代缘由目的，主体按材料要点分条，结尾呼吁或总结——格式是壳，踩分点在内容"
+    ],
+    pitfalls: [
+      "格式喧宾夺主，字数都花在称谓落款上",
+      "忽略身份与对象，语气口吻不对"
+    ],
+    templates: "标题（关于……的……）→ 称谓/开头（缘由目的）→ 主体（分条写材料要点）→ 结尾（呼吁/要求）→ 落款。",
+    example: { scene: "社区要开展垃圾分类宣传。", ask: "假如你是街道办工作人员，请写一份垃圾分类倡议书。（400 字内）" }
+  },
+  "sl.zuowen": {
+    title: "申发论述·学习卡",
+    points: [
+      "立意先立住：题干句子+核心材料一起看，总论点不跑偏是底线",
+      "结构稳：开头亮总论点 → 分论点 2-4 个（每段观点句+例证+分析）→ 结尾回扣升华",
+      "论据从材料来也要跳出来：材料案例可化用，积累的热点与政策术语是加分项"
+    ],
+    pitfalls: [
+      "立意跑偏，或只围绕材料局部展开",
+      "分论点交叉重复，不是并列或递进关系",
+      "通篇抄材料原文，没有自己的论证语言"
+    ],
+    templates: "标题即观点。开头：引出话题+亮明总论点。分论点段：观点句（对仗更稳）+例证+回扣。结尾：升华+重申论点。",
+    example: { scene: "给定材料围绕基层治理的种种智慧展开。", ask: "结合给定材料，以「治慧」为题，写一篇议论文。（1000-1200 字）" }
+  }
+};
 const MAX_OPEN_FLOWS = 20;   // state.flows 只留最近 20 条；有未提交草稿的 flow 永不自动裁剪
 let _flowId = null;          // 当前进行中的训练链 id
 /* 必须定义在 let state = load() 之前：load() 的 flows 迁移要读 FLOW_STEPS，放后面会撞 TDZ 被静默吞掉 */
@@ -1554,12 +1648,13 @@ async function loadQuestion(k, subtype){
     const focusDim = weakestDimOf(k);
     const cacheKey = k + (subtype? "::"+subtype : "");
     const cached = state.cache.studyCards[cacheKey];
-    const data = await gen(k, subtype, focusDim, !cached, onDelta);
+    const staticCard = SL_STUDY_CARDS[k];   // 申论学习卡：内置课堂笔记版，不走 AI、不占生成时间
+    const data = await gen(k, subtype, focusDim, !cached && !staticCard, onDelta);
     if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
-    if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
+    if(!cached && !staticCard && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
     if(!data.question) throw {code:"JSON"};
     enforceWordLimit(k, data.question, subtype);   // 字数口径以本地表为准（公文按文种），不信模型
-    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard, cardPeeks:0, phase:"card" };
+    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: staticCard || cached || data.studyCard, cardPeeks:0, phase:"card" };
     renderHeader(); renderQuestion();
   }catch(e){
     if(mySeq !== reqSeq) return;
@@ -2316,7 +2411,7 @@ function stepPanelHtml(step, f){
         <div class="card-body">${cardHtml(current.studyCard)}
           <h4>我的笔记</h4>
           <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-          <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
+          ${SL_STUDY_CARDS[module]? "" : '<div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>'}
           ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
         </div></details>`;
     }
