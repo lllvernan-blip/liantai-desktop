@@ -1412,6 +1412,7 @@ function distillPanelHtml(){
   }
   html += `<div class="sec-title">我的经验（${(state.experiences||[]).length}/${EXP_MAX}）</div>` + experienceListHtml();
   html += `<div class="hint" style="margin-top:8px">下次出题和批改会自动带上未停用的经验。</div>`;
+  html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnFlowDone">完成，回首页</button><span class="hint">本次练习到此闭环；还想再练点上方「换一题」。</span></div>`;
   return html;
 }
 function wireExperiences(){
@@ -2408,11 +2409,11 @@ function stepPanelHtml(step, f){
   const {module, subtype} = current;
   const question = current.question;
   if(step === "read"){
-    let html = `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
+    let html = "";
     if(current.studyCard){
       const lp = lastPeeks(module, subtype);
-      html += `<details class="card">
-        <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">展开可看，顺手记笔记</span></summary>
+      html += `<details class="card" open>
+        <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">先看卡再看材料，可折叠</span></summary>
         <div class="card-body">${cardHtml(current.studyCard)}
           <h4>我的笔记</h4>
           <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
@@ -2420,6 +2421,7 @@ function stepPanelHtml(step, f){
           ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
         </div></details>`;
     }
+    html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
     html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnToExtract">通读完毕，开始找点</button></div>`;
     return html;
   }
@@ -2609,7 +2611,10 @@ function wireStep(step, f){
   if(step === "organize" && f) wireOrganize(f);
   if(step === "draft") wireDraft(f);
   if(step === "revise" && f) wireDraft(f);
-  if(step === "distill") wireExperiences();
+  if(step === "distill"){
+    wireExperiences();
+    const done = $("#btnFlowDone"); if(done) done.onclick = ()=>{ closeActiveFlow("distill-done"); banner("本次练习完成，经验已入库。"); renderStart(); };
+  }
   if(step === "review"){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
