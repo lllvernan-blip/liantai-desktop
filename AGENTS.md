@@ -28,9 +28,9 @@
 - 更新失败绝不阻断使用：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，后台自动重试（出错后 30 分钟、常驻每 6 小时）。不要在启动路径上弹阻断式对话框。
 - 发布：`npm run release`（`tools/release.mjs`：盖章 → 出包（`--publish never`，组件源内置 npmmirror 兕底）→ 建 Release → 逐个 `gh` 上传并对账）。**发布前必须先把 `package.json` 的 `version` 提高**——版本号不变，老用户永远收不到这一版；tag 重复会被脚本直接挡下。发布失败若已建出空壳 Release，先 `gh release delete vX.Y.Z --yes --cleanup-tag` 再重出。
 - **发布必须对账**：electron-builder 给每个 target 各跑一次发布流程，第二个 target 会撞 `tag_name already_exists` 中断——`latest.yml` 与 `.blockmap` 常就在这一步丢，而少了 `latest.yml` 自动更新压根不会启动。所以 `release.mjs` 不信返回码，出完包按产物逐个对账、缺的用 `gh` 补传；`latest.yml` 永远覆盖上传（它是指针，留着旧的会被当成「已有」跳过）。`npm run release -- --reconcile-only` 只对账不出包。
-- 发布前先跑「发布五件套」，发完清 dist 旧包（阿楠 2026-09-21 拍板：每次发布前都先跑五件套再出包）：
+- **发布前先跑洁癖（五项检查），发完清 dist 旧包（阿楠 2026-09-21 拍板：以后发布前就说「跑洁癖」）：
   ① `git status --short` 工作区干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）；④ 源码 grep `sk-[a-f0-9]{20,}` 零命中；⑤ AGENTS/README 引用的文件路径全部存在。
-  发布后删掉 `dist/` 里旧版本安装包、blockmap 与 `win-unpacked` 残留——dist 只留最新一版三件套（供断网对账）。五件套没跑就先出了包的，事后也必须补跑：0.0.9 就是在 dist 里攒了两版旧安装包才被抓到的。
+  发布后删掉 `dist/` 里旧版本安装包、blockmap 与 `win-unpacked` 残留——dist 只留最新一版三件套（供断网对账）。洁癖没跑就先出了包的，事后也必须补跑：0.0.9 就是在 dist 里攒了两版旧安装包才被抓到的。
 - 对账前会校验 `dist/latest.yml` 的 `version` 与 `sha512` 是否就是当前产物：**别拿上一次试打包残留的清单去对账**，否则会把旧版本号或错哈希写到线上（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」），两种都不会在打包阶段报错。
 - 差量的两个前提：缓存 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（上一版安装包）在，且**源上旧版的 `.blockmap` 不删**。generic 源支持 `multipart/byteranges` 才是真差量（不支持就优雅退化为全量，不报错）；GitHub 资产 CDN 对多段 Range 返回 501，但 `BaseGitHubProvider` 写死单段逐段请求（206 可用），所以 GitHub 源差量可用。
 - 网络现实：国内直连 GitHub 时 `checkForUpdates` 可能直接 `ERR_CONNECTION_TIMED_OUT`（真机见过）。这不是 bug：失败会按规则重试且不阻断使用；要稳定就换源（`LIANTAI_UPDATE_FEED`）。
