@@ -462,6 +462,8 @@ ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡�
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
 ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始找点」推进）");
+ok(el("#docBody").innerHTML.indexOf("学习卡") < el("#docBody").innerHTML.indexOf("materialBox"), "读材料: 学习卡在材料上方先给出");
+ok(distillPanelHtml().indexOf("btnFlowDone") >= 0, "沉淀: 有「完成，回首页」收尾出口");
 flowGoStep("draft");
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷在场");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: draft 步不摆 Next（靠「提交阅卷」推进）");
