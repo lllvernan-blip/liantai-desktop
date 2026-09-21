@@ -538,7 +538,7 @@ function moduleKeysOf(subject){ const s = SUBJECTS[subject]; return s? s.modules
 function moduleName(k){ return (MODULES[k] && MODULES[k].name) || String(k==null?"":k); }
 function subjectName(k){ const s = subjectOf(k); return s? SUBJECTS[s].name : ""; }
 function roleOf(k){ const s = subjectOf(k); return (s && SUBJECTS[s].role) || SUBJECTS[DEFAULT_SUBJECT].role; }
-// 流程分叉：六步链（找点/归类/一稿/沉淀）只归申论；综应A 走「学习卡 → 作答 → 批改」两阶段
+// 流程分叉：五步链（读材料含找点/归类/一稿/沉淀）只归申论；综应A 走「学习卡 → 作答 → 批改」两阶段
 function usesFlowChain(k){ return subjectOf(k) === "sl"; }
 
 /* ============ 旧数据迁移：裸模块键 -> 科目前缀 ============ */
@@ -602,11 +602,11 @@ const DEFAULT_STATE = {
   modelProbe:{}  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
 };
 
-/* ============ 七步训练链（申论：读材料→找点→归类→一稿→批改→沉淀；回改已下线） ============ */
+/* ============ 申论训练链（读材料·找点 → 归类 → 一稿 → 批改 → 沉淀；找点并入读材料，回改已下线） ============ */
 // 只有申论走全链（usesFlowChain）；综应A 恢复「学习卡 → 作答 → 批改」两阶段（renderZyPage）。
 // 沉淀/经验闭环两科共用：批改成功后自动提炼，注入后续出题与阅卷（见「经验闭环」一节）。
-const FLOW_STEPS  = ["read","extract","organize","draft","review","distill"];   // 回改已下线（阿楠：批改后直接沉淀）；revise 机制保留供历史数据与测试路径
-const FLOW_LABELS = { read:"读材料", extract:"找点", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
+const FLOW_STEPS  = ["read","organize","draft","review","distill"];   // 找点并入读材料（阿楠 2026-09-21：通读时就能划线和找点，不用走两遍）；revise 机制保留供历史数据与测试
+const FLOW_LABELS = { read:"读材料", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
 
 /* 申论学习卡资料库（源：阿楠中公申论课堂笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
    AI 据此生成学习卡（照综应口径缓存、可「换一张」、对弱维度定向）；AI 未返回卡时也作兜底。
@@ -2065,7 +2065,7 @@ function renderPDSummary(){
 }
 
 /* ============ 七步训练链：生命周期 ============ */
-// 读材料 → 找点 → 归类 → 一稿 → 批改 → 沉淀。换题、切科目、导入恢复都经 ensureFlow/closeFlow 走同一条生命周期。
+// 读材料（含找点）→ 归类 → 一稿 → 批改 → 沉淀。换题、切科目、导入恢复都经 ensureFlow/closeFlow 走同一条生命周期。
 // closeFlow 只置收口标记：草稿、选区、批改记录全部保留——用户内容绝不因换题或收口而消失。
 function genFlowId(){ return "flow_" + Date.now() + "_" + Math.random().toString(36).slice(2,8); }
 function activeFlow(){
@@ -2212,35 +2212,17 @@ function toggleSentenceSelection(f, sid, ridStr){
   f.selections.push({ text:s.text, start:s.start, end:s.end, sentenceId:sid, valid:null, point:-1, free:false });
   return true;
 }
-/* 自由划选的字符偏移：与材料划线同一套 data-s 定位，不引 token */
-function charOffsetAt(node, off){
-  const sp = node.parentElement && node.parentElement.closest("span[data-s]");
-  return sp? Number(sp.dataset.s) + off : null;
-}
-function commitFreeSelection(f){
-  const box = $("#extractBox");
-  if(!box || !box.contains) return;
-  const sel = window.getSelection();
-  if(!sel || sel.isCollapsed || sel.rangeCount === 0) return;
-  const rg = sel.getRangeAt(0);
-  if(!box.contains(rg.startContainer) || !box.contains(rg.endContainer)) return;
-  const o1 = charOffsetAt(rg.startContainer, rg.startOffset), o2 = charOffsetAt(rg.endContainer, rg.endOffset);
-  if(o1 == null || o2 == null) return;
-  if(addFreeSelectionRecord(f, Math.min(o1,o2), Math.max(o1,o2))){ save(); renderFlowStep(); }
-  else{   // 选区起点落在句间空白/太短：状态栏轻提示一次，不弹窗
-    const pc = $("#pickCount");
-    if(pc) pc.textContent = "这个选区太短或落在空白处，没有收进找点。";
-  }
-}
-/* 找点步的材料渲染：整句可点，选区（整句 + 划选）统一高亮；与 gw_marks 的划线层互不覆盖（独立 class） */
-function extractHtml(f){
-  const text = String((f.question && f.question.background) || "");
+/* 读材料·找点 合并渲染：点选找点（句子/自由选区）与综应式划线叠加在同一段材料上，
+   分段边界取「句子 / 选区覆盖 / 划线开合」三者的并集，保证每段状态单一。 */
+function mergedMaterialHtml(q, f){
+  const text = String((q && q.background) || "");
   const n = text.length;
-  const sents = sentenceTable(f.question);
+  const sents = sentenceTable(q);
+  const marks = loadMarks(qSig(q));
   const sidOf = new Array(n).fill(-1);
   for(const s of sents) for(let c=s.start; c<s.end && c<n; c++) sidOf[c] = s.id;
   const recOf = new Array(n).fill("");
-  f.selections.forEach((sl,i)=>{
+  ((f && f.selections) || []).forEach((sl,i)=>{
     const st = sents[sl.sentenceId];
     const s0 = sl.free? sl.start : (st? st.start : 0);
     const e0 = sl.free? sl.end : (st? st.end : 0);
@@ -2249,14 +2231,20 @@ function extractHtml(f){
   });
   let html = "", pos = 0;
   while(pos < n){
-    if(sidOf[pos] < 0){ let j=pos; while(j<n && sidOf[j]<0) j++; html += esc(text.slice(pos,j)); pos=j; continue; }
-    const sid = sidOf[pos];
-    while(pos < n && sidOf[pos] === sid){
-      const key = recOf[pos];
-      let k = pos; while(k<n && sidOf[k]===sid && recOf[k]===key) k++;
-      html += `<span class="pt-seg${key? " picked":""}" data-sid="${sid}" data-s="${pos}" data-e="${k}"${key? ` data-rid="${key}"`:""}>${esc(text.slice(pos,k))}</span>`;
-      pos = k;
+    if(sidOf[pos] < 0){   // 句子之外（换行与空白）：只呈现划线，不可点选
+      let j = pos;
+      while(j < n && sidOf[j] < 0 && marks.has(j) === marks.has(pos)) j++;
+      html += marks.has(pos)
+        ? `<mark class="ms on" data-s="${pos}" data-e="${j}">${esc(text.slice(pos,j))}</mark>`
+        : esc(text.slice(pos,j));
+      pos = j; continue;
     }
+    const sid = sidOf[pos], on = marks.has(pos), key = recOf[pos];
+    let k = pos;
+    while(k < n && sidOf[k] === sid && marks.has(k) === on && recOf[k] === key) k++;
+    const tagName = on? "mark" : "span";
+    html += `<${tagName} class="ms pt-seg${on? " on":""}${key? " picked":""}" data-sid="${sid}" data-s="${pos}" data-e="${k}"${key? ` data-rid="${key}"`:""}>${esc(text.slice(pos,k))}</${tagName}>`;
+    pos = k;
   }
   return html;
 }
@@ -2421,15 +2409,13 @@ function stepPanelHtml(step, f){
           ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
         </div></details>`;
     }
-    html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
-    html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnToExtract">通读完毕，开始找点</button></div>`;
+    html += `<div class="hint" style="margin-top:10px">点选整句找点；也可以选中几个字划重点或直接选为要点。找点是作答建议——不选任何点也不影响交卷。</div>`;
+    html += `<div class="material"><div class="label">背景材料 · 读材料与找点 <span class="hint">（点句子=选为要点；选中文字=划线/选要点）</span></div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
+    html += `<div class="markpop" id="markPop"><button id="popMark">划线</button><button id="popPick">选为要点</button></div>`;
+    html += `<div class="hint" id="pickCount">已选 ${f? f.selections.length : 0} 处</div>`;
+    html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
+    html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnToOrganize">找点完毕，开始归类</button></div>`;
     return html;
-  }
-  if(step === "extract"){
-    return `<div class="hint" style="margin-top:10px">点选整句，或按住拖动自选片段（至少 4 字）；点已选的内容取消。找点是作答建议——不选任何点也不影响交卷。</div>
-      <div class="material"><div class="label">背景材料 · 找点</div><div id="extractBox">${f? extractHtml(f) : ""}</div></div>
-      <div class="hint" id="pickCount">已选 ${f? f.selections.length : 0} 处</div>
-      <div id="pickList">${f? pickListHtml(f) : ""}</div>`;
   }
   if(step === "organize") return f? organizePanelHtml(f) : `<div class="hint" style="margin-top:10px">没有进行中的训练链。</div>`;
   if(step === "draft" || step === "revise") return draftPanelHtml(f);
@@ -2476,7 +2462,7 @@ function draftPanelHtml(f){
 
 /* ============ 七步训练链：交互接线 ============ */
 let _markOutsideHandler = null;   // 每次重渲染都要换一个新的（闭包持有当次面板的 DOM），旧的必须摘掉，否则长会话里越挂越多
-function wireMarks(){
+function wireMarks(unmarkOnClick){
   const sig = qSig(current.question);
   const mbox = $("#materialBox"), pop = $("#markPop");
   const hidePop = ()=>{ if(pop) pop.style.display = "none"; };
@@ -2510,17 +2496,19 @@ function wireMarks(){
   };
   if(mbox){
     mbox.addEventListener("mouseup", ()=> setTimeout(showPop, 0));
-    mbox.addEventListener("click", e=>{
-      const sp = e.target.closest(".ms"); if(!sp) return;
-      const sel = window.getSelection();
-      if(sel && !sel.isCollapsed) return;  // 有选区交给小窗处理
-      if(sp.classList.contains("on")){
-        const set = loadMarks(sig);
-        for(let i=Number(sp.dataset.s); i<Number(sp.dataset.e); i++) set.delete(i);
-        saveMarks(sig, set);
-        renderMaterial(Number(sp.dataset.s), Number(sp.dataset.e));
-      }
-    });
+    if(unmarkOnClick !== false){   // 申论读材料步：点句子=找点开关，取消划线改走选中重划，不在这里抢点击
+      mbox.addEventListener("click", e=>{
+        const sp = e.target.closest(".ms"); if(!sp) return;
+        const sel = window.getSelection();
+        if(sel && !sel.isCollapsed) return;  // 有选区交给小窗处理
+        if(sp.classList.contains("on")){
+          const set = loadMarks(sig);
+          for(let i=Number(sp.dataset.s); i<Number(sp.dataset.e); i++) set.delete(i);
+          saveMarks(sig, set);
+          renderMaterial(Number(sp.dataset.s), Number(sp.dataset.e));
+        }
+      });
+    }
   }
   if(pop){
     $("#popMark").onclick = ()=>{
@@ -2602,8 +2590,20 @@ function wireStep(step, f){
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
   if(step === "read"){
-    wireMarks();
-    const be = $("#btnToExtract"); if(be) be.onclick = ()=> flowGoStep("extract");
+    wireMarks(false);
+    const bo = $("#btnToOrganize"); if(bo) bo.onclick = ()=> flowGoStep("organize");
+    const pp = $("#popPick");
+    if(pp) pp.onclick = ()=>{
+      const pop = $("#markPop"); if(!pop) return;
+      const fl = activeFlow(); if(!fl) return;
+      const s = Number(pop.dataset.s), e2 = Number(pop.dataset.e);
+      if(!addFreeSelectionRecord(fl, s, e2)){
+        const idx = fl.selections.findIndex(sl => sl.free && sl.start === s && sl.end === e2);
+        if(idx < 0) return;
+        fl.selections.splice(idx, 1);   // 同一选区再点一次=取消要点
+      }
+      save(); renderFlowStep();
+    };
     const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
     const cn = $("#cardNote");
     if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
@@ -2621,29 +2621,25 @@ function wireStep(step, f){
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   }
 }
-/* 找点步的全局监听只装一次：mouseup 提交划选（selectionchange 只服务触屏预览，不落库），click 处理整句切换与移除 */
+/* 找点已并入读材料步：这里的监听只服务合并后的 read 步（点句子=找点开关，选区弹窗=划线/选要点） */
 let _flowListeners = false;
 function installFlowListeners(){
   if(_flowListeners) return;
   _flowListeners = true;
-  document.addEventListener("mouseup", ()=>{
-    const f = activeFlow();
-    if(f && f.step === "extract" && current && current.question) commitFreeSelection(f);
-  });
   docBody.addEventListener("click", e=>{
     if(!e.target || !e.target.closest) return;
     const pick = e.target.closest("[data-pick]");
     if(pick){
       const f = activeFlow();
-      if(f && f.step === "extract"){ f.selections.splice(Number(pick.dataset.pick), 1); save(); renderFlowStep(); }
+      if(f && f.step === "read"){ f.selections.splice(Number(pick.dataset.pick), 1); save(); renderFlowStep(); }
       return;
     }
     const sp = e.target.closest(".pt-seg");
     if(sp){
       const f = activeFlow();
-      if(!f || f.step !== "extract" || !current || !current.question) return;
+      if(!f || f.step !== "read" || !current || !current.question) return;
       const sel = window.getSelection();
-      if(sel && !sel.isCollapsed) return;   // 划选交给 mouseup，不当成整句点击
+      if(sel && !sel.isCollapsed) return;   // 划选交给选区弹窗，不当成整句点击
       if(toggleSentenceSelection(f, Number(sp.dataset.sid), sp.dataset.rid || "")){ save(); renderFlowStep(); }
     }
   });
