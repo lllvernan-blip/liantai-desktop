@@ -37,7 +37,7 @@ const PORT_BUSY_RETRY = 3;      // 先反复试首选端口（上一个实例可
 const PORT_FALLBACK_STEPS = 5;  // 仍被占用时退到邻近端口，并显式告警
 
 /* 更新源：默认读包内 app-update.yml（由 package.json 的 build.publish 生成，指向 GitHub Release）。
-   LIANTAI_UPDATE_FEED 只是「不改包也能换源」的开关：本地验证差量更新、或 GitHub 连不上时指到镜像/自建源。 */
+   LIANTAI_UPDATE_FEED 只是「不改包也能换源」的开关：本地验证差量更新、或 GitHub 连不上时指到备用源/自建源。 */
 const UPDATE_FEED_ENV = 'LIANTAI_UPDATE_FEED';
 const RELEASES_URL = 'https://github.com/lllvernan-blip/liantai-desktop/releases';
 
