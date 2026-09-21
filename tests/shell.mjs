@@ -24,10 +24,20 @@ class FakeUpdater extends EventEmitter {
   constructor() {
     super();
     this.calls = { setFeedURL: [], checkForUpdates: 0, quitAndInstall: [] };
+    // 元数据：update.js 会在它外面套一层，把安装包地址改到另一条源上
+    this.info = {
+      version: "1.0.1",
+      files: [{ url: "liantai-desktop-setup-1.0.1.exe", sha512: "HASH-FROM-META", size: 100 }],
+      path: "liantai-desktop-setup-1.0.1.exe",
+      sha512: "HASH-FROM-META",
+    };
   }
   async checkForUpdates() {
     this.calls.checkForUpdates++;
     return { updateInfo: {} };
+  }
+  async getUpdateInfoAndProvider() {
+    return { info: JSON.parse(JSON.stringify(this.info)), provider: { name: "fake-provider" } };
   }
   setFeedURL(o) {
     this.calls.setFeedURL.push(o);
@@ -148,7 +158,7 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   restore();
 }
 
-/* ---- 3. 直连 GitHub 不通时退到镜像（国内实况：连接被重置） ---- */
+/* ---- 3. 直连 GitHub 不通时退到备用源（国内实况：连接被重置） ---- */
 {
   const fake = new FakeUpdater();
   const { mod, restore } = loadUpdate({ autoUpdater: fake });
@@ -161,24 +171,29 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
 
   failOnce();
   ok(fake.calls.setFeedURL.length === 1 && fake.calls.setFeedURL[0].provider === "generic" && /^https:\/\//.test(fake.calls.setFeedURL[0].url),
-     "壳: 主源连不通 -> 自动退到 GitHub 镜像源（generic）");
+     "壳: 主源连不通 -> 自动退到备用源（generic）");
   ok(mod.getStatus().phase === "idle" && mod.getStatus().error === "",
-     "壳: 换镜像重试途中不把错误糊到界面上");
-  ok(!!mod.getStatus().feedHost, "壳: 状态里带上镜像主机名（页面能说清在走谁）");
-  ok(logs.some((l) => l.indexOf("换镜像") >= 0), "壳: 换源这件事写进日志（排查有抓手）");
+     "壳: 换备用源重试途中不把错误糊到界面上");
+  ok(!!mod.getStatus().feedHost, "壳: 状态里带上备用源主机名（页面能说清在走谁）");
+  ok(logs.some((l) => l.indexOf("换备用源") >= 0), "壳: 换源这件事写进日志（排查有抓手）");
 
   failOnce();
   ok(fake.calls.setFeedURL.length === 2 && fake.calls.setFeedURL[1].url !== fake.calls.setFeedURL[0].url,
-     "壳: 镜像也不通 -> 按顺序换下一个（不绕圈）");
+     "壳: 备用源也不通 -> 按顺序换下一个（不绕圈）");
 
   failOnce();
-  ok(fake.calls.setFeedURL.length === 3, "壳: 第三个镜像也试过了");
+  ok(fake.calls.setFeedURL.length === 3, "壳: 第三条备用源也试过了");
 
   const before = fake.calls.setFeedURL.length;
   failOnce();
   const st = mod.getStatus();
   ok(fake.calls.setFeedURL.length === before && st.phase === "error" && /ERR_CONNECTION_RESET/.test(st.error),
      "壳: 全都试过才落 error（不无限换源），并且留下原因");
+
+  const beforeReset = fake.calls.setFeedURL.length;
+  await mod.checkUpdate();
+  ok(fake.calls.setFeedURL.slice(beforeReset).some(c => c.provider === "github"),
+     "壳: 备用源全灭后，下一轮从官方源重来（不把小道当默认）");
 
   // 显式指定源的人不该被悄悄换走（本地验更新、自建源都用这条路）
   const f2 = new FakeUpdater();
@@ -187,13 +202,13 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   f2.emit("checking-for-update");
   f2.emit("error", new Error("net::ERR_CONNECTION_REFUSED"));
   ok(f2.calls.setFeedURL.length === 1 && f2.calls.setFeedURL[0].url === "http://127.0.0.1:9/",
-     "壳: 显式指定的源是唯一来源（不拿镜像去改它）");
+     "壳: 显式指定的源是唯一来源（不拿备用源去改它）");
 
   two.mod.stopUpdate();
   two.restore();
 
-  /* ---- 3b. 镜像链重试必须真走镜像（0.0.9 回归：schedule 重试也走 checkUpdate，
-          若开头就被拨回官方源，镜像永远轮不到、永远卡在第一个镜像） ---- */
+  /* ---- 3b. 备用源链重试必须真走备用源（0.0.9 回归：schedule 重试也走 checkUpdate，
+          若开头就被拨回官方源，备用源永远轮不到、永远卡在第一条） ---- */
   {
     const f3 = new FakeUpdater();
     const three = loadUpdate({ autoUpdater: f3 });
@@ -206,19 +221,81 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
       await wait(20);
     };
 
-    await failRound();   // 官方挂 -> 换镜像0
-    ok(f3.calls.setFeedURL.some(c => c.provider === "generic"), "壳: 官方失败退到镜像");
+    await failRound();   // 官方挂 -> 换备用源0
+    ok(f3.calls.setFeedURL.some(c => c.provider === "generic"), "壳: 官方失败退到备用源");
 
     const genericCount = f3.calls.setFeedURL.filter(c => c.provider === "generic").length;
     await failRound();   // 模拟 1.5s 后的重试：真机路径 schedule -> checkUpdate
     ok(!f3.calls.setFeedURL.some((c, i) => i > 0 && c.provider === "github"),
-       "壳: 镜像重试不被拨回官方源（0.0.9 回归哨兵）");
+       "壳: 备用源重试不被拨回官方源（0.0.9 回归哨兵）");
     ok(f3.calls.setFeedURL.filter(c => c.provider === "generic").length === genericCount + 1,
-       "壳: 重试失败后按顺序推进到下一个镜像");
+       "壳: 重试失败后按顺序推进到下一条备用源");
 
     three.mod.stopUpdate();
     three.restore();
   }
+
+  mod.stopUpdate();
+  restore();
+}
+
+/* ---- 4. 校验与下载分离：sha512 与安装包不得来自同一个源 ---- */
+{
+  const fake = new FakeUpdater();
+  const { mod, restore } = loadUpdate({ autoUpdater: fake });
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
+
+  let r = await fake.getUpdateInfoAndProvider();
+  ok(r.info.files[0].url === "liantai-desktop-setup-1.0.1.exe", "壳: 官方源模式不改写安装包地址（同一份 Release）");
+
+  fake.emit("checking-for-update");
+  fake.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+  await wait(20);
+
+  const st = mod.getStatus();
+  r = await fake.getUpdateInfoAndProvider();
+  const dlHost = new URL(r.info.files[0].url).host;
+  ok(!!st.feedHost && !!st.downloadHost && dlHost === st.downloadHost && dlHost !== st.feedHost,
+     "壳: 备用源模式：校验元数据和安装包来自两台不同主机（一个源改不了两边）");
+  ok(/liantai-desktop-setup-1\.0\.1\.exe$/.test(r.info.files[0].url), "壳: 分流只改源，不改包名（差量还得认得出同一个包）");
+  ok(r.info.files[0].sha512 === "HASH-FROM-META", "壳: 哈希仍取自元数据源（下载源碰不到它）");
+
+  // 元数据里写绝对地址（哪怕别人的域名）也一概拨回我们选的下载源：不让元数据指定去哪下
+  fake.info = { version: "1.0.1", files: [{ url: "https://evil.example/payload.exe", sha512: "HASH-FROM-META" }], sha512: "HASH-FROM-META" };
+  r = await fake.getUpdateInfoAndProvider();
+  ok(new URL(r.info.files[0].url).host === st.downloadHost,
+     "壳: 元数据给的绝对下载地址被拨回我们的下载源（不被元数据牵着走）");
+
+  // 显式指定源的人：只有那一个源，既不兜底也不拆
+  const f2 = new FakeUpdater();
+  const two = loadUpdate({ autoUpdater: f2 });
+  two.mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2", feed: "http://127.0.0.1:9/" });
+  const r2 = await f2.getUpdateInfoAndProvider();
+  ok(two.mod.getStatus().downloadHost === "" && r2.info.files[0].url === "liantai-desktop-setup-1.0.1.exe",
+     "壳: 显式指定源时不拆分（唯一来源就是那一个）");
+  two.mod.stopUpdate();
+  two.restore();
+
+  mod.stopUpdate();
+  restore();
+}
+
+/* ---- 5. 拆不了就不兜底：宁可没有备用源，也不回到「一个源自己给自己签哈希」 ---- */
+{
+  const fake = new FakeUpdater();
+  fake.getUpdateInfoAndProvider = undefined;   // 假装更新组件没有这个钩子（拆不了源）
+  const { mod, restore } = loadUpdate({ autoUpdater: fake });
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
+
+  fake.emit("checking-for-update");
+  fake.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+  await wait(20);
+
+  const st = mod.getStatus();
+  ok(fake.calls.setFeedURL.every((c) => c.provider !== "generic"),
+     "壳: 组件不支持源拆分时不退备用源（宁可不兜底，也不自证）");
+  ok(st.phase === "error" && /ERR_CONNECTION_RESET/.test(st.error), "壳: 拆不了时直接按失败处理，并留下原因");
+  ok(logs.some((l) => l.indexOf("不能把校验与下载拆到两条源上") >= 0), "壳: 为什么不兜底也要写进日志");
 
   mod.stopUpdate();
   restore();
