@@ -43,7 +43,7 @@ npm start       # 开发运行：起本地 http 源 + 独立窗口
 npm run dist
 ```
 
-或者直接双击 `打包.bat`。打包器要从网上拉组件，`打包.bat` 已内置国内镜像源（直连 GitHub 常 TLS 断连）；手动跑 `npm run dist` 遇到下载失败，先设 `ELECTRON_MIRROR` 与 `ELECTRON_BUILDER_BINARIES_MIRROR` 为 npmmirror 再试。
+或者直接双击 `打包.bat`。打包器要从网上拉组件，网络不顺时会卡在这一步；手动跑 `npm run dist` 遇到下载失败，先把组件下载地址换成国内源（`ELECTRON_MIRROR` 与 `ELECTRON_BUILDER_BINARIES_MIRROR` 两个环境变量）再试。
 
 发布新版本（先改 `package.json` 里的 `version`，再一键传上 GitHub Release）：
 
@@ -55,7 +55,7 @@ npm run release
 
 ## 自动更新（安装版）
 
-- **源**：GitHub Release。配置在 `package.json` 的 `build.publish`，打包时生成包内 `app-update.yml`；换源不必改代码，设环境变量 `LIANTAI_UPDATE_FEED` 指向任意 generic 源（目录里放 `latest.yml` + 安装包 + `.blockmap`）即可，本地验证与镜像切换都走它。
+- **源**：GitHub Release。配置在 `package.json` 的 `build.publish`，打包时生成包内 `app-update.yml`；换源不必改代码，设环境变量 `LIANTAI_UPDATE_FEED` 指向任意 generic 源（目录里放 `latest.yml` + 安装包 + `.blockmap`）即可，本地验证与换源都走它。
 - **差量**：NSIS 目标会一并出 `latest.yml` 与 `.blockmap`，更新时只下载与上一版**不同的数据块**（80MB 的包通常只需几 MB）。两个前提：缓存里有上一版安装包（手工装的第一版没有，首次会退化成全量，之后就常态走差量）、且**源上旧版的 `.blockmap` 别删**；不满足只会退成全量，不会出错。
 - **不做免安装版**：只发 NSIS 安装版。免安装版对 quitAndInstall 只会「装出一个新副本」，得单独禁用它（代码里那道防线还留着，免得哪天又有人拿 portable 包去跑）。
 - **失败不阻断**：任何更新错误只写日志与设置页一行提示，30 分钟后自动重试；排查看 `logs/startup.log` 里的 `update-*` 行。

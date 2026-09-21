@@ -18,7 +18,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem 下载源走国内镜像：打包器要从网上拉组件，直连 GitHub 经常断
+rem 下载源：打包器要从网上拉组件，直连 GitHub 经常断
 set "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/"
 set "ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/"
 
