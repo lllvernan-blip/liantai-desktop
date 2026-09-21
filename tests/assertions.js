@@ -457,11 +457,13 @@ current = { module:"sl.guina", subtype:"概括原因", question:{ background:"�
 renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "申论七步链: 步骤条在场，落点是读材料");
 ok(activeFlow() && activeFlow().module === "sl.guina", "申论七步链: 渲染即建链");
-ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。第二句！") >= 0, "读材料: 题目与材料同屏");
+ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0, "读材料: 题目与材料同屏（找点合并后材料按句分段）");
 ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡折叠并入本步（展开可看）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
 ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
-ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始找点」推进）");
+ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始归类」推进）");
+ok(el("#docBody").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存");
+ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
 ok(el("#docBody").innerHTML.indexOf("学习卡") < el("#docBody").innerHTML.indexOf("materialBox"), "读材料: 学习卡在材料上方先给出");
 ok(distillPanelHtml().indexOf("btnFlowDone") >= 0, "沉淀: 有「完成，回首页」收尾出口");
 flowGoStep("draft");
@@ -702,8 +704,8 @@ ok(fB.sig === qSig(fqB) && fB.step === "read" && fB.subject === "zy", "flow: 新
 ok(flowGoStep("review") === false && activeFlow().step === "read", "批改门槛: 无批改结果进批改步被拒");
 /* ② syncRail 三态 */
 const rail = syncRail({ step:"organize" });
-ok(rail.map(x=>x.state).join(",") === "done,done,active,pending,pending,pending", "步骤条: i<cur done / = active / > pending（回改已下线，六步）");
-ok(rail[2].label === "归类" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
+ok(rail.map(x=>x.state).join(",") === "done,active,pending,pending,pending", "步骤条: i<cur done / = active / > pending（找点并入读材料，五步）");
+ok(rail[1].label === "归类" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
 
 /* ④ 句子表切分与选区偏移 */
 const sq2 = { background:"第一句。第二句！\n\n第二段只有一句？", requirements:"r" };
@@ -932,13 +934,13 @@ callLLM = realCall12;
 state.flows = []; _flowId = null; current = null;
 const rq12 = { background:"恢复题材料。", requirements:"r" };
 const rFlow = ensureFlow("sl.guina", "概括问题", rq12, []);
-rFlow.step = "extract";
+rFlow.step = "read";
 renderStart();
 ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") >= 0, "恢复现场: 有未关闭的链时首页给入口");
-ok(el("#docBody").innerHTML.indexOf("extractBox") < 0, "恢复现场: 不自动跳进链里");
+ok(el("#docBody").innerHTML.indexOf("materialBox") < 0, "恢复现场: 不自动跳进链里");
 el("#btnResume").onclick();
 ok(_flowId === rFlow.id && current && current.module === "sl.guina", "恢复现场: 点击后才回到链上");
-ok(el("#docBody").innerHTML.indexOf("extractBox") >= 0, "恢复现场: 进入链停下的那一步");
+ok(el("#docBody").innerHTML.indexOf("materialBox") >= 0, "恢复现场: 进入链停下的那一步");
 rFlow.createdAt = Date.now() - 25*3600*1000;
 current = null; _flowId = null;
 renderStart();
