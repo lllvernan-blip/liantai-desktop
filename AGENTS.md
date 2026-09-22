@@ -59,6 +59,14 @@
   - **折叠三角只有一套**：12px + `var(--line-strong)`；flex 行用 `margin-left:auto`，块级 `summary` 用 `float:right`。
   - **悬停上浮只给 `.primary` 红按钮**；其余控件悬停只换底色或描边。焦点反馈三处一致：输入框与大文本框都带 `--focus-halo` 外圈。
   - **行内 `margin-top` 有 9 档（4/6/8/10/12/14/16/18/26）尚未收敛**：都在 JS 模板串里，逐处改带回退风险；将来动它要小批替换 + 全量自检全绿。
+- **横向基准只有一条（2026-09-22 第二轮精致度：阿楠说「还是不够精致」时最扎眼的一处）**：纸面是 `max-width:880px` 居中的，而顶栏/科目栏原来是两端贴窗口边——一屏里两套左右基准。`.toolbar` 与 `.modbar` 的左右 padding 统一写 `max(14px,calc((100% - 880px)/2 + 14px))`，与 `.wrap` 逐像素对齐（窄窗口自动退回 14px），任何新顶栏行都照抄。
+  - **纸面要像纸**：`.doc` 带 `--sh-paper`（两级极淡投影）。白纸贴在灰底上没边，看着就是个 div。
+  - **细条（`.barline .bt` / `.mrow .mbar`）只能 4px + 圆头**，填充色 `--bar(#a9a49a)`。之前 6px 实心深灰是整行最重的东西，比字还重——诊断数据不该抢注意力。
+  - **`--head(#f2efe8)` 是暖底**：原来 `#f1f2f0` 偏冷，在暖纸面上是一块灰斑。
+- **画像的数值列是定宽右对齐，不是 min-width**：`.mavg/.mmeta` 各 `flex:0 0 84px`（「正确率 100%」宽 83px）、`.mweak` `flex:0 0 120px`。用 min-width 时宽值会把细条起点逐行往右顶（阿楠看到的就是「一列数字」实则逐行跳）；未练行也走 `.mavg`（不是 `.mmeta`），这样「未练」与「均分 N」同列、维度说明与细条同起点。
+- **训练链步骤条 `.flowrail` 是「进度」不是「五个按钮」**：`counter-reset/increment` 出序号徽标（已过 = ✓、当前 = 红底白字）、`width:fit-content` 自成一条、段间 1px `--line-soft` 分隔、上下 1px 实线。**它不可点（没有点击处理），所以不给 `cursor:pointer`/hover——看着能点却点不动比没反馈更糙**。
+- **题头右侧的行内动作走 `.secrow`**（`justify-content:space-between`）：`换一题` 以前单占一行、孤悬在题头之上。注意断言盯着 `class="sec-title">题目` 这个串，包一层 `.secrow` 安全，别给 `.sec-title` 自身再加类。
+- **题面字段（作答要求 / 建议结构）用悬挂缩进**：`.require{padding-left:5em;text-indent:-5em}` + `.require b{display:inline-block;min-width:5em}` + `.require br{display:none}`——两个标签都是 5 字，于是值从同一条竖线开始，折行也缩进到值那一列。
 - 文案写宽泛、贴用户视角，**别写死实现**：说「本地」，不说「这台电脑/本机浏览器/localStorage」这类以后实现一变就要跟着改的词（阿楠 2026-09-18 明确要求）。
 
 ## 端口与存储（桌面壳）
