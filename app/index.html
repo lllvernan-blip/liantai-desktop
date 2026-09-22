@@ -58,10 +58,13 @@ html,body{margin:0;padding:0;}
   body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;}
 
   /* 控件行里只有两个尺寸：按钮/输入框同高，胶囊矮一档；行高定死 1.35，不再跟 body 的 1.7 走 */
-  button{font-family:var(--fangsong);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:var(--ctl);color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
+  /* 控件是产品（雅黑），文档是公文（仿宋）：红头、材料、作答、范文用仿宋，
+     按钮 / 页签 / 输入框不再穿仿宋——仿宋笔画细，小字号的按钮看起来像没渲染完 */
+  button{font-family:var(--yahei);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:var(--ctl);color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
   button:hover{background:var(--wash-3);}
   button:disabled{opacity:.5;cursor:not-allowed;}
-  button.primary{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
+  /* 主行动比次级控件高一大档（40 vs 36）、重一号（15 vs 14）：一屏里只允许一个这种重量的东西 */
+  button.primary{background:var(--gov-red);border-color:var(--gov-red);color:#fff;font-weight:600;font-size:15px;letter-spacing:1px;min-height:40px;padding:8px 22px;}
   button.primary:hover{background:var(--gov-red-dark);box-shadow:var(--sh-1);transform:translateY(-1px);}
   button.primary:active:not(:disabled){transform:translateY(1px);box-shadow:none;}
   /* 正在跑（如提交阅卷）：不可点 ≠ 正在跑，两个态分开表达 */
@@ -113,7 +116,7 @@ html,body{margin:0;padding:0;}
   .chip small{color:var(--muted);font-variant-numeric:tabular-nums;}
 
   .wrap{max-width:880px;margin:24px auto 56px;padding:0 14px;}
-  .doc{background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);padding:34px 46px 44px;}
+  .doc{background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);padding:40px 54px 56px;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 10px;}
   .redline{display:flex;align-items:center;}
@@ -137,7 +140,9 @@ html,body{margin:0;padding:0;}
   .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;}
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
   ::selection{background:rgba(192,21,26,.16);}
-  .material{background:var(--mat);border:1px solid var(--line);padding:16px;font-family:var(--fangsong);font-size:15px;line-height:1.85;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
+  /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
+     16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
+  .material{background:var(--mat);padding:20px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:13px;margin-bottom:6px;}
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
@@ -168,7 +173,7 @@ html,body{margin:0;padding:0;}
 
   .answer-wrap{margin-top:18px;}
   .markrun{border-left:2px solid var(--mark,#a7f3d0);padding-left:8px;margin:0 0 8px;font-size:13px;line-height:1.7;}   /* 划线色是用户在设置里选的，不能写死成默认那张绿 */
-  textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:15px;line-height:1.95;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:16px;line-height:2.05;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
   .hint{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
@@ -176,10 +181,9 @@ html,body{margin:0;padding:0;}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
   .counter b.over{color:#fff;background:var(--danger);padding:0 5px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
-  .pdreview{border:1px solid var(--line);text-align:left;margin-top:4px;}
+  .pdreview{text-align:left;margin-top:4px;}
   /* 逐题回顾一行一条：对错标记 + 题号 + 辨析点，解析点开才看（原来那条解析把每行撑成三行） */
   .pditem{display:flex;gap:8px;align-items:baseline;padding:7px 12px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;}
-  .pdreview>.pditem:last-child{border-bottom:none;}
   .pditem .pdmk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
   .pditem.ok .pdmk{color:var(--success);}
   .pditem.miss .pdmk{color:var(--danger);}
@@ -193,9 +197,10 @@ html,body{margin:0;padding:0;}
   details.pditem[open]>summary::after{content:"▾";}
   .pditem .pdexp{color:var(--muted);font-size:13px;line-height:1.75;white-space:pre-wrap;}
   details.pditem .pdexp{padding:0 12px 9px 38px;}
-  .hits{border:1px solid var(--line);}
+  /* 清单只有一种语言：一条顶线 + 行间细线，不再套框。之前的 .hits/.pdreview/.hist/.mrowbox
+     各自描一圈边，同一屏里「带框的清单」与「带顶线的清单」两种修辞并存 */
+  .hits{border-top:1px solid var(--line);}
   .hitline{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;align-items:baseline;}
-  .hitline:last-child{border-bottom:none;}
   .hitline .mk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
   .hitline .pt{flex:1 1 auto;min-width:0;}
   .hitline.hit .mk{color:var(--success);}
@@ -210,7 +215,7 @@ html,body{margin:0;padding:0;}
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
   .grade{margin-top:32px;border-top:1px solid var(--line-strong);padding-top:16px;}
   .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;}
-  .grade .total{font-family:var(--hei);font-size:26px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
+  .grade .total{font-family:var(--hei);font-size:30px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
   .ghead .gtag{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
   /* 批改页里的折叠区收成「带顶线的行」：页面里已经有一层纸面，再套两层盒子只剩噪音 */
@@ -236,9 +241,9 @@ html,body{margin:0;padding:0;}
   /* 行内引导词：优点/短板的标签不占一整行 */
   .plabel{font-family:var(--hei);font-size:13px;color:var(--muted);margin-right:2px;}
   .pills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px;}
-  .pill{padding:4px 12px;font-size:13px;border-radius:var(--r-ctl);}
-  .pill.good{background:var(--success-bg);border:1px solid var(--success-line);color:var(--success);}
-  .pill.bad{background:var(--danger-bg);border:1px solid var(--danger-line);color:var(--danger);}
+  .pill{padding:4px 10px;font-size:13px;border-radius:var(--r-ctl);}
+  .pill.good{background:var(--success-bg);color:var(--success);}
+  .pill.bad{background:var(--danger-bg);color:var(--danger);}
   .comment{margin-top:12px;font-size:15px;line-height:1.85;}
   .nextrow{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
@@ -260,12 +265,12 @@ html,body{margin:0;padding:0;}
   .fab b{color:var(--ink);}
   .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
-  .notebox{border:1px solid var(--line);background:var(--paper);margin-top:20px;}
+  .notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
   .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13px;padding:8px 12px;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
   .notebody{padding:4px 12px 12px;font-size:15px;line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
-  .modelanswer{font-family:var(--fangsong);font-size:15px;line-height:1.95;-webkit-text-stroke:0.3px currentColor;}
+  .modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
   .field{margin-bottom:22px;}
   .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:6px;}
   /* 设置弹层的分界：上面是接哪家 AI，下面是版本与更新 */
@@ -285,7 +290,7 @@ html,body{margin:0;padding:0;}
   details.more .inner{padding:2px 12px 12px;}
 
   /* 画像：一个模块一行（名称 · 均分 · 细条 · 次数 · 短板），点开才看维度明细 */
-  .mrowbox{border:1px solid var(--line);border-bottom:none;background:var(--paper);margin-bottom:14px;}
+  .mrowbox{border-top:1px solid var(--line);margin-bottom:14px;}
   .mrow{border-bottom:1px solid var(--line);}
   .mrow>summary{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;list-style:none;font-size:14px;}
   .mrow>summary::-webkit-details-marker{display:none;}
@@ -308,7 +313,7 @@ html,body{margin:0;padding:0;}
   .expline>summary{display:flex;align-items:baseline;gap:8px;padding:7px 2px;cursor:pointer;list-style:none;font-size:14px;}
   .expline>summary::-webkit-details-marker{display:none;}
   .expline>summary:hover{background:var(--wash);}
-  .expline .etag{flex:0 0 auto;min-width:32px;text-align:center;font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:1px 8px;border-radius:var(--r-pill);}
+  .expline .etag{flex:0 0 auto;min-width:32px;text-align:center;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:2px 8px;border-radius:var(--r-ctl);}
   /* 标题固定成一列：不定宽的话每行正文起点都不一样，扫起来是斜的 */
   .expline>summary .hint{flex:0 0 auto;white-space:nowrap;}   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */
   .expline .etitle{flex:0 0 236px;font-family:var(--hei);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
@@ -322,11 +327,11 @@ html,body{margin:0;padding:0;}
   .notebox>summary::after,details.more>summary::after,.addpick>summary::after{content:"▸";float:right;font-size:12px;color:var(--line-strong);}
   .notebox[open]>summary::after,details.more[open]>summary::after,.addpick[open]>summary::after{content:"▾";}
   .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
-  .typestat .t{padding:4px 9px;font-size:13px;border:1px solid var(--line);font-variant-numeric:tabular-nums;}
+  .typestat .t{padding:4px 9px;font-size:13px;background:var(--wash-2);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
   .typestat .t .lo{color:var(--danger);}
   .typestat .t .hi{color:var(--success);}
-  .hist{max-height:420px;overflow:auto;border:1px solid var(--line);margin-top:12px;}
+  .hist{max-height:420px;overflow:auto;border-top:1px solid var(--line);margin-top:12px;}
   .hist table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
   .hist th,.hist td{border-bottom:1px solid var(--line);padding:8px;text-align:left;}
   .hist th.num,.hist td.num{text-align:right;}   /* 总分/题数这类数字贴右：个位数与三位数不右对齐就会左右乱跳 */
@@ -334,7 +339,10 @@ html,body{margin:0;padding:0;}
   .hist tbody tr:nth-child(even){background:var(--wash-2);}   /* 隔行淡底：十行扫下来不跟丢 */
   .hist tbody tr:hover{background:var(--wash);}
   .histfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;}
-  .banner{background:var(--danger-bg);border:1px solid var(--danger-line);color:var(--gov-red-dark);padding:12px 16px;font-size:13px;margin-bottom:16px;border-radius:var(--r-ctl);}
+  /* 提示条分两种：日常提示是安静的一行（左缘一条红线表示「注意」），只有真正的失败才穿红——
+     之前「欢迎」和「接口超时」长得一模一样，是全屏最像 bug 的一处 */
+  .banner{background:var(--wash-2);border:1px solid var(--line);border-left:3px solid var(--gov-red);color:var(--ink);padding:11px 14px;font-size:13px;margin-bottom:18px;border-radius:var(--r-ctl);}
+  .banner.error{background:var(--danger-bg);border-color:var(--danger-line);border-left-color:var(--danger);color:var(--danger);}
   .loading{font-size:13px;color:var(--muted);padding:40px 0;text-align:center;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
   .peek{display:none;max-height:130px;overflow:hidden;margin:10px auto 0;padding:8px 12px;text-align:left;background:var(--wash);border:1px dashed var(--line);font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
@@ -354,10 +362,12 @@ html,body{margin:0;padding:0;}
   /* 已点选：淡蓝是整屏唯一的冷色，还带一道蓝下划线，看着像超链接——换成「铅笔涂过一遍」的暖沙 */
   .pt-seg.picked{background:#e9e1cc;box-shadow:inset 0 -2px 0 #cdbe97;}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:4px 2px;border-bottom:1px solid var(--line);}
-  .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:var(--r-pill);flex:0 0 auto;}
+  .pickline button.linkbtn{white-space:nowrap;}   /* 长要点折行时「移除」会被挤成两行竖排 */
+  .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:2px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
   /* 归类：一组一张条，已归入的点平铺在上、其余收进「加要点」——
      同一个点要归进两组时，就在两组的加要点里各勾一次，清单里各出现一次，不再 N 组 × M 点铺满整屏 */
-  .ogroup{border:1px solid var(--line);background:var(--wash-2);padding:10px 12px;margin-bottom:14px;}
+  /* 归类组从「盒子」改成「带顶线的节」：与批改页的采分点对照 / 维度分同一套修辞，方框少一层、密度反而高 */
+  .ogroup{border-top:1px solid var(--line);padding:12px 0 4px;margin-bottom:18px;}
   .ogroup .grow{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:5px;}
   /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
   .ogroup .gname{flex:1 1 auto;font-family:var(--hei);font-size:15px;font-weight:700;border:none;border-bottom:1px dashed transparent;background:transparent;padding:3px 2px;min-height:0;border-radius:0;}
@@ -863,7 +873,7 @@ function saveHistory(){
     try{
       if(state.history.length > 40){ state.history.length = 40; localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); return true; }
       throw e;
-    }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。"); return false; }
+    }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。", "error"); return false; }
   }
 }
 let state = load();
@@ -957,7 +967,7 @@ function save(){
     try{
       if(Object.keys(state.cache.studyCards||{}).length){ state.cache.studyCards = {}; localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); }
       else throw e;
-    }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份。"); }
+    }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份。", "error"); }
   }
 }
 
@@ -1692,7 +1702,7 @@ document.addEventListener("keydown", e=>{
   if(e.shiftKey && atEdgeStart){ e.preventDefault(); last.focus(); }
   else if(!e.shiftKey && cur === last){ e.preventDefault(); first.focus(); }
 });
-function banner(html){ $("#bannerSlot").innerHTML = html? `<div class="banner">${html}</div>`:""; }
+function banner(html, kind){ $("#bannerSlot").innerHTML = html? `<div class="banner${kind==="error"?" error":""}">${html}</div>`:""; }
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
@@ -2931,7 +2941,7 @@ async function submitAnswer(){
     // 草稿只在记录确实落盘后才清：写不进 localStorage 时留着草稿，用户还能再交一次，
     // 不然「记录只活在内存里 + 草稿已删」这个窗口里被强杀，手写答案就不可再生地没了。
     if(saveHistory()){ clearDraft(qSig(q)); }
-    else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。"); }
+    else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
     renderGrade(g, total);   // 申论：提交即进入「批改」步；综应A：显示结果页
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
@@ -3408,7 +3418,7 @@ function importJSON(file){
       current = null;   // 导入后内存里的旧题不再可信，回到起点
       saveHistory(); save(); fillSettings(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
       banner(hadKey? "已从备份恢复数据 ✓ 文件里的 API Key 未被采用（防他人备份覆盖你的 Key），本地已填的 Key 保持不变。" : "已从备份恢复数据 ✓");
-    }catch(e){ banner("导入失败：文件不是有效的备份 JSON。"); }
+    }catch(e){ banner("导入失败：文件不是有效的备份 JSON。", "error"); }
   };
   r.readAsText(file);
 }
@@ -3614,13 +3624,13 @@ function handleErr(e, keepView){
   else if(e && e.code==="NO_MODEL") banner("还没选定模型：点右上角「设置」→ 模型栏点「拉取模型列表」从接口拉一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。");
   else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
       + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
-      + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""));
-  else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。");
-  else if(e && e.code==="BADJSON") banner("服务商返回的内容不是 JSON（多半是 Base URL 不对，需带 /v1）。请检查后重试。");
-  else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或把「推理程度」调低。");
+      + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""), "error");
+  else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。", "error");
+  else if(e && e.code==="BADJSON") banner("服务商返回的内容不是 JSON（多半是 Base URL 不对，需带 /v1）。请检查后重试。", "error");
+  else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或把「推理程度」调低。", "error");
   else if(e && e.code==="ABORT") banner("已取消本次请求。");
-  else if(e && /Failed to fetch|NetworkError|TypeError|Load failed|Network request failed/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint());
-  else banner("出错了：" + esc((e && e.message) ? e.message : "未知错误"));
+  else if(e && /Failed to fetch|NetworkError|TypeError|Load failed|Network request failed/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint(), "error");
+  else banner("出错了：" + esc((e && e.message) ? e.message : "未知错误"), "error");
   if(!keepView) renderStart();
 }
 
