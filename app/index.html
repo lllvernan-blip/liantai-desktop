@@ -122,7 +122,8 @@ html,body{margin:0;padding:0;}
   .modlabel{text-align:center;font-family:var(--hei);font-size:13px;color:var(--muted);margin:4px 0 0;letter-spacing:1px;}
 
   /* 起始区 —— 醒目主入口 */
-  .startbox{text-align:center;padding:32px 20px 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */}
+  .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
+  /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:13px;margin:0 0 24px;}
   .startbox .big{min-width:260px;}
