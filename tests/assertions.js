@@ -949,8 +949,33 @@ state.flows = []; _flowId = null;
 
 /* 12.8 小修：organize 未入组提示 + 提纲/找点不自动重排 */
 const fOrg = { selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} };
-ok(organizePanelHtml(fOrg).indexOf("1 个新找的点还没进组") >= 0, "organize: 有未入组的点时轻提示");
-ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} }).indexOf("还没进组") < 0, "organize: 全部入组时不提示");
+ok(organizePanelHtml(fOrg).indexOf("1 个点还没归进任何一组") >= 0, "organize: 有未入组的点时轻提示");
+ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} }).indexOf("还没归进任何一组") < 0, "organize: 全部入组时不提示");
+// 归类页只摆已归入的点，备选收进「加要点」：不再 N 组 × M 点铺满整屏
+const orgHtml = organizePanelHtml(fOrg);
+ok(orgHtml.indexOf('class="asgline" data-si="0"') >= 0 && orgHtml.indexOf('data-unasg="0"') >= 0,
+   "organize: 已归入的点摆成一行（带「移出」）");
+ok(orgHtml.indexOf('class="asgline" data-si="1"') < 0 && orgHtml.indexOf("加要点（备选 1 个）") >= 0,
+   "organize: 未归入的点不摆出来，只在备选条里计个数");
+const orgHtml2 = organizePanelHtml({ selections:[{text:"甲点",free:true}], groups:[{name:"",facts:[0]}], question:{background:"x"} });
+ok(orgHtml2.indexOf("备选已全部归入本组") >= 0 && orgHtml2.indexOf("划选") >= 0,
+   "organize: 备选清空时给明确空态 + 保留划选/整句标记");
+// 同一个点可以同时归进两组：已归清单上标出「也在「X」」
+const orgHtml3 = organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"甲组",facts:[0]},{name:"乙组",facts:[0]}], question:{background:"x"} });
+ok(orgHtml3.indexOf("也在「乙组」") >= 0 && orgHtml3.indexOf("也在「甲组」") >= 0,
+   "organize: 一个点归进两组时，两边都标明");
+// DOM 是归属唯一出处（已归清单的 data-si ∪ 备选里勾上的框）：这层拼装函数单独测，不靠真 DOM
+const sel3 = [{text:"甲点",free:true},{text:"乙点"}];
+const grp3 = [{name:"甲组",facts:[0]},{name:"",facts:[0,1]}];
+const h3 = holderOf(grp3, sel3);
+ok(h3[0].length === 2 && h3[1].length === 1, "organize: 归属反查表记录一个点被哪几组收着 -> " + JSON.stringify(h3));
+const asg3 = assignedHtml(grp3[1].facts, sel3, grp3, 1, h3);
+ok(asg3.indexOf('data-si="0"') >= 0 && asg3.indexOf('data-si="1"') >= 0 && asg3.indexOf("移出") >= 0,
+   "organize: 已归清单逐行画出（每行带「移出」）");
+ok(asg3.indexOf("也在「甲组」") >= 0 && asg3.indexOf("也在「要点2」") < 0,
+   "organize: 只给跨组重复的点标「也在」，并跳过它自己");
+ok(assignedHtml([], sel3, grp3, 1, h3).indexOf("这一组还没归点") >= 0, "organize: 空组给明确空态");
+ok(groupLabel([{name:""}], 0) === "要点1" && groupLabel([{name:"甲组"}], 0) === "甲组", "organize: 没命名时按「要点N」称呼");
 
 current = null;
 
