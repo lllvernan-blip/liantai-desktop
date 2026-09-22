@@ -15,10 +15,10 @@
     --muted:#5e5e57;
     /* 淡底四档：悬停 / 展开抬头 / 按钮悬停 / 细条底 —— 原来这里是七八个近似米色各行其是 */
     --wash:#f7f5f0; --wash-2:#fbfaf6; --wash-3:#f3f1ec; --line-soft:#eceae4;
-    --head:#f1f2f0;      /* 表头与弹层抬头 */
+    --head:#f2efe8;      /* 表头与弹层抬头（原来是偏冷的一抹灰，在暖纸面上一块斑） */
     --red-wash:#fdf3f3;  /* 当前项的红底（页签 / 步骤条） */
     --red-wash-2:#fbf1f1;/* 红底上的悬停 */
-    --bar:#8f8c84;       /* 中性进度条填充 */
+    --bar:#a9a49a;       /* 中性细条填充：6px 实心深灰曾是整行最重的东西，压到 4px 并调浅 */
     --mat:#faf8f2;       /* 材料纸底（比纸面再黄一档，与正文区分） */
     --write:#fffdf5;     /* 凡是「我写字的地方」共一色：作答区、笔记、下笔处 */
     --focus-halo:0 0 0 3px rgba(192,21,26,.07);   /* 控件获得焦点时的外圈：输入框与两处大文本框共用 */
@@ -35,6 +35,8 @@
     --sh-1:0 1px 3px rgba(31,31,31,.06);
     --sh-2:0 2px 10px rgba(31,31,31,.10);
     --sh-3:0 12px 40px rgba(0,0,0,.18);
+    /* 纸面浮在桌面上的那一层：两级极淡投影。只为了给白纸一条edge，不做立体感 */
+    --sh-paper:0 1px 2px rgba(31,31,31,.045),0 10px 26px rgba(31,31,31,.05);
     /* 圆角只要三档：直角 / 控件 / 胶囊。现状 0/2/4/8/12/16/22/50% 八种表达同一语义 */
     --r-flat:0; --r-ctl:2px; --r-pill:999px;
     --fangsong:"FangSong","仿宋","STFangsong","FangSong_GB2312","KaiTi","serif";
@@ -70,15 +72,18 @@ html,body{margin:0;padding:0;}
 
   /* 顶栏 */
   .topbar{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);}
-  .toolbar{display:flex;align-items:center;gap:6px;padding:9px 18px;}
+  /* 顶栏与科目栏与纸面对齐同一列：原来两端贴窗口边、正文却居中，一屏里出现两套左右基准 */
+  .toolbar{display:flex;align-items:center;gap:6px;padding:9px max(14px,calc((100% - 880px)/2 + 14px));}
   /* 右上四个入口是工具，比品牌弱，但它们是纯文字、热区只有 13px 高：撑到能稳点中的高度，并给一点悬停反馈 */
   .toolbar button.linkbtn{padding:6px 11px;font-size:13px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-ctl);}
+  /* 品牌前一小段红竖线：跟纸面里的小节标记同一套语言，顶栏不再是一行裸字 */
+  .toolbar .brand::before{content:"";display:inline-block;width:3px;height:13px;background:var(--gov-red);margin-right:7px;vertical-align:-1px;}
   .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:15px;color:var(--gov-red);letter-spacing:1.5px;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0;margin-left:8px;}
   .spacer{flex:1 1 auto;}
   /* 行高锁死：判别轨模式下不渲染页签，如果不锁，这一栏会矮 13px——整条顶栏就“往上跳”了一下 */
-  .modbar{display:flex;align-items:center;gap:4px;padding:0 14px;border-top:1px solid var(--line);min-height:47px;}
+  .modbar{display:flex;align-items:center;gap:4px;padding:0 max(14px,calc((100% - 880px)/2 + 14px));border-top:1px solid var(--line);min-height:47px;}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;transition:background .15s ease,color .15s ease,border-color .15s ease;}
   .tab:hover{background:var(--wash-3);}
   /* 当前模块：底部红线 + 淡红底。不加粗（加粗会把页签宽度撑变，又造成一次小位移） */
@@ -104,8 +109,8 @@ html,body{margin:0;padding:0;}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
   .chip small{color:var(--muted);font-variant-numeric:tabular-nums;}
 
-  .wrap{max-width:880px;margin:20px auto 60px;padding:0 14px;}
-  .doc{background:var(--paper);border:1px solid var(--line);padding:34px 46px 44px;}
+  .wrap{max-width:880px;margin:24px auto 56px;padding:0 14px;}
+  .doc{background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);padding:34px 46px 44px;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 10px;}
   .redline{display:flex;align-items:center;}
@@ -124,6 +129,8 @@ html,body{margin:0;padding:0;}
   .qtop button.linkbtn{border:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 12px;font-size:13px;min-height:28px;}
   .qtop button.linkbtn:hover{background:#fff;border-color:var(--gov-red);}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 8px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
+  /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
+  .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;}
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
   ::selection{background:rgba(192,21,26,.16);}
   .material{background:var(--mat);border:1px solid var(--line);padding:16px;font-family:var(--fangsong);font-size:15px;line-height:1.85;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
@@ -136,8 +143,10 @@ html,body{margin:0;padding:0;}
   .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:var(--r-ctl);padding:4px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}   /* 墨底浮标记压在纸面上，深色表面可超出常规阴影上限 */
   .markpop button{background:transparent;border:none;color:#fff;font-size:13px;padding:4px 12px;cursor:pointer;font-family:var(--fangsong);}
   .markpop button:hover{color:var(--mark,#a7f3d0);}
-  .require{margin-top:12px;font-size:15px;white-space:pre-wrap;}
-  .require b{font-family:var(--hei);}
+  /* 字段化：标签占定 5 个字（作答要求／建议结构都是 5 字），值从同一条竖线开始，折行也缩进到那一列 */
+  .require{margin-top:12px;font-size:15px;white-space:pre-wrap;padding-left:5em;text-indent:-5em;}
+  .require b{font-family:var(--hei);display:inline-block;min-width:5em;}
+  .require br{display:none;}   /* 标签后面那个换行去掉：值接在标签后，但仍对齐到值那一列 */
 
   details.card{border:1px solid var(--line);border-left:3px solid var(--gov-red);background:var(--wash-2);margin-top:16px;}
   details.card>summary{cursor:pointer;font-family:var(--hei);font-weight:700;font-size:15px;padding:11px 14px;list-style:none;display:flex;align-items:center;gap:8px;}
@@ -215,8 +224,9 @@ html,body{margin:0;padding:0;}
   .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
   .barline .bn{flex:0 0 92px;font-family:var(--hei);}
   /* 维度条是诊断数据，不是警示：默认中性墨灰，只有低于合格线（满分 20 的 60%）才染红 */
-  .barline .bt{flex:1 1 auto;height:6px;background:var(--line-soft);min-width:56px;}
-  .barline .bt>i{display:block;height:100%;background:var(--bar);}
+  /* 4px + 圆头：细条是诊断数据，不该比它旁边的字更重 */
+  .barline .bt{flex:1 1 auto;height:4px;border-radius:var(--r-pill);background:var(--line-soft);min-width:56px;overflow:hidden;}
+  .barline .bt>i{display:block;height:100%;border-radius:var(--r-pill);background:var(--bar);}
   .barline .bt>i.lo{background:var(--danger);}
   .barline .bv{flex:0 0 86px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
   /* 行内引导词：优点/短板的标签不占一整行 */
@@ -233,8 +243,8 @@ html,body{margin:0;padding:0;}
   .modal[hidden]{display:none;}
   .modal .box{background:var(--paper);border:1px solid var(--line);width:100%;max-width:760px;box-shadow:var(--sh-3);display:flex;flex-direction:column;max-height:90vh;}
   .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--head);font-family:var(--hei);font-weight:700;font-size:15px;letter-spacing:1px;flex:0 0 auto;}
-  .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:8px 12px;}
-  .mhead .x:hover{color:var(--gov-red);}
+  .mhead .x{border:none;background:transparent;font-size:14px;cursor:pointer;color:var(--muted);width:30px;height:30px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-ctl);}
+  .mhead .x:hover{background:var(--wash-3);color:var(--gov-red);}
   .panel-body{padding:16px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
   /* 学习卡抽屉 + 我的笔记 + 翻卡浮标 */
   .drawer{position:fixed;inset:0;z-index:60;background:rgba(31,31,31,.35);}
@@ -252,16 +262,18 @@ html,body{margin:0;padding:0;}
   .notebody{padding:4px 12px 12px;font-size:15px;line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
   .modelanswer{font-family:var(--fangsong);font-size:15px;line-height:1.95;-webkit-text-stroke:0.3px currentColor;}
-  .field{margin-bottom:16px;}
-  .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:8px;}
+  .field{margin-bottom:18px;}
+  .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:6px;}
+  /* 设置弹层的分界：上面是接哪家 AI，下面是版本与更新 */
+  #updateField{border-top:1px solid var(--line);margin-top:20px;padding-top:18px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
   .field .note{font-size:12px;color:var(--muted);margin-top:4px;}
   .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;width:fit-content;}
-  .seg button{border:none;border-right:1px solid var(--line);border-radius:var(--r-flat);padding:8px 24px;background:#fff;color:var(--muted);}
+  .seg button{border:none;border-right:1px solid var(--line);border-radius:var(--r-flat);padding:7px 22px;background:#fff;color:var(--muted);}   /* 与「保存」同高，一行里不再一高一矮 */
   .seg button:last-child{border-right:none;}
   .seg button.active{background:var(--gov-red);color:#fff;}
   .seg button.active:hover{background:var(--gov-red-dark);}
-  details.more{border:1px dashed var(--line);margin-top:6px;}
+  details.more{border:1px solid var(--line);margin-top:6px;}   /* 收纳件是实体容器，不跟虚线混用 */
   details.more>summary{cursor:pointer;font-size:13px;padding:8px 12px;color:var(--muted);list-style:none;}
   details.more>summary::-webkit-details-marker{display:none;}
   details.more .inner{padding:2px 12px 12px;}
@@ -274,12 +286,14 @@ html,body{margin:0;padding:0;}
   .mrow>summary:hover{background:var(--wash);}
   .mrow[open]>summary{background:var(--wash-2);border-bottom:1px solid var(--line);}
   .mrow .mname{flex:0 0 88px;font-family:var(--hei);font-weight:700;}
-  .mrow .mavg{flex:0 0 auto;min-width:58px;text-align:right;font-variant-numeric:tabular-nums;}   /* 定宽右对齐：不定宽时“均分 78”与“均分 100”会把细条起点逐行顶歪（“正确率 100%”比 58px 长，所以是 min-width 不是定死） */
-  .mrow .mbar{flex:1 1 auto;height:6px;background:var(--line-soft);min-width:48px;}
-  .mrow .mbar>i{display:block;height:100%;background:var(--bar);}
+  /* 三列都定宽右对齐：不定宽时「均分 100」会把细条起点往右顶，「正确率 100%」再顶一格，看着是一列数字、实则逐行跳。
+     定宽后全屏的细条从同一条竖线开始（「正确率 100%」宽 83px，所以给 84px） */
+  .mrow .mavg{flex:0 0 84px;text-align:right;font-variant-numeric:tabular-nums;}
+  .mrow .mbar{flex:1 1 auto;height:4px;border-radius:var(--r-pill);background:var(--line-soft);min-width:48px;overflow:hidden;}
+  .mrow .mbar>i{display:block;height:100%;border-radius:var(--r-pill);background:var(--bar);}
   .mrow .mbar>i.lo{background:var(--danger);}
-  .mrow .mmeta{flex:0 0 auto;min-width:48px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
-  .mrow .mweak{flex:0 0 auto;color:var(--danger);}
+  .mrow .mmeta{flex:0 0 84px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .mrow .mweak{flex:0 0 120px;text-align:right;color:var(--danger);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
@@ -319,10 +333,15 @@ html,body{margin:0;padding:0;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
   .peek{display:none;max-height:130px;overflow:hidden;margin:10px auto 0;padding:8px 12px;text-align:left;background:var(--wash);border:1px dashed var(--line);font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
   /* 申论训练链：步骤条要轻，一行小步骤条，当前步高亮 */
-  .flowrail{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin:16px 0 2px;}
-  .flowrail .fstep{font-family:var(--hei);font-size:13px;color:var(--muted);padding:4px 12px;border:1px solid var(--line);border-radius:var(--r-pill);background:#fff;}
-  .flowrail .fstep.done{color:var(--success);border-color:var(--success-line);background:var(--success-bg);}
-  .flowrail .fstep.active{color:var(--gov-red);border-color:var(--gov-red);background:var(--red-wash);}
+  /* 申论训练链：这是一条进度，不是五个按钮——带序号、段间细线分隔、已过打勾、当前步最重。
+     步骤条不可点（没有点击处理），所以不给 cursor/hover：看着能点却点不动，比不给反馈更糙 */
+  .flowrail{display:flex;flex-wrap:wrap;width:fit-content;align-items:center;margin:16px 0 2px;counter-reset:fs;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:6px;font-family:var(--hei);font-size:13px;color:var(--muted);padding:9px 16px 9px 14px;background:transparent;border:none;border-radius:0;}
+  .flowrail .fstep+.fstep{border-left:1px solid var(--line-soft);}
+  .flowrail .fstep::before{content:counter(fs);display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;font-size:11px;font-variant-numeric:tabular-nums;border-radius:var(--r-pill);background:var(--wash-3);color:var(--muted);}
+  .flowrail .fstep.done::before{content:"✓";background:var(--success-bg);color:var(--success);}
+  .flowrail .fstep.active{color:var(--gov-red);background:var(--red-wash);}
+  .flowrail .fstep.active::before{background:var(--gov-red);color:#fff;}
   /* 找点高亮：与 gw_marks 的划线层（.ms.on）互不覆盖，用独立的蓝色系 */
   .pt-seg{cursor:pointer;border-radius:var(--r-ctl);}
   .pt-seg:hover{background:#eef3fa;}
@@ -372,7 +391,7 @@ html,body{margin:0;padding:0;}
   .pdopt:disabled:hover{border-color:inherit;}
   .pdexplain{font-size:14px;background:var(--mat);border:1px dashed var(--line);padding:8px 12px;line-height:1.8;}
 
-  .foot{text-align:center;color:var(--muted);font-size:12px;margin:26px 0 0;}
+  .foot{text-align:center;color:var(--text-disabled);font-size:12px;margin:24px 0 0;letter-spacing:.3px;}
   code{font-family:Consolas,Menlo,monospace;background:var(--line-soft);padding:2px 4px;border-radius:var(--r-ctl);font-size:13px;}
 
   /* ============ 精致度：过渡与微动效（克制的） ============
@@ -535,7 +554,7 @@ html,body{margin:0;padding:0;}
     </div>
   </div>
 
-  <p class="foot">练习台 · 出题 · 阅卷 · 画像 · 快判 · 数据仅存本地</p>
+  <p class="foot">练习台 · 数据仅存本地</p>
 </div>
 
 <script>
@@ -2563,8 +2582,7 @@ function renderFlowStep(){
   }
   const step = f? f.step : (lastGrade? "review" : "draft");
   const {question} = current;
-  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  html += `<div class="sec-title">题目</div>`;
+  let html = `<div class="secrow"><div class="sec-title">题目</div><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   html += metaLineHtml(question);
@@ -3037,7 +3055,7 @@ function renderProfile(){
       let n = 0; for(const h of state.history) if(h.module === k) n++;
       // 没练过的模块只占一行：无维度可看，铺开五张「未练」卡只是占地方
       if(avg == null){
-        html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mmeta">未练</span><span class="mnone">${esc(MODULES[k].note)}</span></summary><div class="mdetail"><div class="hint">还没练过。评分维度：${esc(MODULES[k].dims.join("、"))}</div></div></details>`;
+        html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">未练</span><span class="mnone">${esc(MODULES[k].note)}</span></summary><div class="mdetail"><div class="hint">还没练过。评分维度：${esc(MODULES[k].dims.join("、"))}</div></div></details>`;
         continue;
       }
       const weak=[], strong=[];
