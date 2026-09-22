@@ -133,6 +133,10 @@ html,body{margin:0;padding:0;}
   .card-body ul{margin:4px 0;padding-left:20px;}
   .card-body li{margin:3px 0;}
   .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:13.5px;white-space:pre-wrap;color:#333;}
+  /* 学习卡：要点与失分点并成左右两栏（都是短句清单，上下摆会把卡拉长一倍） */
+  .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;}
+  .cardcols h4{margin-top:12px;}
+  .drawer .cardcols{grid-template-columns:1fr;}   /* 抽屉只有 430px，两栏会挤 */
 
   .answer-wrap{margin-top:18px;}
   .markrun{border-left:2px solid #a7f3d0;padding-left:8px;margin:0 0 8px;font-size:13px;line-height:1.7;}
@@ -167,17 +171,33 @@ html,body{margin:0;padding:0;}
   .hitline.miss .sc{color:#b3261e;}
   .hitline .ev{color:var(--muted);font-size:13px;}
 
+  /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
   .grade{margin-top:24px;border-top:2px solid var(--gov-red);padding-top:16px;}
+  .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
   .grade .total{font-family:var(--hei);font-size:26px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
-  .dimscores{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0;}
-  .dim{border:1px solid var(--line);padding:8px 12px;}
-  .dim .name{font-family:var(--hei);font-size:13px;}
-  .dim .bar{height:6px;background:#eceae4;margin-top:8px;}
+  .ghead .gtag{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  /* 批改页里的折叠区收成「带顶线的行」：页面里已经有一层纸面，再套两层盒子只剩噪音 */
+  .grade details.notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:14px;}
+  .grade details.notebox>summary{padding:9px 2px;}
+  .grade details.notebox .notebody{padding:2px 2px 10px;}
+  /* 丢分清单：按扣分从多到少，一行一条（点 · 证据 · 扣了几分） */
+  .losslist{border-top:1px solid var(--line);margin:10px 0 2px;}
+  .lossline{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.75;}
+  .lossline .ls{flex:0 0 34px;text-align:right;font-family:var(--hei);color:#b3261e;font-variant-numeric:tabular-nums;}
+  .lossline .lp{flex:0 0 auto;font-family:var(--hei);}
+  .lossline .le{flex:1 1 auto;min-width:0;color:var(--muted);font-size:13px;}
+  /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
+  .bars{border-top:1px solid var(--line);margin:8px 0 4px;}
+  .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .barline .bn{flex:0 0 92px;font-family:var(--hei);}
   /* 维度条是诊断数据，不是警示：默认中性墨灰，只有低于合格线（满分 20 的 60%）才染红 */
-  .dim .bar>i{display:block;height:100%;background:#8f8c84;}
-  .dim .bar>i.lo{background:#b3261e;}
-  .dim .val{font-size:13px;color:var(--muted);float:right;font-variant-numeric:tabular-nums;}
+  .barline .bt{flex:1 1 auto;height:6px;background:#eceae4;min-width:56px;}
+  .barline .bt>i{display:block;height:100%;background:#8f8c84;}
+  .barline .bt>i.lo{background:#b3261e;}
+  .barline .bv{flex:0 0 86px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
+  /* 行内引导词：优点/短板的标签不占一整行 */
+  .plabel{font-family:var(--hei);font-size:13px;color:var(--muted);margin-right:2px;}
   .pills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px;}
   .pill{padding:4px 12px;font-size:13px;border-radius:var(--r-ctl);}
   .pill.good{background:#eef6ee;border:1px solid #cfe6cf;color:#2f7d32;}
@@ -223,8 +243,40 @@ html,body{margin:0;padding:0;}
   details.more>summary::-webkit-details-marker{display:none;}
   details.more .inner{padding:2px 12px 12px;}
 
-  .modblock{border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;}
-  .modblock h4{font-family:var(--hei);font-size:14px;margin:0 0 10px;color:var(--ink);}
+  /* 画像：一个模块一行（名称 · 均分 · 细条 · 次数 · 短板），点开才看维度明细 */
+  .mrowbox{border:1px solid var(--line);border-bottom:none;background:var(--paper);margin-bottom:14px;}
+  .mrow{border-bottom:1px solid var(--line);}
+  .mrow>summary{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;list-style:none;font-size:13.5px;}
+  .mrow>summary::-webkit-details-marker{display:none;}
+  .mrow>summary:hover{background:#f7f5f0;}
+  .mrow[open]>summary{background:#fbfaf6;border-bottom:1px solid var(--line);}
+  .mrow .mname{flex:0 0 88px;font-family:var(--hei);font-weight:700;}
+  .mrow .mavg{flex:0 0 auto;font-variant-numeric:tabular-nums;}
+  .mrow .mbar{flex:1 1 auto;height:6px;background:#eceae4;min-width:48px;}
+  .mrow .mbar>i{display:block;height:100%;background:#8f8c84;}
+  .mrow .mbar>i.lo{background:#b3261e;}
+  .mrow .mmeta{flex:0 0 auto;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .mrow .mweak{flex:0 0 auto;color:#b3261e;}
+  .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .mdetail{padding:2px 12px 12px;}
+  /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
+  .explist{border-top:1px solid var(--line);}
+  .expline{border-bottom:1px solid var(--line);}
+  .expline>summary{display:flex;align-items:baseline;gap:8px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13.5px;}
+  .expline>summary::-webkit-details-marker{display:none;}
+  .expline>summary:hover{background:#f7f5f0;}
+  .expline .etag{flex:0 0 auto;min-width:32px;text-align:center;font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:1px 8px;border-radius:var(--r-pill);}
+  /* 标题固定成一列：不定宽的话每行正文起点都不一样，扫起来是斜的 */
+  .expline .etitle{flex:0 0 236px;font-family:var(--hei);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .expline .ebody{flex:1 1 auto;min-width:0;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .expline[open] .ebody{display:none;}
+  .expbody{padding:2px 2px 10px;font-size:13.5px;line-height:1.85;}
+  .expacts{display:flex;gap:6px;align-items:center;margin-top:2px;}
+  /* 折叠入口要有看得见的标记：折叠是这套界面收纳信息的主要手段，缺了三角就不知道能点开 */
+  .mrow>summary::after,.expline>summary::after,details.card>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);flex:0 0 auto;} 
+  .mrow[open]>summary::after,.expline[open]>summary::after,details.card[open]>summary::after{content:"▾";}
+  .notebox>summary::after,details.more>summary::after{content:"▸";float:right;font-size:11px;color:var(--muted);}
+  .notebox[open]>summary::after,details.more[open]>summary::after{content:"▾";}
   .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
   .typestat .t{padding:4px 9px;font-size:13px;border:1px solid var(--line);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
@@ -238,7 +290,7 @@ html,body{margin:0;padding:0;}
   .loading{font-size:13px;color:var(--muted);padding:40px 0;text-align:center;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
   .peek{display:none;max-height:130px;overflow:hidden;margin:10px auto 0;padding:8px 12px;text-align:left;background:#f7f5f0;border:1px dashed var(--line);font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
-  /* 七步训练链：步骤条要轻，一行小步骤条，当前步高亮 */
+  /* 申论训练链：步骤条要轻，一行小步骤条，当前步高亮 */
   .flowrail{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin:16px 0 2px;}
   .flowrail .fstep{font-family:var(--hei);font-size:13px;color:var(--muted);padding:4px 12px;border:1px solid var(--line);border-radius:var(--r-pill);background:#fff;}
   .flowrail .fstep.done{color:#2f7d32;border-color:#cfe6cf;background:#f6faf6;}
@@ -249,9 +301,11 @@ html,body{margin:0;padding:0;}
   .pt-seg.picked{background:#dbeafe;box-shadow:inset 0 -2px 0 #93c5fd;}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:13.5px;padding:4px 2px;border-bottom:1px dashed var(--line);}
   .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:var(--r-pill);flex:0 0 auto;}
-  .ogroup{border:1px solid var(--line);background:#fbfaf6;padding:10px 12px;margin-bottom:10px;}
-  .ogroup .gname{width:100%;margin-bottom:8px;}
-  .ogroup label{display:block;font-size:13.5px;margin:3px 0;cursor:pointer;}
+  .ogroup{border:1px solid var(--line);background:#fbfaf6;padding:8px 10px;margin-bottom:8px;}
+  .ogroup .gname{width:100%;margin-bottom:6px;}
+  /* 点列表按两列排：3 个组各列一遍全部点位时，单列会拖成一条长名单；列数固定成两列，行数才可预期 */
+  .ogroup .picks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;}
+  .ogroup label{display:block;font-size:13.5px;margin:1px 0;cursor:pointer;}
   .fnav{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap;}
   /* 回改稿的行级差异对照：新增绿、删除删除线 */
   .dline{font-size:13.5px;line-height:1.8;padding:1px 0;}
@@ -576,7 +630,7 @@ function migrateHistory(list){
     const nk = migrateModuleKey(h.module);
     if(nk !== h.module){ nh = Object.assign({}, nh, { module:nk }); touched = true; }
     else if(h.track !== "pd" && !MODULES[h.module]){ changed = true; return; }   // 键迁移后仍不是已知模块：不可信，丢弃
-    // 旧记录没有训练链：补占位 flowId，让记录与七步链的关联从第一天就是显式的（幂等：补过就不再动）。
+    // 旧记录没有训练链：补占位 flowId，让记录与训练链的关联从第一天就是显式的（幂等：补过就不再动）。
     // 判别轨记录（track:'pd'）不建训练链，不补占位。
     if(!nh.flowId && h.track !== "pd"){ nh = Object.assign({}, nh, { flowId: "legacy-" + (h.ts == null? i : h.ts) }); touched = true; }
     if(touched){ changed = true; out.push(nh); return; }
@@ -1393,24 +1447,21 @@ function expSourceLabel(e){
   const d = new Date(h.ts);
   return `来源题：${moduleName(h.module)}${h.subtype? " · "+h.subtype : ""}（${d.getMonth()+1}/${d.getDate()} 练）`;
 }
+// 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
 function experienceListHtml(){
   if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。完成一次批改后会自动提炼。</div>`;
-  return state.experiences.map(e=>`<div class="ogroup">
-    <b>${esc(e.title)}</b> <span class="ptag">${esc(e.type)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}
-    <div style="margin-top:4px">${esc(e.body)}</div>
-    <div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")}</div>
-    <div class="actions"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div>
-  </div>`).join("");
+  return state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 function distillPanelHtml(){
   let html = `<div class="hint" style="margin-top:10px">这一步不用动手：每次批改完成都会自动提炼经验，下次出题与批改会自动带上（两科共用一个经验库）。</div>`;
-  html += `<div class="sec-title">本次新提炼</div>`;
+  html += `<div class="sec-title">本次新提炼</div><div class="explist">`;
   if(_lastDistilled.length){
-    html += _lastDistilled.map(e=>`<div class="ogroup"><b>${esc(e.title)}</b> <span class="ptag">${esc(e.type)}</span><div style="margin-top:4px">${esc(e.body)}</div></div>`).join("");
+    html += _lastDistilled.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span><span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}</div></details>`).join("");
   } else {
-    html += `<div class="hint">这次没有提炼出新经验（可能提炼还没跑完、这次无需沉淀，或提炼服务暂时不可用——静默跳过，不影响批改）。</div>`;
+    html += `<div class="hint" style="padding:6px 2px">这次没有提炼出新经验（可能提炼还没跑完、这次无需沉淀，或提炼服务暂时不可用——静默跳过，不影响批改）。</div>`;
   }
-  html += `<div class="sec-title">我的经验（${(state.experiences||[]).length}/${EXP_MAX}）</div>` + experienceListHtml();
+  html += `</div>`;
+  html += `<div class="sec-title">我的经验（${(state.experiences||[]).length}/${EXP_MAX}）</div><div class="explist">` + experienceListHtml() + `</div>`;
   html += `<div class="hint" style="margin-top:8px">下次出题和批改会自动带上未停用的经验。</div>`;
   html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnFlowDone">完成，回首页</button><span class="hint">本次练习到此闭环；还想再练点上方「换一题」。</span></div>`;
   return html;
@@ -1671,7 +1722,7 @@ async function loadQuestion(k, subtype){
   finally{ clearInterval(tick); }
 }
 
-/* 学习卡不再单独占一个阶段：并入七步链的「读材料」步骤（折叠的卡片，展开可看、可记笔记）。
+/* 学习卡不再单独占一个阶段：并入训练链的「读材料」步骤（折叠的卡片，展开可看、可记笔记）。
    翻卡计数保留：每看一次计一次，翻卡次数就是熟悉度的客观信号，参与出题调度。 */
 function cardKey(module, subtype){ return module + (subtype? "::"+subtype : ""); }
 function getNote(module, subtype){ return (state.cache.notes && state.cache.notes[cardKey(module,subtype)]) || ""; }
@@ -1694,11 +1745,13 @@ function cardHtml(studyCard){
   const exHtml = (ex && (ex.scene||ex.ask))
     ? `<h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div>`
     : "";
-  return `<h4>解题要点</h4><ul>${pts}</ul>
-    <h4>常见失分点</h4><ul>${pits}</ul>
+  return `<div class="cardcols">
+      <div><h4>解题要点</h4><ul>${pts}</ul></div>
+      <div><h4>常见失分点</h4><ul>${pits}</ul></div>
+    </div>
     <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>${exHtml}`;
 }
-/* 题目渲染入口：申论建链/复链走七步面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
+/* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
   if(!current || !current.question){ renderStart(); return; }
   tabActiveKey = activeModule; renderTabs();   // 作答中：高亮当前模块页签，一眼看出自己在哪
@@ -1780,7 +1833,7 @@ function wireZyPage(phase){
 
 /* ============ 判别轨（第三入口）：事实选择 / 分组概括 / 表达比较 ============ */
 // 另一种练习形式，不是第三个科目：不写长篇作答，逐题点选即判（命中/误选/未答），
-// 不套采分点三档口径、不建七步链、不进 dims 维度画像、不触发经验提炼。
+// 不套采分点三档口径、不建训练链、不进 dims 维度画像、不触发经验提炼。
 // 模板语义沿用 demo/申论-AI版 的 A 轨三件套（fact-select / group-summarize / expression-compare），只取口径不搬架构。
 let pdActive = false;   // 判别轨是入口模式，不落盘：重启回到作答轨
 let pdForm = null;      // 当前判别形式 id
@@ -2064,7 +2117,7 @@ function renderPDSummary(){
   $("#pdSwitch").onclick = renderPDLanding;
 }
 
-/* ============ 七步训练链：生命周期 ============ */
+/* ============ 申论训练链：生命周期 ============ */
 // 读材料（含找点）→ 归类 → 一稿 → 批改 → 沉淀。换题、切科目、导入恢复都经 ensureFlow/closeFlow 走同一条生命周期。
 // closeFlow 只置收口标记：草稿、选区、批改记录全部保留——用户内容绝不因换题或收口而消失。
 function genFlowId(){ return "flow_" + Date.now() + "_" + Math.random().toString(36).slice(2,8); }
@@ -2288,7 +2341,7 @@ function organizePanelHtml(f){
     `<div id="organizeBox">${groups.map((g,i)=>`
       <div class="ogroup" data-g="${i}">
         <input type="text" class="gname" data-g="${i}" placeholder="上位概括词，如：政务服务效能" value="${esc(g.name||"")}">
-        ${f.selections.map((sl,si)=>`<label><input type="checkbox" data-si="${si}" data-g="${i}"${g.facts.indexOf(si)>=0? " checked":""}> ${esc(sl.text)}</label>`).join("")}
+        <div class="picks">${f.selections.map((sl,si)=>`<label><input type="checkbox" data-si="${si}" data-g="${i}"${g.facts.indexOf(si)>=0? " checked":""}> ${esc(sl.text)}</label>`).join("")}</div>
       </div>`).join("")}
     </div>
     <div class="actions"><button id="btnRegroup">重新均衡分组</button><button class="primary" id="btnToDraft">生成提纲，进入一稿</button></div>
@@ -2355,7 +2408,7 @@ function diffHtml(prev, cur){
   return html || `<span class="hint">与上一稿没有行级差异</span>`;
 }
 
-/* ============ 七步训练链：面板渲染 ============ */
+/* ============ 申论训练链：面板渲染 ============ */
 let lastGrade = null;   // 最近一次批改 { g, total }：批改步的重渲染只读它，不重调 AI
 
 function railHtml(f){
@@ -2460,7 +2513,7 @@ function draftPanelHtml(f){
   return html;
 }
 
-/* ============ 七步训练链：交互接线 ============ */
+/* ============ 申论训练链：交互接线 ============ */
 let _markOutsideHandler = null;   // 每次重渲染都要换一个新的（闭包持有当次面板的 DOM），旧的必须摘掉，否则长会话里越挂越多
 function wireMarks(unmarkOnClick){
   const sig = qSig(current.question);
@@ -2768,28 +2821,44 @@ function gradeHtml(g, total){
   // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
   const paperScore = Number(current && current.question && current.question.score);
   const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
-  let html = `<div class="grade"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
-  html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div><div class="dimscores">`;
-  for(const d of dims){ const v=Number(g.scores[d])||0; const pct=Math.round(v/20*100);
-    html += `<div class="dim"><span class="val">${v}/20</span><div class="name">${d}</div><div class="bar"><i class="${pct<60?"lo":""}" style="width:${pct}%"></i></div></div>`; }
+  let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
+  // 右上角只报两个数：采分点几项、丢了多少分——“先改哪条”往下看，细账折在最下面
+  const hits = g.hits || [];
+  const lost = hits.filter(h=> hitClass(h)!=="hit" && isFinite(Number(h.score)) && isFinite(Number(h.awarded)));
+  if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round(lost.reduce((a,h)=> a + (Number(h.score) - Number(h.awarded)), 0) * 10) / 10} 分</span>`;
   html += `</div>`;
+  html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div>`;
+  // 丢分清单替代单独的「待改进」段：同一个意思，但它带扣分与证据，能按扣分排序——先改哪条不用猜
+  if(lost.length){
+    const top = lost.slice().sort((a,b)=> (Number(b.score)-Number(b.awarded)) - (Number(a.score)-Number(a.awarded))).slice(0,3);
+    html += `<div class="sec-title" style="margin-top:14px">先改这几条</div><div class="losslist">`;
+    for(const h of top){
+      const lose = Math.round((Number(h.score) - Number(h.awarded)) * 10) / 10;
+      html += `<div class="lossline"><span class="ls">−${lose}</span><span class="lp">${esc(h.point||"")}</span>${h.evidence? `<span class="le">${esc(h.evidence)}</span>`:""}</div>`;
+    }
+    html += `</div>`;
+  }
+  if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
   const goods=(g.strengths||[]).map(s=>`<span class="pill good">+ ${esc(s)}</span>`).join("");
   const bads=(g.weaknesses||[]).map(s=>`<span class="pill bad">− ${esc(s)}</span>`).join("");
-  html += `<div class="sec-title" style="margin-top:6px;">优点</div><div class="pills">${goods||'<span class="hint">暂无</span>'}</div>`;
-  html += `<div class="sec-title">待改进</div><div class="pills">${bads||'<span class="hint">暂无</span>'}</div>`;
-  const hits = g.hits || [];
+  html += `<div class="pills" style="margin-top:10px"><span class="plabel">优点</span>${goods||'<span class="hint">这次没列出明显优点</span>'}</div>`;
+  // 没有分值信息的老记录排不出丢分清单，退回「待改进」的原话
+  if(!lost.length && bads) html += `<div class="pills"><span class="plabel">待改进</span>${bads}</div>`;
   if(hits.length){
-    html += `<div class="sec-title">采分点对照</div><div class="hits">`;
+    html += `<details class="notebox" open style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）</summary><div class="notebody">`;
     for(const h of hits){
       const cls = hitClass(h);
       const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
       const sc = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
       html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${sc}${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
     }
-    html += `</div>`;
+    html += `</div></details>`;
   }
-  if(g.modelAnswer) html += `<details class="notebox" open style="margin-top:12px"><summary>参考答案（范文，仅供对照）</summary><div class="notebody modelanswer">${esc(g.modelAnswer)}</div></details>`;
-  if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
+  html += `<details class="notebox" style="margin-top:10px"><summary>维度分（只用于画像诊断，不参与总分）</summary><div class="notebody"><div class="bars">`;
+  for(const d of dims){ const v=Number(g.scores[d])||0; const pct=Math.round(v/20*100);
+    html += `<div class="barline"><span class="bn">${d}</span><span class="bt"><i class="${pct<60?"lo":""}" style="width:${pct}%"></i></span><span class="bv">${v}/20</span></div>`; }
+  html += `</div></div></details>`;
+  if(g.modelAnswer) html += `<details class="notebox" style="margin-top:10px"><summary>参考答案（范文，仅供对照）</summary><div class="notebody modelanswer">${esc(g.modelAnswer)}</div></details>`;
   html += `<div class="nextrow">
       <button class="primary big" id="btnNext">智能推送下一题</button>
       <button id="btnRetry">同模块再来一道</button>
@@ -2816,38 +2885,47 @@ function renderProfile(){
   let html = `<details class="notebox" style="margin:0 0 14px"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；下面的维度分只用来诊断弱在哪，不参与均分。按科目分组看：先综应A各模块，再申论各模块。</div></details>`;
   for(const sid of SUBJECT_ORDER){
     const subj = SUBJECTS[sid];
-    html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div>`;
+    html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div><div class="mrowbox">`;
     for(const k of subj.modules){
       const avg=moduleAvg(k);
-      html += `<div class="modblock"><h4>${esc(MODULES[k].name)}${avg!=null?` · 均分 ${Math.round(avg)}`:" · 未练"}</h4><div class="dimscores">`;
+      let n = 0; for(const h of state.history) if(h.module === k) n++;
+      // 没练过的模块只占一行：无维度可看，铺开五张「未练」卡只是占地方
+      if(avg == null){
+        html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mmeta">未练</span><span class="mnone">${esc(MODULES[k].note)}</span></summary><div class="mdetail"><div class="hint">还没练过。评分维度：${esc(MODULES[k].dims.join("、"))}</div></div></details>`;
+        continue;
+      }
       const weak=[], strong=[];
+      let bars = "";
       for(const d of MODULES[k].dims){
         const st = dimStat(k,d);
         const pct = st? Math.round(st.avg/20*100) : 0;
         if(st){ if(pct<70) weak.push(d); else if(pct>=85) strong.push(d); }
-        html += `<div class="dim"><span class="val">${st? pct+"分 · "+st.n+"次" : "未练"}</span><div class="name">${d}</div><div class="bar"><i style="width:${st?pct:0}%"></i></div></div>`;
+        bars += `<div class="barline"><span class="bn">${esc(d)}</span><span class="bt"><i class="${(st && pct<60)? "lo":""}" style="width:${st?pct:0}%"></i></span><span class="bv">${st? pct+"分 · "+st.n+"次" : "未练"}</span></div>`;
       }
-      html += `</div>`;
-      if(weak.length) html += `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
-      if(strong.length) html += `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`;
       const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
-      if(rows.length){ html+=`<div class="typestat">`; for(const r of rows){ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; html+=`<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; } html+=`</div>`; }
-      html += `</div>`;
+      let rowsHtml = "";
+      if(rows.length){ rowsHtml = `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; }).join("") + `</div>`; }
+      // 收起的行上只挂一条最该先补的短板；全量短板/强项与文种明细都在展开里
+      const head = weak.length? `短板·${esc(weak[0])}` : (strong.length? `强项·${esc(strong[0])}` : "");
+      html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak">${head}</span></summary><div class="mdetail"><div class="bars">${bars}</div>${weak.length? `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`:""}${strong.length? `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`:""}${rowsHtml}</div></details>`;
     }
+    html += `</div>`;
   }
   // 判别轨单独一节：记录带 track:'pd'，不进 dims 维度画像，不与综应A/申论混算
   const pds = pdFormStats();
-  html += `<div class="sec-title">快判（点选即判 · 只看正确率，不计入维度画像）</div><div class="modblock"><h4>三种形式</h4>`;
+  html += `<div class="sec-title">快判（点选即判 · 只看正确率，不计入维度画像）</div>`;
   if(PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
-    html += `<div class="typestat">` + PD_FORM_ORDER.map(id=>{
+    html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
       const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
-      return `<span class="t">${PD_FORMS[id].name} <b class="${rate<70?"lo":"hi"}">${rate}%</b><small style="color:#999"> (${t.rounds}轮/${t.q}题)</small></span>`;
-    }).join("") + (pds.mixRounds? `<span class="t">综合快判 <small style="color:#999">${pds.mixRounds} 轮混着出，已按题归入上面三类</small></span>` : "") + `</div>`;
+      if(!t.q) return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mmeta">没练过</span><span class="mnone">${esc(PD_FORMS[id].desc)}</span></summary><div class="mdetail"><div class="hint">还没练过这个形式。</div></div></details>`;
+      return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mavg">正确率 ${rate}%</span><span class="mbar"><i class="${rate<70?"lo":""}" style="width:${rate}%"></i></span><span class="mmeta">${t.rounds} 轮 · ${t.q} 题</span></summary><div class="mdetail"><div class="hint">${esc(PD_FORMS[id].desc)}本形式已练 ${t.rounds} 轮、${t.q} 题，答对 ${t.c} 题。</div></div></details>`;
+    }).join("") + `</div>`;
+    // 综合快判不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
+    if(pds.mixRounds) html += `<div class="hint" style="margin:-6px 0 14px">综合快判已出 ${pds.mixRounds} 轮，每题都归入了上面三类。</div>`;
   } else {
     html += `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
   }
-  html += `</div>`;
-  html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div>` + experienceListHtml();
+  html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div><div class="explist">` + experienceListHtml() + `</div>`;
   html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th>总分</th><th>待改进</th></tr></thead><tbody>`;
   for(const h of state.history.slice(0,50)){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;

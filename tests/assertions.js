@@ -1084,7 +1084,7 @@ ok(__pdSt.st["fact-select"].q === 1 && __pdSt.st["fact-select"].c === 1 && __pdS
    "综合快判: 统计按每题形式归属（不被按轮算混成一笔）");
 state.history = __pdHistKeep;
 ok(pdFormStats().st["fact-select"].q >= 1, "综合快判: 统计函数可重复调用（不污染 state）");
-ok(phPD.indexOf(">50%<") >= 0, "画像: 快判正确率 (1/2 = 50%)");
+ok(phPD.indexOf("正确率 50%") >= 0, "画像: 快判正确率 (1/2 = 50%)");
 ok(phPD.indexOf(">快判</td>") >= 0 && phPD.indexOf(">1/2<") >= 0, "画像: 记录表识别快判行（对/总题数）");
 distillExperience = realDistillPD;
 pdRound = null; pdForm = null;
