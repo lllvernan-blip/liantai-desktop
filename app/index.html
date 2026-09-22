@@ -13,14 +13,16 @@
     --paper:#fffdf8;
     --canvas:#e9e7e1;
     --muted:#5e5e57;
+    --muted-2:#827d72;   /* 第三档灰（≈4.0:1）：证据 / 计数 / 口径说明。只有两档灰时，正文与证据糊在同一层，眼睛没有先看哪里的顺序 */
     /* 淡底四档：悬停 / 展开抬头 / 按钮悬停 / 细条底 —— 原来这里是七八个近似米色各行其是 */
     --wash:#f7f5f0; --wash-2:#fbfaf6; --wash-3:#f3f1ec; --line-soft:#eceae4;
     --head:#f2efe8;      /* 表头与弹层抬头（原来是偏冷的一抹灰，在暖纸面上一块斑） */
     --red-wash:#fdf3f3;  /* 当前项的红底（页签 / 步骤条） */
     --red-wash-2:#fbf1f1;/* 红底上的悬停 */
     --bar:#a9a49a;       /* 中性细条填充：6px 实心深灰曾是整行最重的东西，压到 4px 并调浅 */
-    --mat:#faf8f2;       /* 材料纸底（比纸面再黄一档，与正文区分） */
+    --mat:#f6f2e7;       /* 材料纸底：比纸面明显黄一档，一眼能分出「给定资料」与「我写的地方」 */
     --write:#fffdf5;     /* 凡是「我写字的地方」共一色：作答区、笔记、下笔处 */
+    --ctl:#fffefb;       /* 控件外表：不用纯白——纯白比纸面更冷更亮，贴上去像另一个应用 */
     --focus-halo:0 0 0 3px rgba(192,21,26,.07);   /* 控件获得焦点时的外圈：输入框与两处大文本框共用 */
     --warn:#b45309;      /* 部分命中 */
     /* 控件高度：同一行里的按钮 / 输入框 / 胶囊不再高低不齐 */
@@ -56,7 +58,7 @@ html,body{margin:0;padding:0;}
   body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;}
 
   /* 控件行里只有两个尺寸：按钮/输入框同高，胶囊矮一档；行高定死 1.35，不再跟 body 的 1.7 走 */
-  button{font-family:var(--fangsong);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
+  button{font-family:var(--fangsong);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:var(--ctl);color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
   button:hover{background:var(--wash-3);}
   button:disabled{opacity:.5;cursor:not-allowed;}
   button.primary{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
@@ -67,7 +69,7 @@ html,body{margin:0;padding:0;}
   button.big{font-family:var(--hei);font-size:16px;padding:13px 42px;letter-spacing:2px;}
   button.linkbtn{border:none;background:transparent;color:var(--muted);padding:4px 8px;font-size:13px;min-height:28px;}
   button.linkbtn:hover{background:transparent;color:var(--gov-red);}
-  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line-strong);background:#fff;padding:7px 9px;border-radius:var(--r-ctl);color:var(--ink);}
+  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line-strong);background:var(--ctl);padding:7px 12px;border-radius:var(--r-ctl);color:var(--ink);}
   ::placeholder{color:var(--text-disabled);opacity:1;}   /* 别用浏览器的淡灰，钉成 2.9:1 */
 
   /* 顶栏 */
@@ -91,9 +93,10 @@ html,body{margin:0;padding:0;}
   .tab.active:hover{background:var(--red-wash-2);}
   /* 科目切换：页签区左侧的两个科目按钮；页签只列当前科目的模块 */
   .subjbar{display:flex;align-items:center;gap:6px;padding-right:12px;margin-right:6px;border-right:1px solid var(--line);}
-  .subjbtn{border:1px solid var(--line);background:#fff;color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
+  .subjbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
-  .subjbtn.active{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
+  .subjbtn.active{background:var(--red-wash);border-color:var(--gov-red);color:var(--gov-red);}   /* 实心红只留给主行动：科目报「范围」，位置由页签红线报 */
+  .subjbtn.active:hover{background:var(--red-wash-2);}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
 /* 快判落地页：三层——主行动（大红按钮）→ 一行细分入口 → 可选设置（主题）。
    高度是硬要求：startbox 下限 440px，内容一旦超出，整页就比别的页高，切页时文档高度变化会把红头推上去。 */
@@ -103,7 +106,7 @@ html,body{margin:0;padding:0;}
 .pdoptlabel{font-size:13px;color:var(--muted);}
 .pdsetup .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;max-width:700px;}
 .pdsetup .chip{padding:4px 8px;font-size:13px;}
-  .chip{border:1px solid var(--line);background:#fff;padding:6px 12px;cursor:pointer;font-size:13px;border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
+  .chip{border:1px solid var(--line);background:var(--ctl);padding:6px 12px;cursor:pointer;font-size:13px;border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
 .model-item{display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
@@ -126,9 +129,9 @@ html,body{margin:0;padding:0;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
-  .qtop button.linkbtn{border:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 12px;font-size:13px;min-height:28px;}
-  .qtop button.linkbtn:hover{background:#fff;border-color:var(--gov-red);}
-  .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 8px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
+  .qtop button.linkbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);padding:5px 12px;font-size:13px;min-height:28px;}
+  .qtop button.linkbtn:hover{background:var(--ctl);border-color:var(--gov-red);}
+  .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:28px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
   .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;}
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
@@ -156,7 +159,7 @@ html,body{margin:0;padding:0;}
   .card-body h4{font-family:var(--hei);font-size:13px;margin:16px 0 8px;color:var(--ink);}
   .card-body ul{margin:4px 0;padding-left:20px;}
   .card-body li{margin:3px 0;}
-  .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
+  .card-body .tpl{background:var(--ctl);border:1px solid var(--line-soft);padding:10px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
   /* 学习卡：要点与失分点并成左右两栏（都是短句清单，上下摆会把卡拉长一倍） */
   .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;}
   .cardcols h4{margin-top:12px;}
@@ -167,7 +170,7 @@ html,body{margin:0;padding:0;}
   textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:15px;line-height:1.95;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
-  .hint{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
+  .hint{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
   .counter{font-size:13px;color:var(--muted);}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
   .counter b.over{color:#fff;background:var(--danger);padding:0 5px;}
@@ -180,7 +183,7 @@ html,body{margin:0;padding:0;}
   .pditem.ok .pdmk{color:var(--success);}
   .pditem.miss .pdmk{color:var(--danger);}
   .pditem .pdq{font-family:var(--hei);flex:0 0 auto;}
-  .pditem .pdtrap{flex:1 1 auto;min-width:0;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pditem .pdtrap{flex:1 1 auto;min-width:0;color:var(--muted-2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   details.pditem{display:block;padding:0;}
   details.pditem>summary{display:flex;gap:8px;align-items:baseline;padding:7px 12px;cursor:pointer;list-style:none;}
   details.pditem>summary::-webkit-details-marker{display:none;}
@@ -197,20 +200,20 @@ html,body{margin:0;padding:0;}
   .hitline.hit .mk{color:var(--success);}
   .hitline.part .mk{color:var(--warn);}
   .hitline.miss .mk,.hitline.miss .pt{color:var(--danger);}
-  .hitline .sc{font-family:var(--hei);font-size:13px;color:var(--muted);flex:0 0 44px;text-align:right;font-variant-numeric:tabular-nums;}   /* 分值列固定宽右对齐：不固定就跟在各自要点后面成锯齿 */
+  .hitline .sc{font-family:var(--hei);font-size:13px;color:var(--muted);flex:0 0 52px;text-align:right;font-variant-numeric:tabular-nums;order:3;}   /* 分值列定宽右贴纸边：不做成一列时，「4/4」会停在整行中间、右边空一大片 */
   .hitline.hit .sc{color:var(--success);}
   .hitline.part .sc{color:var(--warn);}
   .hitline.miss .sc{color:var(--danger);}
-  .hitline .ev{color:var(--muted);font-size:13px;flex:0 1 46%;min-width:0;}
+  .hitline .ev{color:var(--muted-2);font-size:13px;flex:0 0 32%;min-width:0;order:2;}
 
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
-  .grade{margin-top:24px;border-top:2px solid var(--gov-red);padding-top:16px;}
-  .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .grade{margin-top:32px;border-top:1px solid var(--line-strong);padding-top:16px;}
+  .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;}
   .grade .total{font-family:var(--hei);font-size:26px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
-  .ghead .gtag{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .ghead .gtag{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
   /* 批改页里的折叠区收成「带顶线的行」：页面里已经有一层纸面，再套两层盒子只剩噪音 */
-  .grade details.notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:14px;}
+  .grade details.notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
   .grade details.notebox>summary{padding:9px 2px;}
   .grade details.notebox .notebody{padding:2px 2px 10px;}
   /* 丢分清单：按扣分从多到少，一行一条（点 · 证据 · 扣了几分） */
@@ -218,7 +221,7 @@ html,body{margin:0;padding:0;}
   .lossline{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.75;}
   .lossline .ls{flex:0 0 34px;text-align:right;font-family:var(--hei);color:var(--danger);font-variant-numeric:tabular-nums;}
   .lossline .lp{flex:0 0 auto;font-family:var(--hei);}
-  .lossline .le{flex:1 1 auto;min-width:0;color:var(--muted);font-size:13px;}
+  .lossline .le{flex:1 1 auto;min-width:0;color:var(--muted-2);font-size:13px;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:8px 0 4px;}
   .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
@@ -236,7 +239,7 @@ html,body{margin:0;padding:0;}
   .pill.good{background:var(--success-bg);border:1px solid var(--success-line);color:var(--success);}
   .pill.bad{background:var(--danger-bg);border:1px solid var(--danger-line);color:var(--danger);}
   .comment{margin-top:12px;font-size:15px;line-height:1.85;}
-  .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
+  .nextrow{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
   /* 弹层整体不滚：边框与抬头（含关闭键）固定，只有 .panel-body 的内容滚动 */
   .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:hidden;}
@@ -252,24 +255,26 @@ html,body{margin:0;padding:0;}
   .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:16px 16px 20px;}
   .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:var(--r-pill);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-2);font-family:var(--hei);}
-  .fab:hover{background:#fff;border-color:#b9b2a2;}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
+  .fab:hover{background:var(--ctl);border-color:#b9b2a2;}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--ink);}
   .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
-  .notebox{border:1px solid var(--line);background:var(--paper);margin-top:14px;}
+  .notebox{border:1px solid var(--line);background:var(--paper);margin-top:20px;}
   .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13px;padding:8px 12px;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
   .notebody{padding:4px 12px 12px;font-size:15px;line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
   .modelanswer{font-family:var(--fangsong);font-size:15px;line-height:1.95;-webkit-text-stroke:0.3px currentColor;}
-  .field{margin-bottom:18px;}
+  .field{margin-bottom:22px;}
   .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:6px;}
   /* 设置弹层的分界：上面是接哪家 AI，下面是版本与更新 */
   #updateField{border-top:1px solid var(--line);margin-top:20px;padding-top:18px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
-  .field .note{font-size:12px;color:var(--muted);margin-top:4px;}
+  .field .note{font-size:12px;color:var(--muted-2);margin-top:4px;}
+  /* 地址与 Key 是技术串：仿宋里 l / 1 / I 长得一样，这两格单独换雅黑 */
+  #setBase,#setKey,#setModel{font-family:var(--yahei);font-size:13px;}
   .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;width:fit-content;}
-  .seg button{border:none;border-right:1px solid var(--line);border-radius:var(--r-flat);padding:7px 22px;background:#fff;color:var(--muted);}   /* 与「保存」同高，一行里不再一高一矮 */
+  .seg button{border:none;border-right:1px solid var(--line);border-radius:var(--r-flat);padding:7px 22px;background:var(--ctl);color:var(--muted);}   /* 与「保存」同高，一行里不再一高一矮 */
   .seg button:last-child{border-right:none;}
   .seg button.active{background:var(--gov-red);color:#fff;}
   .seg button.active:hover{background:var(--gov-red-dark);}
@@ -292,9 +297,9 @@ html,body{margin:0;padding:0;}
   .mrow .mbar{flex:1 1 auto;height:4px;border-radius:var(--r-pill);background:var(--line-soft);min-width:48px;overflow:hidden;}
   .mrow .mbar>i{display:block;height:100%;border-radius:var(--r-pill);background:var(--bar);}
   .mrow .mbar>i.lo{background:var(--danger);}
-  .mrow .mmeta{flex:0 0 84px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .mrow .mmeta{flex:0 0 84px;text-align:right;color:var(--muted-2);font-variant-numeric:tabular-nums;}
   .mrow .mweak{flex:0 0 120px;text-align:right;color:var(--danger);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
-  .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
   .explist{border-top:1px solid var(--line);}
@@ -306,7 +311,7 @@ html,body{margin:0;padding:0;}
   /* 标题固定成一列：不定宽的话每行正文起点都不一样，扫起来是斜的 */
   .expline>summary .hint{flex:0 0 auto;white-space:nowrap;}   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */
   .expline .etitle{flex:0 0 236px;font-family:var(--hei);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
-  .expline .ebody{flex:1 1 auto;min-width:0;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .expline .ebody{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .expline[open] .ebody{display:none;}
   .expbody{padding:2px 2px 10px;font-size:14px;line-height:1.85;}
   .expacts{display:flex;gap:6px;align-items:center;margin-top:2px;}
@@ -344,13 +349,14 @@ html,body{margin:0;padding:0;}
   .flowrail .fstep.active::before{background:var(--gov-red);color:#fff;}
   /* 找点高亮：与 gw_marks 的划线层（.ms.on）互不覆盖，用独立的蓝色系 */
   .pt-seg{cursor:pointer;border-radius:var(--r-ctl);}
-  .pt-seg:hover{background:#eef3fa;}
-  .pt-seg.picked{background:#dbeafe;box-shadow:inset 0 -2px 0 #93c5fd;}
+  .pt-seg:hover{background:var(--wash);}
+  /* 已点选：淡蓝是整屏唯一的冷色，还带一道蓝下划线，看着像超链接——换成「铅笔涂过一遍」的暖沙 */
+  .pt-seg.picked{background:#e9e1cc;box-shadow:inset 0 -2px 0 #cdbe97;}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:4px 2px;border-bottom:1px solid var(--line);}
   .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:var(--r-pill);flex:0 0 auto;}
   /* 归类：一组一张条，已归入的点平铺在上、其余收进「加要点」——
      同一个点要归进两组时，就在两组的加要点里各勾一次，清单里各出现一次，不再 N 组 × M 点铺满整屏 */
-  .ogroup{border:1px solid var(--line);background:var(--wash-2);padding:10px 12px;margin-bottom:8px;}
+  .ogroup{border:1px solid var(--line);background:var(--wash-2);padding:10px 12px;margin-bottom:14px;}
   .ogroup .grow{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:5px;}
   /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
   .ogroup .gname{flex:1 1 auto;font-family:var(--hei);font-size:15px;font-weight:700;border:none;border-bottom:1px dashed transparent;background:transparent;padding:3px 2px;min-height:0;border-radius:0;}
@@ -378,14 +384,14 @@ html,body{margin:0;padding:0;}
   /* 判别轨：可点的行块选项，判完对的绿、错的红、正解标出（沿用克制的红绿，不加新色） */
   .pdopts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
   /* 快判选项：原生 button（键盘可达），所以要把 button 的字体/居中复位成段落式左对齐 */
-  .pdopt{display:block;width:100%;text-align:left;font-family:var(--yahei);border:1px solid var(--line);background:#fff;padding:12px 16px;font-size:15px;line-height:1.7;cursor:pointer;border-radius:var(--r-ctl);}
+  .pdopt{display:block;width:100%;text-align:left;font-family:var(--yahei);border:1px solid var(--line);background:var(--ctl);padding:12px 16px;font-size:15px;line-height:1.7;cursor:pointer;border-radius:var(--r-ctl);}
   .pdopt:hover{border-color:var(--gov-red);background:var(--wash);}
   .pdopt.good{border-color:var(--success);background:var(--success-bg);color:var(--success);cursor:default;}
   .pdopt.good:hover{border-color:var(--success);background:var(--success-bg);}
   .pdopt.bad{border-color:var(--danger);background:var(--danger-bg);color:var(--danger);cursor:default;}
   .pdopt.bad:hover{border-color:var(--danger);background:var(--danger-bg);}
   .pdopt.dim{color:var(--muted);cursor:default;}
-  .pdopt.dim:hover{border-color:var(--line);background:#fff;}
+  .pdopt.dim:hover{border-color:var(--line);background:var(--ctl);}
   /* 判完即 disabled（不再可点），但外观不能跟着变淡——结果色得看得很清楚 */
   .pdopt:disabled{opacity:1;}
   .pdopt:disabled:hover{border-color:inherit;}
@@ -503,7 +509,7 @@ html,body{margin:0;padding:0;}
         <div style="display:flex;gap:8px;position:relative;">
           <input type="text" id="setModel" placeholder="点输入框展开候选，或手动输入模型名" autocomplete="off" style="flex:1">
           <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
-          <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-ctl);max-height:220px;overflow:auto;"></div>
+          <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--sh-2);max-height:220px;overflow:auto;"></div>
         </div>
         <div class="note" id="modelNote">候选名单一律从接口实拉：有 Key 时每次启动自动刷新，点「拉取模型列表」可手动重拉。拉不到就手动输入模型名。</div>
       </div>
