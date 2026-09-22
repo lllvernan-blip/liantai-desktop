@@ -149,15 +149,22 @@ html,body{margin:0;padding:0;}
   .counter b.over{color:#fff;background:#b3261e;padding:0 5px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
   .pdreview{border:1px solid var(--line);text-align:left;margin-top:4px;}
-  .pdreview .pditem{padding:12px;border-bottom:1px dashed var(--line);}
-  .pdreview .pditem:last-child{border-bottom:none;}
-  .pdreview .pdhead{display:flex;gap:8px;align-items:baseline;font-size:13.5px;line-height:1.6;}
-  .pdreview .pdmk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
-  .pdreview .pditem.ok .pdmk{color:#2f7d32;}
-  .pdreview .pditem.miss .pdmk{color:#b3261e;}
-  .pdreview .pdq{font-family:var(--hei);flex:0 0 auto;}
-  .pdreview .pdtrap{color:var(--muted);font-size:12.5px;}
-  .pdreview .pdexp{color:var(--muted);font-size:13px;line-height:1.75;margin-top:4px;padding-left:24px;white-space:pre-wrap;}
+  /* 逐题回顾一行一条：对错标记 + 题号 + 辨析点，解析点开才看（原来那条解析把每行撑成三行） */
+  .pditem{display:flex;gap:8px;align-items:baseline;padding:7px 12px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.6;}
+  .pdreview>.pditem:last-child{border-bottom:none;}
+  .pditem .pdmk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
+  .pditem.ok .pdmk{color:#2f7d32;}
+  .pditem.miss .pdmk{color:#b3261e;}
+  .pditem .pdq{font-family:var(--hei);flex:0 0 auto;}
+  .pditem .pdtrap{flex:1 1 auto;min-width:0;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  details.pditem{display:block;padding:0;}
+  details.pditem>summary{display:flex;gap:8px;align-items:baseline;padding:7px 12px;cursor:pointer;list-style:none;}
+  details.pditem>summary::-webkit-details-marker{display:none;}
+  details.pditem>summary:hover{background:#f7f5f0;}
+  details.pditem>summary::after{content:"▸";flex:0 0 auto;margin-left:auto;font-size:12px;color:var(--line-strong);}
+  details.pditem[open]>summary::after{content:"▾";}
+  .pditem .pdexp{color:var(--muted);font-size:13px;line-height:1.75;white-space:pre-wrap;}
+  details.pditem .pdexp{padding:0 12px 9px 38px;}
   .hits{border:1px solid var(--line);}
   .hitline{display:flex;gap:8px;padding:8px 12px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.6;align-items:baseline;}
   .hitline:last-child{border-bottom:none;}
@@ -275,17 +282,19 @@ html,body{margin:0;padding:0;}
   /* 折叠入口要有看得见的标记：折叠是这套界面收纳信息的主要手段，缺了三角就不知道能点开 */
   .mrow>summary::after,.expline>summary::after,details.card>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);flex:0 0 auto;} 
   .mrow[open]>summary::after,.expline[open]>summary::after,details.card[open]>summary::after{content:"▾";}
-  .notebox>summary::after,details.more>summary::after{content:"▸";float:right;font-size:11px;color:var(--muted);}
-  .notebox[open]>summary::after,details.more[open]>summary::after{content:"▾";}
+  .notebox>summary::after,details.more>summary::after,.addpick>summary::after{content:"▸";float:right;font-size:11px;color:var(--muted);}
+  .notebox[open]>summary::after,details.more[open]>summary::after,.addpick[open]>summary::after{content:"▾";}
   .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
   .typestat .t{padding:4px 9px;font-size:13px;border:1px solid var(--line);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
   .typestat .t .lo{color:#b3261e;}
   .typestat .t .hi{color:#2f7d32;}
-  .hist{max-height:240px;overflow:auto;border:1px solid var(--line);margin-top:12px;}
+  .hist{max-height:420px;overflow:auto;border:1px solid var(--line);margin-top:12px;}
   .hist table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
   .hist th,.hist td{border-bottom:1px solid var(--line);padding:8px;text-align:left;}
+  .hist th.num,.hist td.num{text-align:right;}   /* 总分/题数这类数字贴右：个位数与三位数不右对齐就会左右乱跳 */
   .hist th{font-family:var(--hei);background:#f1f2f0;position:sticky;top:0;}
+  .histfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;}
   .banner{background:#fff4f4;border:1px solid #f0c9c9;color:#9c1115;padding:12px 16px;font-size:13px;margin-bottom:16px;border-radius:var(--r-ctl);}
   .loading{font-size:13px;color:var(--muted);padding:40px 0;text-align:center;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
@@ -301,11 +310,23 @@ html,body{margin:0;padding:0;}
   .pt-seg.picked{background:#dbeafe;box-shadow:inset 0 -2px 0 #93c5fd;}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:13.5px;padding:4px 2px;border-bottom:1px dashed var(--line);}
   .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:var(--r-pill);flex:0 0 auto;}
-  .ogroup{border:1px solid var(--line);background:#fbfaf6;padding:8px 10px;margin-bottom:8px;}
-  .ogroup .gname{width:100%;margin-bottom:6px;}
-  /* 点列表按两列排：3 个组各列一遍全部点位时，单列会拖成一条长名单；列数固定成两列，行数才可预期 */
-  .ogroup .picks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;}
-  .ogroup label{display:block;font-size:13.5px;margin:1px 0;cursor:pointer;}
+  /* 归类：一组一张条，已归入的点平铺在上、其余收进「加要点」——
+     同一个点要归进两组时，就在两组的加要点里各勾一次，清单里各出现一次，不再 N 组 × M 点铺满整屏 */
+  .ogroup{border:1px solid var(--line);background:#fbfaf6;padding:10px 12px;margin-bottom:8px;}
+  .ogroup .grow{display:flex;align-items:center;gap:10px;}
+  .ogroup .gname{flex:1 1 auto;font-family:var(--hei);}
+  .ogroup .gcount{flex:0 0 auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .ogroup .assigned{margin-top:2px;}
+  .asgline{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13.5px;}
+  .asgline .atext{flex:1 1 auto;}
+  .asgline .gtag2{flex:0 0 auto;font-size:12px;color:var(--muted);}
+  .asgempty{padding:6px 2px;font-size:13px;color:var(--text-disabled);}
+  .addpick{margin-top:2px;}
+  .addpick>summary{cursor:pointer;list-style:none;font-size:13px;color:var(--muted);padding:4px 2px;}
+  .addpick>summary::-webkit-details-marker{display:none;}
+  .addpick>summary:hover{color:var(--gov-red);}
+  .addpick .picks{margin-top:2px;border-top:1px dashed var(--line);padding-top:4px;}
+  .ogroup label{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;padding:4px 0;cursor:pointer;}
   .fnav{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap;}
   /* 回改稿的行级差异对照：新增绿、删除删除线 */
   .dline{font-size:13.5px;line-height:1.8;padding:1px 0;}
@@ -2105,8 +2126,12 @@ function renderPDSummary(){
   const misses = r.items.map((it,i)=>({i,it})).filter(x=>!x.it.ok);
   let html = `<div class="startbox"><h2>本轮小结 · ${f.name}</h2><p>主题「${esc(r.theme)}」 · ${r.items.length} 题对了 ${r.correct} 题</p>`;
   // 逐题回顾跟小结标题同属一块内容：拆成两个兄弟节点会撑开一大片空白
+  // 逐题回顾：一行一条，解析折在后面——一轮 10 题时全部摊开就是一大片灰字
   html += `<div class="pdreview">` + r.items.map((it,i)=>{ const cls = it.ok? "ok" : "miss"; const mk = it.ok? "✓" : (it.picked==null? "○" : "✗");
-    return `<div class="pditem ${cls}"><div class="pdhead"><span class="pdmk">${mk}</span><span class="pdq">第 ${i+1} 题</span>${it.trap? `<span class="pdtrap">辨析点：${esc(it.trap)}</span>`:""}</div>${it.explain? `<div class="pdexp">${esc(it.explain)}</div>`:""}</div>`; }).join("") + `</div>`;
+    const head = `<span class="pdmk">${mk}</span><span class="pdq">第 ${i+1} 题</span>${it.trap? `<span class="pdtrap">辨析点：${esc(it.trap)}</span>`:""}`;
+    return it.explain
+      ? `<details class="pditem ${cls}"><summary>${head}</summary><div class="pdexp">${esc(it.explain)}</div></details>`
+      : `<div class="pditem ${cls}">${head}</div>`; }).join("") + `</div>`;
   const traps = {};
   for(const x of misses){ const t = x.it.trap || "其他"; traps[t] = (traps[t]||0)+1; }
   const trapStr = Object.keys(traps).map(t=>`${t}（${traps[t]}题）`).join("、");
@@ -2330,29 +2355,108 @@ function buildOrganizeOutline(groups, selections){
   });
   return lines.join("\n");
 }
+/* 归类面板：一组一条「已归入的点」清单，备选收进各自的「加要点」。
+   同一个点要归进两组时，在两组的加要点里各勾一次，就各出现在两组的清单里——不再 N 组 × M 点铺满整屏。
+   归属只认一个地方：本组已归清单里的 data-si ∪ 本组加要点里勾上的框（domFacts 读的就是这两处）。 */
 function organizePanelHtml(f){
   const groups = f.groups || [];
   if(!groups.length) return `<div class="hint" style="margin-top:10px">上一步还没有找点。可以直接进一稿（提纲将为空），或回上一步找点。</div>`;
+  const sels = f.selections || [];
   const covered = new Set();
   groups.forEach(g=> (g.facts||[]).forEach(fi=> covered.add(fi)));
-  const unc = f.selections.filter((sl,i)=> !covered.has(i)).length;
-  const uncHint = unc? `<div class="hint" style="color:#b8860b;margin-top:6px">有 ${unc} 个新找的点还没进组——不会自动重排，勾选或「重新均衡分组」来安置它们。</div>` : "";
-  return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词；勾选决定归属。提纲只供批改诊断，不参与计分。</div>` + uncHint +
-    `<div id="organizeBox">${groups.map((g,i)=>`
+  const unc = sels.filter((sl,i)=> !covered.has(i)).length;
+  const uncHint = `<div class="hint" id="uncHint" style="color:#b8860b;margin-top:6px"${unc? "": " hidden"}>${unc? `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。` : ""}</div>`;
+  return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词。提纲只供批改诊断，不参与计分。</div>` + uncHint +
+    `<div id="organizeBox">${groups.map((g,i)=>{
+      const facts = Array.isArray(g.facts)? g.facts.filter(si=> sels[si]) : [];
+      const holder = holderOf(groups, sels);
+      const rest = sels.map((sl,si)=>si).filter(si=> facts.indexOf(si) < 0);
+      return `
       <div class="ogroup" data-g="${i}">
-        <input type="text" class="gname" data-g="${i}" placeholder="上位概括词，如：政务服务效能" value="${esc(g.name||"")}">
-        <div class="picks">${f.selections.map((sl,si)=>`<label><input type="checkbox" data-si="${si}" data-g="${i}"${g.facts.indexOf(si)>=0? " checked":""}> ${esc(sl.text)}</label>`).join("")}</div>
-      </div>`).join("")}
+        <div class="grow"><input type="text" class="gname" placeholder="上位概括词，如：政务服务效能" value="${esc(g.name||"")}"><span class="gcount">${facts.length} 点</span></div>
+        <div class="assigned">${assignedHtml(facts, sels, groups, i, holder)}</div>
+        <details class="addpick"><summary>${rest.length? `加要点（备选 ${rest.length} 个）` : "加要点（备选已全部归入本组）"}</summary><div class="picks">${picksHtml(rest, sels)}</div></details>
+      </div>`; }).join("")}
     </div>
     <div class="actions"><button id="btnRegroup">重新均衡分组</button><button class="primary" id="btnToDraft">生成提纲，进入一稿</button></div>
     <details class="notebox" open style="margin-top:14px"><summary>提纲预览（一行一组）</summary><div class="notebody"><div class="tpl" id="outlinePrev">${esc(buildOrganizeOutline(groups, f.selections)) || "（空）"}</div></div></details>`;
+}
+/* 每个点被哪几组收着（组序号数组）——用来在已归清单上标「也在「X」」 */
+function holderOf(groups, sels){
+  const h = {};
+  (groups||[]).forEach((g,i)=> (g.facts||[]).forEach(si=>{ if(sels[si]) (h[si] = h[si] || []).push(i); }));
+  return h;
+}
+function groupLabel(groups, gi){
+  const g = (groups||[])[gi] || {};
+  const nm = String(g.name||"").trim();
+  return nm || ("要点" + (gi+1));
+}
+/* 一组的「已归入」清单：只显示，唯一动作是「移出」（把点放回本组备选） */
+function assignedHtml(facts, sels, groups, gi, holder){
+  if(!facts.length) return `<div class="asgempty">这一组还没归点——点开下面的「加要点」挑。</div>`;
+  return facts.map(si=>{
+    const sl = sels[si]; if(!sl) return "";
+    const others = ((holder && holder[si]) || []).filter(x=> x !== gi);
+    const label = others.length? `<span class="gtag2">也在「${esc(groupLabel(groups, others[0]))}」</span>` : "";
+    return `<div class="asgline" data-si="${si}"><span class="ptag">${sl.free? "划选":"整句"}</span><span class="atext">${esc(sl.text)}</span>${label}<button class="linkbtn" data-unasg="${si}">移出</button></div>`;
+  }).join("");
+}
+function picksHtml(rest, sels){
+  if(!rest.length) return `<div class="hint">备选点都归好了。要让某个点在别的组也出现，去那一组勾。</div>`;
+  return rest.map(si=>`<label><input type="checkbox" data-si="${si}"> <span>${esc(sels[si].text)}</span></label>`).join("");
+}
+/* DOM 是归属的唯一出处：本组已归清单里的 data-si ∪ 本组加要点里勾上的框 */
+function domFacts(gel){
+  const out = [];
+  if(!gel || !gel.querySelectorAll) return out;
+  gel.querySelectorAll(".assigned [data-si]").forEach(el=> out.push(Number(el.dataset.si)));
+  gel.querySelectorAll(".picks input[type=checkbox]:checked").forEach(c=> out.push(Number(c.dataset.si)));
+  return out.filter((v,i,a)=> a.indexOf(v) === i);
+}
+/* 勾选 / 移出后就地重画：已归清单与备选都按新归属来，展开状态与正在输入的组名都不动 */
+function repaintGroups(f, override){
+  const box = $("#organizeBox");
+  if(!box || !box.querySelectorAll) return;
+  const gels = Array.from(box.querySelectorAll(".ogroup"));
+  const sels = f.selections || [];
+  const factsOf = gels.map((gel,i)=>{
+    if(override && Object.prototype.hasOwnProperty.call(override, i)) return override[i].filter(si=> sels[si]);
+    return domFacts(gel).filter(si=> sels[si]);
+  });
+  const groups = gels.map(gel=> ({ name: (gel.querySelector(".gname")||{value:""}).value || "", facts: [] }));
+  factsOf.forEach((fa,i)=> groups[i].facts = fa);
+  const holder = {};
+  factsOf.forEach((fa,gi)=> fa.forEach(si=>{ (holder[si] = holder[si] || []).push(gi); }));
+  gels.forEach((gel,gi)=>{
+    const asg = gel.querySelector(".assigned");
+    if(asg) asg.innerHTML = assignedHtml(factsOf[gi], sels, groups, gi, holder);
+    const cnt = gel.querySelector(".gcount");
+    if(cnt) cnt.textContent = factsOf[gi].length + " 点";
+    const ad = gel.querySelector(".addpick");
+    if(ad){
+      const rest = sels.map((sl,si)=>si).filter(si=> factsOf[gi].indexOf(si) < 0);
+      const sum = ad.querySelector("summary");
+      if(sum) sum.textContent = rest.length? `加要点（备选 ${rest.length} 个）` : "加要点（备选已全部归入本组）";
+      const pk = ad.querySelector(".picks");
+      if(pk) pk.innerHTML = picksHtml(rest, sels);
+    }
+  });
+  const covered = new Set();
+  factsOf.forEach(fa=> fa.forEach(si=> covered.add(si)));
+  const unc = sels.filter((sl,i)=> !covered.has(i)).length;
+  const uh = $("#uncHint");
+  if(uh){
+    uh.hidden = !unc;
+    if(unc) uh.textContent = `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。`;
+  }
 }
 function readGroupsDom(){
   const box = $("#organizeBox");
   if(!box || !box.querySelectorAll) return null;
   return Array.from(box.querySelectorAll(".ogroup")).map(gel=>({
     name: (gel.querySelector(".gname")||{value:""}).value || "",
-    facts: Array.from(gel.querySelectorAll("input[type=checkbox]")).filter(c=>c.checked).map(c=>Number(c.dataset.si))
+    facts: domFacts(gel)
   }));
 }
 
@@ -2631,8 +2735,22 @@ function wireOrganize(f){
       const op = $("#outlinePrev");
       if(op) op.textContent = buildOrganizeOutline(f.groups, f.selections) || "（空）";
     };
-    box.addEventListener("change", ()=>{ applyGroups(); save(); });   // 勾选/失焦提交：立即落盘
+    box.addEventListener("change", (ev)=>{
+      // 勾上＝归入本组：立刻把这个点挪进上面的已归清单；组名失焦（type=text）只重画提纲
+      if(ev.target && ev.target.type === "checkbox") repaintGroups(f);
+      applyGroups(); save();
+    });   // 勾选/失焦提交：立即落盘
     box.addEventListener("input", ()=>{ applyGroups(); persistSoon(); });   // 组名打字：内存即时上屏，落盘防抖 300ms
+    box.addEventListener("click", (ev)=>{
+      const btn = (ev.target && ev.target.closest)? ev.target.closest("[data-unasg]") : null;
+      if(!btn) return;
+      const gel = btn.closest(".ogroup"); if(!gel) return;
+      const gi = Number(gel.dataset.g), si = Number(btn.dataset.unasg);
+      const keep = {};
+      keep[gi] = domFacts(gel).filter(x=> x !== si);   // 移出＝这个点回到本组备选
+      repaintGroups(f, keep);
+      applyGroups(); save();
+    });
     box.addEventListener("focusout", persistFlush);   // 失焦兼底：立即落盘
   }
   const rg = $("#btnRegroup"); if(rg) rg.onclick = ()=>{ f.groups = groupAutoSplit(f.selections); save(); renderFlowStep(); };
@@ -2881,6 +2999,9 @@ function renderGrade(g, total){
 }
 
 /* ============ 画像 ============ */
+/* 练习记录一屏只看最近 10 条：四十条连滚不是为了看数据，是为了找“上次哪题拉胯” */
+const HIST_PAGE = 10;
+let histLimit = HIST_PAGE;
 function renderProfile(){
   let html = `<details class="notebox" style="margin:0 0 14px"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；下面的维度分只用来诊断弱在哪，不参与均分。按科目分组看：先综应A各模块，再申论各模块。</div></details>`;
   for(const sid of SUBJECT_ORDER){
@@ -2926,19 +3047,30 @@ function renderProfile(){
     html += `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
   }
   html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div><div class="explist">` + experienceListHtml() + `</div>`;
-  html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th>总分</th><th>待改进</th></tr></thead><tbody>`;
-  for(const h of state.history.slice(0,50)){
+  const histAll = state.history.length;
+  const histShown = state.history.slice(0, histLimit);
+  html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th>待改进</th></tr></thead><tbody>`;
+  for(const h of histShown){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     if(h.track === "pd"){   // 判别轨行：形式当模块、主题当子类型，总分列是「对/总题数」
-      html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td>${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td>—</td></tr>`;
+      html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td>—</td></tr>`;
       continue;
     }
     const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
-    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td>${h.grade? h.grade.total : "—"}</td><td>${esc(weak||"—")}</td></tr>`;
+    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade? h.grade.total : "—"}</td><td>${esc(weak||"—")}</td></tr>`;
   }
   html += `</tbody></table></div>`;
+  if(histAll > HIST_PAGE){
+    html += `<div class="histfoot">` + (histLimit < histAll
+      ? `<button class="linkbtn" id="btnHistMore">展开全部 ${histAll} 条</button>`
+      : `<button class="linkbtn" id="btnHistLess">只看最近 ${HIST_PAGE} 条</button>`) + `<span class="hint">共 ${histAll} 条</span></div>`;
+  }
   $("#profileBody").innerHTML = html;
   wireExperiences();
+  const hm = $("#btnHistMore");
+  if(hm) hm.onclick = ()=>{ histLimit = histAll; renderProfile(); };
+  const hl = $("#btnHistLess");
+  if(hl) hl.onclick = ()=>{ histLimit = HIST_PAGE; renderProfile(); };
 }
 
 /* ============ 设置 ============ */
