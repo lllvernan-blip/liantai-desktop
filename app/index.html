@@ -13,6 +13,18 @@
     --paper:#fffdf8;
     --canvas:#e9e7e1;
     --muted:#5e5e57;
+    /* 淡底四档：悬停 / 展开抬头 / 按钮悬停 / 细条底 —— 原来这里是七八个近似米色各行其是 */
+    --wash:#f7f5f0; --wash-2:#fbfaf6; --wash-3:#f3f1ec; --line-soft:#eceae4;
+    --head:#f1f2f0;      /* 表头与弹层抬头 */
+    --red-wash:#fdf3f3;  /* 当前项的红底（页签 / 步骤条） */
+    --red-wash-2:#fbf1f1;/* 红底上的悬停 */
+    --bar:#8f8c84;       /* 中性进度条填充 */
+    --mat:#faf8f2;       /* 材料纸底（比纸面再黄一档，与正文区分） */
+    --write:#fffdf5;     /* 凡是「我写字的地方」共一色：作答区、笔记、下笔处 */
+    --focus-halo:0 0 0 3px rgba(192,21,26,.07);   /* 控件获得焦点时的外圈：输入框与两处大文本框共用 */
+    --warn:#b45309;      /* 部分命中 */
+    /* 控件高度：同一行里的按钮 / 输入框 / 胶囊不再高低不齐 */
+    --h-ctl:36px; --h-ctl-sm:30px;
     /* 语义别名：同一个 hex 只在 :root 出现一次，改一处即全站生效 */
     --line-strong:#8f8b81;   /* 3.3:1 —— 表单控件的可辨识边界（分隔线不受 3:1 约束，控件边界受） */
     --text-disabled:#9a968d; /* 2.9:1 —— placeholder 与禁用文字（门槛 2:1） */
@@ -39,10 +51,11 @@
   ::-webkit-scrollbar-thumb:hover{background:#b3ada1;background-clip:content-box;}
   ::-webkit-scrollbar-corner{background:transparent;}
 html,body{margin:0;padding:0;}
-  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:14.5px;line-height:1.7;-webkit-font-smoothing:antialiased;}
+  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;}
 
-  button{font-family:var(--fangsong);font-size:14px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
-  button:hover{background:#f3f1ec;}
+  /* 控件行里只有两个尺寸：按钮/输入框同高，胶囊矮一档；行高定死 1.35，不再跟 body 的 1.7 走 */
+  button{font-family:var(--fangsong);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 13px;cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
+  button:hover{background:var(--wash-3);}
   button:disabled{opacity:.5;cursor:not-allowed;}
   button.primary{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
   button.primary:hover{background:var(--gov-red-dark);box-shadow:var(--sh-1);transform:translateY(-1px);}
@@ -50,30 +63,30 @@ html,body{margin:0;padding:0;}
   /* 正在跑（如提交阅卷）：不可点 ≠ 正在跑，两个态分开表达 */
   button[aria-busy="true"],button.primary[aria-busy="true"]{cursor:wait;opacity:.75;transform:none;box-shadow:none;}
   button.big{font-family:var(--hei);font-size:16px;padding:13px 42px;letter-spacing:2px;}
-  button.linkbtn{border:none;background:transparent;color:var(--muted);padding:4px 8px;font-size:13px;}
+  button.linkbtn{border:none;background:transparent;color:var(--muted);padding:4px 8px;font-size:13px;min-height:28px;}
   button.linkbtn:hover{background:transparent;color:var(--gov-red);}
-  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:14px;border:1px solid var(--line-strong);background:#fff;padding:7px 9px;border-radius:var(--r-ctl);color:var(--ink);}
+  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:14px;line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line-strong);background:#fff;padding:7px 9px;border-radius:var(--r-ctl);color:var(--ink);}
   ::placeholder{color:var(--text-disabled);opacity:1;}   /* 别用浏览器的淡灰，钉成 2.9:1 */
 
   /* 顶栏 */
   .topbar{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);}
   .toolbar{display:flex;align-items:center;gap:6px;padding:9px 18px;}
   /* 右上四个入口是工具，比品牌弱，但它们是纯文字、热区只有 13px 高：撑到能稳点中的高度，并给一点悬停反馈 */
-  .toolbar button.linkbtn{padding:6px 11px;font-size:13px;}
-  .toolbar button.linkbtn:hover{background:#f4f1eb;border-radius:var(--r-ctl);}
-  .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:15.5px;color:var(--gov-red);letter-spacing:1.5px;}
+  .toolbar button.linkbtn{padding:6px 11px;font-size:13px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
+  .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-ctl);}
+  .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:15px;color:var(--gov-red);letter-spacing:1.5px;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0;margin-left:8px;}
   .spacer{flex:1 1 auto;}
   /* 行高锁死：判别轨模式下不渲染页签，如果不锁，这一栏会矮 13px——整条顶栏就“往上跳”了一下 */
   .modbar{display:flex;align-items:center;gap:4px;padding:0 14px;border-top:1px solid var(--line);min-height:47px;}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;transition:background .15s ease,color .15s ease,border-color .15s ease;}
-  .tab:hover{background:#f3f1ec;}
+  .tab:hover{background:var(--wash-3);}
   /* 当前模块：底部红线 + 淡红底。不加粗（加粗会把页签宽度撑变，又造成一次小位移） */
-  .tab.active{color:var(--ink);border-bottom-color:var(--gov-red);background:#fdf7f7;}
-  .tab.active:hover{background:#fbf1f1;}
+  .tab.active{color:var(--ink);border-bottom-color:var(--gov-red);background:var(--red-wash);}
+  .tab.active:hover{background:var(--red-wash-2);}
   /* 科目切换：页签区左侧的两个科目按钮；页签只列当前科目的模块 */
   .subjbar{display:flex;align-items:center;gap:6px;padding-right:12px;margin-right:6px;border-right:1px solid var(--line);}
-  .subjbtn{border:1px solid var(--line);background:#fff;color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;}
+  .subjbtn{border:1px solid var(--line);background:#fff;color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
   .subjbtn.active{background:var(--gov-red);border-color:var(--gov-red);color:#fff;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
@@ -85,7 +98,7 @@ html,body{margin:0;padding:0;}
 .pdoptlabel{font-size:13px;color:var(--muted);}
 .pdsetup .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;max-width:700px;}
 .pdsetup .chip{padding:4px 8px;font-size:13px;}
-  .chip{border:1px solid var(--line);background:#fff;padding:6px 12px;cursor:pointer;font-size:13px;border-radius:var(--r-pill);}
+  .chip{border:1px solid var(--line);background:#fff;padding:6px 12px;cursor:pointer;font-size:13px;border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
 .model-item{display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
@@ -108,75 +121,78 @@ html,body{margin:0;padding:0;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
-  .qtop button.linkbtn{border:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 12px;font-size:12.5px;}
+  .qtop button.linkbtn{border:1px solid var(--line);background:#fff;color:var(--muted);padding:5px 12px;font-size:13px;min-height:28px;}
   .qtop button.linkbtn:hover{background:#fff;border-color:var(--gov-red);}
-  .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 8px;border-left:3px solid var(--gov-red);padding-left:8px;}
-  .material{background:#faf8f2;border:1px solid var(--line);padding:16px;font-family:var(--fangsong);font-size:15.5px;line-height:1.85;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
+  .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:20px 0 8px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
+  /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
+  ::selection{background:rgba(192,21,26,.16);}
+  .material{background:var(--mat);border:1px solid var(--line);padding:16px;font-family:var(--fangsong);font-size:15px;line-height:1.85;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:13px;margin-bottom:6px;}
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
   .swatches{display:flex;gap:8px;}
-  .swatch{width:26px;height:26px;border-radius:var(--r-pill);border:2px solid var(--line);cursor:pointer;padding:0;}
+  .swatch{width:26px;height:26px;min-height:0;border-radius:var(--r-pill);border:2px solid var(--line);cursor:pointer;padding:0;}
   .swatch.sel{border-color:var(--gov-red);box-shadow:0 0 0 2px rgba(192,21,26,.2);}
   .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:var(--r-ctl);padding:4px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}   /* 墨底浮标记压在纸面上，深色表面可超出常规阴影上限 */
   .markpop button{background:transparent;border:none;color:#fff;font-size:13px;padding:4px 12px;cursor:pointer;font-family:var(--fangsong);}
-  .markpop button:hover{color:#a7f3d0;}
-  .require{margin-top:12px;font-size:14.5px;white-space:pre-wrap;}
+  .markpop button:hover{color:var(--mark,#a7f3d0);}
+  .require{margin-top:12px;font-size:15px;white-space:pre-wrap;}
   .require b{font-family:var(--hei);}
 
-  details.card{border:1px solid var(--line);border-left:3px solid var(--gov-red);background:#fbfaf6;margin-top:16px;}
-  details.card>summary{cursor:pointer;font-family:var(--hei);font-weight:700;font-size:14.5px;padding:11px 14px;list-style:none;display:flex;align-items:center;gap:8px;}
+  details.card{border:1px solid var(--line);border-left:3px solid var(--gov-red);background:var(--wash-2);margin-top:16px;}
+  details.card>summary{cursor:pointer;font-family:var(--hei);font-weight:700;font-size:15px;padding:11px 14px;list-style:none;display:flex;align-items:center;gap:8px;}
   details.card>summary::-webkit-details-marker{display:none;}
-  details.card>summary .tag{font-family:var(--fangsong);font-weight:400;font-size:12.5px;color:var(--muted);}
-  .card-body{padding:4px 16px 16px;font-size:14.5px;line-height:1.85;}
+  details.card>summary .tag{font-family:var(--fangsong);font-weight:400;font-size:13px;color:var(--muted);}
+  .card-body{padding:4px 16px 16px;font-size:15px;line-height:1.85;}
   .card-body h4{font-family:var(--hei);font-size:13px;margin:16px 0 8px;color:var(--ink);}
   .card-body ul{margin:4px 0;padding-left:20px;}
   .card-body li{margin:3px 0;}
-  .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:13.5px;white-space:pre-wrap;color:#333;}
+  .card-body .tpl{background:#fff;border:1px dashed var(--line);padding:10px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
   /* 学习卡：要点与失分点并成左右两栏（都是短句清单，上下摆会把卡拉长一倍） */
   .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;}
   .cardcols h4{margin-top:12px;}
   .drawer .cardcols{grid-template-columns:1fr;}   /* 抽屉只有 430px，两栏会挤 */
 
   .answer-wrap{margin-top:18px;}
-  .markrun{border-left:2px solid #a7f3d0;padding-left:8px;margin:0 0 8px;font-size:13px;line-height:1.7;}
-  textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:15.5px;line-height:1.95;border:1px solid var(--line-strong);padding:16px;background:#fffdfa;color:var(--ink);border-radius:var(--r-ctl);}
-  textarea#answer:focus{outline:none;border-color:var(--gov-red);}
+  .markrun{border-left:2px solid var(--mark,#a7f3d0);padding-left:8px;margin:0 0 8px;font-size:13px;line-height:1.7;}   /* 划线色是用户在设置里选的，不能写死成默认那张绿 */
+  textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:15px;line-height:1.95;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  textarea#answer:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
-  .hint{font-size:13px;color:var(--muted);}
+  .hint{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
   .counter{font-size:13px;color:var(--muted);}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
-  .counter b.over{color:#fff;background:#b3261e;padding:0 5px;}
+  .counter b.over{color:#fff;background:var(--danger);padding:0 5px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
   .pdreview{border:1px solid var(--line);text-align:left;margin-top:4px;}
   /* 逐题回顾一行一条：对错标记 + 题号 + 辨析点，解析点开才看（原来那条解析把每行撑成三行） */
-  .pditem{display:flex;gap:8px;align-items:baseline;padding:7px 12px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.6;}
+  .pditem{display:flex;gap:8px;align-items:baseline;padding:7px 12px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;}
   .pdreview>.pditem:last-child{border-bottom:none;}
   .pditem .pdmk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
-  .pditem.ok .pdmk{color:#2f7d32;}
-  .pditem.miss .pdmk{color:#b3261e;}
+  .pditem.ok .pdmk{color:var(--success);}
+  .pditem.miss .pdmk{color:var(--danger);}
   .pditem .pdq{font-family:var(--hei);flex:0 0 auto;}
-  .pditem .pdtrap{flex:1 1 auto;min-width:0;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pditem .pdtrap{flex:1 1 auto;min-width:0;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   details.pditem{display:block;padding:0;}
   details.pditem>summary{display:flex;gap:8px;align-items:baseline;padding:7px 12px;cursor:pointer;list-style:none;}
   details.pditem>summary::-webkit-details-marker{display:none;}
-  details.pditem>summary:hover{background:#f7f5f0;}
+  details.pditem>summary:hover{background:var(--wash);}
   details.pditem>summary::after{content:"▸";flex:0 0 auto;margin-left:auto;font-size:12px;color:var(--line-strong);}
   details.pditem[open]>summary::after{content:"▾";}
   .pditem .pdexp{color:var(--muted);font-size:13px;line-height:1.75;white-space:pre-wrap;}
   details.pditem .pdexp{padding:0 12px 9px 38px;}
   .hits{border:1px solid var(--line);}
-  .hitline{display:flex;gap:8px;padding:8px 12px;border-bottom:1px dashed var(--line);font-size:13.5px;line-height:1.6;align-items:baseline;}
+  .hitline{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;align-items:baseline;}
   .hitline:last-child{border-bottom:none;}
   .hitline .mk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
-  .hitline.hit .mk{color:#2f7d32;}
-  .hitline.part .mk{color:#b45309;}
-  .hitline.miss .mk,.hitline.miss .pt{color:#b3261e;}
-  .hitline .sc{font-family:var(--hei);font-size:13px;color:var(--muted);flex:0 0 auto;font-variant-numeric:tabular-nums;}
-  .hitline.hit .sc{color:#2f7d32;}
-  .hitline.part .sc{color:#b45309;}
-  .hitline.miss .sc{color:#b3261e;}
-  .hitline .ev{color:var(--muted);font-size:13px;}
+  .hitline .pt{flex:1 1 auto;min-width:0;}
+  .hitline.hit .mk{color:var(--success);}
+  .hitline.part .mk{color:var(--warn);}
+  .hitline.miss .mk,.hitline.miss .pt{color:var(--danger);}
+  .hitline .sc{font-family:var(--hei);font-size:13px;color:var(--muted);flex:0 0 44px;text-align:right;font-variant-numeric:tabular-nums;}   /* 分值列固定宽右对齐：不固定就跟在各自要点后面成锯齿 */
+  .hitline.hit .sc{color:var(--success);}
+  .hitline.part .sc{color:var(--warn);}
+  .hitline.miss .sc{color:var(--danger);}
+  .hitline .ev{color:var(--muted);font-size:13px;flex:0 1 46%;min-width:0;}
 
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
   .grade{margin-top:24px;border-top:2px solid var(--gov-red);padding-top:16px;}
@@ -190,8 +206,8 @@ html,body{margin:0;padding:0;}
   .grade details.notebox .notebody{padding:2px 2px 10px;}
   /* 丢分清单：按扣分从多到少，一行一条（点 · 证据 · 扣了几分） */
   .losslist{border-top:1px solid var(--line);margin:10px 0 2px;}
-  .lossline{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.75;}
-  .lossline .ls{flex:0 0 34px;text-align:right;font-family:var(--hei);color:#b3261e;font-variant-numeric:tabular-nums;}
+  .lossline{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.75;}
+  .lossline .ls{flex:0 0 34px;text-align:right;font-family:var(--hei);color:var(--danger);font-variant-numeric:tabular-nums;}
   .lossline .lp{flex:0 0 auto;font-family:var(--hei);}
   .lossline .le{flex:1 1 auto;min-width:0;color:var(--muted);font-size:13px;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
@@ -199,24 +215,24 @@ html,body{margin:0;padding:0;}
   .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
   .barline .bn{flex:0 0 92px;font-family:var(--hei);}
   /* 维度条是诊断数据，不是警示：默认中性墨灰，只有低于合格线（满分 20 的 60%）才染红 */
-  .barline .bt{flex:1 1 auto;height:6px;background:#eceae4;min-width:56px;}
-  .barline .bt>i{display:block;height:100%;background:#8f8c84;}
-  .barline .bt>i.lo{background:#b3261e;}
+  .barline .bt{flex:1 1 auto;height:6px;background:var(--line-soft);min-width:56px;}
+  .barline .bt>i{display:block;height:100%;background:var(--bar);}
+  .barline .bt>i.lo{background:var(--danger);}
   .barline .bv{flex:0 0 86px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
   /* 行内引导词：优点/短板的标签不占一整行 */
   .plabel{font-family:var(--hei);font-size:13px;color:var(--muted);margin-right:2px;}
   .pills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px;}
   .pill{padding:4px 12px;font-size:13px;border-radius:var(--r-ctl);}
-  .pill.good{background:#eef6ee;border:1px solid #cfe6cf;color:#2f7d32;}
-  .pill.bad{background:#fdeeee;border:1px solid #f3cccc;color:#b3261e;}
-  .comment{margin-top:12px;font-size:14.5px;line-height:1.85;}
+  .pill.good{background:var(--success-bg);border:1px solid var(--success-line);color:var(--success);}
+  .pill.bad{background:var(--danger-bg);border:1px solid var(--danger-line);color:var(--danger);}
+  .comment{margin-top:12px;font-size:15px;line-height:1.85;}
   .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
   /* 弹层整体不滚：边框与抬头（含关闭键）固定，只有 .panel-body 的内容滚动 */
   .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:hidden;}
   .modal[hidden]{display:none;}
   .modal .box{background:var(--paper);border:1px solid var(--line);width:100%;max-width:760px;box-shadow:var(--sh-3);display:flex;flex-direction:column;max-height:90vh;}
-  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:#f1f2f0;font-family:var(--hei);font-weight:700;font-size:14.5px;letter-spacing:1px;flex:0 0 auto;}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--head);font-family:var(--hei);font-weight:700;font-size:15px;letter-spacing:1px;flex:0 0 auto;}
   .mhead .x{border:none;background:transparent;font-size:15px;cursor:pointer;color:var(--muted);padding:8px 12px;}
   .mhead .x:hover{color:var(--gov-red);}
   .panel-body{padding:16px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
@@ -228,14 +244,14 @@ html,body{margin:0;padding:0;}
   .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:var(--r-pill);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-2);font-family:var(--hei);}
   .fab:hover{background:#fff;border-color:#b9b2a2;}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--ink);}
-  .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:#fffdf0;color:var(--ink);border-radius:var(--r-ctl);}
-  .noteedit:focus{outline:none;border-color:var(--gov-red);}
+  .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .notebox{border:1px solid var(--line);background:var(--paper);margin-top:14px;}
   .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13px;padding:8px 12px;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
-  .notebody{padding:4px 12px 12px;font-size:14.5px;line-height:1.85;white-space:pre-wrap;}
+  .notebody{padding:4px 12px 12px;font-size:15px;line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
-  .modelanswer{font-family:var(--fangsong);font-size:15.5px;line-height:1.95;-webkit-text-stroke:0.3px currentColor;}
+  .modelanswer{font-family:var(--fangsong);font-size:15px;line-height:1.95;-webkit-text-stroke:0.3px currentColor;}
   .field{margin-bottom:16px;}
   .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:8px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
@@ -253,103 +269,111 @@ html,body{margin:0;padding:0;}
   /* 画像：一个模块一行（名称 · 均分 · 细条 · 次数 · 短板），点开才看维度明细 */
   .mrowbox{border:1px solid var(--line);border-bottom:none;background:var(--paper);margin-bottom:14px;}
   .mrow{border-bottom:1px solid var(--line);}
-  .mrow>summary{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;list-style:none;font-size:13.5px;}
+  .mrow>summary{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;list-style:none;font-size:14px;}
   .mrow>summary::-webkit-details-marker{display:none;}
-  .mrow>summary:hover{background:#f7f5f0;}
-  .mrow[open]>summary{background:#fbfaf6;border-bottom:1px solid var(--line);}
+  .mrow>summary:hover{background:var(--wash);}
+  .mrow[open]>summary{background:var(--wash-2);border-bottom:1px solid var(--line);}
   .mrow .mname{flex:0 0 88px;font-family:var(--hei);font-weight:700;}
-  .mrow .mavg{flex:0 0 auto;font-variant-numeric:tabular-nums;}
-  .mrow .mbar{flex:1 1 auto;height:6px;background:#eceae4;min-width:48px;}
-  .mrow .mbar>i{display:block;height:100%;background:#8f8c84;}
-  .mrow .mbar>i.lo{background:#b3261e;}
-  .mrow .mmeta{flex:0 0 auto;color:var(--muted);font-variant-numeric:tabular-nums;}
-  .mrow .mweak{flex:0 0 auto;color:#b3261e;}
+  .mrow .mavg{flex:0 0 auto;min-width:58px;text-align:right;font-variant-numeric:tabular-nums;}   /* 定宽右对齐：不定宽时“均分 78”与“均分 100”会把细条起点逐行顶歪（“正确率 100%”比 58px 长，所以是 min-width 不是定死） */
+  .mrow .mbar{flex:1 1 auto;height:6px;background:var(--line-soft);min-width:48px;}
+  .mrow .mbar>i{display:block;height:100%;background:var(--bar);}
+  .mrow .mbar>i.lo{background:var(--danger);}
+  .mrow .mmeta{flex:0 0 auto;min-width:48px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .mrow .mweak{flex:0 0 auto;color:var(--danger);}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
   .explist{border-top:1px solid var(--line);}
   .expline{border-bottom:1px solid var(--line);}
-  .expline>summary{display:flex;align-items:baseline;gap:8px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13.5px;}
+  .expline>summary{display:flex;align-items:baseline;gap:8px;padding:7px 2px;cursor:pointer;list-style:none;font-size:14px;}
   .expline>summary::-webkit-details-marker{display:none;}
-  .expline>summary:hover{background:#f7f5f0;}
+  .expline>summary:hover{background:var(--wash);}
   .expline .etag{flex:0 0 auto;min-width:32px;text-align:center;font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:1px 8px;border-radius:var(--r-pill);}
   /* 标题固定成一列：不定宽的话每行正文起点都不一样，扫起来是斜的 */
+  .expline>summary .hint{flex:0 0 auto;white-space:nowrap;}   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */
   .expline .etitle{flex:0 0 236px;font-family:var(--hei);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .expline .ebody{flex:1 1 auto;min-width:0;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .expline[open] .ebody{display:none;}
-  .expbody{padding:2px 2px 10px;font-size:13.5px;line-height:1.85;}
+  .expbody{padding:2px 2px 10px;font-size:14px;line-height:1.85;}
   .expacts{display:flex;gap:6px;align-items:center;margin-top:2px;}
   /* 折叠入口要有看得见的标记：折叠是这套界面收纳信息的主要手段，缺了三角就不知道能点开 */
   .mrow>summary::after,.expline>summary::after,details.card>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);flex:0 0 auto;} 
   .mrow[open]>summary::after,.expline[open]>summary::after,details.card[open]>summary::after{content:"▾";}
-  .notebox>summary::after,details.more>summary::after,.addpick>summary::after{content:"▸";float:right;font-size:11px;color:var(--muted);}
+  .notebox>summary::after,details.more>summary::after,.addpick>summary::after{content:"▸";float:right;font-size:12px;color:var(--line-strong);}
   .notebox[open]>summary::after,details.more[open]>summary::after,.addpick[open]>summary::after{content:"▾";}
   .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
   .typestat .t{padding:4px 9px;font-size:13px;border:1px solid var(--line);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
-  .typestat .t .lo{color:#b3261e;}
-  .typestat .t .hi{color:#2f7d32;}
+  .typestat .t .lo{color:var(--danger);}
+  .typestat .t .hi{color:var(--success);}
   .hist{max-height:420px;overflow:auto;border:1px solid var(--line);margin-top:12px;}
   .hist table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
   .hist th,.hist td{border-bottom:1px solid var(--line);padding:8px;text-align:left;}
   .hist th.num,.hist td.num{text-align:right;}   /* 总分/题数这类数字贴右：个位数与三位数不右对齐就会左右乱跳 */
-  .hist th{font-family:var(--hei);background:#f1f2f0;position:sticky;top:0;}
+  .hist th{font-family:var(--hei);background:var(--head);position:sticky;top:0;}
+  .hist tbody tr:nth-child(even){background:var(--wash-2);}   /* 隔行淡底：十行扫下来不跟丢 */
+  .hist tbody tr:hover{background:var(--wash);}
   .histfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;}
-  .banner{background:#fff4f4;border:1px solid #f0c9c9;color:#9c1115;padding:12px 16px;font-size:13px;margin-bottom:16px;border-radius:var(--r-ctl);}
+  .banner{background:var(--danger-bg);border:1px solid var(--danger-line);color:var(--gov-red-dark);padding:12px 16px;font-size:13px;margin-bottom:16px;border-radius:var(--r-ctl);}
   .loading{font-size:13px;color:var(--muted);padding:40px 0;text-align:center;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
-  .peek{display:none;max-height:130px;overflow:hidden;margin:10px auto 0;padding:8px 12px;text-align:left;background:#f7f5f0;border:1px dashed var(--line);font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
+  .peek{display:none;max-height:130px;overflow:hidden;margin:10px auto 0;padding:8px 12px;text-align:left;background:var(--wash);border:1px dashed var(--line);font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--ink);}
   /* 申论训练链：步骤条要轻，一行小步骤条，当前步高亮 */
   .flowrail{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin:16px 0 2px;}
   .flowrail .fstep{font-family:var(--hei);font-size:13px;color:var(--muted);padding:4px 12px;border:1px solid var(--line);border-radius:var(--r-pill);background:#fff;}
-  .flowrail .fstep.done{color:#2f7d32;border-color:#cfe6cf;background:#f6faf6;}
-  .flowrail .fstep.active{color:var(--gov-red);border-color:var(--gov-red);background:#fdf3f3;}
+  .flowrail .fstep.done{color:var(--success);border-color:var(--success-line);background:var(--success-bg);}
+  .flowrail .fstep.active{color:var(--gov-red);border-color:var(--gov-red);background:var(--red-wash);}
   /* 找点高亮：与 gw_marks 的划线层（.ms.on）互不覆盖，用独立的蓝色系 */
   .pt-seg{cursor:pointer;border-radius:var(--r-ctl);}
   .pt-seg:hover{background:#eef3fa;}
   .pt-seg.picked{background:#dbeafe;box-shadow:inset 0 -2px 0 #93c5fd;}
-  .pickline{display:flex;gap:8px;align-items:baseline;font-size:13.5px;padding:4px 2px;border-bottom:1px dashed var(--line);}
+  .pickline{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:4px 2px;border-bottom:1px solid var(--line);}
   .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:var(--r-pill);flex:0 0 auto;}
   /* 归类：一组一张条，已归入的点平铺在上、其余收进「加要点」——
      同一个点要归进两组时，就在两组的加要点里各勾一次，清单里各出现一次，不再 N 组 × M 点铺满整屏 */
-  .ogroup{border:1px solid var(--line);background:#fbfaf6;padding:10px 12px;margin-bottom:8px;}
-  .ogroup .grow{display:flex;align-items:center;gap:10px;}
-  .ogroup .gname{flex:1 1 auto;font-family:var(--hei);}
+  .ogroup{border:1px solid var(--line);background:var(--wash-2);padding:10px 12px;margin-bottom:8px;}
+  .ogroup .grow{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:5px;}
+  /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
+  .ogroup .gname{flex:1 1 auto;font-family:var(--hei);font-size:15px;font-weight:700;border:none;border-bottom:1px dashed transparent;background:transparent;padding:3px 2px;min-height:0;border-radius:0;}
+  .ogroup .gname:hover{border-bottom-color:var(--line);}
+  .ogroup .gname:focus{outline:none;border-bottom-color:var(--gov-red);}
   .ogroup .gcount{flex:0 0 auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
   .ogroup .assigned{margin-top:2px;}
-  .asgline{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13.5px;}
+  .asgline{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--line);font-size:14px;}
   .asgline .atext{flex:1 1 auto;}
   .asgline .gtag2{flex:0 0 auto;font-size:12px;color:var(--muted);}
+  .asgline button.linkbtn{min-height:0;padding:2px 6px;font-size:12px;color:var(--text-disabled);}
+  .asgline:hover button.linkbtn{color:var(--gov-red);}   /* 每行都杵一个「移出」会很唬：平时淡着，指上去才显 */
   .asgempty{padding:6px 2px;font-size:13px;color:var(--text-disabled);}
   .addpick{margin-top:2px;}
   .addpick>summary{cursor:pointer;list-style:none;font-size:13px;color:var(--muted);padding:4px 2px;}
   .addpick>summary::-webkit-details-marker{display:none;}
   .addpick>summary:hover{color:var(--gov-red);}
-  .addpick .picks{margin-top:2px;border-top:1px dashed var(--line);padding-top:4px;}
-  .ogroup label{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;padding:4px 0;cursor:pointer;}
+  .addpick .picks{margin-top:2px;border-top:1px solid var(--line);padding-top:4px;}
+  .ogroup label{display:flex;gap:8px;align-items:flex-start;font-size:14px;padding:4px 0;cursor:pointer;}
   .fnav{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap;}
   /* 回改稿的行级差异对照：新增绿、删除删除线 */
-  .dline{font-size:13.5px;line-height:1.8;padding:1px 0;}
-  .dline.add{color:#2f7d32;}
-  .dline.del{color:#b3261e;text-decoration:line-through;}
+  .dline{font-size:14px;line-height:1.8;padding:1px 0;}
+  .dline.add{color:var(--success);}
+  .dline.del{color:var(--danger);text-decoration:line-through;}
   /* 判别轨：可点的行块选项，判完对的绿、错的红、正解标出（沿用克制的红绿，不加新色） */
   .pdopts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
   /* 快判选项：原生 button（键盘可达），所以要把 button 的字体/居中复位成段落式左对齐 */
-  .pdopt{display:block;width:100%;text-align:left;font-family:var(--yahei);border:1px solid var(--line);background:#fff;padding:12px 16px;font-size:14.5px;line-height:1.7;cursor:pointer;border-radius:var(--r-ctl);}
-  .pdopt:hover{border-color:var(--gov-red);background:#f7f8f6;}
-  .pdopt.good{border-color:#2f7d32;background:#f2f8f2;color:#2f7d32;cursor:default;}
-  .pdopt.good:hover{border-color:#2f7d32;background:#f2f8f2;}
-  .pdopt.bad{border-color:#b3261e;background:#fdf1f1;color:#b3261e;cursor:default;}
-  .pdopt.bad:hover{border-color:#b3261e;background:#fdf1f1;}
+  .pdopt{display:block;width:100%;text-align:left;font-family:var(--yahei);border:1px solid var(--line);background:#fff;padding:12px 16px;font-size:15px;line-height:1.7;cursor:pointer;border-radius:var(--r-ctl);}
+  .pdopt:hover{border-color:var(--gov-red);background:var(--wash);}
+  .pdopt.good{border-color:var(--success);background:var(--success-bg);color:var(--success);cursor:default;}
+  .pdopt.good:hover{border-color:var(--success);background:var(--success-bg);}
+  .pdopt.bad{border-color:var(--danger);background:var(--danger-bg);color:var(--danger);cursor:default;}
+  .pdopt.bad:hover{border-color:var(--danger);background:var(--danger-bg);}
   .pdopt.dim{color:var(--muted);cursor:default;}
   .pdopt.dim:hover{border-color:var(--line);background:#fff;}
   /* 判完即 disabled（不再可点），但外观不能跟着变淡——结果色得看得很清楚 */
   .pdopt:disabled{opacity:1;}
   .pdopt:disabled:hover{border-color:inherit;}
-  .pdexplain{font-size:13.5px;background:#faf8f2;border:1px dashed var(--line);padding:8px 12px;line-height:1.8;}
+  .pdexplain{font-size:14px;background:var(--mat);border:1px dashed var(--line);padding:8px 12px;line-height:1.8;}
 
   .foot{text-align:center;color:var(--muted);font-size:12px;margin:26px 0 0;}
-  code{font-family:Consolas,Menlo,monospace;background:#f0eee8;padding:2px 4px;border-radius:var(--r-ctl);font-size:13px;}
+  code{font-family:Consolas,Menlo,monospace;background:var(--line-soft);padding:2px 4px;border-radius:var(--r-ctl);font-size:13px;}
 
   /* ============ 精致度：过渡与微动效（克制的） ============
      三条自律：① 每个动效只播一次、不超 240ms，绝不做循环/自动轮播（界面不自走）；
@@ -364,7 +388,7 @@ html,body{margin:0;padding:0;}
   .tab:focus-visible,.subjbtn:focus-visible,.chip:focus-visible,.pdopt:focus-visible,mark.ms.on:focus-visible,summary:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
   button:active:not(:disabled){transform:translateY(1px);}
   button,.subjbtn,.chip,.tab,.pdopt,mark.ms.on,summary{transition:background .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .2s ease;}
-  input[type=text]:focus,input[type=password]:focus,select:focus{border-color:var(--gov-red);box-shadow:0 0 0 3px rgba(192,21,26,.07);outline:none;}
+  input[type=text]:focus,input[type=password]:focus,select:focus{border-color:var(--gov-red);box-shadow:var(--focus-halo);outline:none;}
   /* 换页 / 换题：新内容轻微上浮淡入。挂在 docBody 的直接子元素上，重渲染就天然生效 */
   @keyframes riseIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
   #docBody>*{animation:riseIn .18s cubic-bezier(.22,.61,.36,1) both;}
@@ -382,10 +406,11 @@ html,body{margin:0;padding:0;}
   /* 等 AI 时：一条慢慢呼吸的短线，只说“在等”，不是进度条 */
   @keyframes breathe{0%,100%{opacity:.25;}50%{opacity:.75;}}
   .loading{position:relative;}
-  .loading::after{content:"";display:block;width:56px;height:2px;margin:10px auto 0;background:var(--gov-red);border-radius:2px;animation:breathe 1.6s ease-in-out infinite;}
+  .loading::after{content:"";display:block;width:56px;height:2px;margin:10px auto 0;background:var(--gov-red);border-radius:var(--r-ctl);animation:breathe 1.6s ease-in-out infinite;}
 
-  .chip:hover,.subjbtn:hover{transform:translateY(-1px);}
-  details.card>summary:hover{background:#f7f5f0;}
+  /* 悬停只给红按钮上浮一档：其余控件换色换边就行，一排东西各飞各的不叫精致 */
+  .chip:active,.subjbtn:active{background:var(--wash-3);}
+  details.card>summary:hover{background:var(--wash);}
   /* 采分点对照行不是可点元素，不给 hover——加上去会让人以为能点（hover 只给交互元素） */
   .flowrail .fstep{transition:background .16s ease,border-color .16s ease,color .16s ease;}
 
@@ -459,7 +484,7 @@ html,body{margin:0;padding:0;}
         <div style="display:flex;gap:8px;position:relative;">
           <input type="text" id="setModel" placeholder="点输入框展开候选，或手动输入模型名" autocomplete="off" style="flex:1">
           <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
-          <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:2px;max-height:220px;overflow:auto;"></div>
+          <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-ctl);max-height:220px;overflow:auto;"></div>
         </div>
         <div class="note" id="modelNote">候选名单一律从接口实拉：有 Key 时每次启动自动刷新，点「拉取模型列表」可手动重拉。拉不到就手动输入模型名。</div>
       </div>
@@ -475,7 +500,7 @@ html,body{margin:0;padding:0;}
       <div class="actions">
         <button class="primary" id="btnSaveSet">保存</button>
         <button id="btnTest">测试连接</button>
-        <span class="hint" id="setMsg"></span>
+        <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
       <details class="more">
         <summary>更多设置（练习抬头 / 文号前缀）</summary>
@@ -487,7 +512,7 @@ html,body{margin:0;padding:0;}
       </details>
       <div class="field" id="updateField">
         <label>版本与更新</label>
-        <div class="note" id="updateNote">正在读取更新状态…</div>
+        <div class="note" id="updateNote" aria-live="polite">正在读取更新状态…</div>
         <div class="actions" style="margin-top:8px">
           <button type="button" id="btnCheckUpdate" hidden>检查更新</button>
           <button type="button" id="btnInstallUpdate" hidden>重启并更新</button>
@@ -498,7 +523,7 @@ html,body{margin:0;padding:0;}
           <div class="inner" id="changelogBody"></div>
         </details>
       </div>
-        <div id="buildNote" style="margin:18px 0 0;text-align:center;font-size:12px;color:#aaa"></div>
+        <div id="buildNote" style="margin:18px 0 0;text-align:center;font-size:12px;color:var(--text-disabled)"></div>
       </div>
     </div>
   </div>
@@ -2365,7 +2390,7 @@ function organizePanelHtml(f){
   const covered = new Set();
   groups.forEach(g=> (g.facts||[]).forEach(fi=> covered.add(fi)));
   const unc = sels.filter((sl,i)=> !covered.has(i)).length;
-  const uncHint = `<div class="hint" id="uncHint" style="color:#b8860b;margin-top:6px"${unc? "": " hidden"}>${unc? `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。` : ""}</div>`;
+  const uncHint = `<div class="hint" id="uncHint" style="color:var(--warn);margin-top:6px"${unc? "": " hidden"}>${unc? `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。` : ""}</div>`;
   return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词。提纲只供批改诊断，不参与计分。</div>` + uncHint +
     `<div id="organizeBox">${groups.map((g,i)=>{
       const facts = Array.isArray(g.facts)? g.facts.filter(si=> sels[si]) : [];
@@ -2569,7 +2594,7 @@ function stepPanelHtml(step, f){
     html += `<div class="hint" style="margin-top:10px">点选整句找点；也可以选中几个字划重点或直接选为要点。找点是作答建议——不选任何点也不影响交卷。</div>`;
     html += `<div class="material"><div class="label">背景材料 · 读材料与找点 <span class="hint">（点句子=选为要点；选中文字=划线/选要点）</span></div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
     html += `<div class="markpop" id="markPop"><button id="popMark">划线</button><button id="popPick">选为要点</button></div>`;
-    html += `<div class="hint" id="pickCount">已选 ${f? f.selections.length : 0} 处</div>`;
+    html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
     html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnToOrganize">找点完毕，开始归类</button></div>`;
     return html;
@@ -2603,9 +2628,9 @@ function draftPanelHtml(f){
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
       <button class="primary" id="btnSubmit">提交阅卷</button>
       <span class="counter" id="wordCount"><b>0</b> 字</span>
-      <span class="hint" id="draftNote"></span>
+      <span class="hint" id="draftNote" aria-live="polite"></span>
       <span class="hint">提交后 AI 按本模块维度评分并更新画像</span>
-      <span class="hint" id="gradeLive"></span>
+      <span class="hint" id="gradeLive" aria-live="polite"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
@@ -3025,7 +3050,7 @@ function renderProfile(){
       }
       const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
       let rowsHtml = "";
-      if(rows.length){ rowsHtml = `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:#999"> (${r.st.n})</small></span>`; }).join("") + `</div>`; }
+      if(rows.length){ rowsHtml = `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small style="color:var(--text-disabled)"> (${r.st.n})</small></span>`; }).join("") + `</div>`; }
       // 收起的行上只挂一条最该先补的短板；全量短板/强项与文种明细都在展开里
       const head = weak.length? `短板·${esc(weak[0])}` : (strong.length? `强项·${esc(strong[0])}` : "");
       html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak">${head}</span></summary><div class="mdetail"><div class="bars">${bars}</div>${weak.length? `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`:""}${strong.length? `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`:""}${rowsHtml}</div></details>`;
