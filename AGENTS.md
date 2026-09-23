@@ -66,7 +66,7 @@
 - **画像的数值列是定宽右对齐，不是 min-width**：`.mavg/.mmeta` 各 `flex:0 0 84px`（「正确率 100%」宽 83px）、`.mweak` `flex:0 0 120px`。用 min-width 时宽值会把细条起点逐行往右顶（阿楠看到的就是「一列数字」实则逐行跳）；未练行也走 `.mavg`（不是 `.mmeta`），这样「未练」与「均分 N」同列、维度说明与细条同起点。
 - **训练链步骤条 `.flowrail` 是「进度」不是「五个按钮」**：`counter-reset/increment` 出序号徽标（已过 = ✓、当前 = 红底白字）、`width:fit-content` 自成一条、段间 1px `--line-soft` 分隔、上下 1px 实线。**它不可点（没有点击处理），所以不给 `cursor:pointer`/hover——看着能点却点不动比没反馈更糙**。
 - **题头右侧的行内动作走 `.secrow`**（`justify-content:space-between`）：`换一题` 以前单占一行、孤悬在题头之上。注意断言盯着 `class="sec-title">题目` 这个串，包一层 `.secrow` 安全，别给 `.sec-title` 自身再加类。
-- **题面字段（作答要求 / 建议结构）用悬挂缩进**：`.require{padding-left:5em;text-indent:-5em}` + `.require b{display:inline-block;min-width:5em}` + `.require br{display:none}`——两个标签都是 5 字，于是值从同一条竖线开始，折行也缩进到值那一列。
+- **题面字段（作答要求 / 建议结构）用悬挂缩进**：`.require{padding-left:5em;text-indent:-5em}` + `.require b{display:inline-block;min-width:5em;text-indent:0}` + `.require br{display:none}`——两个标签都是 5 字，于是值从同一条竖线开始，折行也缩进到值那一列。**`b` 上的 `text-indent:0` 不能省**：`text-indent` 是继承属性，而 `inline-block` 自成块容器，会把父级那个 `-5em` 在自己的首行上再应用一次，标签的字因此被推到纸面左边缘之外（实测标签字形起点 181、纸面左沿 201，窄窗口下甚至是 -1）。
 - **设计语言（2026-09-22 第四轮，「改的不行」之后定下来的四句话）**：
   - **控件是产品，文档是公文**：按钮 / 页签 / 下拉用雅黑（仿宋笔画细，小字号像没渲染完）；红头、材料、作答、范文才是仿宋 / 宋体的地盘。新控件别再默认继承仿宋。
   - **清单只有一种语言：一条顶线 + 行间细线，不套框**。`.hits/.pdreview/.hist/.mrowbox/.ogroup/.notebox` 全部去边框盒（2026-09-22 改）；新增列表别再画 `.xxx{border:1px solid var(--line)}` 的盒子。
@@ -113,6 +113,14 @@ node tools/probe.mjs 我的探针.js
 ```
 
 `tools/probe.mjs` 会把 `app/index.html` 里的脚本抠出来、配最小 DOM 桩子跑，探针里可以直接用应用的全部函数与常量（`MODULES` / `moduleAvg` / `gen` / `pickSubtypeFor` …），也支持顶层 await。探针是一次性的，用完删掉，别往 `tests/` 里塞。
+
+**要量真实布局（位置、留白、有没有出纸），用取景器**：
+
+```bash
+node tools/shot.mjs <场景文件.mjs> <输出目录>     # 例：node tools/shot.mjs tools/scenes-ui.mjs _shots/ui
+```
+
+起临时静态服务 + Electron 真渲染，逐场景截图并吐出关键块的位置尺寸；场景文件导出 `{scenes:[{name,js,full?,width?,height?,crop?,probe?}]}`，`js` 写成函数再 `toString()` 注入页面（所以能直接用应用全局），`probe` 的返回值原样进日志。桩子量不出几何，视觉问题别只靠 `tests/run.mjs`。
 
 **别用 `node -e` 写带 JSON 片段的探针**：参数里只要同时出现「冒号」和「反斜杠」，Git Bash 就会把这段当路径列表改写（`\"` 变成 `/"`、`\\` 变成 `//`）。轻则语法错误，重则搜索串被悄悄改掉、程序照跑并返回 `false`，看起来像"功能没生效"或"没打包进去"，能白排查半天。实测 `MSYS_NO_PATHCONV=1` 与 `MSYS2_ARG_CONV_EXCL='*'` 在本机**都治不住**，别指望环境变量，老老实实写成文件。
 

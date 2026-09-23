@@ -14,3 +14,6 @@ Thumbs.db
 .workbuddy/
 tests-out.txt
 screenshots/
+
+# 取景器（tools/shot.mjs）的输出：一次性走查用的截图与几何日志
+_shots/
