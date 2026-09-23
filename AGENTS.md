@@ -31,6 +31,7 @@
 - **发布前先跑洁癖（五项检查），发完清 dist 旧包（阿楠 2026-09-21 拍板：以后发布前就说「跑洁癖」）：
   ① `git status --short` 工作区干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）；④ 源码 grep `sk-[a-f0-9]{20,}` 零命中；⑤ AGENTS/README 引用的文件路径全部存在。
   发布后删掉 `dist/` 里旧版本安装包、blockmap 与 `win-unpacked` 残留——dist 只留最新一版三件套（供断网对账）。洁癖没跑就先出了包的，事后也必须补跑：0.0.9 就是在 dist 里攒了两版旧安装包才被抓到的。
+  **发布后不要把新包装到本机正在用的那份上（2026-09-23 定）**：一装就把「有新版本」这个提示顶掉了，以后再也看不到真实的更新流程。要验包就装到临时目录（安装器加 `/D=<临时目录>`）跑一次、看完即卸并删目录；`%LOCALAPPDATA%\Programs\liantai-desktop` 那一份留给用户自己点更新。
 - 对账前会校验 `dist/latest.yml` 的 `version` 与 `sha512` 是否就是当前产物：**别拿上一次试打包残留的清单去对账**，否则会把旧版本号或错哈希写到线上（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」），两种都不会在打包阶段报错。
 - 差量的两个前提：缓存 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（上一版安装包）在，且**源上旧版的 `.blockmap` 不删**。generic 源支持 `multipart/byteranges` 才是真差量（不支持就优雅退化为全量，不报错）；GitHub 资产 CDN 对多段 Range 返回 501，但 `BaseGitHubProvider` 写死单段逐段请求（206 可用），所以 GitHub 源差量可用。
 - 网络现实：国内直连 GitHub 时 `checkForUpdates` 可能直接 `ERR_CONNECTION_TIMED_OUT`（真机见过）。这不是 bug：失败会按规则重试且不阻断使用；要稳定就换源（`LIANTAI_UPDATE_FEED`）。
