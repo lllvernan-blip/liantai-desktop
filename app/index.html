@@ -168,7 +168,9 @@ html,body{margin:0;padding:0;}
   .card-body h4{font-family:var(--hei);font-size:13px;margin:16px 0 8px;color:var(--ink);}
   .card-body ul{margin:4px 0;padding-left:20px;}
   .card-body li{margin:3px 0;}
-  .card-body .tpl{background:var(--ctl);border:1px solid var(--line-soft);padding:10px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
+  /* 样例 / 框架 / 提纲一类文本块：只留一道左缘细线，不再自成一框——框留给它所在的学习卡，
+     否则卡里套盒（2026-09-23）。白底也去掉：卡里的洗底色上再铺一层近白块，等于又画一遍边界 */
+  .tpl{background:transparent;border:0;border-left:2px solid var(--bar);padding:2px 0 2px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
   /* 学习卡：要点与失分点并成左右两栏（都是短句清单，上下摆会把卡拉长一倍） */
   .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;}
   .cardcols h4{margin-top:12px;}
