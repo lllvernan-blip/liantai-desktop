@@ -152,9 +152,12 @@ html,body{margin:0;padding:0;}
   .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:var(--r-ctl);padding:4px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}   /* 墨底浮标记压在纸面上，深色表面可超出常规阴影上限 */
   .markpop button{background:transparent;border:none;color:#fff;font-size:13px;padding:4px 12px;cursor:pointer;font-family:var(--fangsong);}
   .markpop button:hover{color:var(--mark,#a7f3d0);}
-  /* 字段化：标签占定 5 个字（作答要求／建议结构都是 5 字），值从同一条竖线开始，折行也缩进到那一列 */
+  /* 字段化：标签占定 5 个字（作答要求／建议结构都是 5 字），值从同一条竖线开始，折行也缩进到那一列。
+     b 必须把 text-indent 归零：text-indent 是继承属性，而 inline-block 自成块容器，
+     会把父级那个 -5em 在自己的首行上再应用一次——标签的字因此被推出去 75px，
+     落到纸面左边缘之外（实测标签字形起点 181，纸面左沿 201）。 */
   .require{margin-top:12px;font-size:15px;white-space:pre-wrap;padding-left:5em;text-indent:-5em;}
-  .require b{font-family:var(--hei);display:inline-block;min-width:5em;}
+  .require b{font-family:var(--hei);display:inline-block;min-width:5em;text-indent:0;}
   .require br{display:none;}   /* 标签后面那个换行去掉：值接在标签后，但仍对齐到值那一列 */
 
   details.card{border:1px solid var(--line);border-left:3px solid var(--gov-red);background:var(--wash-2);margin-top:16px;}
@@ -2587,7 +2590,11 @@ function navHtml(step, f){
   let html = `<div class="fnav">`;
   if(prev) html += `<button class="linkbtn" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
   // read 靠「开始找点」推进、draft 靠「提交阅卷」推进——这两步不摆 Next
-  if(next && step !== "read" && step !== "draft") html += `<button id="btnFlowNext">下一步：${FLOW_LABELS[next]}</button>`;
+  // 批改步：离开流程的「智能推送下一题」已降为次要（见 gradeHtml 的 inFlow），流程的下一步在这里顶上去当主行动
+  if(next && step !== "read" && step !== "draft"){
+    const cls = step === "review" ? ` class="primary"` : "";
+    html += `<button${cls} id="btnFlowNext">下一步：${FLOW_LABELS[next]}</button>`;
+  }
   // 回到一稿重做已下线：批改后直接沉淀，重做就换一题重新来
   return html + `</div>`;
 }
@@ -2617,7 +2624,9 @@ function stepPanelHtml(step, f){
     let html = "";
     if(current.studyCard){
       const lp = lastPeeks(module, subtype);
-      html += `<details class="card" open>
+      // 读材料步默认折叠学习卡：卡片约 530px，展开时会把材料推到首屏之外（这一步恰恰叫「读材料」）。
+      // 收起后 summary 行照旧（「先看卡再看材料，可折叠」），材料回到首屏。综应A 的卡是整页平铺（zyCardHtml），不在此列。
+      html += `<details class="card">
         <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">先看卡再看材料，可折叠</span></summary>
         <div class="card-body">${cardHtml(current.studyCard)}
           <h4>我的笔记</h4>
@@ -2638,7 +2647,8 @@ function stepPanelHtml(step, f){
   if(step === "draft" || step === "revise") return draftPanelHtml(f);
   if(step === "review"){
     if(!lastGrade) return `<div class="hint" style="margin-top:10px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
-    return gradeHtml(lastGrade.g, lastGrade.total);
+    // 有进行中的训练链时（renderFlowStep 会再拼 .fnav），主行动交给流程的下一步
+    return gradeHtml(lastGrade.g, lastGrade.total, !!f);
   }
   if(step === "distill") return distillPanelHtml();
   return "";
@@ -2982,6 +2992,14 @@ function pointsOf(hits){
 }
 // 档位名兼容：新口径 满分/半分/零分，旧数据 命中/部分命中/未命中
 function hitClass(h){
+  /* 卷面优先：页眉的「丢 N 分」与总分都按实得分算（pts.max - pts.got），行标记必须同口径，
+     否则模型写 status:"满分" 却给 awarded:2 时，同一行会「✓ 配 2/4」。无分值的老记录再退回 status 文本。 */
+  const s = Number(h && h.score), a = Number(h && h.awarded);
+  if(isFinite(s) && isFinite(a)){
+    if(a <= 0) return "miss";
+    if(a >= s) return "hit";
+    return "part";
+  }
   const st = String((h && h.status) || "");
   if(st.indexOf("未")>=0 || st.indexOf("零")>=0 || st.indexOf("✗")>=0) return "miss";
   if(st.indexOf("部分")>=0 || st.indexOf("半")>=0 || st.indexOf("◐")>=0) return "part";
@@ -2993,7 +3011,10 @@ function updateProfile(k){
   if(state.profile.lastModules.length>8) state.profile.lastModules.length=8;
 }
 
-function gradeHtml(g, total){
+// inFlow：由训练链的批改步（renderFlowStep）调用时为 true。此时流程的下一步才是唯一主行动，
+// 「智能推送下一题」是离场动作，降级为次要按钮，免得红主按钮在劝用户中期离链。
+// 综应A 的结果页（renderZyPage）不建训练链、没有 .fnav，不传此参数，主按钮保持原样。
+function gradeHtml(g, total, inFlow){
   const dims = MODULES[current.module].dims;
   const pts = pointsOf(g.hits);
   // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
@@ -3002,8 +3023,11 @@ function gradeHtml(g, total){
   let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
   // 右上角只报两个数：采分点几项、丢了多少分——“先改哪条”往下看，细账折在最下面
   const hits = g.hits || [];
+  // lost 只服务下面的「先改这几条」（Top3 丢分清单）与无分值老记录的「待改进」回退，按 status 文本筛。
+  // 页眉那个「丢 N 分」不能再用它：status 与 awarded 可能自相矛盾（模型写 status:"满分" 却给 awarded:2），
+  // 按 status 筛会算成“丢 0 分”，而卷面按实得分明明丢了分，同一行还会标 ✓ 配 2/4。页眉必须与卷面同口径。
   const lost = hits.filter(h=> hitClass(h)!=="hit" && isFinite(Number(h.score)) && isFinite(Number(h.awarded)));
-  if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round(lost.reduce((a,h)=> a + (Number(h.score) - Number(h.awarded)), 0) * 10) / 10} 分</span>`;
+  if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
   html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div>`;
   // 丢分清单替代单独的「待改进」段：同一个意思，但它带扣分与证据，能按扣分排序——先改哪条不用猜
@@ -3037,8 +3061,9 @@ function gradeHtml(g, total){
     html += `<div class="barline"><span class="bn">${d}</span><span class="bt"><i class="${pct<60?"lo":""}" style="width:${pct}%"></i></span><span class="bv">${v}/20</span></div>`; }
   html += `</div></div></details>`;
   if(g.modelAnswer) html += `<details class="notebox" style="margin-top:10px"><summary>参考答案（范文，仅供对照）</summary><div class="notebody modelanswer">${esc(g.modelAnswer)}</div></details>`;
+  const nextCls = inFlow ? "" : ` class="primary big"`;
   html += `<div class="nextrow">
-      <button class="primary big" id="btnNext">智能推送下一题</button>
+      <button${nextCls} id="btnNext">智能推送下一题</button>
       <button id="btnRetry">同模块再来一道</button>
       <button class="linkbtn" id="btnSeeProfile">看我的画像</button>
     </div></div>`;
@@ -3098,8 +3123,10 @@ function renderProfile(){
   if(PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
     html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
       const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
+      // 「没练过」行不补 mweak：它与模块「未练」行一样以 .mnone 收尾，两行的 .mnone 右沿本就同为 956；
+      // 补了空 mweak 反而把此处 mnone 挤到 826，与模块「未练」行错位——只有已练行（下面那个 return）才需要对齐尾部占位。
       if(!t.q) return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mmeta">没练过</span><span class="mnone">${esc(PD_FORMS[id].desc)}</span></summary><div class="mdetail"><div class="hint">还没练过这个形式。</div></div></details>`;
-      return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mavg">正确率 ${rate}%</span><span class="mbar"><i class="${rate<70?"lo":""}" style="width:${rate}%"></i></span><span class="mmeta">${t.rounds} 轮 · ${t.q} 题</span></summary><div class="mdetail"><div class="hint">${esc(PD_FORMS[id].desc)}本形式已练 ${t.rounds} 轮、${t.q} 题，答对 ${t.c} 题。</div></div></details>`;
+      return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mavg">正确率 ${rate}%</span><span class="mbar"><i class="${rate<70?"lo":""}" style="width:${rate}%"></i></span><span class="mmeta">${t.rounds} 轮 · ${t.q} 题</span><span class="mweak"></span></summary><div class="mdetail"><div class="hint">${esc(PD_FORMS[id].desc)}本形式已练 ${t.rounds} 轮、${t.q} 题，答对 ${t.c} 题。</div></div></details>`;
     }).join("") + `</div>`;
     // 综合快判不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
     if(pds.mixRounds) html += `<div class="hint" style="margin:-6px 0 14px">综合快判已出 ${pds.mixRounds} 轮，每题都归入了上面三类。</div>`;
