@@ -1152,13 +1152,17 @@ async function callLLM(system, user, expectJson, onDelta){
 
   // 首选仍可能被某家拒收：先降回纯 temperature，再退到最裸的请求体，保证任何模型都能跑通。
   // 降级同时把「此模型拒收思考参数」记进 modelCaps，下次直接跳过首选，界面也如实收起三档。
-  const primary = {model,messages,temperature:r.temp};
+  // 思考型模型会把输出额度分给思维链，不设 max_tokens 时吃满服务端默认额度，content 可能直接为空
+  // （2026-09-23 实测 deepseek-flash 作文形状的输出已到 3428/默认4096，思维链另占 5800+ 字符）。
+  // 8192 是 DeepSeek 的输出上限；裸降级档不带它：个别兼容服务若不认这个参数，最后一档仍能跑通。
+  const primary = {model,messages,temperature:r.temp,max_tokens:8192};
   if(adaptive) Object.assign(primary, fam.build(s.reasonLevel));
   const ladder = adaptive
-    ? [primary, {model,messages,temperature:r.temp}, {model,messages}]
-    : [{model,messages,temperature:r.temp}, {model,messages}];
+    ? [primary, {model,messages,temperature:r.temp,max_tokens:8192}, {model,messages}]
+    : [{model,messages,temperature:r.temp,max_tokens:8192}, {model,messages}];
 
   let last = null;
+  let retriedEmpty = false;   // 空返回只重发一次，防止死循环
   for(let ri=0; ri<ladder.length; ri++){
     const base = ladder[ri];
     const rungT0 = Date.now();
@@ -1188,6 +1192,8 @@ async function callLLM(system, user, expectJson, onDelta){
       save(); setReasonUI();
       if(rejected) banner(`实测「${esc(model)}」不收思考强度参数，已自动改按标准方式发送（已记住，之后不再尝试）。`);
     }
+    // 思考型模型偶发把输出额度全花在思维链上（finish=length，content 为空）：原样重发一次再放弃
+    if(expectJson && !out.content && !retriedEmpty){ retriedEmpty = true; ri--; continue; }
     if(expectJson) return parseJsonLoose(out.content);
     return out.content;
   }
