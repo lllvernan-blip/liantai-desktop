@@ -1,15 +1,19 @@
 /*
  * 练习台 —— 真实渲染取景器
- *   node tools/shot.mjs <场景文件.mjs> [输出目录]
+ *   node tools/shot.mjs <场景文件.mjs> [输出目录] [--plain]
+ *
+ * 每个场景默认拍两张：原始态 + 折叠块全展开态（--plain 只拍原始态）。
+ * 收尾会把这轮的自检结论直接打在终端上：没有 FAIL 就不用去看那些图。
+ * 退出码：0 = 全过；2 = 有 FAIL（当作可卡口的检查用）。
  *
  * 为什么要它
  * ──────────
  * tests/run.mjs 用的是 DOM 桩子（querySelectorAll 恒返回 []），量不出任何几何；
  * 而界面问题恰恰常常是「看不见的空白」「差 20px 的错位」这类只能靠真实布局发现的东西。
  * 本工具起一个临时静态服务指向 app/，用 Electron 真实渲染 1280x900，
- * 逐场景截图并把关键块的位置/尺寸打出来。
+ * 逐场景截图、把关键块的位置/尺寸打进日志，并过一遍客观规则（见 shot-app.cjs 的 AUDIT_JS）。
  *
- * 场景文件是 ESM，导出 { scenes: [...] }，每个场景 { name, js, full? }：
+ * 场景文件是 ESM，导出 { scenes: [...] }，每个场景 { name, js, full?, crop?, probe? }：
  *   name  输出文件名（不带扩展名）
  *   js    在页面里执行的代码（写成一个函数再 toString，见 tools/scenes-*.mjs 的写法）
  *   full  true 时先把窗口撑到整页高再截，用来看整屏留白
@@ -30,10 +34,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 
 const target = process.argv[2];
-if (!target) {
-  console.error("用法: node tools/shot.mjs <场景文件.mjs> [输出目录]");
+if (!target || target.startsWith("--")) {
+  console.error("用法: node tools/shot.mjs <场景文件.mjs> [输出目录] [--plain]");
   process.exit(1);
 }
+const PLAIN = process.argv.includes("--plain");   // 只拍原始态，不拍展开态
 const scenePath = resolve(process.cwd(), target);
 if (!existsSync(scenePath)) {
   console.error("找不到场景文件: " + scenePath);
@@ -93,6 +98,7 @@ delete env.ELECTRON_RUN_AS_NODE;   // 本机默认把它设为 1，会让 electr
 env.LIANTAI_SHOT_URL = url;
 env.LIANTAI_SHOT_SCENES = sceneJson;
 env.LIANTAI_SHOT_OUT = outDir;
+if (PLAIN) env.LIANTAI_SHOT_EXPAND = "0";
 
 // 子进程自己会写 <输出目录>/_run.log（几何与失败原因）；这里是它的 stdout/stderr 副本，
 // 另存一个文件名——曾经两者同名，父进程收尾时把子进程写的日志整份覆盖成空，白排查一轮。
@@ -115,4 +121,23 @@ writeFileSync(logFile, logText, "utf8");
 server.close();
 try { rmSync(sceneJson, { force: true }); } catch (e) {}
 console.log("截图输出目录: " + outDir);
-process.exit(code);
+
+// 结论先行：把自检结果从 _run.log 里挑出来打在终端上，别让人去翻日志。
+// 只在有 FAIL 时才需要点开对应的图——图是给人看的，规则是给机器看的。
+let failCount = 0;
+try {
+  const runLog = readFileSync(resolve(outDir, "_run.log"), "utf8").split(/\r?\n/);
+  const audits = runLog.filter((l) => l.startsWith("AUDIT "));
+  const summary = runLog.filter((l) => l.startsWith("自检 ") || l.startsWith("!!! "));
+  failCount = audits.filter((l) => l.indexOf(":: FAIL") >= 0).length;
+  if (audits.length) {
+    console.log("\n—— 自检不合规 ——");
+    for (const l of audits) console.log(l);
+  } else {
+    console.log("\n自检：所有规则都过，不用点开图。");
+  }
+  for (const l of summary) console.log(l);
+} catch (e) {
+  console.log("（读不到 _run.log：" + e.message + "）");
+}
+process.exit(failCount ? 2 : code);
