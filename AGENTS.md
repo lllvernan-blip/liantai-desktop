@@ -31,7 +31,11 @@
 - **发布前先跑洁癖（五项检查），发完清 dist 旧包（阿楠 2026-09-21 拍板：以后发布前就说「跑洁癖」）：
   ① `git status --short` 工作区干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）；④ 源码 grep `sk-[a-f0-9]{20,}` 零命中；⑤ AGENTS/README 引用的文件路径全部存在。
   发布后删掉 `dist/` 里旧版本安装包、blockmap 与 `win-unpacked` 残留——dist 只留最新一版三件套（供断网对账）。洁癖没跑就先出了包的，事后也必须补跑：0.0.9 就是在 dist 里攒了两版旧安装包才被抓到的。
-  **发布后不要把新包装到本机正在用的那份上（2026-09-23 定）**：一装就把「有新版本」这个提示顶掉了，以后再也看不到真实的更新流程。要验包就装到临时目录（安装器加 `/D=<临时目录>`）跑一次、看完即卸并删目录；`%LOCALAPPDATA%\Programs\liantai-desktop` 那一份留给用户自己点更新。
+  **验包不许碰本机那份安装（2026-09-24 修正，原「装到临时目录跑一次」的写法作废）**：electron-builder 的 NSIS 安装器按 AppId 找「上一版」，安装前会先静默卸载它——`/D=<临时目录>` 只改文件装到哪，挡不住这一步。0.0.13 发布时按旧规程装到临时目录验证，结果把本机那份 0.0.12 连目录带卸载项一起卸了，桌面与开始菜单快捷方式也被改指到临时目录（用户数据在 `%APPDATA%\liantai-desktop`，不受影响）。三条规矩：
+  - 验「打包产物能不能起」：跑 `dist/win-unpacked/练习台.exe`——同一份产物，不装、不写注册表、不动快捷方式；要试更新链路加 `LIANTAI_UPDATE_FEED`。
+  - 验「安装器本身」：只在沙箱里做（另开一个 Windows 用户或虚拟机）。**没沙箱就不验**——代价就是本机在用那份被卸掉。
+  - 万一真在本机跑了安装器：先把当前版本的安装包从 Release 留一份，跑完用 `/S` 静默装回去，再核三处归位：`%LOCALAPPDATA%\Programs\liantai-desktop` 目录、`HKCU\...\Uninstall` 里的卸载项、桌面与开始菜单快捷方式指向。
+  附带事实：安装器会把自己的安装包写进 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（差量基准），随安装自动就位；装回去之后它也会跟着回到上一版，不用手工维护。
 - 对账前会校验 `dist/latest.yml` 的 `version` 与 `sha512` 是否就是当前产物：**别拿上一次试打包残留的清单去对账**，否则会把旧版本号或错哈希写到线上（客户端表现为「版本号是新版、内容是旧版」或「下完校验失败」），两种都不会在打包阶段报错。
 - 差量的两个前提：缓存 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（上一版安装包）在，且**源上旧版的 `.blockmap` 不删**。generic 源支持 `multipart/byteranges` 才是真差量（不支持就优雅退化为全量，不报错）；GitHub 资产 CDN 对多段 Range 返回 501，但 `BaseGitHubProvider` 写死单段逐段请求（206 可用），所以 GitHub 源差量可用。
 - 网络现实：国内直连 GitHub 时 `checkForUpdates` 可能直接 `ERR_CONNECTION_TIMED_OUT`（真机见过）。这不是 bug：失败会按规则重试且不阻断使用；要稳定就换源（`LIANTAI_UPDATE_FEED`）。
