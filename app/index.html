@@ -103,8 +103,14 @@ html,body{margin:0;padding:0;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
 /* 快判落地页：三层——主行动（大红按钮）→ 一行细分入口 → 可选设置（主题）。
    高度是硬要求：startbox 下限 440px，内容一旦超出，整页就比别的页高，切页时文档高度变化会把红头推上去。 */
-.pdonly{margin-top:12px;font-size:13px;color:var(--muted);}
-.pdonly button.linkbtn{padding:2px 4px;font-size:13px;}
+/* 三种形式的说明直接写在名字下面：只挂在 title 上，鼠标不悬停就看不到，陌生用户根本不会去悬停 */
+.pdforms{margin-top:18px;}
+.pdformslabel{font-size:13px;color:var(--muted);}
+.pdformgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px;}
+.pdform{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;padding:9px 12px;background:none;border:1px solid var(--line);border-radius:var(--r-ctl);cursor:pointer;}
+.pdform:hover{border-color:var(--gov-red);background:var(--wash);}
+.pdform b{font-size:14px;font-weight:600;color:var(--ink);}
+.pdform span{font-size:12px;color:var(--muted);line-height:1.5;}
 .pdsetup{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
 .pdoptlabel{font-size:13px;color:var(--muted);}
 .pdsetup .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;max-width:700px;}
@@ -315,6 +321,7 @@ html,body{margin:0;padding:0;}
   .mrow .mbar>i.lo{background:var(--danger);}
   .mrow .mmeta{flex:0 0 84px;text-align:right;color:var(--muted-2);font-variant-numeric:tabular-nums;}
   .mrow .mweak{flex:0 0 120px;text-align:right;color:var(--danger);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.mrow .mweak.good{color:var(--success);}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
@@ -564,6 +571,14 @@ html,body{margin:0;padding:0;}
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
+      <div class="field">
+        <label>数据与备份</label>
+        <div class="actions" style="margin-top:0">
+          <button type="button" id="btnExport2">导出备份</button>
+          <button type="button" id="btnImport2">导入备份</button>
+        </div>
+        <div class="note">练习记录、草稿和划线只存在这台电脑上，不联网、不上传。换电脑或重装之前先「导出备份」存一份 JSON，新机器上装好后「导入备份」即可接着练。备份里不含 API Key，可以放心转存。</div>
+      </div>
       <div class="field">
         <label>使用指南</label>
         <button type="button" id="btnTutReset">重置使用指南</button>
@@ -1628,7 +1643,9 @@ function renderHeader(){
   const n = state.history.length + 1, y = new Date().getFullYear();
   $("#docNo").textContent = `${state.settings.noPrefix||"综应练"}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
   if(pdActive){   // 判别轨不是科目：抬头不挂科目名，只报当前形式
-    $("#modLabel").textContent = "快判 · " + (pdForm && PD_FORMS[pdForm]? PD_FORMS[pdForm].name : "快判训练");
+    // 落地页没有具体形式，抬头就写「快判」；写成「快判 · 快判训练」是自己跟自己重复
+    const fname = (pdForm && PD_FORMS[pdForm])? PD_FORMS[pdForm].name : "";
+    $("#modLabel").textContent = fname? "快判 · " + fname : "快判";
     return;
   }
   const subj = SUBJECTS[curSubject()];
@@ -1735,7 +1752,13 @@ document.addEventListener("keydown", e=>{
   if(e.shiftKey && atEdgeStart){ e.preventDefault(); last.focus(); }
   else if(!e.shiftKey && cur === last){ e.preventDefault(); first.focus(); }
 });
-function banner(html, kind){ $("#bannerSlot").innerHTML = html? `<div class="banner${kind==="error"?" error":""}">${html}</div>`:""; }
+const OPEN_SETTINGS_BTN = ' <button class="linkbtn" id="bnrOpenSettings">打开设置</button>';
+function banner(html, kind){
+  $("#bannerSlot").innerHTML = html? `<div class="banner${kind==="error"?" error":""}">${html}</div>`:"";
+  // 提示里得能直接点到设置：只说右上角有个设置，等于让用户自己找路
+  const bo = $("#bnrOpenSettings");
+  if(bo) bo.onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
+}
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
@@ -1769,23 +1792,22 @@ function renderStart(){
     走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
 const TOURS = {
   pd:[
-    { sel:"#subjbar", text:"左侧可切换快判、综应A和申论，成绩分别统计。" },
-    { sel:".startbox h2", text:"综合快判在一轮中随机混合事实选择、分组概括、表达比较三种题型。" },
-    { sel:".startbox .primary.big", text:"这是默认的综合快判。只想练一种题型，点下面一行即可。" },
+    // 先讲主行动，再讲细分入口：先讲模块页签会把不打算挑题型的人往手动选题带，正与「不选题型也能练」相反
+    { sel:".startbox .primary.big", text:"默认按综合出题：一轮 5 题，三种题型混在一起。" },
+    { sel:".pdforms", text:"只想练一种题型，在这里点一类，一轮同样 5 题。" },
+    { sel:".pdsetup .pdoptlabel", text:"填了主题，一轮的题都围绕它出。" },
     { sel:"#btnProfile", text:"三种快判题型的正确率，分别记在「我的画像」里。" },
     { sel:"#btnSettings", text:"快判题目由 AI 生成，需要先填 API Key，申请方法见设置页。" },
   ],
   zy:[
-    { sel:"#modbar", text:"综应A的模块在上方一排，点开即可选择具体题型。" },
-    { sel:".startbox h2", text:"不选模块也可以，直接从这里开始今天的练习。" },
-    { sel:"#btnStart", text:"交卷后逐项列出得分与未答到的采分点，可展开看批改意见。" },
+    { sel:"#btnStart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。" },
+    { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
   ],
   sl:[
-    { sel:"#modbar", text:"申论的模块在上方一排，点开即可选择具体题型。" },
-    { sel:".startbox h2", text:"不选模块也可以，直接从这里开始今天的练习。" },
-    { sel:"#btnStart", text:"先读材料划出要点，再归类、成稿。交卷后按采分点逐条批改。" },
+    { sel:"#btnStart", text:"不选模块也可以，直接点这里。先读材料划出要点，再归类成稿。" },
+    { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
   ],
@@ -2093,18 +2115,21 @@ const PD_FORMS = {
     name:"事实选择",
     optCount:2,
     desc:"判断关于材料的说法哪条站得住——限定语被悄悄改动就是坑。",
+    brief:"在几条相近说法里挑与材料相符的一条。",
     spec:"每题给一段 120-200 字的材料节选（context，贴近所给主题，有场景有细节、含数字与限定语），再问「下列关于……的说法哪一项准确」。正确项在节选里能找到逐字出处，限定语一个不改；干扰项只能从这几类里造：换主体（村集体出资说成镇政府出资）、改范围（部分小区说成全部、试点说成全面推行）、改数量时限（5个工作日说成15个）、改关系（并列说成因果）、错位拼接（甲段的做法接到乙段的成效上）。"
   },
   "group-summarize":{
     name:"分组概括",
     optCount:[2,3],
     desc:"把材料里分散的同类事实归到正确的概括句下，不漏不重。",
+    brief:"把分散的同类事实归到正确的概括句下。",
     spec:"每题给一段 120-200 字的材料节选（context，内含 2-3 类并列的做法或问题），再问「上述做法可以概括为哪一条」。正确项覆盖节选中全部（至少两处）同类信息；干扰项只能从这几类里造：以偏概全（只取其中一类，最常犯）、混类（把做法与成效、问题与建议并成一条）、层级错位（具体做法与上位概念互换）、同义重复（同一处信息换个说法充两条）。"
   },
   "expression-compare":{
     name:"表达比较",
     optCount:[2,3],
     desc:"几句改写里挑不改原意又规范的那句。",
+    brief:"在几句改写里挑没有改变原意的那句。",
     spec:"每题给一段 120-200 字的材料节选（context，含平均数、限定语、目标与结果这类易被改写坏的敏感点），再对节选中某句话给出几种改写，问「哪一项改变了原意」或「哪一种最规范」。每题只涉及一处错误（主体、范围、因果或语体）；干扰项只能从这几类里造：把平均数说成人人如此（平均跑一点一次说成只需跑一点一次）、把目标说成结果（拟推行说成已推行）、抹掉限定语（基本解决说成彻底解决）、并列改成因果。"
   },
   /* 综合判别：三种形式混在一轮。练的是“不告诉你这是哪类题”的实战眼力——
@@ -2193,7 +2218,10 @@ function renderPDLanding(){
     <h2>快判 · 从材料里做判断</h2>
     <p style="margin:0">看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。</p>
     <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
-    <div class="pdonly">或只练一类：${PD_FORM_ORDER.map(id=>`<button class="linkbtn" data-pdform="${id}" title="${PD_FORMS[id].desc}">${PD_FORMS[id].name}</button>`).join(" · ")}</div>
+    <div class="pdforms">
+      <div class="pdformslabel">或只练一类</div>
+      <div class="pdformgrid">${PD_FORM_ORDER.map(id=>`<button class="pdform" data-pdform="${id}"><b>${PD_FORMS[id].name}</b><span>${esc(PD_FORMS[id].brief)}</span></button>`).join("")}</div>
+    </div>
     <div class="pdsetup">
       <div class="pdoptlabel">主题（可留空，随机出题）</div>
       <input type="text" id="pdTheme" placeholder="如：养老服务" style="margin:7px auto 0;max-width:420px">
@@ -2797,8 +2825,9 @@ function stepPanelHtml(step, f){
           ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
         </div></details>`;
     }
-    html += `<div class="hint" style="margin-top:10px">点选整句找点；也可以选中几个字划重点或直接选为要点。找点是作答建议——不选任何点也不影响交卷。</div>`;
-    html += `<div class="material"><div class="label">背景材料 · 读材料与找点 <span class="hint">（点句子=选为要点；选中文字=划线/选要点）</span></div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
+    // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
+    html += `<div class="hint" style="margin-top:10px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
+    html += `<div class="material"><div class="label">背景材料 · 读材料与找点</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
     html += `<div class="markpop" id="markPop"><button id="popMark">划线</button><button id="popPick">选为要点</button></div>`;
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
@@ -3274,8 +3303,8 @@ function renderProfile(){
       let rowsHtml = "";
       if(rows.length){ rowsHtml = `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small> (${r.st.n})</small></span>`; }).join("") + `</div>`; }
       // 收起的行上只挂一条最该先补的短板；全量短板/强项与文种明细都在展开里
-      const head = weak.length? `短板·${esc(weak[0])}` : (strong.length? `强项·${esc(strong[0])}` : "");
-      html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak">${head}</span></summary><div class="mdetail"><div class="bars">${bars}</div>${weak.length? `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`:""}${strong.length? `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`:""}${rowsHtml}</div></details>`;
+      const head = weak.length? { cls:"", text:`短板·${esc(weak[0])}` } : (strong.length? { cls:" good", text:`强项·${esc(strong[0])}` } : null);
+      html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak${head? head.cls : ""}">${head? head.text : ""}</span></summary><div class="mdetail"><div class="bars">${bars}</div>${weak.length? `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`:""}${strong.length? `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`:""}${rowsHtml}</div></details>`;
     }
     html += `</div>`;
   }
@@ -3810,8 +3839,8 @@ function cardNoteHtml(module, subtype){
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
-  if(e && e.code==="NO_KEY") banner("未配置 AI Key：点右上角「设置」，选服务商、填 Key 即可开启出题与阅卷。");
-  else if(e && e.code==="NO_MODEL") banner("还没选定模型：点右上角「设置」→ 模型栏点「拉取模型列表」从接口拉一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。");
+  if(e && e.code==="NO_KEY") banner("未配置 AI Key：出题和阅卷都要用它，选服务商、填 Key 即可开始。" + OPEN_SETTINGS_BTN);
+  else if(e && e.code==="NO_MODEL") banner("还没选定模型。到设置页的模型栏点「拉取模型列表」，从接口拉一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。" + OPEN_SETTINGS_BTN);
   else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
       + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
       + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""), "error");
@@ -3982,7 +4011,7 @@ renderChangelog();
   // 提示可以并列，不能互相覆盖
   const notices = [];
   if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
-  if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。");
+  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
   $("#btnTutReset").onclick = ()=>{
@@ -4049,6 +4078,8 @@ renderChangelog();
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
   $("#btnSettings").onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
+  $("#btnExport2").onclick = ()=> $("#btnExport").click();   // 设置页里的备份入口复用顶栏那一套，导出/导入只有一份实现
+  $("#btnImport2").onclick = ()=> $("#btnImport").click();
   $("#btnProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   document.querySelectorAll(".modal .mhead .x").forEach(b=> b.onclick = closeModals);
   document.querySelectorAll(".modal").forEach(m=> m.addEventListener("click", e=>{ if(e.target===m) closeModals(); }));
