@@ -1768,22 +1768,22 @@ function renderStart(){
     走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
 const TOURS = {
   pd:[
-    { sel:"#subjbar", text:"这排按钮可以切换快判、综应A和申论，三种练习的记录分开算。" },
-    { sel:".startbox h2", text:"综合快判把事实选择、分组概括、表达比较三种题型随机混在一轮里。" },
-    { sel:"#btnProfile", text:"画像里能分别看三种快判题型的正确率，和综应、申论的记录分开。" },
-    { sel:"#btnSettings", text:"快判要用 AI 出题。先在设置里填 API Key；没申请过的话，教程就在输入框下面。" },
+    { sel:"#subjbar", text:"左边能切到快判、综应A或申论，成绩各算各的。" },
+    { sel:".startbox h2", text:"综合快判会把事实选择、分组概括、表达比较三种题型随机混在一轮里。" },
+    { sel:"#btnProfile", text:"三种快判题型各自的正确率，在「我的画像」里能查。" },
+    { sel:"#btnSettings", text:"快判要用 AI 出题，先填 API Key。没有的话，设置里有申请说明。" },
   ],
   zy:[
-    { sel:"#modbar", text:"上面一排是综应A的模块。点进去能看细分题型和练习情况，再选要练的题型。" },
-    { sel:"#btnStart", text:"答完后，AI 会按模块列出的评分维度批改；逐条得分和漏掉的内容都能展开看。" },
-    { sel:"#btnProfile", text:"各模块的均分、练习次数和每次批改记录，都能在这里查。" },
-    { sel:"#btnSettings", text:"出题和批改要用 API Key。没申请过的话，设置里输入框下面有申请教程。" },
+    { sel:"#modbar", text:"自己挑题，先选模块，再选具体题型。" },
+    { sel:"#btnStart", text:"交卷后能看每项得分，漏掉的采分点也会标出来。" },
+    { sel:"#btnProfile", text:"各模块练了几次、均分多少，之前的批改也能在「我的画像」里查。" },
+    { sel:"#btnSettings", text:"AI 出题和批改都需要 API Key。设置页输入框下面有申请说明。" },
   ],
   sl:[
-    { sel:"#modbar", text:"上面一排是申论的模块。点进去能看细分题型和练习情况，再选要练的题型。" },
-    { sel:"#btnStart", text:"申论先读材料、划出要点，再归类、写一稿，最后按采分点逐条批改。" },
-    { sel:"#btnProfile", text:"各模块的均分、练习次数和每次批改记录，都能在这里查。" },
-    { sel:"#btnSettings", text:"出题和批改要用 API Key。没申请过的话，设置里输入框下面有申请教程。" },
+    { sel:"#modbar", text:"想练哪类申论题，先选模块，再选具体题型。" },
+    { sel:"#btnStart", text:"先读材料、划要点，再归类、写一稿。交卷后按采分点逐条批改。" },
+    { sel:"#btnProfile", text:"申论各模块练了几次、均分多少，批改记录都在「我的画像」里。" },
+    { sel:"#btnSettings", text:"AI 出题和批改都需要 API Key。设置页输入框下面有申请说明。" },
   ],
 };
 let tour = null;   // { sub, steps, i }
