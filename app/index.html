@@ -268,6 +268,11 @@ html,body{margin:0;padding:0;}
   .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:var(--r-pill);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-2);font-family:var(--hei);}
   .fab:hover{background:var(--ctl);border-color:#b9b2a2;}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--ink);}
+  .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:6px;box-shadow:0 0 0 200vmax rgba(25,22,16,.45);outline:2px solid var(--gov-red);display:none;}
+  .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--paper);border:1px solid var(--line-strong);border-left:3px solid var(--gov-red);box-shadow:var(--sh-2);padding:12px 14px;font-size:14px;line-height:1.75;color:var(--ink);display:none;}
+  .tour-tip .tstep{font-size:12px;color:var(--muted-2);font-variant-numeric:tabular-nums;margin-bottom:4px;}
+  .tour-tip .tacts{display:flex;gap:8px;align-items:center;margin-top:10px;}
+  .tour-tip .tourskip{margin-left:auto;color:var(--muted-2);}
   .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
@@ -562,7 +567,7 @@ html,body{margin:0;padding:0;}
       <div class="field">
         <label>使用指南</label>
         <button type="button" id="btnTutReset">重置使用指南</button>
-        <div class="note">每个科目第一次进入时会显示对应的练习说明；点这里清掉「已看过」记录，下次进入各科目会重新显示。</div>
+        <div class="note">每个科目第一次进入时会播放分步使用引导；点这里清掉「已看过」记录，下次进入会重新播放。</div>
       </div>
       <div class="field" id="updateField">
         <label>版本与更新</label>
@@ -1756,25 +1761,79 @@ function renderStart(){
   };
 }
 
-/* ---- 使用指南：每个科目第一次进入时给一张练习说明，点「知道了」后不再出现；设置里可重置 ---- */
-const TUTORIALS = {
-  pd:{ title:"快判 · 练习说明",
-    body:"一轮 5 题，每题一小段材料节选，点选答案立刻对错：\n· 事实选择——哪个说法站得住？限定语被悄悄改动就是坑（换主体、改范围、改数量时限）。\n· 分组概括——把分散的同类事实归到正确的概括句下，小心以偏概全。\n· 表达比较——几句改写里挑不改原意又规范的那句。\n· 综合判别——三种形式混合出题，不事先提示类型，练实战判断。\n练完查看小结，正确率会进「我的画像」。" },
-  zy:{ title:"综应A · 练习说明",
-    body:"综应A 的流程是「学习卡 → 作答 → 批改」：\n· 先看学习卡：题型要点、常见失分点、答题框架，看完再动笔。\n· 作答：左边材料右边写答案，注意字数上限。\n· 批改：AI 按采分点逐条判分，优先处理扣分最多的条目，再整篇对照参考答案。\n· 批改后 AI 会把这次的失分自动沉淀成经验，之后的出题和阅卷都会带上它。" },
-  sl:{ title:"申论 · 练习说明",
-    body:"申论走完整训练链：读材料 → 归类 → 一稿 → 批改 → 沉淀。\n· 读材料：直接在材料上划线找点，选中就能「选为要点」。\n· 归类：把找到的点分进几条作答思路，组名可以自己改。\n· 一稿：按提纲成文，注意字数。\n· 批改：逐条对照采分点，看每条给了几分、为什么。\n· 沉淀：把这次的失分点存成经验，下一题带着它。" },
+/* ---- 使用引导：聚光式分步引导（像游戏新手引导那样点着界面一步步看）。每个科目第一次进入时播放，
+    走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束，不追着弹。 ---- */
+const TOURS = {
+  pd:[
+    { sel:".startbox h2", text:"这是快判：从材料里做判断。一轮 5 题，每题一小段材料节选，点选答案立刻对错。" },
+    { sel:".pdsetup", text:"可先填主题（如「养老服务」）或点常用主题，题目会围绕它出；留空则随机。" },
+    { sel:".startbox .primary.big", text:"点这里开始一轮综合快判。也可以只练一种形式：事实选择、分组概括、表达比较。" },
+    { sel:"#btnProfile", text:"练过的正确率会记进「我的画像」，薄弱项一目了然。" },
+    { sel:"#btnSettings", text:"首次使用请先在设置里填 AI Key；还没有 Key 的话，里面有四步申请教程。" },
+  ],
+  zy:[
+    { sel:".startbox h2", text:"这是综应A的模块页。顶部页签可在公文写作、归纳概括、综合分析等五个模块间切换。" },
+    { sel:".subtypechips", text:"每个按钮是一种子类型，上面标了你的均分与练习次数；点它可以指定练这一类。" },
+    { sel:"#btnLandStart", text:"点这里开始。AI 出题后先给学习卡（要点、常见失分点、答题框架），看完再作答。" },
+    { sel:"#btnSettings", text:"使用引导可在这里重置重看；首次使用还需要在设置里填 AI Key。" },
+  ],
+  sl:[
+    { sel:".startbox h2", text:"这是申论的模块页。申论走完整训练链：读材料（划线找点）→ 归类 → 一稿 → 批改 → 沉淀。" },
+    { sel:".subtypechips", text:"子类型可指定练哪一类，按钮上标了均分与次数。" },
+    { sel:"#btnLandStart", text:"点这里开始。先在材料上划线找点、把要点选出来，再归类、成文，最后 AI 逐条批改。" },
+    { sel:"#btnSettings", text:"使用引导可在这里重置重看；首次使用还需要在设置里填 AI Key。" },
+  ],
 };
-function tutHtml(sub){
-  state.tut = state.tut || { zy:false, sl:false, pd:false };
-  if(!TUTORIALS[sub] || state.tut[sub]) return "";
-  return `<details class="card" open><summary>${TUTORIALS[sub].title}</summary><div class="card-body"><div class="tpl">${TUTORIALS[sub].body}</div><div class="actions" style="margin-top:10px"><button class="linkbtn" data-tutack="${sub}">知道了，不再显示</button></div></div></details>`;
+let tour = null;   // { sub, steps, i }
+function maybeTour(sub){
+  if(state.tut[sub] || !TOURS[sub]) return;
+  setTimeout(()=>{
+    if(tour || !document.querySelector(TOURS[sub][0].sel)) return;   // 页面已被切走就不播
+    startTour(TOURS[sub], sub);
+  }, 350);
 }
-function wireTut(){
-  docBody.querySelectorAll("[data-tutack]").forEach(b=> b.onclick = ()=>{
-    state.tut[b.dataset.tutack] = true; save();
-    const c = b.closest("details.card"); if(c) c.remove();
-  });
+function startTour(steps, sub){
+  tour = { sub, steps, i:0 };
+  const hole = document.createElement("div"); hole.className = "tour-hole"; hole.id = "tourHole";
+  const tip = document.createElement("div"); tip.className = "tour-tip"; tip.id = "tourTip";
+  document.body.appendChild(hole); document.body.appendChild(tip);
+  window.addEventListener("resize", tourPlace);
+  window.addEventListener("scroll", tourPlace, true);
+  tourShow();
+}
+function tourShow(){
+  if(!tour) return;
+  const el = document.querySelector(tour.steps[tour.i].sel);
+  if(!el){ tourEnd(); return; }   // 页面被切走：引导就地结束，下次进入再播
+  el.scrollIntoView({ block:"center", behavior:"auto" });
+  const tip = $("#tourTip");
+  if(!tip){ tourEnd(); return; }
+  tip.style.display = "block";
+  tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(tour.steps[tour.i].text)}</div><div class="tacts"><button class="primary" id="tourNext">${tour.i===tour.steps.length-1? "完成":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
+  $("#tourNext").onclick = ()=>{ if(tour.i + 1 >= tour.steps.length){ tourEnd(); return; } tour.i++; tourShow(); };
+  $("#tourSkip").onclick = tourEnd;
+  requestAnimationFrame(tourPlace);
+}
+function tourPlace(){
+  if(!tour) return;
+  const el = document.querySelector(tour.steps[tour.i].sel);
+  const hole = $("#tourHole"), tip = $("#tourTip");
+  if(!el || !hole || !tip){ tourEnd(); return; }
+  const r = el.getBoundingClientRect(), pad = 6;
+  hole.style.display = "block";
+  hole.style.left = (r.left-pad)+"px"; hole.style.top = (r.top-pad)+"px";
+  hole.style.width = (r.width+pad*2)+"px"; hole.style.height = (r.height+pad*2)+"px";
+  const below = r.bottom + 180 < window.innerHeight;
+  tip.style.left = Math.min(Math.max(12, r.left), Math.max(12, window.innerWidth-342)) + "px";
+  tip.style.top = (below? r.bottom+12 : Math.max(12, r.top - tip.offsetHeight - 12)) + "px";
+}
+function tourEnd(){
+  if(tour && state.tut) state.tut[tour.sub] = true;
+  tour = null;
+  ["#tourHole","#tourTip"].forEach(s=>{ const e=$(s); if(e) e.remove(); });
+  window.removeEventListener("resize", tourPlace);
+  window.removeEventListener("scroll", tourPlace, true);
+  save();
 }
 
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
@@ -1796,10 +1855,10 @@ function renderModuleLanding(k){
     </div>
     <div class="actions" style="justify-content:center;margin-top:26px"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
   </div>`;
-  docBody.innerHTML = tutHtml(k.split(".")[0]) + html;
+  docBody.innerHTML = html;
   $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
   docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
-  wireTut();
+  maybeTour(k.split(".")[0]);
 }
 
 async function startSmart(){
@@ -2084,11 +2143,11 @@ function renderPDLanding(){
       <div class="subtypechips" style="margin:9px auto 0;max-width:700px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
     </div>
   </div>`;
-  docBody.innerHTML = tutHtml("pd") + html; renderHeader();
+  docBody.innerHTML = html; renderHeader();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
   docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
   docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
-  wireTut();
+  maybeTour("pd");
 }
 function pdThemeValue(){
   const inp = $("#pdTheme");
@@ -3869,7 +3928,7 @@ renderChangelog();
   if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。");
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
-  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置：下次进入各科目会重新显示练习说明。"; };
+  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置：下次进入各科目会重新播放使用引导。"; };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
