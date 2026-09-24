@@ -562,7 +562,7 @@ html,body{margin:0;padding:0;}
       <div class="field">
         <label>使用指南</label>
         <button type="button" id="btnTutReset">重置使用指南</button>
-        <div class="note">每个科目第一次进入时会显示「怎么玩」教程；点这里清掉「已看过」记录，下次进入各科目会重新显示。</div>
+        <div class="note">每个科目第一次进入时会显示对应的练习说明；点这里清掉「已看过」记录，下次进入各科目会重新显示。</div>
       </div>
       <div class="field" id="updateField">
         <label>版本与更新</label>
@@ -1756,14 +1756,14 @@ function renderStart(){
   };
 }
 
-/* ---- 使用指南：每个科目第一次进入时给一张「怎么玩」，点「知道了」后不再出现；设置里可重置 ---- */
+/* ---- 使用指南：每个科目第一次进入时给一张练习说明，点「知道了」后不再出现；设置里可重置 ---- */
 const TUTORIALS = {
-  pd:{ title:"快判 · 怎么玩",
-    body:"一轮 5 题，每题一小段材料节选，点选答案立刻对错：\n· 事实选择——哪个说法站得住？限定语被悄悄改动就是坑（换主体、改范围、改数量时限）。\n· 分组概括——把分散的同类事实归到正确的概括句下，小心以偏概全。\n· 表达比较——几句改写里挑不改原意又规范的那句。\n· 综合判别——三种混在一轮，不告诉你考的是哪类，练实战眼力。\n练完看小结，正确率会进「我的画像」。" },
-  zy:{ title:"综应A · 怎么玩",
-    body:"综应A 的节奏是「学习卡 → 作答 → 批改」：\n· 先看学习卡：题型要点、常见失分点、答题框架，看完再动笔。\n· 作答：左边材料右边写答案，注意字数上限。\n· 批改：AI 按采分点逐条判分，先看「丢分最狠的三条」，再整篇对照参考答案。\n· 批改后 AI 会把这次的失分自动沉淀成经验，之后的出题和阅卷都会带上它。" },
-  sl:{ title:"申论 · 怎么玩",
-    body:"申论走完整训练链：读材料 → 归类 → 一稿 → 批改 → 沉淀。\n· 读材料：直接在材料上划线找点，选中就能「选为要点」。\n· 归类：把找到的点分进几条作答思路，组名可以自己改。\n· 一稿：按提纲成文，注意字数。\n· 批改：逐条对照采分点，看每条给了几分、为什么。\n· 沉淀：把这次的教训存成经验，下一题带着它。" },
+  pd:{ title:"快判 · 练习说明",
+    body:"一轮 5 题，每题一小段材料节选，点选答案立刻对错：\n· 事实选择——哪个说法站得住？限定语被悄悄改动就是坑（换主体、改范围、改数量时限）。\n· 分组概括——把分散的同类事实归到正确的概括句下，小心以偏概全。\n· 表达比较——几句改写里挑不改原意又规范的那句。\n· 综合判别——三种形式混合出题，不事先提示类型，练实战判断。\n练完查看小结，正确率会进「我的画像」。" },
+  zy:{ title:"综应A · 练习说明",
+    body:"综应A 的流程是「学习卡 → 作答 → 批改」：\n· 先看学习卡：题型要点、常见失分点、答题框架，看完再动笔。\n· 作答：左边材料右边写答案，注意字数上限。\n· 批改：AI 按采分点逐条判分，优先处理扣分最多的条目，再整篇对照参考答案。\n· 批改后 AI 会把这次的失分自动沉淀成经验，之后的出题和阅卷都会带上它。" },
+  sl:{ title:"申论 · 练习说明",
+    body:"申论走完整训练链：读材料 → 归类 → 一稿 → 批改 → 沉淀。\n· 读材料：直接在材料上划线找点，选中就能「选为要点」。\n· 归类：把找到的点分进几条作答思路，组名可以自己改。\n· 一稿：按提纲成文，注意字数。\n· 批改：逐条对照采分点，看每条给了几分、为什么。\n· 沉淀：把这次的失分点存成经验，下一题带着它。" },
 };
 function tutHtml(sub){
   state.tut = state.tut || { zy:false, sl:false, pd:false };
@@ -3869,7 +3869,7 @@ renderChangelog();
   if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。");
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
-  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置：下次进入各科目会重新显示「怎么玩」教程。"; };
+  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置：下次进入各科目会重新显示练习说明。"; };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
