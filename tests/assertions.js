@@ -1301,6 +1301,15 @@ ok(PAGE_HTML.includes("还没有 API Key？四步拿到"), "设置页: 无 Key �
 ok(PAGE_HTML.includes("platform.deepseek.com") && PAGE_HTML.includes("「API keys」"), "设置页: 教程含 DeepSeek 平台地址与创建入口");
 ok(PAGE_HTML.indexOf("kh.open = !state.settings.apiKey") >= 0, "设置页: 无 Key 时自动展开教程，有 Key 保持折叠");
 
+/* ---- 使用指南：首次进入各科目显示「怎么玩」，看过即收，设置可重置 ---- */
+state.tut = { zy:false, sl:false, pd:false };
+ok(tutHtml("pd").indexOf("data-tutack=\"pd\"") >= 0 && tutHtml("pd").indexOf("综合判别") >= 0, "使用指南: 未看过时快判教程带「知道了」按钮");
+ok(tutHtml("zy").indexOf("学习卡") >= 0 && tutHtml("sl").indexOf("读材料") >= 0, "使用指南: 综应/申论教程覆盖各自流程");
+state.tut = { zy:true, sl:true, pd:true };
+ok(tutHtml("pd") === "" && tutHtml("zy") === "" && tutHtml("sl") === "", "使用指南: 看过之后不再显示");
+state.tut = { zy:false, sl:false, pd:false };
+ok(PAGE_HTML.indexOf("重置使用指南") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用指南: 设置里有重置入口");
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

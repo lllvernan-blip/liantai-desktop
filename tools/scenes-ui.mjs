@@ -78,6 +78,7 @@ function PRELUDE() {
     state.settings.apiKey = opts.key === false ? "" : "sk-demo0demo0demo0demo0demo0demo0";
     state.settings.model = "deepseek-chat";
     state.settings.subject = opts.subject || "zy";
+    state.tut = { zy:true, sl:true, pd:true };   // 老场景默认「已看过教程」，保持各屏原状；要看教程本身用 17 号场景
     state.history = opts.history ? __hist() : [];
     state.flows = [];
     state.experiences = opts.exp ? [{ id: "e1", type: "失分点", title: "漏写落款文号", body: "公文类作答结尾必须写发文机关与日期，材料里给了就照抄。", scope: "", module: "zy.gongwen", subject: "zy", ts: Date.now(), disabled: false, sourceSig: "x" }] : [];
@@ -122,6 +123,7 @@ function s14_pd_summary() {
 }
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
+function s17_landing_tut() { __reset({ history: true }); state.tut = { zy:false, sl:false, pd:false }; renderModuleLanding("zy.guina"); }
 
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
@@ -140,6 +142,7 @@ const SCENES = [
   ["14-快判-小结", s14_pd_summary, true],
   ["15-设置", s15_settings, false],
   ["16-设置-无Key", s16_settings_nokey, false],
+  ["17-综应落地-首次教程", s17_landing_tut, true],
 ];
 
 export const scenes = SCENES.map(([name, fn, full]) => ({
