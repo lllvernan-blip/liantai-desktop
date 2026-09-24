@@ -1739,6 +1739,7 @@ function banner(html, kind){ $("#bannerSlot").innerHTML = html? `<div class="ban
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
+  _view = "start";
   reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
   activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
   tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
@@ -1790,11 +1791,17 @@ const TOURS = {
   ],
 };
 let tour = null;   // { sub, steps, i }
+// 当前页面形态：start（科目首页）| pd（快判页）| landing（模块落地页）| q（作答中）。
+// 只用于「重置使用说明后能不能当场重播」：在能播的页就地播，作答中不打断练习。
+let _view = "start";
 function maybeTour(sub){
   if(state.tut[sub] || !TOURS[sub]) return;
+  const steps = TOURS[sub];
   setTimeout(()=>{
-    if(tour || !document.querySelector(TOURS[sub][0].sel)) return;   // 页面已被切走就不播
-    startTour(TOURS[sub], sub);
+    if(tour) return;                                            // 同时只播一套
+    // 这套引导的每一步都要有落点才播：页面被切走、或停在不完整的页面时既不播，也不算看过
+    if(!steps.every(s=> document.querySelector(s.sel))) return;
+    startTour(steps, sub);
   }, 350);
 }
 function startTour(steps, sub){
@@ -1809,14 +1816,14 @@ function startTour(steps, sub){
 function tourShow(){
   if(!tour) return;
   const el = document.querySelector(tour.steps[tour.i].sel);
-  if(!el){ tourEnd(); return; }   // 页面被切走：引导就地结束，下次进入再播
+  if(!el){ tourEnd(false); return; }   // 页面被切走：不算看过，下次进入再播
   el.scrollIntoView({ block:"center", behavior:"auto" });
   const tip = $("#tourTip");
   if(!tip){ tourEnd(); return; }
   tip.style.display = "block";
   tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(tour.steps[tour.i].text)}</div><div class="tacts"><button class="primary" id="tourNext">${tour.i===tour.steps.length-1? "完成":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
   $("#tourNext").onclick = ()=>{ if(tour.i + 1 >= tour.steps.length){ tourEnd(); return; } tour.i++; tourShow(); };
-  $("#tourSkip").onclick = tourEnd;
+  $("#tourSkip").onclick = ()=> tourEnd();
   requestAnimationFrame(tourPlace);
 }
 /* 卡片摆放：左右对齐高亮元素的中线，上下默认放下方——
@@ -1837,7 +1844,7 @@ function tourPlace(){
   if(!tour) return;
   const el = document.querySelector(tour.steps[tour.i].sel);
   const hole = $("#tourHole"), tip = $("#tourTip");
-  if(!el || !hole || !tip){ tourEnd(); return; }
+  if(!el || !hole || !tip){ tourEnd(false); return; }
   const r = el.getBoundingClientRect(), pad = 6;
   hole.style.display = "block";
   hole.style.left = (r.left-pad)+"px"; hole.style.top = (r.top-pad)+"px";
@@ -1860,8 +1867,9 @@ function tourPlace(){
   tip.style.left = left + "px";
   tip.style.top = top + "px";
 }
-function tourEnd(){
-  if(tour && state.tut) state.tut[tour.sub] = true;
+// markSeen 为假时不算「看过」（走完或主动跳过才算）——中途被切走的那次，下次进入还会再播
+function tourEnd(markSeen){
+  if(tour && state.tut && markSeen !== false) state.tut[tour.sub] = true;
   tour = null;
   ["#tourHole","#tourTip"].forEach(s=>{ const e=$(s); if(e) e.remove(); });
   window.removeEventListener("resize", tourPlace);
@@ -1871,6 +1879,7 @@ function tourEnd(){
 
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
 function renderModuleLanding(k){
+  _view = "landing";
   activeModule = k; tabActiveKey = k; renderHeader(); renderTabs();
   const m = MODULES[k];
   const avg = moduleAvg(k);
@@ -1975,6 +1984,7 @@ function cardHtml(studyCard){
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
   if(!current || !current.question){ renderStart(); return; }
+  _view = "q";
   tabActiveKey = activeModule; renderTabs();   // 作答中：高亮当前模块页签，一眼看出自己在哪
   if(!usesFlowChain(current.module)){ renderZyPage(); return; }
   ensureFlow(current.module, current.subtype, current.question, current.keyPoints);
@@ -2161,6 +2171,7 @@ function pdFormStats(){
   return { st, mixRounds };
 }
 function renderPDLanding(){
+  _view = "pd";
   pdForm = null; pdRound = null;
   tabActiveKey = null; renderTabs();
   const recent = pdRecentTheme();
@@ -3960,7 +3971,15 @@ renderChangelog();
   if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。");
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
-  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置。下次进入科目起始页或快判页时，会重新显示对应说明。"; };
+  $("#btnTutReset").onclick = ()=>{
+    state.tut = { zy:false, sl:false, pd:false };
+    state.tutVersion = DEFAULT_STATE.tutVersion;
+    save();
+    closeModals();
+    // 重置后就地重播：首页/快判页直接重渲一次让它当场出现；正在作答不打断，回首页时自然再播
+    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到科目首页或快判页时会重新显示引导。"); return; }
+    if(pdActive) renderPDLanding(); else renderStart();
+  };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
