@@ -559,6 +559,11 @@ html,body{margin:0;padding:0;}
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
+      <div class="field">
+        <label>使用指南</label>
+        <button type="button" id="btnTutReset">重置使用指南</button>
+        <div class="note">每个科目第一次进入时会显示「怎么玩」教程；点这里清掉「已看过」记录，下次进入各科目会重新显示。</div>
+      </div>
       <div class="field" id="updateField">
         <label>版本与更新</label>
         <div class="note" id="updateNote" aria-live="polite">正在读取更新状态…</div>
@@ -742,6 +747,7 @@ const DEFAULT_STATE = {
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
+  tut:{ zy:false, sl:false, pd:false },
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
@@ -937,6 +943,7 @@ function load(){
     // 「最近练过的模块」也补前缀：不然切回科目时恢复不到上次的模块（裸键匹配不上任何模块）
     const lm = s.profile.lastModules.map(k=>migrateModuleKey(k));
     if(lm.join("|") !== s.profile.lastModules.join("|")){ s.profile.lastModules = lm; migrated = true; }
+    s.tut = Object.assign({ zy:false, sl:false, pd:false }, (s.tut && typeof s.tut === "object" && !Array.isArray(s.tut))? s.tut : {});
     // 迁移：练习记录从 gw_state 拆到 gw_history；写成功才清掉旧副本，失败则下轮再试
     let hist = loadHistory();
     if(Array.isArray(s.history) && s.history.length){
@@ -1749,6 +1756,27 @@ function renderStart(){
   };
 }
 
+/* ---- 使用指南：每个科目第一次进入时给一张「怎么玩」，点「知道了」后不再出现；设置里可重置 ---- */
+const TUTORIALS = {
+  pd:{ title:"快判 · 怎么玩",
+    body:"一轮 5 题，每题一小段材料节选，点选答案立刻对错：\n· 事实选择——哪个说法站得住？限定语被悄悄改动就是坑（换主体、改范围、改数量时限）。\n· 分组概括——把分散的同类事实归到正确的概括句下，小心以偏概全。\n· 表达比较——几句改写里挑不改原意又规范的那句。\n· 综合判别——三种混在一轮，不告诉你考的是哪类，练实战眼力。\n练完看小结，正确率会进「我的画像」。" },
+  zy:{ title:"综应A · 怎么玩",
+    body:"综应A 的节奏是「学习卡 → 作答 → 批改」：\n· 先看学习卡：题型要点、常见失分点、答题框架，看完再动笔。\n· 作答：左边材料右边写答案，注意字数上限。\n· 批改：AI 按采分点逐条判分，先看「丢分最狠的三条」，再整篇对照参考答案。\n· 批改后 AI 会把这次的失分自动沉淀成经验，之后的出题和阅卷都会带上它。" },
+  sl:{ title:"申论 · 怎么玩",
+    body:"申论走完整训练链：读材料 → 归类 → 一稿 → 批改 → 沉淀。\n· 读材料：直接在材料上划线找点，选中就能「选为要点」。\n· 归类：把找到的点分进几条作答思路，组名可以自己改。\n· 一稿：按提纲成文，注意字数。\n· 批改：逐条对照采分点，看每条给了几分、为什么。\n· 沉淀：把这次的教训存成经验，下一题带着它。" },
+};
+function tutHtml(sub){
+  state.tut = state.tut || { zy:false, sl:false, pd:false };
+  if(!TUTORIALS[sub] || state.tut[sub]) return "";
+  return `<details class="card" open><summary>${TUTORIALS[sub].title}</summary><div class="card-body"><div class="tpl">${TUTORIALS[sub].body}</div><div class="actions" style="margin-top:10px"><button class="linkbtn" data-tutack="${sub}">知道了，不再显示</button></div></div></details>`;
+}
+function wireTut(){
+  docBody.querySelectorAll("[data-tutack]").forEach(b=> b.onclick = ()=>{
+    state.tut[b.dataset.tutack] = true; save();
+    const c = b.closest("details.card"); if(c) c.remove();
+  });
+}
+
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
 function renderModuleLanding(k){
   activeModule = k; tabActiveKey = k; renderHeader(); renderTabs();
@@ -1768,9 +1796,10 @@ function renderModuleLanding(k){
     </div>
     <div class="actions" style="justify-content:center;margin-top:26px"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
   </div>`;
-  docBody.innerHTML = html;
+  docBody.innerHTML = tutHtml(k.split(".")[0]) + html;
   $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
   docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
+  wireTut();
 }
 
 async function startSmart(){
@@ -2055,10 +2084,11 @@ function renderPDLanding(){
       <div class="subtypechips" style="margin:9px auto 0;max-width:700px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
     </div>
   </div>`;
-  docBody.innerHTML = html; renderHeader();
+  docBody.innerHTML = tutHtml("pd") + html; renderHeader();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
   docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
   docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
+  wireTut();
 }
 function pdThemeValue(){
   const inp = $("#pdTheme");
@@ -3839,6 +3869,7 @@ renderChangelog();
   if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。");
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
+  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置：下次进入各科目会重新显示「怎么玩」教程。"; };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
