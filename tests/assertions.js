@@ -1314,6 +1314,8 @@ ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE
    "使用引导: 重置后当场重播（作答中不打断）");
 ok(tourEnd.toString().indexOf("markSeen") >= 0 && PAGE_HTML.indexOf("tourEnd(false)") >= 0,
    "使用引导: 中途被切走不算看过，下次进入还会播");
+ok(tourShow.toString().indexOf("tourPrev") >= 0 && tourShow.toString().indexOf("tour.i > 0") >= 0 && tourShow.toString().indexOf("tour.i--") >= 0,
+   "使用引导: 有上一步（第一步不显示），可回退重读");
 ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导: 进入综应或申论科目时在综合起始页触发");
 ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
 

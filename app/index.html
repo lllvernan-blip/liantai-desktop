@@ -1821,7 +1821,12 @@ function tourShow(){
   const tip = $("#tourTip");
   if(!tip){ tourEnd(); return; }
   tip.style.display = "block";
-  tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(tour.steps[tour.i].text)}</div><div class="tacts"><button class="primary" id="tourNext">${tour.i===tour.steps.length-1? "完成":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
+  tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(tour.steps[tour.i].text)}</div><div class="tacts">${tour.i > 0? `<button id="tourPrev">上一步</button>`:""}<button class="primary" id="tourNext">${tour.i===tour.steps.length-1? "完成":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
+  const prev = $("#tourPrev");
+  if(prev) prev.onclick = ()=>{
+    if(tour.i <= 0) return;
+    tour.i--; tourShow();
+  };
   $("#tourNext").onclick = ()=>{ if(tour.i + 1 >= tour.steps.length){ tourEnd(); return; } tour.i++; tourShow(); };
   $("#tourSkip").onclick = ()=> tourEnd();
   requestAnimationFrame(tourPlace);
