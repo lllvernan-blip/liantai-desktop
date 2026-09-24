@@ -753,6 +753,7 @@ const DEFAULT_STATE = {
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
   tut:{ zy:false, sl:false, pd:false },
+  tutVersion:2,
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
@@ -949,6 +950,7 @@ function load(){
     const lm = s.profile.lastModules.map(k=>migrateModuleKey(k));
     if(lm.join("|") !== s.profile.lastModules.join("|")){ s.profile.lastModules = lm; migrated = true; }
     s.tut = Object.assign({ zy:false, sl:false, pd:false }, (s.tut && typeof s.tut === "object" && !Array.isArray(s.tut))? s.tut : {});
+    if(s.tutVersion !== DEFAULT_STATE.tutVersion){ s.tut = { zy:false, sl:false, pd:false }; s.tutVersion = DEFAULT_STATE.tutVersion; migrated = true; }
     // 迁移：练习记录从 gw_state 拆到 gw_history；写成功才清掉旧副本，失败则下轮再试
     let hist = loadHistory();
     if(Array.isArray(s.history) && s.history.length){
@@ -1759,29 +1761,29 @@ function renderStart(){
     current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card" };
     activeModule = f.module; renderHeader(); renderQuestion();
   };
+  maybeTour(curSubject());
 }
 
-/* ---- 使用引导：聚光式分步引导（像游戏新手引导那样点着界面一步步看）。每个科目第一次进入时播放，
-    走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束，不追着弹。 ---- */
+/* ---- 使用引导：首次进入科目起始页时说明入口和练习流程；快判在自己的落地页说明规则。
+    走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
 const TOURS = {
   pd:[
-    { sel:".startbox h2", text:"一轮里三种题型随机混出，看到题才知道是哪一种。" },
-    { sel:".pdsetup", text:"主题框填什么，材料就往哪出；下面的常用主题点一下就能填上。" },
-    { sel:".startbox .primary.big", text:"点这里开始一轮。只想练一种题型的话，用下面那行小字。" },
-    { sel:"#btnProfile", text:"每轮的对错都记进画像，按题型分开算，练几轮就知道自己弱在哪。" },
-    { sel:"#btnSettings", text:"第一次用先在设置里填 AI Key，出题和批改都靠它；没有 Key 就照里面的教程申请。" },
+    { sel:"#subjbar", text:"这排按钮可以切换快判、综应A和申论，三种练习的记录分开算。" },
+    { sel:".startbox h2", text:"综合快判把事实选择、分组概括、表达比较三种题型随机混在一轮里。" },
+    { sel:"#btnProfile", text:"画像里能分别看三种快判题型的正确率，和综应、申论的记录分开。" },
+    { sel:"#btnSettings", text:"快判要用 AI 出题。先在设置里填 API Key；没申请过的话，教程就在输入框下面。" },
   ],
   zy:[
-    { sel:".startbox h2", text:"每个模块进来都是同一条路，AI 先出题、给一张学习卡，看完再动笔，交卷后逐条批改。" },
-    { sel:".subtypechips", text:"按钮上标着均分和练过的次数。点哪个，待会儿就只出这一类的题。" },
-    { sel:"#btnLandStart", text:"不挑具体题型就直接点这里，它会挑你没练过或分数最低的一类。" },
-    { sel:"#btnSettings", text:"这份引导想重看，在设置里点「重置使用指南」。第一次用记得填 AI Key，批改全靠它。" },
+    { sel:"#modbar", text:"上面一排是综应A的模块。点进去能看细分题型和练习情况，再选要练的题型。" },
+    { sel:"#btnStart", text:"答完后，AI 会按模块列出的评分维度批改；逐条得分和漏掉的内容都能展开看。" },
+    { sel:"#btnProfile", text:"各模块的均分、练习次数和每次批改记录，都能在这里查。" },
+    { sel:"#btnSettings", text:"出题和批改要用 API Key。没申请过的话，设置里输入框下面有申请教程。" },
   ],
   sl:[
-    { sel:".startbox h2", text:"申论一个题要走完整条链，材料上划线找点、归类、写一稿，最后批改、沉淀。" },
-    { sel:".subtypechips", text:"按钮上标着均分和次数，点哪个就只练哪一类。" },
-    { sel:"#btnLandStart", text:"进去第一步是读材料，在原文上把要点划出来，后面的归类和成文都从这里来。" },
-    { sel:"#btnSettings", text:"这份引导想重看，在设置里点「重置使用指南」。第一次用记得填 AI Key，批改全靠它。" },
+    { sel:"#modbar", text:"上面一排是申论的模块。点进去能看细分题型和练习情况，再选要练的题型。" },
+    { sel:"#btnStart", text:"申论先读材料、划出要点，再归类、写一稿，最后按采分点逐条批改。" },
+    { sel:"#btnProfile", text:"各模块的均分、练习次数和每次批改记录，都能在这里查。" },
+    { sel:"#btnSettings", text:"出题和批改要用 API Key。没申请过的话，设置里输入框下面有申请教程。" },
   ],
 };
 let tour = null;   // { sub, steps, i }
@@ -1858,7 +1860,6 @@ function renderModuleLanding(k){
   docBody.innerHTML = html;
   $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
   docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
-  maybeTour(k.split(".")[0]);
 }
 
 async function startSmart(){
@@ -3928,7 +3929,7 @@ renderChangelog();
   if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。");
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
-  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置：下次进入各科目会重新播放使用引导。"; };
+  $("#btnTutReset").onclick = ()=>{ state.tut = { zy:false, sl:false, pd:false }; save(); $("#setMsg").textContent = "已重置。下次进入科目起始页或快判页时，会重新显示对应说明。"; };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));

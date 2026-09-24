@@ -123,7 +123,7 @@ function s14_pd_summary() {
 }
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
-function s17_landing_tut() { __reset({ history: true }); state.tut = { zy:false, sl:false, pd:false }; renderModuleLanding("zy.guina"); }
+function s17_landing_tut() { __reset({ history: true }); state.tut.zy = false; renderStart(); }
 
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
@@ -142,7 +142,7 @@ const SCENES = [
   ["14-快判-小结", s14_pd_summary, true],
   ["15-设置", s15_settings, false],
   ["16-设置-无Key", s16_settings_nokey, false],
-  ["17-综应落地-首次教程", s17_landing_tut, true],
+  ["17-综应起始-首次引导", s17_landing_tut, true],
 ];
 
 export const scenes = SCENES.map(([name, fn, full]) => ({

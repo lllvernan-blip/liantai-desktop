@@ -1306,6 +1306,8 @@ ok(TOURS && TOURS.pd.length >= 4 && TOURS.zy.length >= 4 && TOURS.sl.length >= 4
 ok(TOURS.pd.every(s=>s.sel && s.text) && TOURS.zy.every(s=>s.sel && s.text) && TOURS.sl.every(s=>s.sel && s.text), "使用引导: 每一步都有目标元素与说明文字");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用指南") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
+ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导: 进入综应或申论科目时在综合起始页触发");
+ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
 
 
 console.log(T.join("\n"));
