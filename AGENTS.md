@@ -32,7 +32,7 @@
   ① `git status --short` 工作区干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）；④ 源码 grep `sk-[a-f0-9]{20,}` 零命中；⑤ AGENTS/README 引用的文件路径全部存在。
   发布后删掉 `dist/` 里旧版本安装包、blockmap 与 `win-unpacked` 残留——dist 只留最新一版三件套（供断网对账）。洁癖没跑就先出了包的，事后也必须补跑：0.0.9 就是在 dist 里攒了两版旧安装包才被抓到的。
   **验包不许碰本机那份安装（2026-09-24 修正，原「装到临时目录跑一次」的写法作废）**：electron-builder 的 NSIS 安装器按 AppId 找「上一版」，安装前会先静默卸载它——`/D=<临时目录>` 只改文件装到哪，挡不住这一步。0.0.13 发布时按旧规程装到临时目录验证，结果把本机那份 0.0.12 连目录带卸载项一起卸了，桌面与开始菜单快捷方式也被改指到临时目录（用户数据在 `%APPDATA%\liantai-desktop`，不受影响）。三条规矩：
-  - 验「打包产物能不能起」：跑 `dist/win-unpacked/练习台.exe`——同一份产物，不装、不写注册表、不动快捷方式；要试更新链路加 `LIANTAI_UPDATE_FEED`。
+  - 验「打包产物能不能起」：跑 `dist/win-unpacked/练习台.exe`——同一份产物，不装、不写注册表、不动快捷方式。要真正零接触，还得补两样：用 `--user-data-dir=%TEMP%\liantai-verify` 起（不碰真实 `%APPDATA%\liantai-desktop` 里的记录与 Key），并加 `LIANTAI_UPDATE_FEED=http://127.0.0.1:<本地源端口>/` 指本地源（不让它去真实源下载、不写差量缓存）。另外：它和用户手上那份共用单实例锁与 18743 端口，所以**他正在用的时候不要起**，跑完删临时目录。
   - 验「安装器本身」：只在沙箱里做（另开一个 Windows 用户或虚拟机）。**没沙箱就不验**——代价就是本机在用那份被卸掉。
   - 万一真在本机跑了安装器：先把当前版本的安装包从 Release 留一份，跑完用 `/S` 静默装回去，再核三处归位：`%LOCALAPPDATA%\Programs\liantai-desktop` 目录、`HKCU\...\Uninstall` 里的卸载项、桌面与开始菜单快捷方式指向。
   附带事实：安装器会把自己的安装包写进 `%LOCALAPPDATA%\liantai-desktop-updater\installer.exe`（差量基准），随安装自动就位；装回去之后它也会跟着回到上一版，不用手工维护。
