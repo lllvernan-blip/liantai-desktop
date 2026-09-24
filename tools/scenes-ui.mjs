@@ -86,6 +86,7 @@ function PRELUDE() {
     state.cache = state.cache || {};
     state.cache.studyCards = {}; state.cache.notes = {};
     _flowId = null; current = null; lastGrade = null; activeModule = null; pdActive = false; pdRound = null;
+    if (typeof tourEnd === "function") tourEnd(false);   // 上一场在播的引导先收掉，否则它会留在本场盖住画面（且本场不再播）
     closeModals();   // 取景器所有场景共用一个窗口：上一屏开着的弹层不关，会把后面的场景盖住
     banner("");
     renderTabs(); renderHeader();
@@ -125,6 +126,7 @@ function s15_settings() { __reset({ history: true }); openModal("modalSettings")
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s17_landing_tut() { __reset({ history: true }); state.tut.zy = false; renderStart(); }
 function s18_start_tut_default() { __reset({ history: true }); state.tut.zy = false; renderStart(); startTour(TOURS.zy, "zy"); tour.i = 1; tourShow(); }
+function s19_tut_reset_replay() { __reset({ history: true }); state.settings.subject = "zy"; openModal("modalSettings"); fillSettings(); const b = $("#btnTutReset"); if (b && typeof b.onclick === "function") b.onclick(); }
 
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
@@ -145,6 +147,7 @@ const SCENES = [
   ["16-设置-无Key", s16_settings_nokey, false],
   ["17-综应起始-首次引导", s17_landing_tut, true],
   ["18-综应起始-综合默认说明", s18_start_tut_default, true],
+  ["19-设置-重置后当场重播", s19_tut_reset_replay, true],
 ];
 
 export const scenes = SCENES.map(([name, fn, full]) => ({
