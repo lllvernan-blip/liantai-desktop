@@ -1765,23 +1765,23 @@ function renderStart(){
     走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束，不追着弹。 ---- */
 const TOURS = {
   pd:[
-    { sel:".startbox h2", text:"这里是快判，一轮 5 题。每题给一小段材料，点个选项马上知道对错。" },
-    { sel:".pdsetup", text:"想练哪个方向就填个主题，比如「养老服务」，出题会围着它转；不填就随机。" },
-    { sel:".startbox .primary.big", text:"点这里开考。想只练其中一种形式也行：事实选择、分组概括、表达比较。" },
-    { sel:"#btnProfile", text:"做过的题都记在「我的画像」里，哪类老错，看这里最清楚。" },
-    { sel:"#btnSettings", text:"先到设置里填上 AI Key，不然 AI 批改不了。还没有 Key 的话，里面有一份申请教程，照着做就行。" },
+    { sel:".startbox h2", text:"三种题型混在一轮里出，做的时候不提前告诉你是哪种。" },
+    { sel:".pdsetup", text:"主题框填什么，材料就往哪出；下面的常用主题点一下就能填上。" },
+    { sel:".startbox .primary.big", text:"点这里开始一轮。只想练一种题型的话，用下面那行小字。" },
+    { sel:"#btnProfile", text:"每轮的对错都记进画像，按题型分开算，练几轮就知道自己弱在哪。" },
+    { sel:"#btnSettings", text:"第一次用先在设置里填 AI Key，出题和批改都靠它；没有 Key 就照里面的教程申请。" },
   ],
   zy:[
-    { sel:".startbox h2", text:"这里是综应A。上面一排页签，公文写作、归纳概括这些模块，想练哪个点哪个。" },
-    { sel:".subtypechips", text:"这些按钮是细分题型，上面标着你练过几次、均分多少；想专攻哪类就点哪类。" },
-    { sel:"#btnLandStart", text:"点这里开始。AI 先出题，再给你一张学习卡——要点、易错点、答题框架都在上面，看完再动笔。" },
-    { sel:"#btnSettings", text:"这份引导想重看，来这里点「重置使用指南」。第一次用的话，记得把 AI Key 填上。" },
+    { sel:".startbox h2", text:"每个模块进来都是同一条路，AI 先出题、给一张学习卡，看完再动笔，交卷后逐条批改。" },
+    { sel:".subtypechips", text:"按钮上标着均分和练过的次数。点哪个，待会儿就只出这一类的题。" },
+    { sel:"#btnLandStart", text:"不挑具体题型就直接点这里，它会挑你没练过或分数最低的一类。" },
+    { sel:"#btnSettings", text:"这份引导想重看，在设置里点「重置使用指南」。第一次用记得填 AI Key，批改全靠它。" },
   ],
   sl:[
-    { sel:".startbox h2", text:"这里是申论，跟综应不一样，走完整流程：读材料划线找点 → 归类 → 写一稿 → AI 批改 → 沉淀。" },
-    { sel:".subtypechips", text:"想专练哪一类就点哪个，按钮上标了次数和均分。" },
-    { sel:"#btnLandStart", text:"点这里开始。先在材料上把要点划出来，再归类、成文，最后 AI 一条一条给你改。" },
-    { sel:"#btnSettings", text:"这份引导想重看，来这里点「重置使用指南」。第一次用的话，记得把 AI Key 填上。" },
+    { sel:".startbox h2", text:"申论一个题要走完整条链，材料上划线找点、归类、写一稿，最后批改、沉淀。" },
+    { sel:".subtypechips", text:"按钮上标着均分和次数，点哪个就只练哪一类。" },
+    { sel:"#btnLandStart", text:"进去第一步是读材料，在原文上把要点划出来，后面的归类和成文都从这里来。" },
+    { sel:"#btnSettings", text:"这份引导想重看，在设置里点「重置使用指南」。第一次用记得填 AI Key，批改全靠它。" },
   ],
 };
 let tour = null;   // { sub, steps, i }
