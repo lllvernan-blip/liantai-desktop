@@ -1322,8 +1322,8 @@ ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导
 ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
 
 /* ---- 陌生用户看得见的那些事：形式的说明不藏着、强项不穿红、备份有出处、提示能直接点到设置 ---- */
-ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].brief) && PAGE_HTML.indexOf("${esc(PD_FORMS[id].brief)}") >= 0,
-   "快判落地页: 三类形式的说明直接写在名字下面，不靠悬停");
+ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PAGE_HTML.indexOf("${esc(PD_FORMS[id].desc)}") >= 0,
+   "快判落地页: 三类形式一句话说清是干什么的，不靠悬停");
 ok(PAGE_HTML.indexOf('data-pdform="${id}" title=') < 0, "快判落地页: 不再只把说明挂在 title 上");
 ok(PAGE_HTML.indexOf(".mrow .mweak.good{color:var(--success);}") >= 0 && PAGE_HTML.indexOf('class="mweak${head? head.cls : ""}"') >= 0,
    "画像: 强项不再与短板共用红色");
