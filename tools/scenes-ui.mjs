@@ -94,7 +94,7 @@ function PRELUDE() {
 }
 
 // —— 场景 ——
-function s01_start_new() { __reset({ key: false }); banner("欢迎。点右上角「设置」，选一个服务商（推荐 DeepSeek）、填上 API Key，就能开始用了。"); renderStart(); }
+function s01_start_new() { __reset({ key: false }); banner("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN); renderStart(); }
 function s02_start_ready() { __reset({ history: true }); state.flows = [{ id: "flow_keep", subject: "sl", module: "sl.guina", subtype: "概括问题", sig: "x", question: __q, keyPoints: [], createdAt: Date.now() - 600e3, closedAt: null, step: "draft", attempts: [{ ts: Date.now(), answer: "a", outline: "", mode: "draft" }], selections: [], groups: [], drafts: [] }]; renderStart(); }
 function s03_landing() { __reset({ history: true }); renderModuleLanding("sl.guina"); }
 function s04_zy_card() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 0, phase: "card" }; activeModule = "zy.guina"; renderQuestion(); }
@@ -125,7 +125,7 @@ function s14_pd_summary() {
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s17_landing_tut() { __reset({ history: true }); state.tut.zy = false; renderStart(); }
-function s18_start_tut_default() { __reset({ history: true }); state.tut.zy = false; renderStart(); startTour(TOURS.zy, "zy"); tour.i = 1; tourShow(); }
+function s18_pd_tut() { __reset({ history: true }); state.tut.pd = false; enterPD(); }
 function s19_tut_reset_replay() { __reset({ history: true }); state.settings.subject = "zy"; openModal("modalSettings"); fillSettings(); const b = $("#btnTutReset"); if (b && typeof b.onclick === "function") b.onclick(); }
 
 const SCENES = [
@@ -146,7 +146,7 @@ const SCENES = [
   ["15-设置", s15_settings, false],
   ["16-设置-无Key", s16_settings_nokey, false],
   ["17-综应起始-首次引导", s17_landing_tut, true],
-  ["18-综应起始-综合默认说明", s18_start_tut_default, true],
+  ["18-快判-首次引导", s18_pd_tut, true],
   ["19-设置-重置后当场重播", s19_tut_reset_replay, true],
 ];
 

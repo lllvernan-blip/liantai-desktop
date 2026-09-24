@@ -1306,7 +1306,9 @@ ok(TOURS && TOURS.pd.length >= 4 && TOURS.zy.length >= 4 && TOURS.sl.length >= 4
 ok(TOURS.pd.every(s=>s.sel && s.text) && TOURS.zy.every(s=>s.sel && s.text) && TOURS.sl.every(s=>s.sel && s.text), "使用引导: 每一步都有目标元素与说明文字");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用指南") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
-ok(TOURS.zy.some(s=> s.sel === ".startbox h2") && TOURS.sl.some(s=> s.sel === ".startbox h2"), "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
+ok(TOURS.zy.some(s=> s.sel === "#btnStart") && TOURS.sl.some(s=> s.sel === "#btnStart"), "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
+ok(TOURS.zy[0].sel === "#btnStart" && TOURS.sl[0].sel === "#btnStart" && TOURS.pd[0].sel === ".startbox .primary.big",
+   "使用引导: 先讲主行动，再讲模块页签等细分入口");
 ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
    && renderPDLanding.toString().indexOf('_view = "pd"') >= 0 && renderQuestion.toString().indexOf('_view = "q"') >= 0,
    "使用引导: 记录当前页面形态，重置后能判断能不能就地重播");
@@ -1318,6 +1320,19 @@ ok(tourShow.toString().indexOf("tourPrev") >= 0 && tourShow.toString().indexOf("
    "使用引导: 有上一步（第一步不显示），可回退重读");
 ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导: 进入综应或申论科目时在综合起始页触发");
 ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
+
+/* ---- 陌生用户看得见的那些事：形式的说明不藏着、强项不穿红、备份有出处、提示能直接点到设置 ---- */
+ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].brief) && PAGE_HTML.indexOf("${esc(PD_FORMS[id].brief)}") >= 0,
+   "快判落地页: 三类形式的说明直接写在名字下面，不靠悬停");
+ok(PAGE_HTML.indexOf('data-pdform="${id}" title=') < 0, "快判落地页: 不再只把说明挂在 title 上");
+ok(PAGE_HTML.indexOf(".mrow .mweak.good{color:var(--success);}") >= 0 && PAGE_HTML.indexOf('class="mweak${head? head.cls : ""}"') >= 0,
+   "画像: 强项不再与短板共用红色");
+ok(PAGE_HTML.indexOf('id="btnExport2"') >= 0 && PAGE_HTML.indexOf('id="btnImport2"') >= 0 && PAGE_HTML.indexOf("换电脑或重装之前先「导出备份」") >= 0,
+   "设置页: 数据与备份有导出/导入入口与说明");
+ok(PAGE_HTML.indexOf('id="bnrOpenSettings"') >= 0 && PAGE_HTML.indexOf("bo.onclick") >= 0,
+   "提示横幅: 无 Key 时横幅里能直接点开设置");
+ok(PAGE_HTML.indexOf("未配置 AI Key") >= 0 && PAGE_HTML.indexOf("点右上角「设置」") < 0,
+   "提示横幅: 不再让用户自己去右上角找设置");
 
 
 console.log(T.join("\n"));
