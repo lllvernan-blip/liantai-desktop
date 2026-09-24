@@ -1777,14 +1777,14 @@ const TOURS = {
   ],
   zy:[
     { sel:"#modbar", text:"综应A的模块在上方一排，点开即可选择具体题型。" },
-    { sel:".startbox h2", text:"不选模块也能开始，默认按综合出题，从最弱的模块和题型里挑一题。" },
+    { sel:".startbox h2", text:"不选模块也可以，直接从这里开始今天的练习。" },
     { sel:"#btnStart", text:"交卷后逐项列出得分与未答到的采分点，可展开看批改意见。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
   ],
   sl:[
     { sel:"#modbar", text:"申论的模块在上方一排，点开即可选择具体题型。" },
-    { sel:".startbox h2", text:"不选模块也能开始，默认按综合出题，从最弱的模块和题型里挑一题。" },
+    { sel:".startbox h2", text:"不选模块也可以，直接从这里开始今天的练习。" },
     { sel:"#btnStart", text:"先读材料划出要点，再归类、成稿。交卷后按采分点逐条批改。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
@@ -1859,15 +1859,24 @@ function tourPlace(){
   const vw = window.innerWidth, vh = window.innerHeight;
   const left = Math.min(Math.max(edge, r.left + r.width/2 - w/2), Math.max(edge, vw - w - edge));
   const next = (tour.i + 1 < tour.steps.length)? rectOf(tour.steps[tour.i+1].sel) : null;
+  const box = (y)=> ({ left, top:y, right:left + w, bottom:y + h });
   const cost = (y)=>{
-    const box = { left, top:y, right:left + w, bottom:y + h };
+    const b = box(y);
     let s = 0;
-    if(box.top < edge || box.bottom > vh - edge) s += 1e6;   // 出屏最重
-    if(next) s += overlapArea(box, next);                    // 其次：别盖住下一步要讲的元素
+    if(b.top < edge || b.bottom > vh - edge) s += 1e6;      // 出屏最重
+    if(next) s += overlapArea(b, next) * 4;                 // 其次：别盖住下一步要讲的元素
+    s += overlapArea(b, r) * 4;                             // 也别盖住当前高亮的元素本身
+    s += Math.abs(y - (r.bottom + gap)) * 0.05;             // 同等干净时，越贴目标越好
     return s;
   };
-  const belowY = r.bottom + gap, aboveY = r.top - h - gap;
-  let top = cost(aboveY) < cost(belowY)? aboveY : belowY;
+  // 候选：目标下方 / 目标上方 / 跨过下一步目标再放（页面上方那种“标题+副文+大按钮”的排布，
+  // 只避让下一步目标时会把卡片挤到红头上，反而吃了公文抬头——多给一个候选就能落到按钮下方的空白里）
+  const cands = [r.bottom + gap, r.top - h - gap];
+  if(next){
+    if(next.bottom > r.bottom) cands.push(next.bottom + gap);
+    if(next.top < r.top) cands.push(next.top - h - gap);
+  }
+  let top = cands.reduce((bestY, y)=> cost(y) < cost(bestY)? y : bestY, cands[0]);
   top = Math.min(Math.max(edge, top), Math.max(edge, vh - h - edge));
   tip.style.left = left + "px";
   tip.style.top = top + "px";
