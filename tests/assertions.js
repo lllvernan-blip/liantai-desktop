@@ -1296,6 +1296,11 @@ ok(updateInfo && updateInfo.phase === "downloaded", "更新: 壳推来的状态�
 __updatePush(null);
 ok(updateInfo && updateInfo.phase === "downloaded", "更新: 非法推送不抛错也不清状态");
 
+/* ---- 静态 HTML：设置页的 API Key 申请教程（新用户的第一道坎）---- */
+ok(PAGE_HTML.includes("还没有 API Key？四步拿到"), "设置页: 无 Key 用户的 API Key 申请教程入口存在");
+ok(PAGE_HTML.includes("platform.deepseek.com") && PAGE_HTML.includes("「API keys」"), "设置页: 教程含 DeepSeek 平台地址与创建入口");
+ok(PAGE_HTML.indexOf("kh.open = !state.settings.apiKey") >= 0, "设置页: 无 Key 时自动展开教程，有 Key 保持折叠");
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

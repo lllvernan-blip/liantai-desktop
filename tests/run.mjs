@@ -27,6 +27,8 @@ const src = [
   // 这条记录故意用旧格式（裸模块键 gongwen）：启动路径上就该被迁成 zy.gongwen，断言同时覆盖这一点
   "localStorage.setItem('gw_history', JSON.stringify([{ ts: 42, module: 'gongwen', grade: { total: 60, scores: {} } }]));",
   app,
+  // 静态 HTML（页面里写死的部分）也纳入断言：DOM 桩子不解析页面结构，只有这份原文可查
+  "const PAGE_HTML = " + JSON.stringify(html) + ";",
   readFileSync(join(here, "assertions.js"), "utf8"),
 ].join("\n");
 

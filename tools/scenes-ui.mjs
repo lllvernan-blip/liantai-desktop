@@ -121,6 +121,7 @@ function s14_pd_summary() {
   renderPDSummary();
 }
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
+function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
@@ -138,6 +139,7 @@ const SCENES = [
   ["13-快判-作答", s13_pd_round, true],
   ["14-快判-小结", s14_pd_summary, true],
   ["15-设置", s15_settings, false],
+  ["16-设置-无Key", s16_settings_nokey, false],
 ];
 
 export const scenes = SCENES.map(([name, fn, full]) => ({
