@@ -521,6 +521,13 @@ html,body{margin:0;padding:0;}
         <input type="password" id="setKey" placeholder="粘贴你的 API Key">
         <div class="note">只保存在本地，不会上传到任何第三方；调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
       </div>
+      <details class="notebox" id="keyHelp">
+        <summary>还没有 API Key？四步拿到（推荐 DeepSeek，几分钱练一次）</summary>
+        <div class="notebody">① 注册：浏览器打开 platform.deepseek.com，用手机号注册并登录。
+② 创建 Key：左侧「API keys」→「创建 API key」，复制生成的 sk- 开头字符串（只显示这一次）。
+③ 充值：账户里充少量余额即可用（按用量计费，练一次题大约几分钱）。
+④ 回到这里：Key 粘进上面的输入框 → 点下面「拉取模型列表」选一个模型 → 关掉设置，开始练。</div>
+      </details>
       <div class="field">
         <label>模型</label>
         <div style="display:flex;gap:8px;position:relative;">
@@ -3247,6 +3254,7 @@ function fillSettings(){
   const p = providerById($("#setProvider").value);
   $("#setBase").value = state.settings.baseUrl || p.baseUrl || "";
   $("#setKey").value = state.settings.apiKey||"";
+  const kh = $("#keyHelp"); if(kh) kh.open = !state.settings.apiKey;   // 没 Key 的人打开设置就看到申请教程；填了 Key 的保持折叠
   // 模型名与候选名单都只认实拉结果：值来自上次存下的选择，候选来自该地址的实拉缓存
   $("#setModel").value = state.settings.model || "";
   const cached = cachedModels(baseKey());
@@ -3828,7 +3836,7 @@ renderChangelog();
   // 提示可以并列，不能互相覆盖
   const notices = [];
   if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
-  if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，选一个服务商（推荐 DeepSeek）、填上 API Key，就能开始用了。");
+  if(!state.settings.apiKey) notices.push("欢迎。点右上角「设置」，填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。");
   if(notices.length) banner(notices.join("<br>"));
   $("#setProvider").onchange = onProviderChange;
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
