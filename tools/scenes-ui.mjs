@@ -124,6 +124,7 @@ function s14_pd_summary() {
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s17_landing_tut() { __reset({ history: true }); state.tut.zy = false; renderStart(); }
+function s18_start_tut_default() { __reset({ history: true }); state.tut.zy = false; renderStart(); startTour(TOURS.zy, "zy"); tour.i = 1; tourShow(); }
 
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
@@ -143,6 +144,7 @@ const SCENES = [
   ["15-设置", s15_settings, false],
   ["16-设置-无Key", s16_settings_nokey, false],
   ["17-综应起始-首次引导", s17_landing_tut, true],
+  ["18-综应起始-综合默认说明", s18_start_tut_default, true],
 ];
 
 export const scenes = SCENES.map(([name, fn, full]) => ({
