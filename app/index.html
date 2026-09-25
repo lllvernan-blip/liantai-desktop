@@ -508,7 +508,7 @@ html,body{margin:0;padding:0;}
     <div id="docBody">
       <div class="startbox">
         <h2>开始今天的练习</h2>
-        <p>AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
+        <p>AI 按你最近的表现自动出题，先给学习卡再做题，越练越准。</p>
         <button class="primary big" id="btnStart">智能推送下一题</button>
       </div>
     </div>
@@ -577,12 +577,12 @@ html,body{margin:0;padding:0;}
           <button type="button" id="btnExport2">导出备份</button>
           <button type="button" id="btnImport2">导入备份</button>
         </div>
-        <div class="note">练习记录、草稿和划线只存在这台电脑上，不联网、不上传。换电脑或重装之前先「导出备份」存一份 JSON，新机器上装好后「导入备份」即可接着练。备份里不含 API Key，可以放心转存。</div>
+        <div class="note">练习记录、草稿和划线只存在本地，不联网、不上传。换电脑或重装之前先「导出备份」存一份 JSON，新机器上装好后「导入备份」即可接着练。备份里不含 API Key，可以放心转存。</div>
       </div>
       <div class="field">
-        <label>使用指南</label>
-        <button type="button" id="btnTutReset">重置使用指南</button>
-        <div class="note">每个科目第一次进入时会播放分步使用引导；点这里清掉「已看过」记录，下次进入会重新播放。</div>
+        <label>使用引导</label>
+        <button type="button" id="btnTutReset">重置使用引导</button>
+        <div class="note">每个科目第一次进入时会播放分步引导；点这里清掉「已看过」的记录，下次进入会重新播放。</div>
       </div>
       <div class="field" id="updateField">
         <label>版本与更新</label>
@@ -750,6 +750,17 @@ function migrateHistory(list){
     const nk = migrateModuleKey(h.module);
     if(nk !== h.module){ nh = Object.assign({}, nh, { module:nk }); touched = true; }
     else if(h.track !== "pd" && !MODULES[h.module]){ changed = true; return; }   // 键迁移后仍不是已知模块：不可信，丢弃
+    // 批改结果的形状也夹一道：hits 不是数组、total 不是有限数时（模型写歪、别人给的备份）就地归一，
+    // 否则画像与记录表会照单收下、在渲染时整页抛错。缺字段的老记录不动（沿用原有的回退口径）。
+    if(h.track !== "pd" && h.grade && typeof h.grade === "object"){
+      const gr = h.grade;
+      const badHits = gr.hits !== undefined && !Array.isArray(gr.hits);
+      const badTotal = gr.total !== undefined && !isFinite(Number(gr.total));
+      if(badHits || badTotal){
+        nh = Object.assign({}, nh, { grade: Object.assign({}, gr, badHits? { hits:[] } : null, badTotal? { total:null } : null) });
+        touched = true;
+      }
+    }
     // 旧记录没有训练链：补占位 flowId，让记录与训练链的关联从第一天就是显式的（幂等：补过就不再动）。
     // 判别轨记录（track:'pd'）不建训练链，不补占位。
     if(!nh.flowId && h.track !== "pd"){ nh = Object.assign({}, nh, { flowId: "legacy-" + (h.ts == null? i : h.ts) }); touched = true; }
@@ -781,7 +792,7 @@ const DEFAULT_STATE = {
 /* ============ 申论训练链（读材料·找点 → 归类 → 一稿 → 批改 → 沉淀；找点并入读材料，回改已下线） ============ */
 // 只有申论走全链（usesFlowChain）；综应A 恢复「学习卡 → 作答 → 批改」两阶段（renderZyPage）。
 // 沉淀/经验闭环两科共用：批改成功后自动提炼，注入后续出题与阅卷（见「经验闭环」一节）。
-const FLOW_STEPS  = ["read","organize","draft","review","distill"];   // 找点并入读材料（阿楠 2026-09-21：通读时就能划线和找点，不用走两遍）；revise 机制保留供历史数据与测试
+const FLOW_STEPS  = ["read","organize","draft","review","distill"];   // 找点并入读材料（阿楠 2026-09-21：通读时就能划线和找点，不用走两遍）；revise（回改）已下线：旧数据停在 revise 的链由 sanitizeFlows 降级到「一稿」收下
 const FLOW_LABELS = { read:"读材料", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
 
 /* 申论学习卡资料库（源：阿楠中公申论课堂笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
@@ -888,11 +899,12 @@ function sanitizeFlows(list){
   if(!Array.isArray(list)) return [];
   return list.filter(f=>{
     if(!f || typeof f !== "object" || typeof f.id !== "string" || !f.question || typeof f.question !== "object") return false;
-    if(FLOW_STEPS.indexOf(f.step) < 0 && f.step !== "done") return false;   // 非法 step：丢弃该项，不整包失败
+    if(FLOW_STEPS.indexOf(f.step) < 0 && f.step !== "done" && f.step !== "revise") return false;   // 非法 step：丢弃该项，不整包失败（revise 另处理：降级不丢）
     return true;
   }).map(f=>{
     const o = Object.assign({ subject:null, subtype:null, sig:"", keyPoints:[], createdAt:0, closedAt:null,
                               step:"read", attempts:[], selections:[], groups:[], drafts:[] }, f);
+    if(o.step === "revise") o.step = "draft";   // 回改已下线：这些链回到「一稿」继续，不整条消失
     for(const k of ["keyPoints","attempts","selections","groups","drafts"]) if(!Array.isArray(o[k])) o[k] = [];
     if(o.closedAt == null) o.closedAt = null;
     return o;
@@ -1700,6 +1712,7 @@ function revealDocHeading(){
   if(barBottom - docBox.top > 0) doc.scrollIntoView(true);   // 只补被盖住的那部分；可见时一动不动
 }
 function tabClick(k){
+  reqSeq++;   // 换页 = 作废在途请求：出题/批改还在路上时点页签，旧结果不许回来把当前页顶掉
   renderModuleLanding(k);
   revealDocHeading();
 }
@@ -1769,7 +1782,7 @@ function renderStart(){
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
-    <p>不选具体题型，就按综合来推：AI 会挑你最弱的模块自动出题，先给学习卡再做题，越练越准。</p>
+    <p>不选具体题型，就按综合来推：AI 按你最近的表现自动出题，先给学习卡再做题，越练越准。</p>
     <div class="actions" style="justify-content:center;margin:0"><button class="primary big" id="btnStart">智能推送下一题</button></div>
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
@@ -1793,10 +1806,10 @@ function renderStart(){
 const TOURS = {
   pd:[
     // 先讲主行动，再讲细分入口：先讲模块页签会把不打算挑题型的人往手动选题带，正与「不选题型也能练」相反
-    { sel:".startbox .primary.big", text:"默认按综合出题：一轮 5 题，三种题型混在一起。" },
-    { sel:".pdforms", text:"只想练一种题型，在这里点一类，一轮同样 5 题。" },
+    { sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。" },
+    { sel:".pdforms", text:"只练一种形式就点这里，一轮同样是 5 题。" },
     { sel:".pdsetup .pdoptlabel", text:"填了主题，一轮的题都围绕它出。" },
-    { sel:"#btnProfile", text:"三种快判题型的正确率，分别记在「我的画像」里。" },
+    { sel:"#btnProfile", text:"三种快判形式的正确率，分别记在「我的画像」里。" },
     { sel:"#btnSettings", text:"快判题目由 AI 生成，需要先填 API Key，申请方法见设置页。" },
   ],
   zy:[
@@ -1924,7 +1937,7 @@ function renderModuleLanding(k){
   let html = `<div class="startbox">
     <h2>${esc(m.name)}</h2>
     <p>${esc(m.note)}</p>
-    <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过——第一次会带你过一遍"}<br>评分维度：${m.dims.join("、")}</p>
+    <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过——第一次进来会有引导。"}<br>评分维度：${m.dims.join("、")}</p>
     <div class="subtypechips">
     ${subtypeListOf(k).map(t=>{
       const st = subtypeStat(k,t);
@@ -2040,7 +2053,7 @@ function zyHeadHtml(showQuestion){
   const {question} = current;
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
   if(showQuestion === false){   // 学习卡阶段不亮题面：题目等点了「开始作答」再见面
-    html += `<div class="hint" style="margin:8px 0">题目先不亮出来——看完卡，点「我已学习，开始作答」再见面。</div>`;
+    html += `<div class="hint" style="margin:8px 0">题目先不亮出来，看完卡再开始。</div>`;
     return html;
   }
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
@@ -2162,6 +2175,7 @@ ${formLine}    "context":"材料节选 120-200 字（贴近所给主题，有场
 function sysPD(){ return "你是公考判别训练的命题助手。只输出 JSON，不要 markdown 代码块，不要任何解释。"; }
 
 function enterPD(){
+  reqSeq++;   // 同上：进快判也作废在途请求，否则回来的综应题会盖在快判页上
   pdActive = true;
   tabActiveKey = null;   // 判别轨不是题型：页签全灭（这一栏高度靠 CSS min-height 锁住，不会跳）
   renderTabs(); renderHeader(); renderPDLanding();
@@ -2216,7 +2230,7 @@ function renderPDLanding(){
     <p style="margin:0">看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。</p>
     <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
     <div class="pdforms">
-      <div class="pdformslabel">或只练一类</div>
+      <div class="pdformslabel">或只练一种形式</div>
       <div class="pdformgrid">${PD_FORM_ORDER.map(id=>`<button class="pdform" data-pdform="${id}"><b>${PD_FORMS[id].name}</b><span>${esc(PD_FORMS[id].desc)}</span></button>`).join("")}</div>
     </div>
     <div class="pdsetup">
@@ -2436,34 +2450,6 @@ function resumableFlow(){
   }
   return null;
 }
-/* 回滚：批改/回改页「回到一稿重做」——撤销该链最近一次（或第 attemptIndex 次之后的）批改。
-   删掉 gw_history 里对应的记录；画像聚合全部由记录即时推导，删记录即回滚画像，lastModules 同步退位。
-   drafts/selections/groups 原样保留；step 落到目标步的前一步（传 "review" 即落回「一稿」）。 */
-function rollbackFlowFrom(step, opts){
-  const f = activeFlow(); if(!f) return false;
-  const idx = FLOW_STEPS.indexOf(step);
-  if(idx < FLOW_STEPS.indexOf("review")) return false;   // 批改之前的步没有可回滚的记录
-  const keep = (opts && Number.isInteger(opts.attemptIndex))? Math.max(0, opts.attemptIndex) : Math.max(0, f.attempts.length - 1);
-  if(keep >= f.attempts.length) return false;
-  const need = f.attempts.length - keep;
-  let removed = 0;
-  state.history = state.history.filter(h=>{   // 记录新在前：从头数起删掉最近的 need 条该 flow 记录
-    if(removed < need && h && h.flowId === f.id){ removed++; return false; }
-    return true;
-  });
-  f.attempts.length = keep;
-  for(let i=0;i<removed;i++){
-    const li = state.profile.lastModules.indexOf(f.module);
-    if(li >= 0) state.profile.lastModules.splice(li,1);
-  }
-  // 保住不可再生的文字：把保留的最后一稿放回草稿槽，回「一稿」时能原样恢复
-  const back = f.attempts.length? String(f.attempts[f.attempts.length-1].answer||"") : (f.drafts[0]? f.drafts[0].text : "");
-  if(back) saveDraft(qSig(f.question), back);
-  f.step = FLOW_STEPS[Math.max(0, idx-1)];
-  lastGrade = null;   // 过期的批改结果不再展示
-  saveHistory(); save();
-  return true;
-}
 function pruneFlows(){
   const hasDraft = f => !!loadDraft(f.sig);   // 有未提交草稿的 flow 永不自动裁剪
   while(state.flows.length > MAX_OPEN_FLOWS){
@@ -2543,9 +2529,14 @@ function toggleSentenceSelection(f, sid, ridStr){
 }
 /* 读材料·找点 合并渲染：点选找点（句子/自由选区）与综应式划线叠加在同一段材料上，
    分段边界取「句子 / 选区覆盖 / 划线开合」三者的并集，保证每段状态单一。 */
-function mergedMaterialHtml(q, f){
+/* 分段算法只有这一处：整块渲染 = 渲染全段；划线变更后的局部重铺（materialRangeHtml）也走它——
+   另写一套就会丢掉句子点选要的 pt-seg/data-sid，表现为「这一段里点句子没反应」。
+   from/to 只截渲染范围，状态数组仍按全文算，所以片段边界与整块渲染逐字一致。 */
+function mergedMaterialRange(q, f, rs, re){
   const text = String((q && q.background) || "");
   const n = text.length;
+  const from = Math.max(0, Math.min(Number(rs) || 0, n));
+  const to = Math.max(from, Math.min(Number(re) || 0, n));
   const sents = sentenceTable(q);
   const marks = loadMarks(qSig(q));
   const sidOf = new Array(n).fill(-1);
@@ -2558,11 +2549,11 @@ function mergedMaterialHtml(q, f){
     const tag = sl.free? String(i) : ("s" + sl.sentenceId);
     for(let c=s0; c<e0 && c<n; c++) if(sidOf[c] >= 0) recOf[c] = recOf[c]? recOf[c] + "," + tag : tag;
   });
-  let html = "", pos = 0;
-  while(pos < n){
+  let html = "", pos = from;
+  while(pos < to){
     if(sidOf[pos] < 0){   // 句子之外（换行与空白）：只呈现划线，不可点选
       let j = pos;
-      while(j < n && sidOf[j] < 0 && marks.has(j) === marks.has(pos)) j++;
+      while(j < to && sidOf[j] < 0 && marks.has(j) === marks.has(pos)) j++;
       html += marks.has(pos)
         ? `<mark class="ms on" data-s="${pos}" data-e="${j}">${esc(text.slice(pos,j))}</mark>`
         : esc(text.slice(pos,j));
@@ -2570,13 +2561,14 @@ function mergedMaterialHtml(q, f){
     }
     const sid = sidOf[pos], on = marks.has(pos), key = recOf[pos];
     let k = pos;
-    while(k < n && sidOf[k] === sid && marks.has(k) === on && recOf[k] === key) k++;
+    while(k < to && sidOf[k] === sid && marks.has(k) === on && recOf[k] === key) k++;
     const tagName = on? "mark" : "span";
     html += `<${tagName} class="ms pt-seg${on? " on":""}${key? " picked":""}" data-sid="${sid}" data-s="${pos}" data-e="${k}"${key? ` data-rid="${key}"`:""}>${esc(text.slice(pos,k))}</${tagName}>`;
     pos = k;
   }
   return html;
 }
+function mergedMaterialHtml(q, f){ return mergedMaterialRange(q, f, 0, String((q && q.background) || "").length); }
 function pickListHtml(f){
   if(!f.selections.length) return "";
   return f.selections.map((sl,i)=>
@@ -2862,7 +2854,7 @@ function draftPanelHtml(f){
       <button class="primary" id="btnSubmit">提交阅卷</button>
       <span class="counter" id="wordCount"><b>0</b> 字</span>
       <span class="hint" id="draftNote" aria-live="polite"></span>
-      <span class="hint">提交后 AI 按本模块维度评分并更新画像</span>
+      <span class="hint">交卷后逐条列出得分与丢分处</span>
       <span class="hint" id="gradeLive" aria-live="polite"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
@@ -3096,7 +3088,7 @@ function insertSkeleton(){
 
 async function submitAnswer(){
   const t=$("#answer"); const ans=(t?t.value:"").trim();
-  if(ans.length<20){ banner("写得太少啦，至少写一段话再交卷～"); return; }
+  if(ans.length<20){ banner("写得太少了：至少写满一段再交卷。"); return; }
   const btn=$("#btnSubmit");
   if(btn.disabled) return;
   banner("");
@@ -3126,6 +3118,7 @@ async function submitAnswer(){
   try{
     const g = await grade(mod, sub, q, kps, ans, onDelta, outline, rewriting? { previousReview: previousReviewHits() } : null);
     if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
+    if(g && typeof g === "object" && !Array.isArray(g.hits)) g.hits = [];   // 采分点不是数组：先夹平，免得下面的遍历/渲染整页抛错
     updateProfile(mod);
     const pts = pointsOf(g.hits);
     const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
@@ -3168,6 +3161,7 @@ function dimTotal(scores, dims){
 }
 // 采分点分值口径：总分就是各子项实得分之和。返回 null 表示这份阅卷没有分值信息（老数据），交给上层回退。
 function pointsOf(hits){
+  if(!Array.isArray(hits)) return null;   // 形状不对等同“没有采分点”，交回给维度分折算，不把它传下去炸渲染
   let got = 0, max = 0, seen = false;
   for(const h of hits||[]){
     const s = Number(h && h.score);
@@ -3332,7 +3326,7 @@ function renderProfile(){
       continue;
     }
     const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
-    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade? h.grade.total : "—"}</td><td>${esc(weak||"—")}</td></tr>`;
+    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td><td>${esc(weak||"—")}</td></tr>`;
   }
   html += `</tbody></table></div>`;
   if(histAll > HIST_PAGE){
@@ -3520,7 +3514,7 @@ function saveSettings(){
   applyForm(); save(); renderHeader();
   $("#setMsg").textContent = "已保存 ✓";
   setTimeout(()=>{ if($("#setMsg").textContent==="已保存 ✓") $("#setMsg").textContent=""; }, 1800);
-  if(!state.settings.apiKey) banner("还没填 AI Key，出题/阅卷功能暂不可用。填入后即可使用。");
+  if(!state.settings.apiKey) banner("还没填 API Key，出题/阅卷功能暂不可用。填入后即可使用。");
   else if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
 }
 async function testConnection(){
@@ -3768,8 +3762,11 @@ function materialHtml(q){
   return html;
 }
 
-/* 局部重建 [rs,re) 的片段（边界对齐到现有片段边界），替代整块材料重铺 */
+/* 局部重建 [rs,re) 的片段（边界对齐到现有片段边界），替代整块材料重铺。
+   读材料步的材料是 mergedMaterial 渲的，这里必须走同一套分段，否则重铺出的那段会丢 pt-seg/data-sid。 */
 function materialRangeHtml(q, rs, re){
+  const f = activeFlow();
+  if(f && f.step === "read" && f.sig === qSig(q)) return mergedMaterialRange(q, f, rs, re);
   const text = String((q&&q.background)||"");
   const marks = loadMarks(qSig(q));
   let html = "", i = rs;
@@ -3836,7 +3833,7 @@ function cardNoteHtml(module, subtype){
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
-  if(e && e.code==="NO_KEY") banner("未配置 AI Key：出题和阅卷都要用它，选服务商、填 Key 即可开始。" + OPEN_SETTINGS_BTN);
+  if(e && e.code==="NO_KEY") banner("未配置 API Key：出题和阅卷都要用它，选服务商、填 Key 即可开始。" + OPEN_SETTINGS_BTN);
   else if(e && e.code==="NO_MODEL") banner("还没选定模型。到设置页的模型栏点「拉取模型列表」，从接口拉一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。" + OPEN_SETTINGS_BTN);
   else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
       + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")

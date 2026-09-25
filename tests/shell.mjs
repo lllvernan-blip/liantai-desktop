@@ -164,6 +164,10 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   const { mod, restore } = loadUpdate({ autoUpdater: fake });
   mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
 
+  const feeds = Array.isArray(mod.BACKUP_FEEDS)? mod.BACKUP_FEEDS : [];
+  ok(feeds.length >= 3 && feeds.every(u=>/^https:\/\//.test(u)) && new Set(feeds).size === feeds.length,
+     "壳: 备用源列表至少三条、全 https 且不重复 -> " + feeds.length + " 条");
+
   const failOnce = () => {
     fake.emit("checking-for-update");
     fake.emit("error", new Error("net::ERR_CONNECTION_RESET"));
@@ -181,8 +185,10 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   ok(fake.calls.setFeedURL.length === 2 && fake.calls.setFeedURL[1].url !== fake.calls.setFeedURL[0].url,
      "壳: 备用源也不通 -> 按顺序换下一个（不绕圈）");
 
-  failOnce();
-  ok(fake.calls.setFeedURL.length === 3, "壳: 第三条备用源也试过了");
+  /* 数不写死：备用源有几条就试几条（以后加/换线路，这里不用跟着改）
+     已失败 2 次（主源 + 第一条备用源），补到 feeds.length 次，再超一次才该落 error */
+  for(let i = 3; i <= feeds.length; i++){ failOnce(); }
+  ok(fake.calls.setFeedURL.length === feeds.length, "壳: 备用源列表 " + feeds.length + " 条都试过了");
 
   const before = fake.calls.setFeedURL.length;
   failOnce();

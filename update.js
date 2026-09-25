@@ -34,10 +34,15 @@ const DOWNLOAD_STALL_MS = 10 * 60 * 1000;     // 下载 10 分钟没有任何进
 const BACKUP_RETRY_MS = 1500;                 // 换到备用源后隔一下再试
 
 /* 备用源兜底：国内直连 GitHub 实测常常直接连不通（连接被重置 / 超时），而 GitHub 转发站能取到
-   同一份 Release 资产。2026-09-18 实测可用且都支持 Range（差量照旧）：ghproxy.net、gh-proxy.com、gh.ddlc.top。
+   同一份 Release 资产。2026-09-25 夜在本机重测（元数据各 3 次 + 安装包单段 Range 各一轮）：
+   ghproxy.net、gh-proxy.com、gh.xxooo.cf、gh.nxnow.top 都能取到 latest.yml 且支持单段 Range（206，
+   差量照旧）；gh.ddlc.top 连续 429（error code: 1027）已换掉；gh-proxy.net 能取元数据但 Range
+   返回 200 全量，不能走差量；直连 github.com 仍是连接超时。换线路时两条硬指标：元数据能取到、
+   **支持单段 Range**——后者不满足就只能全量下载。
    主源永远是包内 app-update.yml（GitHub 官方）——只有它先失败才退到备用源。
    这里有一条不能省的规矩：备用源模式下「取 sha512 的源」与「下安装包的源」必须分开
    （applyCrossSourceDownload）。同一个源既能改 latest.yml 又能换安装包时，sha512 校验等于自证。
+   所以相邻两条要同时活着才算一条能走通的路，排列表时按这个看。
    备用源自己也会挂（实测里 ghproxy.cc 证书过期、ghfast.top 连不通），所以按顺序试，全失败就照常报错+重试。
    备用只是兜底不是新默认：某轮借它走通后，下一轮检查开始时仍回到官方源（backToOfficialFeed）。 */
 const GITHUB_OWNER = 'lllvernan-blip';
@@ -48,7 +53,8 @@ const OFFICIAL_FEED = { provider: 'github', owner: GITHUB_OWNER, repo: GITHUB_RE
 const BACKUP_FEEDS = [
   'https://ghproxy.net/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
   'https://gh-proxy.com/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
-  'https://gh.ddlc.top/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  'https://gh.xxooo.cf/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  'https://gh.nxnow.top/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
 ];
 
 let autoUpdater = null;
@@ -426,4 +432,4 @@ function stringify(m) {
   }
 }
 
-module.exports = { initUpdate, checkUpdate, installUpdate, stopUpdate, getStatus: snapshot, PHASE };
+module.exports = { initUpdate, checkUpdate, installUpdate, stopUpdate, getStatus: snapshot, PHASE, BACKUP_FEEDS };

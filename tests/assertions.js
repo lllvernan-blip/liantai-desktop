@@ -215,7 +215,7 @@ ok(el("#bannerSlot").innerHTML.indexOf("格式异常") >= 0, "AI 吐坏 JSON 时
 handleErr({ code:"TIMEOUT" }, false);
 ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0, "无题可看时才回到起点");
 handleErr({ code:"NO_KEY" }, true);
-ok(el("#bannerSlot").innerHTML.indexOf("AI Key") >= 0, "未配置 Key 有明确指引");
+ok(el("#bannerSlot").innerHTML.indexOf("API Key") >= 0, "未配置 Key 有明确指引");
 
 /* 6. 存储：练习记录单独 key（gw_history）+ 写满降级 */
 state.history = Array.from({ length:200 }, (_,i)=>({ ts:i, module:"zy.gongwen", subtype:null, question:{}, answer:"", grade:{ total:60, scores:{}, strengths:[], weaknesses:[] } }));
@@ -720,6 +720,15 @@ const frec = fB.selections[0];
 ok(frec.free === true && frec.valid === null && frec.point === -1 && typeof frec.sentenceId === "number" && frec.text === "流程题乙",
    "找点: 选区记录同构 {text,start,end,sentenceId,valid,point,free}");
 ok(addFreeSelectionRecord(fB, 0, 8) === false, "找点: 同一选区不重复收");
+
+/* ④.1 局部重铺必须与整块渲染同源：划线后按段重铺，重铺出的那段仍要能点句子找点 */
+const mq2 = { background:"第一句。第二句。第三句", requirements:"r" };
+const mf2 = { step:"read", sig:qSig(mq2), selections:[], groups:[], drafts:[], attempts:[] };
+const full2 = mergedMaterialRange(mq2, mf2, 0, mq2.background.length);
+ok(full2.indexOf("pt-seg") >= 0 && full2.indexOf('data-sid="2"') >= 0, "读材料: 整块渲染的每句都是可点片段");
+const part2 = mergedMaterialRange(mq2, mf2, 4, 7);
+ok(part2.indexOf("pt-seg") >= 0 && part2.indexOf("data-sid") >= 0, "读材料: 局部重铺仍带句子点选标记");
+ok(materialRangeHtml.toString().indexOf("mergedMaterialRange") >= 0, "读材料: 局部重铺走同一套分段（不另写一套）");
 ok(toggleSentenceSelection(fB, 0, "") === true && fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 点选整句收入");
 ok(toggleSentenceSelection(fB, 0, "s0") === true && !fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 再点取消整句，划选记录不受影响");
 
@@ -851,24 +860,9 @@ ok(fR.attempts.length === 2 && fR.attempts[1].mode === "rewrite", "回改: attem
 ok(state.history[0].answer.indexOf("补上关键对策") >= 0, "回改: 回改稿照常入练习记录（总分口径不变）");
 ok(cap12.sys.indexOf("previousReview") >= 0 && cap12.sys.indexOf("计分口径不变") >= 0, "回改: prompt 说明回改背景，计分口径一字不动");
 
-/* 12.3 rollbackFlowFrom：回滚 history 与 lastModules，保留 drafts/selections/groups */
-const lmBefore = state.profile.lastModules.filter(x=>x==="sl.guina").length;
-const histBefore = state.history.length;
-ok(rollbackFlowFrom("review") === true, "回滚: 从批改页可回滚");
-ok(state.history.length === histBefore - 1, "回滚: 移除该 flow 最近一次的练习记录");
-ok(state.history[0].answer.indexOf("补上关键对策") < 0, "回滚: 被回滚的那稿不再在记录里");
-ok(fR.attempts.length === 1 && fR.step === "draft", "回滚: attempts 退一位，step 落到目标步前一步（一稿）");
-ok(fR.drafts.length === 1 && Array.isArray(fR.selections) && Array.isArray(fR.groups), "回滚: drafts/selections/groups 原样保留");
-ok(loadDraft(qSig(current.question)).indexOf("第一稿") >= 0, "回滚: 保留稿放回草稿槽，回一稿能恢复");
-ok(state.profile.lastModules.filter(x=>x==="sl.guina").length === lmBefore - 1, "回滚: lastModules 同步退一位");
-ok(lastGrade === null, "回滚: 过期批改结果不再展示");
-el("#answer").value = "重新写的一稿，字数肯定超过二十个字了，没有问题。";
-el("#btnSubmit").disabled = false;
-await submitAnswer();
-ok(fR.attempts.length === 2, "回滚: 回到一稿后可重新提交");
-ok(rollbackFlowFrom("review", { attemptIndex:0 }) === true && fR.attempts.length === 0, "回滚: attemptIndex=0 清空全部尝试");
-ok(!state.history.some(h=>h.flowId === fR.id), "回滚: attemptIndex=0 移除该 flow 全部记录");
-ok(rollbackFlowFrom("draft") === false, "回滚: 批改之前的步无可回滚");
+/* 12.3 回滚（rollbackFlowFrom）已退役：界面上没有任何入口调用它，留着就是死代码，整套断言随之退役。
+   这里只钉住「它确实不在了」——以后谁再把它抄回来，会在这里被拦一次。 */
+ok(typeof rollbackFlowFrom === "undefined", "回滚: rollbackFlowFrom 已删除（无入口的死代码）");
 closeActiveFlow("test-done");
 clearDraft(qSig(current.question));
 state.history = []; state.flows = []; _flowId = null; current = null;
@@ -1305,7 +1299,7 @@ ok(PAGE_HTML.indexOf("kh.open = !state.settings.apiKey") >= 0, "设置页: 无 K
 ok(TOURS && TOURS.pd.length >= 4 && TOURS.zy.length >= 4 && TOURS.sl.length >= 4, "使用引导: 三个科目都配置了分步引导");
 ok(TOURS.pd.every(s=>s.sel && s.text) && TOURS.zy.every(s=>s.sel && s.text) && TOURS.sl.every(s=>s.sel && s.text), "使用引导: 每一步都有目标元素与说明文字");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
-ok(PAGE_HTML.indexOf("重置使用指南") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
+ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
 ok(TOURS.zy.some(s=> s.sel === "#btnStart") && TOURS.sl.some(s=> s.sel === "#btnStart"), "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
 ok(TOURS.zy[0].sel === "#btnStart" && TOURS.sl[0].sel === "#btnStart" && TOURS.pd[0].sel === ".startbox .primary.big",
    "使用引导: 先讲主行动，再讲模块页签等细分入口");
@@ -1331,9 +1325,39 @@ ok(PAGE_HTML.indexOf('id="btnExport2"') >= 0 && PAGE_HTML.indexOf('id="btnImport
    "设置页: 数据与备份有导出/导入入口与说明");
 ok(PAGE_HTML.indexOf('id="bnrOpenSettings"') >= 0 && PAGE_HTML.indexOf("bo.onclick") >= 0,
    "提示横幅: 无 Key 时横幅里能直接点开设置");
-ok(PAGE_HTML.indexOf("未配置 AI Key") >= 0 && PAGE_HTML.indexOf("点右上角「设置」") < 0,
+ok(PAGE_HTML.indexOf("未配置 API Key") >= 0 && PAGE_HTML.indexOf("点右上角「设置」") < 0,
    "提示横幅: 不再让用户自己去右上角找设置");
 
+/* ---- 文案口径：屏幕上的叫法只留一套，不写内部机制，不复述已写着的字 ---- */
+ok(PAGE_HTML.indexOf("AI Key") < 0 && PAGE_HTML.indexOf("这台电脑") < 0, "文案: 统一说「API Key」与「本地」");
+ok(PAGE_HTML.indexOf("使用指南") < 0 && PAGE_HTML.indexOf("分步使用引导") < 0, "文案: 统一叫「使用引导」");
+ok(PAGE_HTML.indexOf("会挑你最弱的模块") < 0 && PAGE_HTML.indexOf("提交后 AI 按本模块维度评分") < 0,
+   "文案: 不写「挑最弱」「按维度评分」这类机制");
+ok(PAGE_HTML.indexOf("写得太少了：至少写满一段再交卷") >= 0 && PAGE_HTML.indexOf("～") < 0, "文案: 交卷提示去掉语气词");
+ok(TOURS.pd.every(s=>s.text.indexOf("题型") < 0) && TOURS.pd[0].text.indexOf("形式") >= 0 && TOURS.pd[3].text.indexOf("形式") >= 0,
+   "文案: 快判统一说「形式」，不再混用「题型」");
+ok(PAGE_HTML.indexOf("或只练一种形式") >= 0, "文案: 快判落地页与引导同口径");
+
+/* ---- 在途请求：换页与进快判都要作废在途请求，旧结果不许回来顶掉当前页 ---- */
+ok(tabClick.toString().indexOf("reqSeq++") >= 0 && enterPD.toString().indexOf("reqSeq++") >= 0,
+   "在途请求: 换页与进快判都作废在途请求");
+ok(submitAnswer.toString().indexOf("Array.isArray(g.hits)") >= 0, "批改: 采分点不是数组时先夹平再渲染");
+
+/* ---- 计分口径一字不动：hits 形状不对就等同没有采分点，交回维度分折算 ---- */
+ok(pointsOf(null) === null && pointsOf({ point:"x" }) === null && pointsOf("x") === null, "计分: hits 非数组交回维度分折算");
+
+/* ---- 入库形状：hits/total 写歪就地归一；缺字段的老记录一字不动 ---- */
+const mBad = migrateHistory([{ ts:7, module:"zy.gongwen", subtype:null, answer:"a", grade:{ total:"68分", hits:{ point:"x" } } }]).list;
+ok(mBad.length === 1 && Array.isArray(mBad[0].grade.hits) && mBad[0].grade.hits.length === 0 && mBad[0].grade.total === null,
+   "入库: hits/total 形状不对就地归一（不留到渲染时炸）");
+const mGood = migrateHistory([{ ts:8, module:"zy.gongwen", subtype:null, answer:"a", grade:{ total:60, scores:{}, hits:[{ score:10, awarded:5 }] } }]).list;
+ok(mGood[0].grade.total === 60 && mGood[0].grade.hits.length === 1, "入库: 形状正常的记录一字不动");
+const mOld = migrateHistory([{ ts:9, module:"zy.gongwen", subtype:null, answer:"a", grade:{ total:60, scores:{} } }]).list;
+ok(mOld[0].grade.hits === undefined, "入库: 缺 hits 的老记录不补字段（沿用原有回退口径）");
+
+/* ---- revise 已下线：旧数据停在 revise 的链降级到一稿，不整条丢 ---- */
+const sfRev = sanitizeFlows([{ id:"r1", step:"revise", question:{ background:"b" } }]);
+ok(sfRev.length === 1 && sfRev[0].step === "draft", "flow 净化: 旧数据里的 revise 链降级到一稿，不整条丢");
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
