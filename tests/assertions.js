@@ -1129,6 +1129,10 @@ ok(el("#profileBody").innerHTML.indexOf("分组概括") >= 0 && el("#profileBody
 localStorage.clear();
 state.history = [];
 
+/* 13 节用完 PD 出题桩就把真身装回去：以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
+   后面的用例看着「拦到了请求」，其实拦的是上一节的返回值——18 节的真实网络用例就是这么被蒙过去的。 */
+callLLM = realCallPD;
+
 /* ============ 14. review 修复批次：小修 / 安全 / 经验去重 / 导入加固 ============ */
 
 /* 14.1 migrateHistory：快判记录（track:'pd'）不补 legacy- 占位 flowId */
@@ -1543,6 +1547,73 @@ storeExperiences([{ type:"规则", kind:"漏点", title:"并列要同层", body:
 ok(state.experiences.find(e=>e.title === "并列要同层").kind === "",
    "错因标签: 规则类经验不分错因类型（入库这一层就卡住）");
 state.experiences = [];
+
+/* ---- 18. 网络抖动与分差口径：传输层失败重发一次；不给模型写兑现不了的分差承诺 ---- */
+
+/* 18.1 传输层失败：同一档静默重发一次就成，不让一次练习作废 */
+const realFetch18 = globalThis.fetch;
+state.settings.apiKey = "sk-test"; state.settings.model = "m-chat"; state.settings.baseUrl = "https://x/v1";
+state.settings.reasonLevel = "standard"; state.modelCaps = {};
+let calls18 = 0;
+globalThis.fetch = () => {
+  calls18++;
+  if(calls18 === 1) return Promise.reject(new TypeError("fetch failed"));
+  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:'{"a":1}' } }] }) });
+};
+let okNet18 = null, err18 = null;
+try{ okNet18 = await callLLM("sys", "user", true); }catch(e){ err18 = e; }
+ok(calls18 === 2 && okNet18 && okNet18.a === 1,
+   "网络抖动: 传输失败后静默重发一次就成功（第 1 次炸、第 2 次成） -> calls=" + calls18 + " res=" + JSON.stringify(okNet18)
+   + " err=" + (err18 ? (err18.code || err18.status || err18.message || String(err18)) : "无"));
+
+/* 18.2 一直抖：重发一次就认输，不无限重试（阶梯也不能被重发绕过） */
+let calls18b = 0;
+globalThis.fetch = () => { calls18b++; return Promise.reject(new TypeError("fetch failed")); };
+let threwNet = null;
+try{ await callLLM("sys", "user", true); }catch(e){ threwNet = e; }
+ok(calls18b === 2 && threwNet && String(threwNet.message).indexOf("fetch failed") >= 0,
+   "网络抖动: 一直失败就重发一次后认输 -> 实际发了 " + calls18b + " 次");
+
+/* 18.3 HTTP 错误不重发：401 是事实（Key 不对），重发只会再花一次钱 */
+let calls18c = 0;
+globalThis.fetch = () => { calls18c++; return Promise.resolve({ ok:false, status:401, text: async()=>"unauthorized" }); };
+let threwHttp = null;
+try{ await callLLM("sys", "user", true); }catch(e){ threwHttp = e; }
+ok(calls18c === 1 && threwHttp && threwHttp.status === 401, "网络抖动: 401 不重发（HTTP 错误走另一条路）");
+globalThis.fetch = realFetch18;
+
+/* 18.4 输出坏了（content 在但解不出 JSON）也重发一次：真机连撞两次的那种坏法 */
+let calls18d = 0;
+globalThis.fetch = () => {
+  calls18d++;
+  const body = calls18d === 1 ? "这不是 JSON" : '{"a":2}';
+  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:body } }] }) });
+};
+let okJson18 = null, errJson18 = null;
+try{ okJson18 = await callLLM("sys", "user", true); }catch(e){ errJson18 = e; }
+ok(calls18d === 2 && okJson18 && okJson18.a === 2,
+   "网络抖动: 吐坏 JSON 也重发一次（重发成则正常返回） -> calls=" + calls18d + " res=" + JSON.stringify(okJson18));
+
+/* 18.5 一直吐坏：重发一次就认输，不能无限重发 */
+let calls18e = 0;
+globalThis.fetch = () => { calls18e++; return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"坏" } }] }) }); };
+let threwJson = null;
+try{ await callLLM("sys", "user", true); }catch(e){ threwJson = e; }
+ok(calls18e === 2 && threwJson && threwJson.code === "JSON",
+   "网络抖动: 一直吐坏 JSON 就重发一次后报格式异常 -> 发了 " + calls18e + " 次");
+
+globalThis.fetch = realFetch18;
+
+/* 18.6 口径：prompt 里不许再有「分差控制在±3」这种模型兑现不了的数字承诺 */
+let capSys18 = null;
+const realCall18 = callLLM;
+callLLM = async (sys)=>{ capSys18 = sys; return { hits:[], scores:{}, strengths:[], weaknesses:[], comment:"" }; };
+await grade("sl.guina", "概括问题", { background:"b", requirements:"r", score:20 }, [], "答", null);
+ok(capSys18.indexOf("±3") < 0 && capSys18.indexOf("分差") < 0,
+   "口径: prompt 里不再写「分差控制在±3」——它做不到，写进去只是自欺");
+ok(capSys18.indexOf("半分") >= 0 && capSys18.indexOf("evidence") >= 0,
+   "口径: 改成要求「判半分要写得出依据」，治的正是那次 0↔半 的摆动");
+callLLM = realCall18;
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
