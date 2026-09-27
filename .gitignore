@@ -10,8 +10,6 @@ app/build.json
 .DS_Store
 Thumbs.db
 
-# 并行 agent 的本地记忆目录，不入库
-.workbuddy/
 tests-out.txt
 screenshots/
 
