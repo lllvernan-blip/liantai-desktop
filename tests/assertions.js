@@ -1467,6 +1467,83 @@ ok(capG && capG.sys.indexOf("评分校准") >= 0 && capG.sys.indexOf("中间档"
 ok(capG.opts && capG.opts.temp === GRADE_TEMP && GRADE_TEMP <= 0.3, "阅卷: 固定低温（同文重测要稳）");
 callLLM = realCallG;
 
+/* ---- 17. 错因标签：把每次失分归到有限几类，统计与出题共用同一份 ---- */
+ok(GRADE_TAG_KEYS.length === 6 && GRADE_TAG_KEYS.indexOf("漏点") >= 0 && GRADE_TAG_KEYS.indexOf("材料") >= 0,
+   "错因标签: 固定六类，全在一张表里");
+ok(gradeTagOf({ kind:"漏点" }) === "漏点" && gradeTagOf({ kind:"没见过的类" }) === "" && gradeTagOf({}) === ""
+   && gradeTagOf({ kind:"  格式  " }) === "格式",
+   "错因标签: 只认闭集里的一类，认不出的当没给（自由文本会把统计摊平）");
+
+/* 17.1 统计：只数没拿满分的子项；按模块分开；窗口只看最近 20 题 */
+state.history = [
+  { ts:3, module:"sl.guina", hits:[ { point:"a", score:5, awarded:5, kind:"-" }, { point:"b", score:5, awarded:0, kind:"漏点" } ] },
+  { ts:2, module:"sl.guina", hits:[ { point:"c", score:5, awarded:2.5, kind:"表达" }, { point:"d", score:5, awarded:5, kind:"漏点" } ] },
+  { ts:1, track:"pd", form:PD_MIX, correct:1, total:2, items:[] }
+];
+const gts17 = gradeTagStats("sl.guina");
+ok(gts17["漏点"] && gts17["漏点"].n === 1 && gts17["表达"] && gts17["表达"].n === 1,
+   "错因统计: 满分不算错因，半分与零分都算");
+ok(weakGradeTags("sl.guina", 3).length === 2 && Object.keys(gradeTagStats("zy.gongwen")).length === 0
+   && Object.keys(gradeTagStats()).length === 2,
+   "错因统计: 按模块分开算，不传模块就全局算");
+const manyTags = [];
+for(let i=0;i<25;i++) manyTags.push({ ts:i, module:"sl.guina", hits:[ { point:"p", score:5, awarded:0, kind:(i<GRADE_TAG_WINDOW? "漏点" : "材料") } ] });
+state.history = manyTags;   // 新在前：前 20 条是「漏点」，更早的旧账是「材料」
+ok(gradeTagStats("sl.guina")["漏点"].n === GRADE_TAG_WINDOW && !gradeTagStats("sl.guina")["材料"],
+   "错因统计: 只看最近 " + GRADE_TAG_WINDOW + " 题（旧账不背）");
+
+/* 17.2 出题带着它：画像里说「常错类型」，出题就得真按这几类出 */
+state.history = [ { ts:1, module:"sl.guina", hits:[ { point:"p", score:5, awarded:0, kind:"漏点" } ] } ];
+let capTagG = null;
+const realCallTagG = callLLM;
+callLLM = async (sys, user)=>{ capTagG = { sys, user }; return { question:{ background:"b", requirements:"r", score:20 }, keyPoints:[] }; };
+await gen("sl.guina", null, null, false);
+ok(capTagG && capTagG.user.indexOf("weakTags") >= 0 && capTagG.user.indexOf("漏点") >= 0,
+   "错因标签: 出题请求带上最常丢分的几类");
+state.history = [];
+await gen("sl.guina", null, null, false);
+ok(capTagG && capTagG.user.indexOf("weakTags") < 0, "错因标签: 没统计出任何一类时不摆空字段");
+callLLM = realCallTagG;
+
+/* 17.3 阅卷要给 kind，且明说它不进计分 */
+let capKindG = null;
+const realCallKindG = callLLM;
+callLLM = async (sys, user)=>{ capKindG = { sys, user }; return { hits:[], scores:{}, strengths:[], weaknesses:[], comment:"" }; };
+await grade("sl.guina", "概括问题", { background:"b", requirements:"r", score:20 }, [], "答", null);
+ok(capKindG && capKindG.sys.indexOf("kind") >= 0 && capKindG.sys.indexOf("漏点") >= 0 && capKindG.sys.indexOf("不参与计分") >= 0,
+   "错因标签: 阅卷逐条给 kind，同时封死「拿它改分」");
+callLLM = realCallKindG;
+
+/* 17.4 页面：丢分处贴类型，满分项不贴；画像看得到「常错类型」 */
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"b", requirements:"r", score:20 }, cardPeeks:0 };
+state.history = [ { ts:1, module:"sl.guina", subtype:"概括问题", grade:{ total:50, scores:{} }, hits:[
+  { point:"落款", score:5, awarded:0, kind:"格式", evidence:"【缺：落款】" },
+  { point:"做法", score:5, awarded:5, kind:"-", evidence:"" } ] } ];
+const gTag = { hits: state.history[0].hits, scores:{}, strengths:[], weaknesses:[], comment:"c" };
+lastGrade = { g:gTag, total:50, expCheck:null };
+const tagHtml = gradeHtml(gTag, 50, false);
+ok(tagHtml.indexOf("kindtag") >= 0 && tagHtml.indexOf(">格式<") >= 0, "错因标签: 批改页丢分处带类型");
+ok((tagHtml.match(/kindtag/g)||[]).length === 2 && tagHtml.indexOf(`>做法</span><span class="sc"`) >= 0,
+   "错因标签: 丢分处两处都贴类型，拿满分的子项不贴");
+lastGrade = null;
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("常错类型：格式 1 处") >= 0,
+   "错因标签: 画像里看得到常错类型");
+current = null; state.history = [];
+
+/* 17.5 经验继承标签：提炼时归一次类，之后一直跟着这条经验走 */
+state.experiences = [];
+storeExperiences([{ type:"错因", kind:"格式", title:"漏写落款", body:"b" }], "sl.guina", "公文", { background:"b", requirements:"r" });
+ok(state.experiences.length === 1 && state.experiences[0].kind === "格式", "错因标签: 经验继承类型");
+ok(experienceListHtml().indexOf("错因类型：格式") >= 0, "错因标签: 经验展开里看得到类型");
+storeExperiences([{ type:"错因", kind:"", title:"漏写落款", body:"b2" }], "sl.guina", "公文", { background:"b", requirements:"r" });
+ok(state.experiences.length === 1 && state.experiences[0].kind === "格式" && state.experiences[0].body === "b2",
+   "错因标签: 这次没给类型时不把已有的冲掉（正文照旧更新）");
+storeExperiences([{ type:"规则", kind:"漏点", title:"并列要同层", body:"b" }], "sl.guina", "公文", { background:"b", requirements:"r" });
+ok(state.experiences.find(e=>e.title === "并列要同层").kind === "",
+   "错因标签: 规则类经验不分错因类型（入库这一层就卡住）");
+state.experiences = [];
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

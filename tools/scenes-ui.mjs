@@ -29,8 +29,8 @@ function PRELUDE() {
   };
   window.__hist = function () {
     return [
-      { ts: Date.now() - 3600e3, module: "sl.guina", subtype: "概括问题", question: __q, answer: "……", keyPoints: [], cardPeeks: 2, grade: { total: 79, scored: { got: 15.8, max: 20 }, scores: { 要点全面: 16, 归类准确: 17, 表述精炼: 15, 条理清晰: 16, 语言准确: 14 }, strengths: ["要点覆盖全"], weaknesses: ["归类粗"], comment: "要点抓得全。" } },
-      { ts: Date.now() - 7200e3, module: "zy.gongwen", subtype: "通知", question: __q, answer: "……", keyPoints: [], cardPeeks: 1, grade: { total: 61, scored: { got: 12.2, max: 20 }, scores: { 格式规范: 10, 内容完整: 13, 语言得体: 12, 条理清晰: 13, 角色定位: 12 }, strengths: ["语言得体"], weaknesses: ["漏写落款"], comment: "格式欠规范。" } },
+      { ts: Date.now() - 3600e3, module: "sl.guina", subtype: "概括问题", question: __q, answer: "……", keyPoints: [], cardPeeks: 2, hits: [ { point: "推动材料线上共享，减少重复提交", score: 4, awarded: 2.5, kind: "表达" }, { point: "把分散审批事项集中到一窗受理", score: 4, awarded: 4, kind: "-" } ], grade: { total: 79, scored: { got: 15.8, max: 20 }, scores: { 要点全面: 16, 归类准确: 17, 表述精炼: 15, 条理清晰: 16, 语言准确: 14 }, strengths: ["要点覆盖全"], weaknesses: ["归类粗"], comment: "要点抓得全。" } },
+      { ts: Date.now() - 7200e3, module: "zy.gongwen", subtype: "通知", question: __q, answer: "……", keyPoints: [], cardPeeks: 1, hits: [ { point: "结尾写发文机关与日期", score: 4, awarded: 0, kind: "格式" }, { point: "正文分条列明事项", score: 4, awarded: 4, kind: "-" } ], grade: { total: 61, scored: { got: 12.2, max: 20 }, scores: { 格式规范: 10, 内容完整: 13, 语言得体: 12, 条理清晰: 13, 角色定位: 12 }, strengths: ["语言得体"], weaknesses: ["漏写落款"], comment: "格式欠规范。" } },
       { ts: Date.now() - 10800e3, module: "zy.guina", subtype: "概括原因", question: __q, answer: "……", keyPoints: [], cardPeeks: 0, grade: { total: 100, scored: { got: 20, max: 20 }, scores: { 要点全面: 20, 归类准确: 20, 表述精炼: 20, 条理清晰: 20, 语言准确: 20 }, strengths: ["要点全面"], weaknesses: [], comment: "很完整。" } },
       { ts: Date.now() - 14400e3, track: "pd", form: "fact-select", theme: "政务服务", items: [{ form: "fact-select", stem: "下列关于该市做法的说法哪一项准确", options: ["a", "b"], answer: 0, picked: 0, ok: true, trap: "", explain: "x" }, { form: "fact-select", stem: "……", options: ["a", "b"], answer: 1, picked: 0, ok: false, trap: "改数量时限", explain: "y" }], correct: 1, total: 2 },
     ];
@@ -60,11 +60,11 @@ function PRELUDE() {
   window.__grade = function () {
     return {
       hits: [
-        { point: "把分散在各部门的审批事项集中到一窗受理", evidence: "材料第一句", status: "满分", score: 4, awarded: 4 },
-        { point: "推动材料线上共享，减少重复提交", evidence: "材料只说企业反映，未写做法", status: "部分命中", score: 4, awarded: 2 },
-        { point: "压缩平均办理时限", evidence: "12 个工作日压缩到 4 个", status: "满分", score: 4, awarded: 3 },
-        { point: "上线好差评系统并与窗口考核挂钩", evidence: "上线了好差评系统，办事群众扫码即可评价", status: "满分", score: 4, awarded: 4 },
-        { point: "把标准化清单覆盖率与开办环节写进计划", evidence: "覆盖率提高到九成、环节从 6 个压到 3 个", status: "未命中", score: 4, awarded: 0 },
+        { point: "把分散在各部门的审批事项集中到一窗受理", evidence: "材料第一句", status: "满分", score: 4, awarded: 4, kind: "-" },
+        { point: "推动材料线上共享，减少重复提交", evidence: "材料只说企业反映，未写做法", status: "部分命中", score: 4, awarded: 2, kind: "材料" },
+        { point: "压缩平均办理时限", evidence: "12 个工作日压缩到 4 个", status: "满分", score: 4, awarded: 3, kind: "漏点" },
+        { point: "上线好差评系统并与窗口考核挂钩", evidence: "上线了好差评系统，办事群众扫码即可评价", status: "满分", score: 4, awarded: 4, kind: "-" },
+        { point: "把标准化清单覆盖率与开办环节写进计划", evidence: "覆盖率提高到九成、环节从 6 个压到 3 个", status: "未命中", score: 4, awarded: 0, kind: "漏点" },
       ],
       scores: { 要点全面: 13, 归类准确: 14, 表述精炼: 12, 条理清晰: 15, 语言准确: 13 },
       strengths: ["要点位置集中", "语言简洁"],
@@ -81,7 +81,7 @@ function PRELUDE() {
     state.tut = { zy:true, sl:true, pd:true };   // 老场景默认「已看过教程」，保持各屏原状；要看教程本身用 17 号场景
     state.history = opts.history ? __hist() : [];
     state.flows = [];
-    state.experiences = opts.exp ? [{ id: "e1", type: "失分点", title: "漏写落款文号", body: "公文类作答结尾必须写发文机关与日期，材料里给了就照抄。", scope: "", module: "zy.gongwen", subject: "zy", ts: Date.now(), disabled: false, sourceSig: "x" }] : [];
+    state.experiences = opts.exp ? [{ id: "e1", type: "错因", kind: "格式", title: "漏写落款文号", body: "公文类作答结尾必须写发文机关与日期，材料里给了就照抄。", scope: "", module: "zy.gongwen", subject: "zy", ts: Date.now(), disabled: false, sourceSig: "x" }] : [];
     state.profile = { lastModules: [], dims: {} };
     state.cache = state.cache || {};
     state.cache.studyCards = {}; state.cache.notes = {};

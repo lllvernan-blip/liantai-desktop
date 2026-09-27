@@ -239,6 +239,9 @@ html,body{margin:0;padding:0;}
   .lossline .ls{flex:0 0 34px;text-align:right;font-family:var(--hei);color:var(--danger);font-variant-numeric:tabular-nums;}
   .lossline .lp{flex:0 0 auto;font-family:var(--hei);}
   .lossline .le{flex:1 1 auto;min-width:0;color:var(--muted-2);font-size:13px;}
+/* 错因类型小标：批改页丢分处的那一小块文字。字号走六档里的 12px，颜色维度只借 token，不新造色。 */
+.kindtag{flex:0 0 auto;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 6px;border-radius:var(--r-ctl);white-space:nowrap;}
+.hitline .kindtag{order:1;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:8px 0 4px;}
   .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
@@ -688,8 +691,9 @@ const GONGWEN_TYPES = [
   {type:"编者按",cat:"应用文",ansLen:250},{type:"宣传稿",cat:"应用文",ansLen:500}
 ];
 // 本池曾有一条「公文改错」（cat:"专项"），2026-09-17 移除：综应A 不含改错类题型。
-// 依据官方大纲 §5.1.2.3，综应A 的命题内容是「观点归纳、资料分类、草拟信函、会务安排、应急处理、联络通知」，
-// 里面没有改错；改错类题型（校阅改错）是综应B 独有的必考题。
+// 依据官方大纲（2026 版 §4.1.2.3），综应A 的命题内容是「观点归纳、资料分类、草拟信函、应急处理、联络通知」，
+// 里面没有改错。（2022 版这一句里还列了「会务安排」，2026 版已不再举例——「会务组织」仍作为子类型保留，
+// 它本来就是真题里反复出现的工作场景，只是大纲不再点名。）
 // 将来若要加回来，除补一行数据，还必须给它专属出题口径：现在 gen 只发一句「文种：XX」，
 // 模型收到会照常出一题「写一份公文」，那就不是改错题了。
 
@@ -1457,13 +1461,15 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   const reqSpec = localLimit? `作答要求（含作答身份、对象，明确写「不超过${localLimit}字」）`
                             : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const exps = expBlock(k);   // 经验闭环：当前模块未停用的经验（≤3 条）注入出题，两科都带
+  const tags = weakGradeTags(k, 3);   // 错因标签：批改累计出来最常丢分的几类，出题重点覆盖
   const lib = SL_STUDY_CARDS[k];   // 申论内置资料库（课堂笔记提炼）：学习卡以此为纲生成
   const libNote = (needCard && lib)? "学习卡必须以内置资料库（library 字段）的方法论为纲，按本题场景重新组织措辞，不得偏离或遗漏资料库要点。" : "";
   const note = (needCard
     ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式，另附一个 example：两三句话的示例小案例 + 典型问法，让用户认出这类题的样子；example 必须是全新编的示例，严禁使用本题背景材料的情节）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。")
-    + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "");
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined });
+    + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "")
+    + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "");
+  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined });
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
@@ -1492,7 +1498,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     exps? { experiences:exps, expNote } : {},
     rewrite? { mode:"rewrite", previousReview:(rewrite.previousReview||[]) } : {}));
   const schema = `{
-    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
+    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
@@ -1508,6 +1514,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     (rewrite? `\n本次答卷（mode=rewrite）是考生按上一轮批改（previousReview）回改后的新一稿：请对照 previousReview 核对上轮指出的问题是否改正；计分口径不变。` : "") +
     expCheck +
     "\n" + SCORING_RULES +
+    `\n错因归类：每条子项都要给 kind——${GRADE_TAG_LINE}；拿不准选最接近的一类，拿满分的填 -。kind 只用于考生自己的错因统计，不参与计分，不得因此改动 awarded 与总分。` +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。同一份答卷重复阅卷，总分分差应控制在±3以内。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按中间档判，不要为了鼓励考生抬分。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
     `\n返回 JSON：\n` + schema;
@@ -1549,18 +1556,21 @@ async function distillExperience(mod, subtype, g, q){
     requirements:(q && q.requirements)||"",
     hits:(g && g.hits)||[], weaknesses:(g && g.weaknesses)||[], comment:(g && g.comment)||"",
     existingTitles: existTitles.length? existTitles : undefined });
-  const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。只输出 JSON。"
+  const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）；type 为错因时还要给 kind，从这几类里选一个——" + GRADE_TAG_LINE + "（其余 type 填 -）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。只输出 JSON。"
     + (existTitles.length? " 考生已有这些经验：" + existTitles.join("；") + "。若本次要提炼的经验与已有经验本质相同，必须原样返回已有经验的 title 原文（不要换措辞、不要新造条目），只给出更新后的 body；确有新经验才新增。" : "");
-  const schema = '{\n  "experiences": [ { "type": "错因", "title": "要点（≤30字）", "body": "具体经验：错在哪、下次怎么办（≤220字）" } ]\n}';
+  const schema = '{\n  "experiences": [ { "type": "错因 / 规则 / 表达", "kind": "type 为错因时从这几类里选一个：' + GRADE_TAG_KEYS.join(" / ") + '（其余填 -）", "title": "要点（≤30字）", "body": "具体经验：错在哪、下次怎么办（≤220字）" } ]\n}';
   const data = await callLLM(sys, user + "\n返回 JSON：\n" + schema, true);
   const list = (data && Array.isArray(data.experiences))? data.experiences : [];
   const out = [];
   for(const e of list.slice(0,2)){
     const type = EXP_TYPES.indexOf(e && e.type) >= 0? e.type : "";
+    // kind 只对错因类经验有意义，且必须是标签集里的一类：认不出的当没给（统计要的是有限几类，不是自由文本）
+    const raw = String((e && e.kind) || "").trim();
+    const kind = (type === "错因" && GRADE_TAG_KEYS.indexOf(raw) >= 0)? raw : "";
     const title = String((e && e.title) || "").trim().slice(0,30);
     const body = String((e && e.body) || "").trim().slice(0,220);
     if(!type || !title || !body) continue;
-    out.push({ type, title, body });
+    out.push({ type, kind, title, body });
   }
   if(out.length) storeExperiences(out, mod, subtype, q);
   _lastDistilled = out;
@@ -1581,10 +1591,13 @@ function expTitleSame(a, b){
 function storeExperiences(items, mod, subtype, q){
   const now = Date.now(), sig = qSig(q);
   for(const it of items||[]){
+    // kind 的闭集卡在这里：只有错因类经验、且是标签表里的那几类，才落进 state（别的层再吹也进不来）
+    const rawKind = String((it && it.kind) || "").trim();
+    const kind = (it.type === "错因" && GRADE_TAG_KEYS.indexOf(rawKind) >= 0)? rawKind : "";
     const exist = state.experiences.find(e=> e && e.module === mod && expTitleSame(e.title, it.title));
-    if(exist){ exist.type = it.type; exist.body = it.body; exist.ts = now; exist.sourceSig = sig; exist.disabled = false; continue; }   // 同模块同义（归一化判重）：更新不新增，title 保留原文
+    if(exist){ exist.type = it.type; if(kind) exist.kind = kind; exist.body = it.body; exist.ts = now; exist.sourceSig = sig; exist.disabled = false; continue; }   // 同模块同义（归一化判重）：更新不新增，title 保留原文；kind 只在这次给了才覆盖，不给就留着
     state.experiences.unshift({ id:"exp_"+now.toString(36)+Math.random().toString(36).slice(2,7),
-      type:it.type, title:it.title, body:it.body, scope:"module", module:mod, subject:subjectOf(mod)||"",
+      type:it.type, kind, title:it.title, body:it.body, scope:"module", module:mod, subject:subjectOf(mod)||"",
       ts:now, disabled:false, sourceSig:sig });
   }
   trimExperiences();
@@ -1657,7 +1670,7 @@ function expSourceLabel(e){
 // 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
 function experienceListHtml(){
   if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。完成一次批改后会自动提炼。</div>`;
-  return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · 错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
+  return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 function distillPanelHtml(){
   let html = `<div class="hint" style="margin-top:10px">这一步不用动手：每次批改完成都会自动提炼经验，下次出题与批改会自动带上（两科共用一个经验库）。</div>`;
@@ -2260,6 +2273,54 @@ function pdRecentTheme(){
     if(h && h.track !== "pd" && h.question && typeof h.question.background === "string" && h.question.background.trim()) return h.question.background;
   }
   return "";
+}
+/* 主观题错因标签：把每次批改的失分归到有限几类，才能跨次累加——「没答落款」与「漏写日期」得算成一类，
+   不然每一次都是新错处，统计永远到不了阈值，画像也就画不出「一直栽在同一类上」。
+   与快判那套辨析点（PD_TRAP_KINDS）分开：快判错在「辨认材料里的说法」，主观题错在「自己写出来的东西」，
+   两边归的类不是一回事，混在一起既不好比也没法指导出题。
+   六类对应真实阅卷里最常见的失分：漏点（要点没答）、跑偏（答非所问/身份范围错）、结构（不分条不归类）、
+   格式（公文缺项）、表达（口语化冗长），以及材料（该扣材料却自说自话，或整段照抄）。 */
+const GRADE_TAGS = [
+  { key:"漏点", note:"该答的要点没答或没答全" },
+  { key:"跑偏", note:"主体、对象、范围或问法理解错，答的不是题目要的" },
+  { key:"结构", note:"要点没分类、层次乱、没分条" },
+  { key:"格式", note:"文种、标题、称谓、落款、日期等格式缺项" },
+  { key:"表达", note:"口语化、自造词、冗长重复、语句不通" },
+  { key:"材料", note:"该扣材料却自说自话，或整段照抄材料原句" },
+];
+const GRADE_TAG_KEYS = GRADE_TAGS.map(t=>t.key);
+// 给模型看的那一行（带释义）与 JSON 里的一行（只列名）都由 GRADE_TAGS 生成：加一类只改上面那张表
+const GRADE_TAG_LINE = GRADE_TAGS.map(t=>`${t.key}（${t.note}）`).join(" / ");
+/* 归一只认闭集里的一类：认不出的当没给。
+   这一点与快判故意不同——快判认不出就原样留着（题面说法五花八门，留着才看得见）；
+   错因统计要的是「同一类累到一笔」，自由文本进来只会把每一类都摊平成一笔。 */
+function gradeTagOf(h){
+  const k = String((h && h.kind) || "").trim();
+  return GRADE_TAG_KEYS.indexOf(k) >= 0? k : "";
+}
+/* 按错因类型统计：只数没拿满分的子项（答对的不算错因），窗口取最近 20 条有采分点的记录。
+   窗口与快判同口径：错因是能练掉的，背一身旧账只会让「最常丢的」永远停在很早以前那次失手。 */
+const GRADE_TAG_WINDOW = 20;
+function gradeTagStats(k){
+  const st = {}; let seen = 0;
+  for(const h of state.history){
+    if(!h || h.track === "pd" || !Array.isArray(h.hits)) continue;
+    if(k && h.module !== k) continue;
+    if(++seen > GRADE_TAG_WINDOW) break;
+    for(const x of h.hits){
+      if(hitClass(x) === "hit") continue;
+      const t = gradeTagOf(x);
+      if(!t) continue;
+      if(!st[t]) st[t] = { n:0 };
+      st[t].n++;
+    }
+  }
+  return st;
+}
+/* 出题要重点覆盖的错因类型：错得多的靠前，只排真的出现过的（没数据不给建议） */
+function weakGradeTags(k, n){
+  const st = gradeTagStats(k);
+  return Object.keys(st).sort((a,b)=> st[b].n - st[a].n || (a < b? -1 : 1)).slice(0, n || 3);
 }
 /* 辨析点归并：模型给的 trap 是自由文本（「换主体」「改数量时限」…），先按关键词归到标准类，认不出就原样留着（截 12 字）。
    归并只为把同类错处累到一笔；不归并的话「换主体」与「把主体掉了」会各算一类，永远累不到阈值。 */
@@ -3339,7 +3400,8 @@ function gradeHtml(g, total, inFlow){
     html += `<div class="sec-title" style="margin-top:14px">先改这几条</div><div class="losslist">`;
     for(const h of top){
       const lose = Math.round((Number(h.score) - Number(h.awarded)) * 10) / 10;
-      html += `<div class="lossline"><span class="ls">−${lose}</span><span class="lp">${esc(h.point||"")}</span>${h.evidence? `<span class="le">${esc(h.evidence)}</span>`:""}</div>`;
+      const kt = gradeTagOf(h);
+      html += `<div class="lossline"><span class="ls">−${lose}</span><span class="lp">${esc(h.point||"")}</span>${kt? `<span class="kindtag">${esc(kt)}</span>`:""}${h.evidence? `<span class="le">${esc(h.evidence)}</span>`:""}</div>`;
     }
     html += `</div>`;
   }
@@ -3363,7 +3425,8 @@ function gradeHtml(g, total, inFlow){
       const cls = hitClass(h);
       const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
       const sc = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
-      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${sc}${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
+      const kth = (cls !== "hit")? gradeTagOf(h) : "";   // 拿满分的子项不算错因，不贴标签
+      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${sc}${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
     }
     html += `</div></details>`;
   }
@@ -3424,7 +3487,11 @@ function renderProfile(){
       if(rows.length){ rowsHtml = `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small> (${r.st.n})</small></span>`; }).join("") + `</div>`; }
       // 收起的行上只挂一条最该先补的短板；全量短板/强项与文种明细都在展开里
       const head = weak.length? { cls:"", text:`短板·${esc(weak[0])}` } : (strong.length? { cls:" good", text:`强项·${esc(strong[0])}` } : null);
-      html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak${head? head.cls : ""}">${head? head.text : ""}</span></summary><div class="mdetail"><div class="bars">${bars}</div>${weak.length? `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`:""}${strong.length? `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`:""}${rowsHtml}</div></details>`;
+      // 常错类型：改完要看得出「一直栽在同一类上」，否则每次丢分都是一条孤立记录，练十次也拼不出图
+      const tagSt = gradeTagStats(k);
+      const tagKeys = Object.keys(tagSt).sort((a,b)=> tagSt[b].n - tagSt[a].n || (a < b? -1 : 1));
+      const tagHint = tagKeys.length? `<div class="hint" style="margin:2px 0 6px">常错类型：${esc(tagKeys.map(t=>`${t} ${tagSt[t].n} 处`).join(" · "))}（按最近 ${GRADE_TAG_WINDOW} 题的批改统计）</div>` : "";
+      html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak${head? head.cls : ""}">${head? head.text : ""}</span></summary><div class="mdetail"><div class="bars">${bars}</div>${tagHint}${weak.length? `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`:""}${strong.length? `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`:""}${rowsHtml}</div></details>`;
     }
     html += `</div>`;
   }
