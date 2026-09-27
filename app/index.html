@@ -1214,22 +1214,31 @@ async function callLLM(system, user, expectJson, onDelta, opts){
     : [{model,messages,temperature:r.temp,max_tokens:8192}, {model,messages}];
 
   let last = null;
-  let retriedEmpty = false;   // 空返回只重发一次，防止死循环
+  let retriedBody = false;    // 输出坏了（空 / 解不出 JSON）也只重发一次，防止死循环
+  let retriedNet = false;     // 网络抖动也只重发一次：不重发是白让用户丢一次批改，无限重发是白烧钱
   for(let ri=0; ri<ladder.length; ri++){
     const base = ladder[ri];
     const rungT0 = Date.now();
     const body = Object.assign({}, base, streaming? {stream:true} : null);
     let out;
-    if(streaming){
-      out = await postStream(url, body, headers, onDelta);
-    }else{
-      const res = await fetchWithTimeout(url,{method:"POST",headers,body:JSON.stringify(body)}, CALL_TIMEOUT);
-      if(!res.ok){ out = res; }
-      else{
-        const data = await res.json();
-        const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
-        out = { content: msg.content || "", reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0 };
+    try{
+      if(streaming){
+        out = await postStream(url, body, headers, onDelta);
+      }else{
+        const res = await fetchWithTimeout(url,{method:"POST",headers,body:JSON.stringify(body)}, CALL_TIMEOUT);
+        if(!res.ok){ out = res; }
+        else{
+          const data = await res.json();
+          const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+          out = { content: msg.content || "", reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0 };
+        }
       }
+    }catch(netErr){
+      /* 传输层失败（DNS / TLS / 连接被搞断 / 整体超时）不该让一次练习作废：同一档原地静默重发一次。
+         与下面的降级阶梯分开：那条路走的是 HTTP 参数类错误（400/422）；参数错了重发是白花钱，网络抖了不重发是白丢一次批改。
+         静默——用户什么都不用做，按钮上的秒数照走。 */
+      if(!retriedNet){ retriedNet = true; ri--; continue; }
+      throw netErr;
     }
     if(out.status !== undefined){  // 是一次 HTTP 错误响应，走降级阶梯
       const tx = await out.text().catch(()=> "");
@@ -1244,9 +1253,14 @@ async function callLLM(system, user, expectJson, onDelta, opts){
       save(); setReasonUI();
       if(rejected) banner(`实测「${esc(model)}」不收思考强度参数，已自动改按标准方式发送（已记住，之后不再尝试）。`);
     }
-    // 思考型模型偶发把输出额度全花在思维链上（finish=length，content 为空）：原样重发一次再放弃
-    if(expectJson && !out.content && !retriedEmpty){ retriedEmpty = true; ri--; continue; }
-    if(expectJson) return parseJsonLoose(out.content);
+    // 输出坏了也原样重发一次再放弃，两种坏法：① content 为空（思考型模型把额度全花在思维链上，finish=length）；
+    // ② content 在但解不出 JSON——2026-09-27 真机用同一份请求连撞两次（同一分钟重问就好了），这种抖动重发最有效。
+    // 重发后还坏才往外抛：抛 {code:"JSON"} 让上层照旧提示重试，不存在“静默吞掉”。
+    if(expectJson){
+      if(!out.content){ if(!retriedBody){ retriedBody = true; ri--; continue; } throw {code:"JSON"}; }
+      try{ return parseJsonLoose(out.content); }
+      catch(e){ if(!retriedBody){ retriedBody = true; ri--; continue; } throw e; }
+    }
     return out.content;
   }
   throw last || {code:"API", status:0, text:""};
@@ -1482,8 +1496,12 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   }`;
   return await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
 }
-/* 阅卷固定低温：同文重测漂移要小（本产品自己承诺±3），而温度是漂移最大的一个旋钮——
-   出题要发敞（同一个知识点出得活），阅卷要钉死（同一份卷子每次判得差不多）。 */
+/* 阅卷固定低温：同文重测漂移要小，而温度是漂移最大的一个旋钮——
+   出题要发敞（同一个知识点出得活），阅卷要钉死（同一份卷子每次判得差不多）。
+   实测（2026-09-27 真机，deepseek-flash，一份砍掉一半要点的中间档答卷批三次）：
+   卷面 9 / 10.5 / 9（满分 20），摆动来自一个子项在「零分」与「半分」之间跳一下；
+   交白卷与范文这两种极端档两次都不动。所以别往 prompt 里写「分差控制在±3」这种数字承诺：
+   它做不到，写进去只是自欺——要治摆动就治到机制上（见下面那条「判半分要写得出依据」）。 */
 const GRADE_TEMP = 0.3;
 async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline, rewrite){
   const m = MODULES[k];
@@ -1515,7 +1533,8 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     expCheck +
     "\n" + SCORING_RULES +
     `\n错因归类：每条子项都要给 kind——${GRADE_TAG_LINE}；拿不准选最接近的一类，拿满分的填 -。kind 只用于考生自己的错因统计，不参与计分，不得因此改动 awarded 与总分。` +
-    `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。同一份答卷重复阅卷，总分分差应控制在±3以内。` +
+    `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。` +
+    `\n同一份答卷重复阅卷时，个别子项可能在相邻档位之间摆动：判「半分」时必须在 evidence 里写出考生答到了哪些内容，写不出对应表述的就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按中间档判，不要为了鼓励考生抬分。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
     `\n返回 JSON：\n` + schema;
   return await callLLM(sys, user, true, onDelta, { temp: GRADE_TEMP });
