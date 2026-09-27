@@ -1359,6 +1359,114 @@ ok(mOld[0].grade.hits === undefined, "入库: 缺 hits 的老记录不补字段�
 const sfRev = sanitizeFlows([{ id:"r1", step:"revise", question:{ background:"b" } }]);
 ok(sfRev.length === 1 && sfRev[0].step === "draft", "flow 净化: 旧数据里的 revise 链降级到一稿，不整条丢");
 
+/* ---- 16. 闭环回执：错因这次犯没犯，以及快判的辨析点 ---- */
+
+/* 16.1 错因回执：批改里判定「带进去的错因这次犯没犯」，写回经验本身 */
+state.history = [];
+state.experiences = [
+  { id:"c1", type:"错因", title:"漏写落款", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
+  { id:"c2", type:"错因", title:"要点不全", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:"s" },
+  { id:"c3", type:"规则", title:"并列要同层", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
+];
+const chk1 = applyExperienceChecks("sl.guina", { experienceChecks:[
+  { title:"漏写落款", status:"fixed" }, { title:"要点不全", status:"again" },
+  { title:"不存在的经验", status:"again" }, { title:"并列要同层", status:"na" }
+]}, 1700000000000);
+const ce1 = state.experiences.find(e=>e.id==="c1"), ce2 = state.experiences.find(e=>e.id==="c2"), ce3 = state.experiences.find(e=>e.id==="c3");
+ok(chk1.fixed.length === 1 && chk1.fixed[0] === "漏写落款" && chk1.again.length === 1 && chk1.again[0] === "要点不全",
+   "错因回执: 分列已改掉与又犯了");
+ok(ce1.cleared === true && ce1.lastCheckAt === 1700000000000 && expState(ce1) === "cleared", "错因回执: fixed -> 已改掉");
+ok(ce2.recur === 1 && ce2.cleared === false && expState(ce2) === "recur", "错因回执: again -> 复犯计数");
+ok(ce3.lastCheckAt === undefined && ce3.recur === undefined && expState(ce3) === "fresh", "错因回执: na 与对不上的 title 都不改状态");
+ok(expStatusText(ce1).indexOf("已改掉") >= 0 && expStatusText(ce2).indexOf("复犯 1 次") >= 0 && expStatusText(ce3) === "还没考到",
+   "错因回执: 三种状态各自说法");
+applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"要点不全", status:"again" }] }, 1700000001000);
+ok(ce2.recur === 2 && ce2.lastCheckAt === 1700000001000, "错因回执: 再犯一次就累加");
+applyExperienceChecks("sl.guina", {});
+ok(ce2.recur === 2 && expState(ce1) === "cleared", "错因回执: 模型没给结果时什么都不动");
+
+/* 16.2 注入顺序：复犯的优先带上去接着考；已改掉的让位，但过了一周要回来复测 */
+const nowT = Date.now(), HOUR = 3600e3, DAY = 86400e3;
+state.experiences = [
+  { id:"o1", type:"错因", title:"刚核过且已改", body:"b", module:"sl.guina", subject:"sl", ts:5, disabled:false, lastCheckAt: nowT - HOUR, lastClearAt: nowT - HOUR, cleared:true, sourceSig:"s" },
+  { id:"o2", type:"错因", title:"复犯的", body:"b", module:"sl.guina", subject:"sl", ts:4, disabled:false, lastCheckAt: nowT - 2*HOUR, cleared:false, recur:2, sourceSig:"s" },
+  { id:"o3", type:"错因", title:"没核过的", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
+  { id:"o4", type:"错因", title:"复犯更多的", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, lastCheckAt: nowT - 3*HOUR, cleared:false, recur:3, sourceSig:"s" },
+  { id:"o5", type:"错因", title:"一周前核过的", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, lastCheckAt: nowT - 8*DAY, lastClearAt: nowT - 8*DAY, cleared:true, sourceSig:"s" }
+];
+const inj2 = activeExperiences("sl.guina").map(e=>e.id);
+ok(inj2[0] === "o4" && inj2[1] === "o2", "注入顺序: 复犯次数多的排前面");
+ok(inj2.indexOf("o1") < 0, "注入顺序: 刚核过且已改掉的让位（名额留给更该考的）");
+ok(expDueRetest({ cleared:true, lastCheckAt: nowT - 8*DAY }, nowT) === true
+   && expDueRetest({ cleared:true, lastCheckAt: nowT - HOUR }, nowT) === false
+   && expDueRetest({}, nowT) === true && expDueRetest({ cleared:false, lastCheckAt: nowT }, nowT) === true,
+   "错因复测: 已改掉的一周后回来复测；没核过、还在犯的都算该考");
+state.experiences = [
+  { id:"s1", type:"错因", title:"甲", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, lastCheckAt: nowT - HOUR, cleared:true, sourceSig:"s" },
+  { id:"s2", type:"错因", title:"乙", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, lastCheckAt: nowT - HOUR, cleared:false, recur:1, sourceSig:"s" },
+  { id:"s3", type:"错因", title:"丙", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
+];
+ok(experienceListHtml().indexOf("已改掉 1 条 · 复犯 1 条 · 待验证 1 条") >= 0, "经验列表: 三个状态可数");
+ok(experienceListHtml().indexOf("错因状态：") >= 0, "经验列表: 每条带错因状态");
+
+/* 16.3 批改页：回执一行说清这次犯没犯（不报数字，数字在「我的经验」里） */
+state.experiences = [{ id:"g1", type:"错因", title:"漏写落款", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"b", requirements:"r", score:20 }, cardPeeks:0 };
+const gExec = { hits:[{ point:"p", score:20, awarded:20, status:"满分", evidence:"" }], scores:{}, strengths:[], weaknesses:[], comment:"c" };
+const chkExec = applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"漏写落款", status:"again" }] }, 1700000002000);
+lastGrade = { g:gExec, total:100, expCheck:chkExec };
+const execHtml = gradeHtml(gExec, 100, false);
+ok(execHtml.indexOf("沉淀的错因：") >= 0 && execHtml.indexOf("「漏写落款」又犯了") >= 0, "批改页: 漏写落款又犯了——回执落到页面上");
+lastGrade = { g:gExec, total:100, expCheck:null };
+ok(gradeHtml(gExec, 100, false).indexOf("沉淀的错因：") < 0, "批改页: 没有回执就不摆空行");
+lastGrade = null; current = null;
+
+/* 16.4 快判辨析点：自由文本同类归并 → 按类统计 → 下次出题优先考错得多的那几类 */
+state.history = [
+  { ts:3, track:"pd", form:PD_MIX, theme:"t", correct:1, total:3, items:[
+    { form:"fact-select", ok:false, trap:"换主体（村集体出资说成镇政府出资）" },
+    { form:"fact-select", ok:false, trap:"把主体换掉" },
+    { form:"group-summarize", ok:true, trap:"抹掉限定语（基本解决说成彻底解决）" } ] },
+  { ts:2, track:"pd", form:PD_MIX, theme:"t", correct:1, total:2, items:[
+    { form:"expression-compare", ok:false, trap:"改数量时限（5 个工作日说成 15 个）" },
+    { form:"expression-compare", ok:true, trap:"抹掉限定语" } ] }
+];
+ok(pdTrapKind("换主体（村集体出资说成镇政府出资）") === "换主体" && pdTrapKind("把主体换掉") === "换主体",
+   "快判辨析点: 两种说法的同一类错处归成一类");
+ok(pdTrapKind("以偏概全（只取其中一类）") === "改范围" && pdTrapKind("改数量时限（5 个工作日说成 15 个）") === "改数量时限",
+   "快判辨析点: 按关键词归到标准类");
+ok(pdTrapKind("从没见过的一种说法") === "从没见过的一种说法" && pdTrapKind("") === "", "快判辨析点: 认不出的原样留着，空的不算");
+const tst = pdTrapStats();
+ok(tst["换主体"] && tst["换主体"].q === 2 && tst["换主体"].c === 0, "快判辨析点: 归并后同类累计到一笔");
+ok(tst["改数量时限"].q === 1 && tst["改数量时限"].c === 0 && tst["抹掉限定语"].q === 2 && tst["抹掉限定语"].c === 2,
+   "快判辨析点: 答对答错都按题计");
+const wt2 = pdWeakTraps(3);
+ok(wt2[0] === "换主体" && wt2.indexOf("改数量时限") >= 0, "快判辨析点: 错过就排进来，错得多的靠前");
+ok(pdWeakTraps(99).indexOf("抹掉限定语") < 0, "快判辨析点: 全对的类不排进来");
+let capWT = null;
+const realCallWT = callLLM;
+callLLM = async (sys, user)=>{ capWT = { sys, user }; return { items:[{ context:"c", stem:"s", options:["a","b"], answer:0, trap:"换主体", explain:"e" }] }; };
+await genPDRound("fact-select", "基层治理");
+ok(capWT && capWT.user.indexOf("weakTraps") >= 0 && capWT.user.indexOf("换主体") >= 0,
+   "快判辨析点: 小结答应「还会再考」，出题请求里确实带上这几类");
+callLLM = realCallWT;
+const many21 = [];
+for(let i=0;i<25;i++) many21.push({ form:"fact-select", ok:false, trap:"改关系" });
+state.history = [{ ts:1, track:"pd", form:PD_MIX, theme:"t", correct:0, total:25, items:many21 }];
+ok(pdTrapStats()["改关系"].q === PD_TRAP_WINDOW,
+   "快判辨析点: 统计只看最近 " + PD_TRAP_WINDOW + " 题（旧账不背） -> " + pdTrapStats()["改关系"].q);
+state.history = []; state.experiences = []; pdRound = null; pdForm = null;
+
+/* 16.5 阅卷校准：分布先验 + 长度不代理质量（模型偏宽松是最大风险）；阅卷固定低温保重测稳定 */
+let capG = null;
+const realCallG = callLLM;
+callLLM = async (sys, user, expectJson, onDelta, opts)=>{ capG = { sys, user, opts }; return { hits:[], scores:{}, strengths:[], weaknesses:[], comment:"" }; };
+await grade("sl.guina", "概括问题", { background:"b", requirements:"r", score:20 }, [], "答", null);
+ok(capG && capG.sys.indexOf("评分校准") >= 0 && capG.sys.indexOf("中间档") >= 0 && capG.sys.indexOf("堆篇幅") >= 0,
+   "阅卷: 分布校准与长度不加分写进系统提示");
+ok(capG.opts && capG.opts.temp === GRADE_TEMP && GRADE_TEMP <= 0.3, "阅卷: 固定低温（同文重测要稳）");
+callLLM = realCallG;
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

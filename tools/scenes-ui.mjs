@@ -102,9 +102,24 @@ function s05_zy_answer() { __reset(); current = { module: "zy.guina", subtype: "
 function s06_flow_read() { __reset({ history: true }); __flow("read"); renderQuestion(); }
 function s07_flow_organize() { __reset({ history: true }); __flow("organize"); renderQuestion(); }
 function s08_flow_draft() { __reset({ history: true }); __flow("draft"); renderQuestion(); }
-function s09_flow_review() { __reset({ history: true }); __flow("review"); lastGrade = { g: __grade(), total: 67 }; renderQuestion(); }
+function s09_flow_review() { __reset({ history: true, exp: true }); __flow("review"); lastGrade = { g: __grade(), total: 67, expCheck: { again: ["漏写落款文号"], fixed: [], at: Date.now() } }; renderQuestion(); }
 function s10_flow_distill() { __reset({ history: true, exp: true }); __flow("distill"); _lastDistilled = [{ id: "d1", type: "失分点", title: "把企业反映当做法", body: "材料里的第三方反映不是该主体的做法，概括时不能算作措施。", scope: "" }]; renderQuestion(); }
-function s11_profile() { __reset({ history: true }); openModal("modalProfile"); renderProfile(); }
+function s11_profile() {
+  __reset({ history: true, exp: true });
+  // 种一条「复犯过」的错因：画像里要看得见经验状态那一行（已改掉/复犯/待验证）
+  state.experiences[0].lastCheckAt = Date.now(); state.experiences[0].lastRecurAt = Date.now();
+  state.experiences[0].cleared = false; state.experiences[0].recur = 2;
+  openModal("modalProfile"); renderProfile();
+}
+function s11b_profile_bottom() {
+  // 与 s11 同一现场（场景各自只注入自己那一个函数，不能互相调用）
+  __reset({ history: true, exp: true });
+  state.experiences[0].lastCheckAt = Date.now(); state.experiences[0].lastRecurAt = Date.now();
+  state.experiences[0].cleared = false; state.experiences[0].recur = 2;
+  openModal("modalProfile"); renderProfile();
+  // 画像弹层一屏只看得见模块那几行：滚到底把「我的经验」与快判辨析点也拍下来
+  const pb = document.querySelector("#profileBody"); if (pb) pb.scrollTop = 999999;
+}
 function s12_pd_landing() { __reset({ history: true }); enterPD(); }
 function s13_pd_round() {
   __reset({ history: true }); pdActive = true; state.settings.subject = "zy";
@@ -140,6 +155,7 @@ const SCENES = [
   ["09-申论-批改", s09_flow_review, true],
   ["10-申论-沉淀", s10_flow_distill, true],
   ["11-画像", s11_profile, false],
+  ["11b-画像-滚到底", s11b_profile_bottom, false],
   ["12-快判-落地页", s12_pd_landing, true],
   ["13-快判-作答", s13_pd_round, true],
   ["14-快判-小结", s14_pd_summary, true],
