@@ -1181,7 +1181,7 @@ async function postStream(url, body, headers, onDelta){
   return { content, reasonChars: reason.length };
 }
 
-async function callLLM(system, user, expectJson, onDelta){
+async function callLLM(system, user, expectJson, onDelta, opts){
   const s = state.settings;
   if(!s.apiKey) throw {code:"NO_KEY"};
   // 模型名不再兜底成某个写死的名字：与其拿一个可能已下线的名字去撞 400，不如直接说清楚
@@ -1195,7 +1195,7 @@ async function callLLM(system, user, expectJson, onDelta){
   const cap = state.modelCaps[model];
   // 默认都按思考参数试探；被拒收过的（cap=rejected）直接按标准温度发，不再白发
   const adaptive = cap !== "rejected";
-  const r = REASON_LEVELS[adaptive ? s.reasonLevel : "standard"] || REASON_LEVELS.standard;
+  const r = (opts && isFinite(opts.temp))? { temp: opts.temp } : (REASON_LEVELS[adaptive ? s.reasonLevel : "standard"] || REASON_LEVELS.standard);
   const streaming = typeof onDelta === "function";
 
   // 首选仍可能被某家拒收：先降回纯 temperature，再退到最裸的请求体，保证任何模型都能跑通。
@@ -1476,11 +1476,16 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   }`;
   return await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
 }
+/* 阅卷固定低温：同文重测漂移要小（本产品自己承诺±3），而温度是漂移最大的一个旋钮——
+   出题要发敞（同一个知识点出得活），阅卷要钉死（同一份卷子每次判得差不多）。 */
+const GRADE_TEMP = 0.3;
 async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline, rewrite){
   const m = MODULES[k];
   // organizeOutline：考生作答前的归类提纲，只进 prompt 供诊断，绝不参与 hits / 总分
   // rewrite：回改稿提交（mode=rewrite）时带上轮批改要点；总分口径一字不动
   const exps = expBlock(k);   // 经验闭环：请阅卷特别核对用户是否又犯这些错，两科都注入
+  // 错因回执：请阅卷顺手判定「带进去的这几条错因这次犯没犯」。只用于经验状态跟进，不进分数
+  const expCheck = exps? `\n另请在 experienceChecks 里逐条回报 experiences：title 原样照抄，status 取 again（这次又犯了同一处）/ fixed（这次没再犯）/ na（本题考不到这条）。这一项只用于考生自己的错因跟进，**不参与计分**，不得因此改动 hits、scores 与总分。` : "";
   const expNote = exps? "用户在 experiences 里这些点上栽过跟头：请特别核对考生是否又犯了这些错。" : "";
   const user = JSON.stringify(Object.assign(
     { module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[], organizeOutline: organizeOutline || "" },
@@ -1490,7 +1495,8 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
-    "weaknesses":["缺点1"],
+    "weaknesses":["缺点1"],${exps? `
+    "experienceChecks":[{"title":"原样照抄 experiences 里那一条的 title","status":"again / fixed / na"}],`: ""}
     "comment":"总体点评（80字内，指出下一步该补哪里）",
     "modelAnswer":"本题的完整参考答案：一篇成文范文，按题目分值定长短，结构规范、语言正式，供考生整篇对照学习"
   }`;
@@ -1500,10 +1506,12 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     `\n归类提纲（organizeOutline，可能为空）是考生作答前对材料的归类草稿：只用于诊断其归类与结构意识，不参与计分，也不要求答案与其一致；总分仍只看子项覆盖。` +
     `\n另请在返回中附上 modelAnswer：一篇本题的完整参考答案（成文范文）。它不参与计分，仅供考生整篇对照。` +
     (rewrite? `\n本次答卷（mode=rewrite）是考生按上一轮批改（previousReview）回改后的新一稿：请对照 previousReview 核对上轮指出的问题是否改正；计分口径不变。` : "") +
+    expCheck +
     "\n" + SCORING_RULES +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。同一份答卷重复阅卷，总分分差应控制在±3以内。` +
+    `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按中间档判，不要为了鼓励考生抬分。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
     `\n返回 JSON：\n` + schema;
-  return await callLLM(sys, user, true, onDelta);
+  return await callLLM(sys, user, true, onDelta, { temp: GRADE_TEMP });
 }
 
 /* ============ 经验闭环（两科共用）：批改后自动提炼 → 注入后续出题与阅卷 ============ */
@@ -1512,8 +1520,21 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
 const EXP_MAX = 60;
 const EXP_TYPES = ["错因","规则","表达"];
 let _lastDistilled = [];   // 最近一次批改提炼出的经验（申论 distill 步展示用）
+const RETEST_DAYS = 7;   // 已改掉的错因不是注销，是排期复测：纠错后一周左右会回流，换题再来一次才算真的改掉
+function expDueRetest(e, now){
+  if(!e || !e.lastCheckAt) return true;   // 从没核过的：随时等着考
+  if(!e.cleared) return true;             // 还在犯的：接着考
+  return (now - e.lastCheckAt) >= RETEST_DAYS * 86400000;   // 已改掉的：过了一周再回来复测
+}
+/* 注入哪几条有讲究：先补「还没改掉的」——错因沉淀下来是为了被考掉，不是为了存着。
+   排序：还在复犯的（次数多的更前）→ 该核/该复测的（没核过、或已改但过了一周）→ 刚核过且已改的；同档按新旧。 */
 function activeExperiences(k){
-  return (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k).slice(0,3);
+  const now = Date.now();
+  const rank = e => (Number(e && e.recur) > 0 && !e.cleared)? 0 : (expDueRetest(e, now)? 1 : 2);
+  return (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k)
+    .map((e,i)=>({ e, i, r:rank(e) }))
+    .sort((a,b)=> a.r - b.r || Number(b.e.recur||0) - Number(a.e.recur||0) || a.i - b.i)
+    .slice(0,3).map(x=>x.e);
 }
 // 只从 state.experiences 现算，无经验返回 null（JSON.stringify 会丢掉 undefined 键，不污染请求体）
 function expBlock(k){
@@ -1578,6 +1599,50 @@ function trimExperiences(){
     state.experiences.splice(idx, 1);
   }
 }
+/* 错因回执：批改时顺带判定「带进去的这几条错因这次犯没犯」，结果写回经验本身。
+   这是闭环里唯一能证明「练了有没有用」的证据：分数会漂，错因犯没犯是可核的。
+   模型没给、给了不认的 title、status 不是 again/fixed：什么都不改（保持「待验证」），不猜。 */
+let _expCheckResult = { again:[], fixed:[], at:0 };
+function applyExperienceChecks(mod, g, now){
+  _expCheckResult = { again:[], fixed:[], at:0 };
+  const list = (g && Array.isArray(g.experienceChecks))? g.experienceChecks : [];
+  if(!list.length) return _expCheckResult;
+  const injected = activeExperiences(mod);   // 只有带进去的那几条能核（模型只见过它们）
+  if(!injected.length) return _expCheckResult;
+  const t = now || Date.now();
+  for(const c of list){
+    if(!c || typeof c !== "object") continue;
+    const status = String(c.status||"").trim().toLowerCase();
+    if(status !== "again" && status !== "fixed") continue;
+    const e = injected.find(x=> expTitleSame(x.title, c.title));
+    if(!e) continue;
+    e.checks = (Number(e.checks)||0) + 1;
+    e.lastCheckAt = t;
+    if(status === "again"){ e.recur = (Number(e.recur)||0) + 1; e.lastRecurAt = t; e.cleared = false; _expCheckResult.again.push(String(e.title||"")); }
+    else { e.cleared = true; e.lastClearAt = t; _expCheckResult.fixed.push(String(e.title||"")); }
+  }
+  if(_expCheckResult.again.length || _expCheckResult.fixed.length){ _expCheckResult.at = t; save(); }
+  return _expCheckResult;
+}
+function mmdd(ts){ if(!ts) return ""; const d = new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`; }
+/* 经验状态：按最近一次核对的结果互斥归三类，没核过的算「待验证」——不虚报进步 */
+function expState(e){
+  if(!e || !e.lastCheckAt) return "fresh";
+  return e.cleared? "cleared" : "recur";
+}
+function expStatusText(e){
+  const st = expState(e);
+  if(st === "cleared") return `已改掉（${mmdd(e.lastClearAt || e.lastCheckAt)} 核过）`;
+  if(st === "recur") return `复犯 ${Number(e.recur)||1} 次（最近 ${mmdd(e.lastRecurAt || e.lastCheckAt)}）`;
+  return "还没考到";
+}
+function expStatusSummaryHtml(){
+  const all = state.experiences || [];
+  let cleared = 0, recur = 0, fresh = 0;
+  for(const e of all){ const st = expState(e); if(st === "cleared") cleared++; else if(st === "recur") recur++; else fresh++; }
+  if(!cleared && !recur) return `<div class="hint" style="margin:2px 0 8px">${all.length} 条经验都还没核过。出题会带上它们，批改时逐条核对。</div>`;
+  return `<div class="hint" style="margin:2px 0 8px">已改掉 ${cleared} 条 · 复犯 ${recur} 条 · 待验证 ${fresh} 条（批改时逐条核对）</div>`;
+}
 function previousReviewHits(){
   const g = lastGrade && lastGrade.g;
   return (g && Array.isArray(g.hits))? g.hits.map(h=>({ point:h.point||"", status:h.status||"", evidence:h.evidence||"" })) : [];
@@ -1592,7 +1657,7 @@ function expSourceLabel(e){
 // 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
 function experienceListHtml(){
   if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。完成一次批改后会自动提炼。</div>`;
-  return state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
+  return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · 错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 function distillPanelHtml(){
   let html = `<div class="hint" style="margin-top:10px">这一步不用动手：每次批改完成都会自动提炼经验，下次出题与批改会自动带上（两科共用一个经验库）。</div>`;
@@ -2196,6 +2261,57 @@ function pdRecentTheme(){
   }
   return "";
 }
+/* 辨析点归并：模型给的 trap 是自由文本（「换主体」「改数量时限」…），先按关键词归到标准类，认不出就原样留着（截 12 字）。
+   归并只为把同类错处累到一笔；不归并的话「换主体」与「把主体掉了」会各算一类，永远累不到阈值。 */
+const PD_TRAP_KINDS = [
+  { key:"换主体", kw:["主体","对象","张冠李戴"] },
+  { key:"改范围", kw:["范围","以偏概全","扩大","缩小","只取"] },
+  { key:"改数量时限", kw:["数量","时限","时间","工作日"] },
+  { key:"改关系", kw:["关系","因果","并列","转折"] },
+  { key:"抹掉限定语", kw:["限定","绝对","彻底","全面"] },
+  { key:"层级错位", kw:["层级","上位","概念"] },
+  { key:"混类", kw:["混类","不同类","做法与成效"] },
+  { key:"同义重复", kw:["重复","同义"] },
+  { key:"平均数误读", kw:["平均"] },
+  { key:"目标说成结果", kw:["目标","已推行","拟推行"] },
+  { key:"错位拼接", kw:["拼接","错位","嫁接"] },
+];
+function pdTrapKind(t){
+  const s = String(t||"").trim();
+  if(!s) return "";
+  for(const k of PD_TRAP_KINDS) for(const w of k.kw) if(s.indexOf(w) >= 0) return k.key;
+  return s.slice(0,12);
+}
+/* 按辨析点统计：只看逐题记录（老记录无 items 就没法分），并且只看**最近 20 题**（约 4 轮）——
+   辨析点是能练掉的，背一身旧账只会让「最容易栽的」永远停在很久以前那次失手。 */
+const PD_TRAP_WINDOW = 20;
+function pdTrapStats(){
+  const st = {}; let seen = 0;
+  outer:
+  for(const h of state.history){
+    if(!h || h.track !== "pd") continue;
+    const items = Array.isArray(h.items)? h.items : [];
+    for(let i = items.length - 1; i >= 0; i--){
+      const it = items[i];
+      const k = pdTrapKind(it && it.trap);
+      if(!k) continue;
+      if(!st[k]) st[k] = { q:0, c:0 };
+      st[k].q++; if(it.ok) st[k].c++;
+      if(++seen >= PD_TRAP_WINDOW) break outer;
+    }
+  }
+  return st;
+}
+/* 最该回头考的辨析点：错过就排进来（错得多的、出得多的靠前）。
+   门槛故意低（错 1 题就算）：小节里明明写了「下次出题会在这些辨析点上再考你」，
+   门槛定高了就是空头承诺——刚练完第一轮的人一个都不列，他就看不到闭环。 */
+function pdWeakTraps(n){
+  const st = pdTrapStats();
+  return Object.keys(st).map(k=>({ k, miss: st[k].q - st[k].c, q: st[k].q }))
+    .filter(x=> x.miss > 0)
+    .sort((a,b)=> b.miss - a.miss || b.q - a.q || (a.k < b.k? -1 : 1))
+    .slice(0, n || 3).map(x=> x.k);
+}
 /* 判别轨统计：按**每道题**的形式归属（综合判别一轮里三种都有，按轮算会把三类混成一笔）。
    老记录（items 里没有 form）退回按轮的形式算，改口径不会把历史数据算丢。 */
 function pdFormStats(){
@@ -2267,12 +2383,15 @@ async function genPDRound(form, theme){
   }, 1000);
   const onDelta = (d, full)=>{ const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`; };
   const exps = pdExperienceBlock(theme);
+  const weakTraps = pdWeakTraps(3);   // 闭环：上一轮小结答应「这些辨析点会再考你」，这里把它写进出题请求
   const mix = isPDMix(f);
   const user = JSON.stringify({ form: mix? "mix" : form, formName:f.name, theme, count:PD_ROUND_SIZE,
     note: (mix
         ? `出 ${PD_ROUND_SIZE} 道判别题，三种形式混着来（每种至少 1 题，不要按形式分块），每题各自给一段独立的材料节选，围绕主题的不同侧面；题目之间辨析点不重复。`
         : `出 ${PD_ROUND_SIZE} 道「${f.name}」判别题，每题各自给一段独立的材料节选，围绕主题的不同侧面；题目之间辨析点不重复。`)
-      + (exps? " 用户在 experiences 里这些点上栽过跟头：干扰项请优先针对这些点设置，检验是否已经补上。" : ""),
+      + (exps? " 用户在 experiences 里这些点上栽过跟头：干扰项请优先针对这些点设置，检验是否已经补上。" : "")
+      + (weakTraps.length? ` 用户在这几类辨析点上错得最多：${weakTraps.join("、")}——本轮请优先把干扰项设在这几类上（至少一半的题）。` : ""),
+    weakTraps: weakTraps.length? weakTraps : undefined,
     experiences: exps || undefined });
   const sys = sysPD() + (mix
       ? "\n本轮是综合判别：三种形式混着出，别按形式分块。\n" + PD_FORM_ORDER.map(id=>`【${PD_FORMS[id].name}】${PD_FORMS[id].spec}`).join("\n")
@@ -3120,11 +3239,13 @@ async function submitAnswer(){
     if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
     if(g && typeof g === "object" && !Array.isArray(g.hits)) g.hits = [];   // 采分点不是数组：先夹平，免得下面的遍历/渲染整页抛错
     updateProfile(mod);
+    const expCheck = applyExperienceChecks(mod, g);   // 错因回执：把「这次犯没犯」写回经验（批改页与经验列表共用这份结果）
     const pts = pointsOf(g.hits);
     const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub, flowId: inFlow? f.id : undefined,
       mode: rewriting? "rewrite" : undefined,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
+      expCheck: (expCheck.again.length || expCheck.fixed.length)? { again:expCheck.again.slice(), fixed:expCheck.fixed.slice() } : undefined,
       grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
     if(state.history.length>200) state.history.length=200;
     if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline, mode: rewriting? "rewrite" : "draft" });   // 批改门槛的事实源
@@ -3134,7 +3255,7 @@ async function submitAnswer(){
     if(saveHistory()){ clearDraft(qSig(q)); }
     else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
-    renderGrade(g, total);   // 申论：提交即进入「批改」步；综应A：显示结果页
+    renderGrade(g, total, expCheck);   // 申论：提交即进入「批改」步；综应A：显示结果页
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
     const fullMark = pts && pts.got === pts.max && !(g.weaknesses||[]).length;
@@ -3222,6 +3343,14 @@ function gradeHtml(g, total, inFlow){
     }
     html += `</div>`;
   }
+  // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）
+  const ec = (lastGrade && lastGrade.expCheck) || null;
+  if(ec && (ec.again.length || ec.fixed.length)){
+    const bits = [];
+    if(ec.again.length) bits.push(`「${ec.again.join("」「")}」又犯了`);
+    if(ec.fixed.length) bits.push(`「${ec.fixed.join("」「")}」这次没再犯`);
+    html += `<div class="hint" style="margin-top:10px">沉淀的错因：${esc(bits.join("；"))}。</div>`;
+  }
   if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
   const goods=(g.strengths||[]).map(s=>`<span class="pill good">+ ${esc(s)}</span>`).join("");
   const bads=(g.weaknesses||[]).map(s=>`<span class="pill bad">− ${esc(s)}</span>`).join("");
@@ -3252,8 +3381,8 @@ function gradeHtml(g, total, inFlow){
   return html;
 }
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
-function renderGrade(g, total){
-  lastGrade = { g, total };
+function renderGrade(g, total, expCheck){
+  lastGrade = { g, total, expCheck: expCheck || null };
   if(current && usesFlowChain(current.module)){
     const f = activeFlow();
     if(f && f.sig === qSig(current.question)) f.step = "review";
@@ -3301,6 +3430,7 @@ function renderProfile(){
   }
   // 判别轨单独一节：记录带 track:'pd'，不进 dims 维度画像，不与综应A/申论混算
   const pds = pdFormStats();
+  const ts = pdTrapStats();
   html += `<div class="sec-title">快判（点选即判 · 只看正确率，不计入维度画像）</div>`;
   if(PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
     html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
@@ -3311,6 +3441,9 @@ function renderProfile(){
       return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mavg">正确率 ${rate}%</span><span class="mbar"><i class="${rate<70?"lo":""}" style="width:${rate}%"></i></span><span class="mmeta">${t.rounds} 轮 · ${t.q} 题</span><span class="mweak"></span></summary><div class="mdetail"><div class="hint">${esc(PD_FORMS[id].desc)}本形式已练 ${t.rounds} 轮、${t.q} 题，答对 ${t.c} 题。</div></div></details>`;
     }).join("") + `</div>`;
     // 综合快判不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
+    const traps = pdWeakTraps(3);
+    const stMiss = k => { const x = ts[k]; return x? x.q - x.c : 0; };
+    if(traps.length) html += `<div class="hint" style="margin:-6px 0 14px">最该回头考的辨析点：${esc(traps.map(k=>`${k}（错过 ${stMiss(k)} 题）`).join("、"))}——下次出题会优先考这几类。</div>`;
     if(pds.mixRounds) html += `<div class="hint" style="margin:-6px 0 14px">综合快判已出 ${pds.mixRounds} 轮，每题都归入了上面三类。</div>`;
   } else {
     html += `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
