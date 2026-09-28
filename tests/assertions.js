@@ -1615,6 +1615,111 @@ ok(capSys18.indexOf("半分") >= 0 && capSys18.indexOf("evidence") >= 0,
    "口径: 改成要求「判半分要写得出依据」，治的正是那次 0↔半 的摆动");
 callLLM = realCall18;
 
+/* ============ 19. 练自己的题 / 材料出处 / 单条申诉 ============ */
+
+/* 19.1 入口与弹层：落地页有入口，弹层的材料/要求/分值三项齐全 */
+renderModuleLanding("zy.guina");
+ok(el("#docBody").innerHTML.indexOf("btnOwnQuestion") >= 0 && PAGE_HTML.indexOf('id="modalOwn"') >= 0
+   && PAGE_HTML.indexOf('id="ownMaterial"') >= 0 && PAGE_HTML.indexOf('id="ownAsk"') >= 0 && PAGE_HTML.indexOf('id="ownScore"') >= 0,
+   "练自己的题: 落地页有入口，弹层里材料 / 要求 / 分值三项齐全");
+
+/* 19.2 拆采分点：只拆点不写题，粘的材料原样进题面 */
+let capOwn = null;
+const realCall19 = callLLM;
+callLLM = async (sys, user)=>{ capOwn = { sys, user }; return { keyPoints:[{point:"做法一",score:10},{point:"做法二",score:10}], suggestedFormat:"分条写" }; };
+openOwnQuestion("zy.guina");
+el("#ownMaterial").value = "材料原文".repeat(20);
+el("#ownAsk").value = "根据给定材料，概括主要做法。";
+el("#ownScore").value = "20";
+await beginOwnQuestion();
+ok(capOwn && capOwn.sys.indexOf("不要另编一道题") >= 0 && capOwn.sys.indexOf("拆成带分值的采分点") >= 0,
+   "练自己的题: 只拆采分点——明写不另编题、不改写材料");
+ok(current && current.module === "zy.guina" && current.question.background === "材料原文".repeat(20)
+   && current.question.score === 20 && (current.keyPoints||[]).length === 2 && current.phase === "answer"
+   && current.question.suggestedFormat === "分条写",
+   "练自己的题: 粘的材料原样进题面，拆出的采分点进作答流程（没有学习卡就直接作答）");
+ok(capOwn && capOwn.user.indexOf("材料原文") >= 0 && capOwn.user.indexOf("300") < 0,
+   "练自己的题: 拆点请求带的是原文，不套本地字数表");
+
+/* 19.3 材料太短 / 没写作答要求：先不发请求，也不落记录 */
+let calls19 = 0;
+callLLM = async ()=>{ calls19++; return {}; };
+el("#ownMaterial").value = "太短";
+el("#ownAsk").value = "概括做法";
+await beginOwnQuestion();
+ok(calls19 === 0 && el("#bannerSlot").innerHTML.indexOf("材料太短") >= 0,
+   "练自己的题: 材料太短就拦下来，不发请求、不烧钱");
+el("#ownMaterial").value = "材料原文".repeat(20);
+el("#ownAsk").value = "";
+await beginOwnQuestion();
+ok(calls19 === 0 && el("#bannerSlot").innerHTML.indexOf("作答要求") >= 0,
+   "练自己的题: 没写作答要求也拦下来（拆点少了要求会拆歪）");
+
+/* 19.4 材料出处：阅卷 schema 增 where，且明写不参与计分 */
+let capSys19 = null;
+callLLM = async (sys)=>{ capSys19 = sys; return { hits:[], scores:{}, strengths:[], weaknesses:[], comment:"" }; };
+await grade("zy.guina", "归纳概括", { background:"b", requirements:"r", score:20 }, [], "答", null);
+ok(capSys19.indexOf('"where"') >= 0 && capSys19.indexOf("照抄") >= 0 && capSys19.indexOf("不参与计分") >= 0,
+   "材料出处: 阅卷要求 where 照抄材料原句，并且明写它不参与计分");
+
+/* 19.5 批改页：有出处就显示，模型填 - 就不显示，老记录没这个字段也不炸 */
+const g19 = { hits:[{point:"做法一",score:4,awarded:4,status:"满分",kind:"-",where:"把分散在各部门的审批事项集中到一窗受理"},
+                    {point:"做法二",score:4,awarded:0,status:"零分",kind:"漏点",evidence:"【缺：数据共享】",where:"跨部门数据没有真正打通"},
+                    {point:"做法三",score:12,awarded:12,status:"满分",kind:"-",where:"-"}],
+              scores:{}, strengths:[], weaknesses:[], comment:"" };
+const html19 = gradeHtml(g19, 50, false);
+ok(html19.indexOf("材料出处：跨部门数据没有真正打通") >= 0,
+   "材料出处: 批改页把材料原句摆在证据格里，能自己回材料核对");
+ok(html19.indexOf("材料出处：-") < 0,
+   "材料出处: 模型填 - （材料里确实没对应表述）就不显示那一行");
+ok(html19.indexOf('data-appeal="1"') >= 0 && html19.indexOf('data-appeal="0"') < 0 && html19.indexOf('data-appeal="2"') < 0,
+   "单条申诉: 只有没拿满分的子项才有申诉入口");
+const html19b = gradeHtml({ hits:[{point:"老记录",score:4,awarded:4,status:"满分"}], scores:{}, strengths:[], weaknesses:[], comment:"" }, 60, false);
+ok(html19b.indexOf("材料出处") < 0 && html19b.indexOf("老记录") >= 0,
+   "材料出处: 老记录没有 where 就不显示，也不报错");
+
+/* 19.6 申诉重判：只改被申诉的那一条，总分与记录一起重算 */
+const g19c = { hits:[{point:"A",score:4,awarded:0,status:"零分",kind:"漏点",evidence:"【缺：x】"},
+                     {point:"B",score:4,awarded:2,status:"半分",kind:"表达",evidence:"△"},
+                     {point:"C",score:12,awarded:12,status:"满分",kind:"-"}],
+               scores:{}, strengths:[], weaknesses:[], comment:"" };
+current = { module:"zy.guina", subtype:"归纳概括", question:{background:"b", requirements:"r", score:20}, keyPoints:[], cardPeeks:0, phase:"grade" };
+state.history.unshift({ ts:Date.now(), module:"zy.guina", subtype:"归纳概括", question:current.question, answer:"我的答卷", keyPoints:[], hits:g19c.hits, grade:{ total:35, scored:pointsOf(g19c.hits), scores:{} } });
+renderGrade(g19c, 35, null);
+let capAppeal = null;
+callLLM = async (sys, user)=>{ capAppeal = { sys, user }; return { awarded:4, status:"满分", evidence:"考生写了数据共享那句", verdict:"改判", reason:"答卷里有对应表述" }; };
+_appealIdx = 0;
+el("#appealText").value = "我答到了数据共享那句";
+await submitAppeal();
+ok(capAppeal && capAppeal.sys.indexOf("只复核其中一条子项") >= 0 && capAppeal.sys.indexOf("不能因为考生申诉就抬分") >= 0
+   && capAppeal.user.indexOf("我答到了数据共享那句") >= 0,
+   "单条申诉: 复核只针对这一条，且明写不许因为申诉就抬分");
+ok(g19c.hits[0].awarded === 4 && g19c.hits[1].awarded === 2 && g19c.hits[2].awarded === 12,
+   "单条申诉: 只重判被申诉的那一条，其它子项一分不动");
+ok(state.history[0].grade.total === 90 && state.history[0].grade.scored.got === 18 && state.history[0].hits[0].awarded === 4,
+   "单条申诉: 记录跟着卷面重算（各子项实得分之和 18/20 → 90 分）");
+ok(g19c.hits[0].appeal && g19c.hits[0].appeal.before === 0 && g19c.hits[0].appeal.verdict === "改判" && _appealIdx === null,
+   "单条申诉: 留下申诉痕迹（原分 / 结论 / 理由），申诉框收起");
+
+/* 19.7 申诉不保证加分：没答到就维持原判 */
+callLLM = async ()=>({ awarded:2, status:"半分", evidence:"△ 只有半句", verdict:"维持", reason:"答卷里只沾到一半" });
+_appealIdx = 1;
+el("#appealText").value = "我觉得这里也对";
+await submitAppeal();
+ok(g19c.hits[1].awarded === 2 && g19c.hits[1].appeal.verdict === "维持" && state.history[0].grade.total === 90,
+   "单条申诉: 申诉不保证加分——复核说没答到就维持原判，总分不动");
+
+/* 19.8 复核也能往下改：原判偏松就照实降，总分跟着走 */
+callLLM = async ()=>({ awarded:0, status:"零分", evidence:"【缺：x】", verdict:"维持", reason:"原判偏松" });
+_appealIdx = 1;
+el("#appealText").value = "再复核一次";
+await submitAppeal();
+ok(g19c.hits[1].awarded === 0 && g19c.hits[1].appeal.verdict === "复核降分" && state.history[0].grade.total === 80,
+   "单条申诉: 复核也能往下改——原判偏松照实降，总分跟着走（按得分变化说，不按模型自报的结论说）");
+callLLM = realCall19;
+_appealIdx = null;
+current = null;
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
