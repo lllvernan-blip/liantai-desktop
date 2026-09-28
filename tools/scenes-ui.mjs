@@ -143,6 +143,32 @@ function s17_landing_tut() { __reset({ history: true }); state.tut.zy = false; r
 function s18_pd_tut() { __reset({ history: true }); state.tut.pd = false; enterPD(); }
 function s19_tut_reset_replay() { __reset({ history: true }); state.settings.subject = "zy"; openModal("modalSettings"); fillSettings(); const b = $("#btnTutReset"); if (b && typeof b.onclick === "function") b.onclick(); }
 
+function s20_own_modal() {
+  __reset({ history: true });
+  openOwnQuestion("zy.guina");
+  const m = $("#ownMaterial");
+  if (m) m.value = "近年来，某市持续推进政务服务标准化建设。市政务服务中心把分散在各部门的审批事项集中到一窗受理，平均办理时限由 12 个工作日压缩到 4 个。同时上线了「好差评」系统，评价结果直接与窗口考核挂钩。有企业反映，部分事项仍需线下重复提交纸质材料，跨部门数据没有真正打通。市里计划今年把标准化清单覆盖率提高到九成。";
+  const a = $("#ownAsk");
+  if (a) a.value = "根据给定材料，概括该市推进政务服务标准化的主要做法。（20 分，不超过 300 字）";
+}
+function s21_grade_sources() {
+  __reset({ history: true });
+  const dims = MODULES["zy.guina"].dims;
+  const sc = {};
+  dims.forEach((d, i) => { sc[d] = [16, 14, 15, 17, 13][i % 5]; });
+  const g = { hits: [
+    { point: "上线「好差评」并与窗口考核挂钩", score: 4, awarded: 2, status: "半分", kind: "表达", evidence: "△ 只提到上线好差评，没说与考核挂钩", where: "上线了「好差评」系统，办事群众扫码即可评价，评价结果直接与窗口考核挂钩" },
+    { point: "把分散审批事项集中到一窗受理", score: 4, awarded: 4, status: "满分", kind: "-", where: "把分散在各部门的审批事项集中到一窗受理，平均办理时限由 12 个工作日压缩到 4 个" },
+    { point: "跨部门数据共享（问题类信息）", score: 12, awarded: 0, status: "零分", kind: "漏点", evidence: "【缺：数据共享】", where: "部分事项仍需线下重复提交纸质材料，跨部门数据没有真正打通" },
+  ], scores: sc, strengths: ["结构分条清楚"], weaknesses: ["漏了材料里的问题类信息"], comment: "材料里那句「数据没有真正打通」没接住。" };
+  const total = 30;
+  current = { module: "zy.guina", subtype: "归纳概括", question: __q, keyPoints: [], cardPeeks: 0, phase: "grade" };
+  state.history.unshift({ ts: Date.now(), module: "zy.guina", subtype: "归纳概括", question: __q, answer: "一、集中受理。……", keyPoints: [], hits: g.hits, grade: { total, scored: pointsOf(g.hits), scores: sc } });
+  renderGrade(g, total, null);
+  _appealIdx = 0;   // 展开一条申诉：看的就是它长什么样（放在第一条，一屏里看得见）
+  renderLastGrade();
+}
+
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
   ["02-起始页-已配置", s02_start_ready, true],
@@ -164,10 +190,12 @@ const SCENES = [
   ["17-综应起始-首次引导", s17_landing_tut, true],
   ["18-快判-首次引导", s18_pd_tut, true],
   ["19-设置-重置后当场重播", s19_tut_reset_replay, true],
+  ["20-练自己的题-弹层", s20_own_modal, false],
+  ["21-批改-材料出处与申诉", s21_grade_sources, true, { height: 1320 }],   // 申诉框在第一屏下方：把视口抻高，一屏拍完
 ];
 
-export const scenes = SCENES.map(([name, fn, full]) => ({
+export const scenes = SCENES.map(([name, fn, full, extra]) => Object.assign({
   name,
   full,
   js: "(" + PRELUDE.toString() + ")();\n(" + fn.toString() + ")();",
-}));
+}, extra || {}));

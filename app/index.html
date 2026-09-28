@@ -242,6 +242,12 @@ html,body{margin:0;padding:0;}
 /* 错因类型小标：批改页丢分处的那一小块文字。字号走六档里的 12px，颜色维度只借 token，不新造色。 */
 .kindtag{flex:0 0 auto;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 6px;border-radius:var(--r-ctl);white-space:nowrap;}
 .hitline .kindtag{order:1;}
+/* 单条申诉：入口贴在子项行里，展开的编辑框跟正文共用一条顶线——不另起一种视觉 */
+.hitline .ap{flex:0 0 auto;font-size:12px;color:var(--muted);padding:2px 6px;min-height:24px;}
+.hitline .ap:hover{color:var(--gov-red);}
+.appealbox{border-top:1px solid var(--line);background:var(--wash);padding:10px 12px;}
+.appealbox .noteedit{min-height:72px;}
+.appealbox .actions{margin-top:8px;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:8px 0 4px;}
   .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
@@ -295,6 +301,8 @@ html,body{margin:0;padding:0;}
   /* 设置弹层的分界：上面是接哪家 AI，下面是版本与更新 */
   #updateField{border-top:1px solid var(--line);margin-top:20px;padding-top:18px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
+  .field textarea{width:100%;min-height:96px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:10px 12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  .field textarea:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .field .note{font-size:12px;color:var(--muted-2);margin-top:4px;}
   /* 地址与 Key 是技术串：仿宋里 l / 1 / I 长得一样，这两格单独换雅黑 */
   #setBase,#setKey,#setModel{font-family:var(--yahei);font-size:13px;}
@@ -609,6 +617,32 @@ html,body{margin:0;padding:0;}
     <div class="box">
       <div class="mhead"><span>我的画像（按科目分组 · 模块强弱 / 题型统计 / 历史）</span><button class="x" title="关闭">✕</button></div>
       <div class="panel-body" id="profileBody"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="modalOwn" hidden role="dialog" aria-modal="true" aria-label="粘贴我自己的题">
+    <div class="box">
+      <div class="mhead"><span>粘贴我自己的题（材料 + 作答要求）</span><button class="x" title="关闭">✕</button></div>
+      <div class="panel-body">
+        <div class="field">
+          <label>背景材料</label>
+          <textarea id="ownMaterial" rows="9" placeholder="把材料原文粘进来，含题干中附的材料。"></textarea>
+          <div class="note">按你给的原文拆采分点，不会改写材料。</div>
+        </div>
+        <div class="field">
+          <label>作答要求</label>
+          <textarea id="ownAsk" rows="3" placeholder="例如：根据给定材料，概括该市推进政务服务标准化的主要做法。（20 分，不超过 300 字）"></textarea>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>本题分值</label>
+          <input type="text" id="ownScore" value="20">
+          <div class="note">填数字，留空按 20 分算。</div>
+        </div>
+        <div class="actions" style="justify-content:flex-end">
+          <button class="linkbtn" id="btnOwnCancel">取消</button>
+          <button class="primary" id="btnOwnGo">拆采分点，开始作答</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1516,7 +1550,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     exps? { experiences:exps, expNote } : {},
     rewrite? { mode:"rewrite", previousReview:(rewrite.previousReview||[]) } : {}));
   const schema = `{
-    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
+    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注","where":"材料里支撑这一条的原文片段（10-30字，照抄材料原句；材料里确实没有对应表述的填 -）"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
@@ -1533,6 +1567,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     expCheck +
     "\n" + SCORING_RULES +
     `\n错因归类：每条子项都要给 kind——${GRADE_TAG_LINE}；拿不准选最接近的一类，拿满分的填 -。kind 只用于考生自己的错因统计，不参与计分，不得因此改动 awarded 与总分。` +
+    `\n材料出处：每条子项再给一个 where——把材料里支撑这一条的原文照抄 10-30 字（照抄，不改写、不拼接两处）；材料里确实没有对应表述的才填 -。它只帮考生回材料核对，不参与计分。` +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。` +
     `\n同一份答卷重复阅卷时，个别子项可能在相邻档位之间摆动：判「半分」时必须在 evidence 里写出考生答到了哪些内容，写不出对应表述的就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按中间档判，不要为了鼓励考生抬分。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
@@ -1823,7 +1858,7 @@ function backToStart(){
 let _focusBack = null;   // 弹层打开前的焦点落点（声明在 openModal 之前，避开 TDZ）
 function openModal(id){
   _focusBack = document.activeElement;   // 关掉弹层把焦点还给原来那个按钮，键盘用户不会掉到页首
-  ["modalSettings","modalProfile"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
+  ["modalSettings","modalProfile","modalOwn"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
   document.body.style.overflow = "hidden";
   const m = $("#"+id);
   const box = (m && typeof m.querySelector === "function")? m.querySelector(".box") : null;
@@ -1833,14 +1868,14 @@ function openModal(id){
   }
 }
 function closeModals(){
-  $("#modalSettings").hidden = true; $("#modalProfile").hidden = true;
+  $("#modalSettings").hidden = true; $("#modalProfile").hidden = true; $("#modalOwn").hidden = true;
   document.body.style.overflow = "";
   if(_focusBack && typeof _focusBack.focus === "function"){ try{ _focusBack.focus({preventScroll:true}); }catch(e){} }
   _focusBack = null;
 }
 /* 弹层开着时把 Tab 圈在弹层里：否则焦点会跑到遮罩后面的页面上，看着焦点环消失、回车却改了背后那页 */
 function openModalEl(){
-  for(const id of ["modalSettings","modalProfile"]){
+  for(const id of ["modalSettings","modalProfile","modalOwn"]){
     const m = $("#"+id);
     if(m && !m.hidden) return m;
   }
@@ -2042,9 +2077,11 @@ function renderModuleLanding(k){
     }).join("")}
     </div>
     <div class="actions" style="justify-content:center;margin-top:26px"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
+    <div class="actions" style="justify-content:center;margin-top:10px"><button class="linkbtn" id="btnOwnQuestion">粘贴我自己的题</button></div>
   </div>`;
   docBody.innerHTML = html;
   $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
+  $("#btnOwnQuestion").onclick = ()=> openOwnQuestion(k);
   docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
 }
 
@@ -2056,6 +2093,58 @@ async function startSmart(){
 async function startModule(k){
   activeModule = k; renderHeader();
   await loadQuestion(k, pickSubtypeFor(k));
+}
+
+/* ============ 练自己的题：材料与要求照抄粘贴，只让 AI 拆采分点 ============
+   出题那一步的活一点不干：材料是用户给的原文，不生成材料、不改写要求、也不套本地字数表。
+   拆出来的采分点与生成题同格式，所以后面的作答、批改、画像全部照旧。 */
+let _ownModule = null;   // 弹层是全局的，模块随入口走
+function openOwnQuestion(k){
+  _ownModule = k;
+  openModal("modalOwn");
+}
+/* 拆采分点：分值口径与出题共用 GEN_POINT_RULES，但只拆点、不写题 */
+async function ownKeyPoints(k, question){
+  const user = JSON.stringify({ module:MODULES[k].name, background:question.background, requirements:question.requirements, score:question.score });
+  const sys = sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES +
+    "\n这次是考生自己贴来的题：材料与作答要求都是他给的原文，照抄理解即可——不要改写材料、不要另编一道题、不要改字数要求。" +
+    "\n只做一件事：把这道题拆成带分值的采分点，并给一句建议作答结构。\n返回 JSON：\n" +
+    `{
+    "keyPoints":[{"point":"采分点子项1（拆成 6-10 个带分值的子项）","score":5}],
+    "suggestedFormat":"建议作答结构（一两句）"
+  }`;
+  return await callLLM(sys, user, true);
+}
+async function beginOwnQuestion(){
+  const k = _ownModule || activeModule || weakestModule();
+  const mat = ((($("#ownMaterial")||{}).value)||"").trim();
+  const ask = ((($("#ownAsk")||{}).value)||"").trim();
+  const raw = Number((((($("#ownScore")||{}).value)||"").trim()));
+  if(mat.length < 60){ banner("材料太短：把题干与材料原文整段粘进来再开始。"); return; }
+  if(ask.length < 6){ banner("还差作答要求：把题目要求那几句一起粘进来。"); return; }
+  const score = (isFinite(raw) && raw > 0)? Math.round(raw) : 20;
+  closeModals();
+  banner("");
+  const mySeq = ++reqSeq;
+  const t0 = Date.now();
+  showLoading("正在按你粘的材料拆采分点…");
+  const tick = setInterval(()=>{ const el = $("#elapsed"); if(!el){ clearInterval(tick); return; } el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`; }, 1000);
+  try{
+    const question = { background:mat, requirements:ask, score, difficulty:"适中" };
+    const data = await ownKeyPoints(k, question);
+    if(mySeq !== reqSeq) return;
+    if(!data || !Array.isArray(data.keyPoints) || !data.keyPoints.length) throw {code:"JSON"};
+    question.suggestedFormat = String(data.suggestedFormat||"").trim();
+    activeModule = k; renderHeader();
+    // 自拟题没有学习卡，也不套本地字数表：直接进作答（综应A 的 card 阶段没什么可看的）
+    current = { module:k, subtype:null, question, keyPoints:data.keyPoints, cardPeeks:0, phase:"answer" };
+    renderQuestion();
+    $("#ownMaterial").value = ""; $("#ownAsk").value = ""; $("#ownScore").value = "20";   // 下一次贴新题从空白开始
+  }catch(e){
+    if(mySeq !== reqSeq) return;
+    renderModuleLanding(k);   // 回到落地页：粘进去的文字还在弹层里，点开就能重来
+    handleErr(e, true);
+  }finally{ clearInterval(tick); }
 }
 
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
@@ -2200,6 +2289,7 @@ function wireZyPage(phase){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    wireAppeal();
   } else {
     const ba = $("#btnZyAnswer"); if(ba) ba.onclick = ()=>{ current.phase = "answer"; renderZyPage(); };
     const cn = $("#cardNote");
@@ -3239,6 +3329,7 @@ function wireStep(step, f){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    wireAppeal();
   }
 }
 /* 找点已并入读材料步：这里的监听只服务合并后的 read 步（点句子=找点开关，选区弹窗=划线/选要点） */
@@ -3440,12 +3531,19 @@ function gradeHtml(g, total, inFlow){
   if(!lost.length && bads) html += `<div class="pills"><span class="plabel">待改进</span>${bads}</div>`;
   if(hits.length){
     html += `<details class="notebox" open style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）</summary><div class="notebody">`;
-    for(const h of hits){
+    for(let i=0;i<hits.length;i++){
+      const h = hits[i];
       const cls = hitClass(h);
       const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
       const sc = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
       const kth = (cls !== "hit")? gradeTagOf(h) : "";   // 拿满分的子项不算错因，不贴标签
-      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${sc}${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
+      // 材料出处跟着证据走：同一个格子里换行显示，不另起一列
+      const src = (h.where && String(h.where).trim() !== "-")? String(h.where).trim() : "";
+      const ev = (h.evidence || src)? `<span class="ev">${h.evidence? esc(h.evidence):""}${src? `${h.evidence? "<br>":""}材料出处：${esc(src)}`:""}</span>` : "";
+      const ap = (cls !== "hit")? `<button class="linkbtn ap" data-appeal="${i}">申诉</button>` : "";   // 拿满分的子项没什么可申诉
+      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${sc}${ev}${ap}</div>`;
+      if(h.appeal) html += `<div class="hint" style="padding:0 12px 6px">${h.appeal.verdict === "改判"? `申诉已改判：${h.appeal.before} → ${h.awarded} 分` : (h.appeal.verdict === "复核降分"? `申诉后复核为 ${h.awarded} 分（原 ${h.appeal.before} 分）` : "申诉后维持原判")}${h.appeal.note? `：${esc(h.appeal.note)}` : ""}</div>`;
+      if(_appealIdx === i) html += `<div class="appealbox"><textarea class="noteedit" id="appealText" placeholder="说清你答到了哪些内容、为什么该给分。"></textarea><div class="actions"><button class="primary" id="btnAppealGo">提交申诉</button><button class="linkbtn" data-appeal="-1">取消</button></div></div>`;
     }
     html += `</div></details>`;
   }
@@ -3462,8 +3560,96 @@ function gradeHtml(g, total, inFlow){
     </div></div>`;
   return html;
 }
+/* ============ 单条申诉：只重判这一条子项 ============
+   总分口径一字不动：重判后仍是「各子项实得分之和」，所以改一条就得把卷面与那条记录一起重算。
+   复核只回答一个问题——考生到底答到什么程度；不因为「他来申诉」就抬分。 */
+let _appealIdx = null;   // 正在编辑哪一条（null = 没开）
+function currentRecord(){
+  const sig = (current && current.question)? qSig(current.question) : "";
+  if(sig) for(const h of state.history){ if(h && h.question && qSig(h.question) === sig) return h; }
+  return state.history[0] || null;
+}
+async function regradeHit(k, subtype, question, keyPoints, answer, hit, reason){
+  const user = JSON.stringify({ module:(MODULES[k]||{}).name||k, subtype:subtype||"", question, answer, keyPoints:keyPoints||[],
+    item:{ point:hit.point, score:hit.score, awarded:hit.awarded, evidence:hit.evidence||"", kind:hit.kind||"-" }, appeal:reason });
+  const sys = sysGrader(k) + "\n" + modInstruction(k) +
+    "\n现在只复核其中一条子项：考生对它的判分提出了申诉。" +
+    "\n只看材料与答卷原文，判断考生是否答到了这条要求的内容（用自己的话表达、意思到位即算命中，不得苛求原文）。" +
+    "\n不能因为考生申诉就抬分：证据不足就维持原判，维持时必须在 reason 里写清缺的是什么。" +
+    "\n若发现原判偏松（答得并不够），也照实判——复核不是只在一个方向上改。" +
+    "\n档位与这条子项满分对齐：" + SCORING_RULES +
+    `\n返回 JSON：\n{ "awarded": 数字, "status": "满分 / 半分 / 零分", "evidence": "考生答案中的对应表述；没答到的用【缺：xxx】", "verdict": "改判 / 维持", "reason": "一句话说明依据（40字内）" }`;
+  return await callLLM(sys, user, true, null, { temp: GRADE_TEMP });
+}
+/* 重判后把那条练习记录改到与卷面一致：hits、实得分、折百分制的总分三处一起改，不是就画像与批改页对不上 */
+function applyRecordGrade(rec, g){
+  if(!rec) return;
+  rec.hits = (g && g.hits) || [];
+  const pts = pointsOf(rec.hits);
+  const total = pts? Math.round(pts.got / pts.max * 100) : (rec.grade && rec.grade.total);
+  rec.grade = Object.assign({}, rec.grade, { scored:pts, total });
+}
+async function submitAppeal(){
+  const g = lastGrade && lastGrade.g;
+  const idx = _appealIdx;
+  const h = (g && g.hits)? g.hits[idx] : null;
+  if(!g || !h) return;
+  const ta = $("#appealText");
+  const reason = (((ta && ta.value)||"").trim());
+  if(reason.length < 5){ banner("先写清理由：你答到了哪些内容、为什么该给分。"); return; }
+  const go = $("#btnAppealGo"); if(go){ go.disabled = true; go.textContent = "重判中…"; }
+  banner("");
+  const rec = currentRecord();
+  const before = Number(h.awarded), sc = Number(h.score);
+  const mySeq = ++reqSeq;
+  try{
+    const r = await regradeHit(current.module, current.subtype, current.question, current.keyPoints||[], (rec && rec.answer)||"", h, reason);
+    if(mySeq !== reqSeq) return;
+    let aw = Number(r && r.awarded);
+    if(!isFinite(aw)) aw = before;
+    aw = isFinite(sc)? Math.max(0, Math.min(aw, sc)) : Math.max(0, aw);   // 夹在 [0, 该子项满分] 之间
+    h.awarded = aw;
+    if(r && typeof r.evidence === "string" && r.evidence) h.evidence = r.evidence;
+    if(r && r.status) h.status = r.status;
+    const verdict = aw > before? "改判" : (aw < before? "复核降分" : "维持");   // 按实际得分变化说，不按模型自报的结论说
+    h.appeal = { at:Date.now(), reason, verdict, before, note:(r && r.reason)||"" };
+    applyRecordGrade(rec, g);
+    saveHistory(); save();
+    const pts = pointsOf(g.hits);
+    const total = pts? Math.round(pts.got / pts.max * 100) : lastGrade.total;
+    const expCheck = lastGrade.expCheck;
+    _appealIdx = null;
+    renderGrade(g, total, expCheck);   // 卷面重画：总分与那条子项一起更新
+    banner(verdict === "改判"? `申诉已受理：这一条由 ${before} 分改为 ${aw} 分。`
+        : (verdict === "复核降分"? `复核后这一条由 ${before} 分改为 ${aw} 分。` : "申诉已受理：这一条维持原判。"));
+  }catch(e){
+    if(mySeq !== reqSeq) return;
+    handleErr(e, true);
+    if(go){ go.disabled = false; go.textContent = "提交申诉"; }
+  }
+}
+/* 就地把批改页重画一遍（开/收申诉框用），不重算分数 */
+function renderLastGrade(){
+  if(!lastGrade) return;
+  const f = activeFlow();
+  if(current && usesFlowChain(current.module) && f && f.step === "review"){ renderFlowStep(); return; }
+  if(current){ current.grade = { g:lastGrade.g, total:lastGrade.total }; renderZyPage(); }
+}
+/* 批改页的行内动作：综应A 结果页与申论批改步绑的是同一份 */
+function wireAppeal(){
+  const go = $("#btnAppealGo"); if(go) go.onclick = submitAppeal;
+  const box = $("#appealText");
+  if(box && _appealIdx != null && typeof box.focus === "function"){ try{ box.focus({preventScroll:true}); }catch(e){} }
+  docBody.querySelectorAll("[data-appeal]").forEach(b=> b.onclick = ()=>{
+    const v = Number(b.dataset.appeal);
+    _appealIdx = (v < 0)? null : v;
+    renderLastGrade();
+  });
+}
+
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
 function renderGrade(g, total, expCheck){
+  _appealIdx = null;   // 新一轮批改：申诉框一律收起
   lastGrade = { g, total, expCheck: expCheck || null };
   if(current && usesFlowChain(current.module)){
     const f = activeFlow();
