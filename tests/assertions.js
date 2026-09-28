@@ -333,33 +333,33 @@ el("#setKey").value = "sk-test";
 el("#setModel").value = "deepseek-v4-flash";   // 不在名单里但实测能用的名字
 const realFetch = globalThis.fetch;
 globalThis.fetch = () => Promise.resolve({ ok:true, status:200, json: async()=>({ data:[{id:"z-model"},{id:"a-flash-model"},{id:"m-chat"}] }), headers:{ get:()=>"application/json" }, text: async()=>"" });
-await fetchModels();
+await fetchModels(true);
 ok(Array.isArray(state.modelCache["https://api.test.com/v1"]) && state.modelCache["https://api.test.com/v1"].length === 3, "实拉: 名单入库缓存");
 ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 静默模式不改写当前模型（名单可能不全）");
 ok(el("#modelMenu").innerHTML.indexOf("a-flash-model") >= 0, "实拉: 候选菜单来自接口");
 ok(el("#modelMenu").innerHTML.indexOf("z-model") >= 0 && el("#modelMenu").innerHTML.indexOf("m-chat") >= 0,
    "实拉: 展开候选时整份名单全量列出（不受已填文字过滤，自绘菜单替代原生 datalist）");
-ok(PAGE_HTML.indexOf("setProvider") < 0, "预设: 服务商下拉已删（地址手填，模型名一律实拉）");
+ok(PROVIDERS.every(p=>!p.models), "预设: 服务商只预设地址，模型名一个都不写死（手写的名字迟早过期）");
 el("#setModel").value = "";
-await fetchModels();
+await fetchModels(true);
 ok(el("#setModel").value === "a-flash-model", "实拉: 当前为空时自动补最快模型");
-await fetchModels();
-ok(el("#modelNote").textContent.indexOf("3 个模型") >= 0, "实拉: 拉完在说明里如实报数量");
+await fetchModels(false);
+ok(el("#setMsg").textContent.indexOf("3 个模型") >= 0, "实拉: 手动拉取有反馈");
 el("#setModel").value = "deepseek-v4-flash";
-await fetchModels();
-ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 名单外的名字不被改写（列表不是生死簿）");
+await fetchModels(false);
+ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
 globalThis.fetch = realFetch;
 
 /* 8.2 没有实拉结果时不编名字：候选可以空，模型名不可以瞎写 */
-el("#setKey").value = "";   // 清掉 Key，避免改地址时触发后台实拉，让本段只考验「没有名单时怎么办」
-el("#setBase").value = "https://api.moonshot.cn/v1";
-onBaseChange();
+el("#setKey").value = "";   // 清掉 Key，避免换服务商时触发后台实拉，让本段只考验「没有名单时怎么办」
+el("#setProvider").value = "kimi";
+onProviderChange();
 ok(el("#modelMenu").innerHTML === "" && el("#setModel").value === "",
-   "换地址: 这家没实拉缓存就不编候选，也不把上一家的模型名留在框里");
-el("#setBase").value = "https://api.deepseek.com/v1";
-onBaseChange();
+   "换服务商: 这家没实拉缓存就不编候选，也不把上一家的模型名留在框里");
+el("#setProvider").value = "deepseek";
+onProviderChange();
 ok(el("#setModel").value === "" && el("#modelMenu").innerHTML.indexOf("deepseek") < 0,
-   "换地址: 模型栏留空等实拉，不含任何写死的名字");
+   "换服务商: 模型栏留空等实拉，不含任何写死的名字");
 
 /* 8.3 推理程度随模型适配：认得出的家族按各自发法，认不出的不带档位也不显三档 */
 state.settings.apiKey = "sk-test";
@@ -460,7 +460,7 @@ ok(activeFlow() && activeFlow().module === "sl.guina", "申论七步链: 渲染�
 ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0, "读材料: 题目与材料同屏（找点合并后材料按句分段）");
 ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡折叠并入本步（展开可看）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
-ok(el("#docBody").innerHTML.indexOf("翻了") < 0, "熟悉度: 不再展示翻卡次数与「越少越熟」评价（次数只在内部参与调度）");
+ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始归类」推进）");
 ok(el("#docBody").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存");
 ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
@@ -509,7 +509,7 @@ ok(!state.flows.some(x=>x.sig === qSig(current.question)) && (activeFlow() === n
 ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A: 不渲染七步步骤条");
 ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A: 学习卡阶段有「开始作答」入口");
 ok(el("#docBody").innerHTML.indexOf("综应要点：格式三件套") >= 0, "综应A: 学习卡阶段笔记可见");
-ok(el("#docBody").innerHTML.indexOf("翻了") < 0, "综应A: 翻卡次数不上界面（内部照旧记）");
+ok(el("#docBody").innerHTML.indexOf("上次作答中你翻了 2 次卡") >= 0, "综应A: 翻卡熟悉度提示照旧");
 ok(el("#docBody").innerHTML.indexOf("展开可看") < 0 && el("#docBody").innerHTML.indexOf("解题要点") >= 0,
    "综应A: 卡阶段整页平铺不再折叠（页面就是给卡的）");
 ok(cardHtml({points:["要点"],pitfalls:["失分"],templates:"框架",example:{scene:"燃气泄漏的示例场景。",ask:"你会怎么处置？"}}).indexOf("这类题长什么样") >= 0,
@@ -557,7 +557,7 @@ ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf(
 renderTabs();
 ok(el("#modbar").innerHTML.indexOf("__all") < 0, "页签: 综合页签已撤（不选题型即综合推送，不设双入口）");
 renderStart();
-ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0 && el("#docBody").innerHTML.indexOf("不选题型也行") >= 0, "起始页: 智能推送入口 + 「不选题型也行」明示");
+ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0 && el("#docBody").innerHTML.indexOf("按综合来推") >= 0, "起始页: 智能推送入口 + 「不选题型就按综合来推」明示");
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
@@ -584,13 +584,12 @@ ok(loadMarks(qSig(mq)).has(0) && loadMarks(qSig(mq)).has(8) && loadMarks(qSig(mq
 for(let i=0;i<9;i++){ saveMarks("mk"+i, new Set([i])); }
 ok(!loadMarks("mk0").size, "划线: 超 8 份淘汰最旧");
 
-/* 8.10 划线颜色：不再给色板（2026-09-28 精简），存过的自选色仍生效，没存就用默认色 */
-ok(typeof MARK_DEFAULT === "string" && MARK_DEFAULT.length === 7, "颜色: 只有一个默认色常量");
-ok(typeof renderMarkSwatches === "undefined" && PAGE_HTML.indexOf("markSwatches") < 0, "颜色: 色板 UI 已撕掉（页面里不再有 markSwatches）");
-state.settings.markColor = "#fbcfe8"; applyMarkColor();
-ok(document.documentElement.style["--mark"] === "#fbcfe8", "颜色: 老数据里存过的自选色仍然生效");
-delete state.settings.markColor; applyMarkColor();
-ok(document.documentElement.style["--mark"] === MARK_DEFAULT, "颜色: 没存过就用默认色");
+/* 8.10 划线颜色自选 */
+ok(MARK_COLORS.length === 5, "颜色: 预设五色");
+state.settings.markColor = "#a7f3d0"; applyMarkColor(); renderMarkSwatches();
+ok((el("#markSwatches").innerHTML.match(/swatch sel/g)||[]).length === 1, "颜色: 选中标记唯一");
+ok(el("#markSwatches").innerHTML.indexOf("#fbcfe8") >= 0 && el("#markSwatches").innerHTML.indexOf("#fde68a") >= 0, "颜色: 黄色仍在备选，但非默认");
+ok(document.documentElement.style["--mark"] === "#a7f3d0", "颜色: CSS 变量已应用");
 
 /* 9. 科目切换：页签只列当前科目的模块 / 抬头跟科目 / 画像分组 / prompt 口径 */
 state.history = [];
@@ -1240,7 +1239,7 @@ ok(state.cache.studyCards["sl.guina::概括问题"] && state.cache.studyCards["s
 ok(state.experiences.length === 1, "导入: experiences 逐条校验，坏条目丢弃");
 ok(state.flows.length === 1 && state.flows[0].id === "f1", "导入: flows 走 sanitizeFlows");
 importJSON('{"settings":"bad","profile":[1,2],"cache":"x","flows":"y","experiences":"z","modelCache":5,"history":"no"}');
-ok(state.settings.apiKey === __keyAtImport, "导入: settings 非对象丢用默认值，不整包失败（本机 Key 不受影响）");
+ok(state.settings.provider === "deepseek" && state.settings.apiKey === __keyAtImport, "导入: settings 非对象丢用默认值，不整包失败（本机 Key 不受影响）");
 ok(JSON.stringify(state.profile.modules) === "{}" && JSON.stringify(state.profile.lastModules) === "[]", "导入: profile 非对象丢用默认值");
 ok(state.cache.studyCards && typeof state.cache.studyCards === "object", "导入: cache 非对象丢用默认值");
 ok(Array.isArray(state.experiences) && Array.isArray(state.flows) && Array.isArray(state.history), "导入: experiences/flows/history 非数组丢用默认值");
@@ -1308,13 +1307,9 @@ ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutRese
 ok(TOURS.zy.some(s=> s.sel === "#btnStart") && TOURS.sl.some(s=> s.sel === "#btnStart"), "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
 ok(TOURS.zy[0].sel === "#btnStart" && TOURS.sl[0].sel === "#btnStart" && TOURS.pd[0].sel === ".startbox .primary.big",
    "使用引导: 先讲主行动，再讲模块页签等细分入口");
-ok(renderStart.toString().indexOf('setView("start")') >= 0 && renderModuleLanding.toString().indexOf('setView("landing")') >= 0
-   && renderPDLanding.toString().indexOf('setView("pd")') >= 0 && renderQuestion.toString().indexOf('setView("q")') >= 0,
+ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
+   && renderPDLanding.toString().indexOf('_view = "pd"') >= 0 && renderQuestion.toString().indexOf('_view = "q"') >= 0,
    "使用引导: 记录当前页面形态，重置后能判断能不能就地重播");
-ok(setView.toString().indexOf('document.body.dataset.view') >= 0 && PAGE_HTML.indexOf('body[data-view="start"] #modbar{display:none;}') >= 0,
-   "首页观感: 起始页收起模块页签（整页只留一个框），展开入口写在纸内");
-ok(renderStart.toString().indexOf('btnPickModule') >= 0 && TOUR_STEPS_COMMON[0].sel === "#btnPickModule",
-   "首页观感: 只练某一类的展开入口，引导指着同一个元素");
 ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到科目首页或快判页时会重新显示引导") >= 0,
    "使用引导: 重置后当场重播（作答中不打断）");
 ok(tourEnd.toString().indexOf("markSeen") >= 0 && PAGE_HTML.indexOf("tourEnd(false)") >= 0,
