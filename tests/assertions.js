@@ -557,7 +557,7 @@ ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf(
 renderTabs();
 ok(el("#modbar").innerHTML.indexOf("__all") < 0, "页签: 综合页签已撤（不选题型即综合推送，不设双入口）");
 renderStart();
-ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0 && el("#docBody").innerHTML.indexOf("按综合来推") >= 0, "起始页: 智能推送入口 + 「不选题型就按综合来推」明示");
+ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0 && el("#docBody").innerHTML.indexOf("不选题型也行") >= 0, "起始页: 智能推送入口 + 「不选题型也行」明示");
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
@@ -1308,9 +1308,13 @@ ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutRese
 ok(TOURS.zy.some(s=> s.sel === "#btnStart") && TOURS.sl.some(s=> s.sel === "#btnStart"), "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
 ok(TOURS.zy[0].sel === "#btnStart" && TOURS.sl[0].sel === "#btnStart" && TOURS.pd[0].sel === ".startbox .primary.big",
    "使用引导: 先讲主行动，再讲模块页签等细分入口");
-ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
-   && renderPDLanding.toString().indexOf('_view = "pd"') >= 0 && renderQuestion.toString().indexOf('_view = "q"') >= 0,
+ok(renderStart.toString().indexOf('setView("start")') >= 0 && renderModuleLanding.toString().indexOf('setView("landing")') >= 0
+   && renderPDLanding.toString().indexOf('setView("pd")') >= 0 && renderQuestion.toString().indexOf('setView("q")') >= 0,
    "使用引导: 记录当前页面形态，重置后能判断能不能就地重播");
+ok(setView.toString().indexOf('document.body.dataset.view') >= 0 && PAGE_HTML.indexOf('body[data-view="start"] #modbar{display:none;}') >= 0,
+   "首页观感: 起始页收起模块页签（整页只留一个框），展开入口写在纸内");
+ok(renderStart.toString().indexOf('btnPickModule') >= 0 && TOUR_STEPS_COMMON[0].sel === "#btnPickModule",
+   "首页观感: 只练某一类的展开入口，引导指着同一个元素");
 ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到科目首页或快判页时会重新显示引导") >= 0,
    "使用引导: 重置后当场重播（作答中不打断）");
 ok(tourEnd.toString().indexOf("markSeen") >= 0 && PAGE_HTML.indexOf("tourEnd(false)") >= 0,
