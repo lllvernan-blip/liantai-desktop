@@ -89,6 +89,10 @@ html,body{margin:0;padding:0;}
   .spacer{flex:1 1 auto;}
   /* 行高锁死：判别轨模式下不渲染页签，如果不锁，这一栏会矮 13px——整条顶栏就“往上跳”了一下 */
   .modbar{display:flex;align-items:center;gap:4px;padding:0 max(14px,calc((100% - 880px)/2 + 14px));border-top:1px solid var(--line);min-height:47px;}
+  /* 起始页：整页只留一个框。模块页签收进纸内那行「只练某一类」，点开才出现——
+     五个页签横在纸上方，纸面就不再是唯一的主角。收起时那一栏高度不变（min-height 顶着），不会往上跳。 */
+  body[data-view="start"] #modbar{display:none;}
+  body[data-view="start"].mods-open #modbar{display:inline;}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;transition:background .15s ease,color .15s ease,border-color .15s ease;}
   .tab:hover{background:var(--wash-3);}
   /* 当前模块：底部红线 + 淡红底。不加粗（加粗会把页签宽度撑变，又造成一次小位移） */
@@ -96,10 +100,11 @@ html,body{margin:0;padding:0;}
   .tab.active:hover{background:var(--red-wash-2);}
   /* 科目切换：页签区左侧的两个科目按钮；页签只列当前科目的模块 */
   .subjbar{display:flex;align-items:center;gap:6px;padding-right:12px;margin-right:6px;border-right:1px solid var(--line);}
-  .subjbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
-  .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
-  .subjbtn.active{background:var(--red-wash);border-color:var(--gov-red);color:var(--gov-red);}   /* 实心红只留给主行动：科目报「范围」，位置由页签红线报 */
-  .subjbtn.active:hover{background:var(--red-wash-2);}
+  /* 科目只报「范围」，不做成药丸：一排按钮会把纸面挤成第二主角。
+     选中的那个用跟模块页签同一套语言——红字 + 底下一道红线（border 常驻透明，选中时才上色，不造成位移） */
+  .subjbtn{border:none;background:transparent;color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 10px;cursor:pointer;border-radius:0;letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;border-bottom:2px solid transparent;}
+  .subjbtn:hover{color:var(--gov-red);}
+  .subjbtn.active{color:var(--gov-red);border-bottom-color:var(--gov-red);}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
 /* 快判落地页：三层——主行动（大红按钮）→ 一行细分入口 → 可选设置（主题）。
    高度是硬要求：startbox 下限 440px，内容一旦超出，整页就比别的页高，切页时文档高度变化会把红头推上去。 */
@@ -136,6 +141,10 @@ html,body{margin:0;padding:0;}
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:13px;margin:0 0 24px;}
   .startbox .big{min-width:260px;}
+  /* 纸内那行轻字：次要出口（只练某一类 / 继续上次）不跟主按钮争重量 */
+  .startmore{margin-top:20px;display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .startmore .linkbtn{color:var(--muted);font-size:13px;padding:4px 8px;}
+  .startmore .linkbtn:hover{color:var(--gov-red);}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
@@ -1819,18 +1828,23 @@ function banner(html, kind){
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
-  _view = "start";
+  setView("start");
   reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
   activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
   tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
+  document.body.classList.remove("mods-open");   // 每次回起始页都从「模块页签收起」开始
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
-    <p>不选具体题型，就按综合来推：AI 按你最近的表现自动出题，先给学习卡再做题，越练越准。</p>
+    <p>不选题型也行：按你最近的表现出题，先给学习卡再作答。</p>
     <div class="actions" style="justify-content:center;margin:0"><button class="primary big" id="btnStart">智能推送下一题</button></div>
-    ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
+    <div class="startmore">
+      <button class="linkbtn" id="btnPickModule">只练某一类 ▾</button>
+      ${rf? `<button class="linkbtn" id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button>` : ""}
+    </div>
   </div>`;
   $("#btnStart").onclick = startSmart;
+  $("#btnPickModule").onclick = ()=> document.body.classList.toggle("mods-open");
   const br = $("#btnResume");
   if(br) br.onclick = ()=>{
     const f = resumableFlow();
@@ -1848,7 +1862,7 @@ function renderStart(){
 /* ---- 使用引导：首次进入科目起始页时说明入口和练习流程；快判在自己的落地页说明规则。
     走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
 const TOUR_STEPS_COMMON = [
-  { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
+  { sel:"#btnPickModule", text:"想只练某一类，点这里展开模块。" },
   { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
   { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
 ];
@@ -1872,9 +1886,10 @@ const TOURS = {
   ],
 };
 let tour = null;   // { sub, steps, i }
-// 当前页面形态：start（科目首页）| pd（快判页）| landing（模块落地页）| q（作答中）。
+let _view = "start";   // 当前页面形态：start（科目首页）| pd（快判页）| landing（模块落地页）| q（作答中）。
 // 只用于「重置使用说明后能不能当场重播」：在能播的页就地播，作答中不打断练习。
-let _view = "start";
+// 同时写一份到 body 的 data-view——起始页靠它把模块页签收起来（整页只留一个框）。
+function setView(v){ _view = v; document.body.dataset.view = v; }
 function maybeTour(sub){
   if(state.tut[sub] || !TOURS[sub]) return;
   const steps = TOURS[sub];
@@ -1974,7 +1989,7 @@ function tourEnd(markSeen){
 
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
 function renderModuleLanding(k){
-  _view = "landing";
+  setView("landing");
   activeModule = k; tabActiveKey = k; renderHeader(); renderTabs();
   const m = MODULES[k];
   const avg = moduleAvg(k);
@@ -2078,7 +2093,7 @@ function cardHtml(studyCard){
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
   if(!current || !current.question){ renderStart(); return; }
-  _view = "q";
+  setView("q");
   tabActiveKey = activeModule; renderTabs();   // 作答中：高亮当前模块页签，一眼看出自己在哪
   if(!usesFlowChain(current.module)){ renderZyPage(); return; }
   ensureFlow(current.module, current.subtype, current.question, current.keyPoints);
@@ -2374,7 +2389,7 @@ function pdFormStats(){
   return { st, mixRounds };
 }
 function renderPDLanding(){
-  _view = "pd";
+  setView("pd");
   pdForm = null; pdRound = null;
   tabActiveKey = null; renderTabs();
   const recent = pdRecentTheme();
