@@ -152,9 +152,6 @@ html,body{margin:0;padding:0;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:13px;margin-bottom:6px;}
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
-  .swatches{display:flex;gap:8px;}
-  .swatch{width:26px;height:26px;min-height:0;border-radius:var(--r-pill);border:2px solid var(--line);cursor:pointer;padding:0;}
-  .swatch.sel{border-color:var(--gov-red);box-shadow:0 0 0 2px rgba(192,21,26,.2);}
   .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:var(--r-ctl);padding:4px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}   /* 墨底浮标记压在纸面上，深色表面可超出常规阴影上限 */
   .markpop button{background:transparent;border:none;color:#fff;font-size:13px;padding:4px 12px;cursor:pointer;font-family:var(--fangsong);}
   .markpop button:hover{color:var(--mark,#a7f3d0);}
@@ -487,8 +484,6 @@ html,body{margin:0;padding:0;}
     <span class="spacer"></span>
     <button class="linkbtn" id="btnProfile">我的画像</button>
     <button class="linkbtn" id="btnSettings">设置</button>
-    <button class="linkbtn" id="btnExport" title="备份为 JSON（不含 API Key）">导出</button>
-    <button class="linkbtn" id="btnImport" title="从备份 JSON 恢复（文件里的 API Key 不会被采用）">导入</button>
     <input type="file" id="fileImport" accept="application/json" style="display:none">
   </div>
   <div class="modbar">
@@ -552,25 +547,24 @@ html,body{margin:0;padding:0;}
         </div>
         <div class="note" id="modelNote">候选名单一律从接口实拉：有 Key 时每次启动自动刷新，点「拉取模型列表」可手动重拉。拉不到就手动输入模型名。</div>
       </div>
-      <div class="field">
-        <label>推理程度</label>
-        <div class="seg" id="segReason">
-          <button type="button" data-lv="quick">快速</button>
-          <button type="button" data-lv="standard">标准</button>
-          <button type="button" data-lv="deep">深入</button>
-        </div>
-        <div class="note" id="reasonNote"></div>
-      </div>
       <div class="actions">
         <button class="primary" id="btnSaveSet">保存</button>
         <button id="btnTest">测试连接</button>
         <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
       <details class="more">
-        <summary>更多设置（练习抬头 / 文号前缀）</summary>
+        <summary>更多设置（推理程度 / 练习抬头 / 文号前缀）</summary>
         <div class="inner">
+          <div class="field">
+            <label>推理程度</label>
+            <div class="seg" id="segReason">
+              <button type="button" data-lv="quick">快速</button>
+              <button type="button" data-lv="standard">标准</button>
+              <button type="button" data-lv="deep">深入</button>
+            </div>
+            <div class="note" id="reasonNote">一般保持默认的「标准」即可。</div>
+          </div>
           <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">这只是练习界面的装饰，不是真实公文；用明显虚构的名字即可。</div></div>
-          <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div><div class="note">点色块选择，作答页高亮即时换色。</div></div>
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
@@ -1900,6 +1894,11 @@ function renderStart(){
 
 /* ---- 使用引导：首次进入科目起始页时说明入口和练习流程；快判在自己的落地页说明规则。
     走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
+const TOUR_STEPS_COMMON = [
+  { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
+  { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
+  { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
+];
 const TOURS = {
   pd:[
     // 先讲主行动，再讲细分入口：先讲模块页签会把不打算挑题型的人往手动选题带，正与「不选题型也能练」相反
@@ -1909,17 +1908,14 @@ const TOURS = {
     { sel:"#btnProfile", text:"三种快判形式的正确率，分别记在「我的画像」里。" },
     { sel:"#btnSettings", text:"快判题目由 AI 生成，需要先填 API Key，申请方法见设置页。" },
   ],
+  // 两个科目共用后三步，只有开口那句各说各的；以前这里挂着两套逐字重复的文案
   zy:[
     { sel:"#btnStart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。" },
-    { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
-    { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
-    { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
+    ...TOUR_STEPS_COMMON,
   ],
   sl:[
     { sel:"#btnStart", text:"不选模块也可以，直接点这里。先读材料划出要点，再归类成稿。" },
-    { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
-    { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
-    { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
+    ...TOUR_STEPS_COMMON,
   ],
 };
 let tour = null;   // { sub, steps, i }
@@ -2108,12 +2104,6 @@ function saveNote(module, subtype, text){
   if(text) state.cache.notes[key] = text; else delete state.cache.notes[key];
   persistSoon();   // 输入即时进内存，落盘防抖 300ms；失焦/关页由 persistFlush 兼底
 }
-function lastPeeks(module, subtype){
-  for(const h of state.history){
-    if(h.module===module && (h.subtype||null)===(subtype||null) && h.cardPeeks!=null) return h.cardPeeks;
-  }
-  return null;
-}
 function cardHtml(studyCard){
   const pts=(studyCard.points||[]).map(p=>`<li>${esc(p)}</li>`).join("");
   const pits=(studyCard.pitfalls||[]).map(p=>`<li>${esc(p)}</li>`).join("");
@@ -2162,12 +2152,10 @@ function zyCardHtml(){
   const {module, subtype} = current;
   let html = "";
   if(current.studyCard){
-    const lp = lastPeeks(module, subtype);
     html += `<div class="card"><div class="card-body">${cardHtml(current.studyCard)}
       <h4>我的笔记</h4>
       <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
       <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-      ${lp != null? `<div class="hint" style="margin-top:8px">上次作答中你翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
     </div></div>`;
   } else {
     html += `<div class="hint" style="margin-top:10px">本题没有学习卡，直接作答即可。</div>`;
@@ -2199,7 +2187,6 @@ function wireZyPage(phase){
   } else if(phase === "grade"){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
-    const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   } else {
     const ba = $("#btnZyAnswer"); if(ba) ba.onclick = ()=>{ current.phase = "answer"; renderZyPage(); };
     const cn = $("#cardNote");
@@ -3001,7 +2988,6 @@ function stepPanelHtml(step, f){
   if(step === "read"){
     let html = "";
     if(current.studyCard){
-      const lp = lastPeeks(module, subtype);
       // 读材料步默认折叠学习卡：卡片约 530px，展开时会把材料推到首屏之外（这一步恰恰叫「读材料」）。
       // 收起后 summary 行照旧（「先看卡再看材料，可折叠」），材料回到首屏。综应A 的卡是整页平铺（zyCardHtml），不在此列。
       html += `<details class="card">
@@ -3010,7 +2996,6 @@ function stepPanelHtml(step, f){
           <h4>我的笔记</h4>
           <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
           <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-          ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
         </div></details>`;
     }
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
@@ -3058,9 +3043,9 @@ function draftPanelHtml(f){
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
-  html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
+  html += `<button class="fab" id="btnCard">翻学习卡</button>`;
   html += `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
-      <div class="mhead"><span>学习卡 <span class="tag" id="peekBadge">本次已翻 ${current.cardPeeks||0} 次（越少越熟）</span></span><button class="x" id="btnDrawerClose" title="关闭">✕</button></div>
+      <div class="mhead"><span>学习卡</span><button class="x" id="btnDrawerClose" title="关闭">✕</button></div>
       <div class="card-body" id="drawerBody"></div>
     </div></div>`;
   return html;
@@ -3142,9 +3127,8 @@ function wireDraft(f){
   if(module===GONGWEN_KEY && $("#btnTpl")) $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
   const openDrawer = ()=>{
+    // 计次照旧记（智能推送要拿它当「这张卡还没长在身上」的信号），只是不再往界面上报数
     current.cardPeeks = (current.cardPeeks||0)+1;
-    $("#peekBadge").textContent = `本次已翻 ${current.cardPeeks} 次（越少越熟）`;
-    const fb = $("#btnCard").querySelector("b"); if(fb) fb.textContent = current.cardPeeks;
     $("#drawerBody").innerHTML = (current.studyCard? cardHtml(current.studyCard) : '<span class="hint">本题没有学习卡。</span>') +
       `<h4>我的笔记</h4><textarea class="noteedit" id="drawerNote" placeholder="在这里也可以补记。">${esc(getNote(module,subtype))}</textarea>`;
     $("#btnDrawerClose").onclick = ()=>{ $("#cardDrawer").hidden = true; };
@@ -3238,7 +3222,6 @@ function wireStep(step, f){
   if(step === "review"){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
-    const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   }
 }
 /* 找点已并入读材料步：这里的监听只服务合并后的 read 步（点句子=找点开关，选区弹窗=划线/选要点） */
@@ -3458,7 +3441,6 @@ function gradeHtml(g, total, inFlow){
   html += `<div class="nextrow">
       <button${nextCls} id="btnNext">智能推送下一题</button>
       <button id="btnRetry">同模块再来一道</button>
-      <button class="linkbtn" id="btnSeeProfile">看我的画像</button>
     </div></div>`;
   return html;
 }
@@ -3627,12 +3609,10 @@ function onProviderChange(){
   setReasonUI();
   if(hasKey && !cached) fetchModels(true);
 }
-const MARK_COLORS = ["#fde68a","#a7f3d0","#bfdbfe","#fbcfe8","#fed7aa"];
-function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_COLORS[1]); }
-function renderMarkSwatches(){
-  $("#markSwatches").innerHTML = MARK_COLORS.map(c=>`<button class="swatch${state.settings.markColor===c?" sel":""}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join("");
-  $("#markSwatches").querySelectorAll(".swatch").forEach(b=> b.onclick = ()=>{ state.settings.markColor = b.dataset.c; save(); applyMarkColor(); renderMarkSwatches(); });
-}
+/* 划线颜色不再给选项：一个默认色就够，多一个色板只是多一个要维护的开关。
+   老数据里存过的自选色仍然生效（applyMarkColor 优先用 state.settings.markColor）。 */
+const MARK_DEFAULT = "#a7f3d0";
+function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_DEFAULT); }
 function fillSettings(){
   fillProviderSelect();
   $("#setProvider").value = PROVIDERS.some(p=>p.id===state.settings.provider)? state.settings.provider : "deepseek";
@@ -3649,7 +3629,6 @@ function fillSettings(){
   setReasonUI();
   $("#setOrg").value = state.settings.orgName||"";
   $("#setNo").value = state.settings.noPrefix||"";
-  renderMarkSwatches();
 }
 function applyForm(){
   state.settings.provider = $("#setProvider").value;
@@ -4292,14 +4271,13 @@ renderChangelog();
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
   $("#btnSettings").onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
-  $("#btnExport2").onclick = ()=> $("#btnExport").click();   // 设置页里的备份入口复用顶栏那一套，导出/导入只有一份实现
-  $("#btnImport2").onclick = ()=> $("#btnImport").click();
+  // 备份只留一个入口：设置页「数据与备份」（原来顶栏还挂了一份同样的按钮，2026-09-28 撤掉）
+  $("#btnExport2").onclick = exportJSON;
+  $("#btnImport2").onclick = ()=> $("#fileImport").click();
   $("#btnProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   document.querySelectorAll(".modal .mhead .x").forEach(b=> b.onclick = closeModals);
   document.querySelectorAll(".modal").forEach(m=> m.addEventListener("click", e=>{ if(e.target===m) closeModals(); }));
   document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModals(); });
-  $("#btnExport").onclick = exportJSON;
-  $("#btnImport").onclick = ()=> $("#fileImport").click();
   $("#fileImport").onchange = e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); };
   // 输入防抖的兼底：关页/刷新前把挂起的落盘立即写掉
   if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("beforeunload", persistFlush);
