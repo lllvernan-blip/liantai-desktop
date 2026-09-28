@@ -333,33 +333,33 @@ el("#setKey").value = "sk-test";
 el("#setModel").value = "deepseek-v4-flash";   // 不在名单里但实测能用的名字
 const realFetch = globalThis.fetch;
 globalThis.fetch = () => Promise.resolve({ ok:true, status:200, json: async()=>({ data:[{id:"z-model"},{id:"a-flash-model"},{id:"m-chat"}] }), headers:{ get:()=>"application/json" }, text: async()=>"" });
-await fetchModels(true);
+await fetchModels();
 ok(Array.isArray(state.modelCache["https://api.test.com/v1"]) && state.modelCache["https://api.test.com/v1"].length === 3, "实拉: 名单入库缓存");
 ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 静默模式不改写当前模型（名单可能不全）");
 ok(el("#modelMenu").innerHTML.indexOf("a-flash-model") >= 0, "实拉: 候选菜单来自接口");
 ok(el("#modelMenu").innerHTML.indexOf("z-model") >= 0 && el("#modelMenu").innerHTML.indexOf("m-chat") >= 0,
    "实拉: 展开候选时整份名单全量列出（不受已填文字过滤，自绘菜单替代原生 datalist）");
-ok(PROVIDERS.every(p=>!p.models), "预设: 服务商只预设地址，模型名一个都不写死（手写的名字迟早过期）");
+ok(PAGE_HTML.indexOf("setProvider") < 0, "预设: 服务商下拉已删（地址手填，模型名一律实拉）");
 el("#setModel").value = "";
-await fetchModels(true);
+await fetchModels();
 ok(el("#setModel").value === "a-flash-model", "实拉: 当前为空时自动补最快模型");
-await fetchModels(false);
-ok(el("#setMsg").textContent.indexOf("3 个模型") >= 0, "实拉: 手动拉取有反馈");
+await fetchModels();
+ok(el("#modelNote").textContent.indexOf("3 个模型") >= 0, "实拉: 拉完在说明里如实报数量");
 el("#setModel").value = "deepseek-v4-flash";
-await fetchModels(false);
-ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
+await fetchModels();
+ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 名单外的名字不被改写（列表不是生死簿）");
 globalThis.fetch = realFetch;
 
 /* 8.2 没有实拉结果时不编名字：候选可以空，模型名不可以瞎写 */
-el("#setKey").value = "";   // 清掉 Key，避免换服务商时触发后台实拉，让本段只考验「没有名单时怎么办」
-el("#setProvider").value = "kimi";
-onProviderChange();
+el("#setKey").value = "";   // 清掉 Key，避免改地址时触发后台实拉，让本段只考验「没有名单时怎么办」
+el("#setBase").value = "https://api.moonshot.cn/v1";
+onBaseChange();
 ok(el("#modelMenu").innerHTML === "" && el("#setModel").value === "",
-   "换服务商: 这家没实拉缓存就不编候选，也不把上一家的模型名留在框里");
-el("#setProvider").value = "deepseek";
-onProviderChange();
+   "换地址: 这家没实拉缓存就不编候选，也不把上一家的模型名留在框里");
+el("#setBase").value = "https://api.deepseek.com/v1";
+onBaseChange();
 ok(el("#setModel").value === "" && el("#modelMenu").innerHTML.indexOf("deepseek") < 0,
-   "换服务商: 模型栏留空等实拉，不含任何写死的名字");
+   "换地址: 模型栏留空等实拉，不含任何写死的名字");
 
 /* 8.3 推理程度随模型适配：认得出的家族按各自发法，认不出的不带档位也不显三档 */
 state.settings.apiKey = "sk-test";
@@ -1240,7 +1240,7 @@ ok(state.cache.studyCards["sl.guina::概括问题"] && state.cache.studyCards["s
 ok(state.experiences.length === 1, "导入: experiences 逐条校验，坏条目丢弃");
 ok(state.flows.length === 1 && state.flows[0].id === "f1", "导入: flows 走 sanitizeFlows");
 importJSON('{"settings":"bad","profile":[1,2],"cache":"x","flows":"y","experiences":"z","modelCache":5,"history":"no"}');
-ok(state.settings.provider === "deepseek" && state.settings.apiKey === __keyAtImport, "导入: settings 非对象丢用默认值，不整包失败（本机 Key 不受影响）");
+ok(state.settings.apiKey === __keyAtImport, "导入: settings 非对象丢用默认值，不整包失败（本机 Key 不受影响）");
 ok(JSON.stringify(state.profile.modules) === "{}" && JSON.stringify(state.profile.lastModules) === "[]", "导入: profile 非对象丢用默认值");
 ok(state.cache.studyCards && typeof state.cache.studyCards === "object", "导入: cache 非对象丢用默认值");
 ok(Array.isArray(state.experiences) && Array.isArray(state.flows) && Array.isArray(state.history), "导入: experiences/flows/history 非数组丢用默认值");

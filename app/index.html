@@ -517,14 +517,9 @@ html,body{margin:0;padding:0;}
       <div class="mhead"><span>设置（AI 接口 / 练习文档样式）</span><button class="x" title="关闭">✕</button></div>
       <div class="panel-body">
       <div class="field">
-        <label>AI 服务商</label>
-        <select id="setProvider"></select>
-        <div class="note">选好服务商会自动填好接口地址；模型名一律从接口实拉，不预置。推荐 DeepSeek，国内直连、便宜。</div>
-      </div>
-      <div class="field">
         <label>接口地址（Base URL）</label>
         <input type="text" id="setBase" placeholder="https://api.deepseek.com/v1">
-        <div class="note">换服务商会自动填好，也可手动修改。</div>
+        <div class="note">OpenAI 兼容接口都行；推荐 DeepSeek（国内直连、便宜）。换一家就改这个地址，模型名会自动重新拉。常见的还有：Kimi `https://api.moonshot.cn/v1`、智谱 `https://open.bigmodel.cn/api/paas/v4`。</div>
       </div>
       <div class="field">
         <label>API Key</label>
@@ -536,16 +531,15 @@ html,body{margin:0;padding:0;}
         <div class="notebody">① 注册：浏览器打开 platform.deepseek.com，用手机号注册并登录。
 ② 创建 Key：左侧「API keys」→「创建 API key」，复制生成的 sk- 开头字符串（只显示这一次）。
 ③ 充值：账户里充少量余额即可用（按用量计费，练一次题大约几分钱）。
-④ 回到这里：Key 粘进上面的输入框 → 点下面「拉取模型列表」选一个模型 → 关掉设置，开始练。</div>
+④ 回到这里：Key 粘进上面的输入框 → 关掉设置，模型会自动列出来（拉不到就手动输一个）。</div>
       </details>
       <div class="field">
         <label>模型</label>
         <div style="display:flex;gap:8px;position:relative;">
           <input type="text" id="setModel" placeholder="点输入框展开候选，或手动输入模型名" autocomplete="off" style="flex:1">
-          <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
           <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--sh-2);max-height:220px;overflow:auto;"></div>
         </div>
-        <div class="note" id="modelNote">候选名单一律从接口实拉：有 Key 时每次启动自动刷新，点「拉取模型列表」可手动重拉。拉不到就手动输入模型名。</div>
+        <div class="note" id="modelNote">候选名单只能从接口实拉：有 Key 时每次启动自动刷新；拉不到就手动输入模型名。</div>
       </div>
       <div class="actions">
         <button class="primary" id="btnSaveSet">保存</button>
@@ -553,7 +547,7 @@ html,body{margin:0;padding:0;}
         <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
       <details class="more">
-        <summary>更多设置（推理程度 / 练习抬头 / 文号前缀）</summary>
+        <summary>更多设置（推理程度）</summary>
         <div class="inner">
           <div class="field">
             <label>推理程度</label>
@@ -564,8 +558,6 @@ html,body{margin:0;padding:0;}
             </div>
             <div class="note" id="reasonNote">一般保持默认的「标准」即可。</div>
           </div>
-          <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">这只是练习界面的装饰，不是真实公文；用明显虚构的名字即可。</div></div>
-          <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
         </div>
       </details>
       <div class="field">
@@ -610,19 +602,9 @@ html,body{margin:0;padding:0;}
 </div>
 
 <script>
-/* ============ 服务商预设 ============ */
-/* 这里只预设「地址」这类稳定信息，模型名一个都不写死——
-   服务商改名的速度比这份文件更新得快，手写的候选迟早变成误导（列了却调不通，或好模型根本没列上）。
-   候选名单只有一个来源：从 /models 实拉，拉到什么就是什么。 */
-const PROVIDERS = [
-  { id:"deepseek", name:"DeepSeek（推荐 · 国内直连）", baseUrl:"https://api.deepseek.com/v1" },
-  { id:"kimi", name:"Kimi 月之暗面", baseUrl:"https://api.moonshot.cn/v1" },
-  { id:"qwen", name:"通义千问（阿里百炼）", baseUrl:"https://dashscope.aliyuncs.com/compatible-mode/v1" },
-  { id:"glm", name:"智谱 GLM", baseUrl:"https://open.bigmodel.cn/api/paas/v4" },
-  { id:"siliconflow", name:"硅基流动 SiliconFlow", baseUrl:"https://api.siliconflow.cn/v1" },
-  { id:"openai", name:"OpenAI（需自备网络）", baseUrl:"https://api.openai.com/v1" },
-  { id:"custom", name:"自定义 / 其他", baseUrl:"" }
-];
+/* ============ 模型名单 ============ */
+/* 只有地址是用户自己填的，模型名一个都不写死——服务商改名 / 上新的速度比这份文件快，
+   手写的候选迟早变成误导（列了却调不通，或好模型根本没列上）。候选只有一个来源：从 /models 实拉。 */
 
 /* ============ 模块定义 ============ */
 // 模块键统一带科目前缀（zy.gongwen）：键全局唯一，画像 / 历史 / 调度全部按模块键聚合，
@@ -772,7 +754,7 @@ function migrateHistory(list){
    两份聚合迟早对不上。profile.modules 降级为旧数据 pass-through 容器（load/import 只做键迁移，不再写入这些字段）。 */
 const DEFAULT_STATE = {
   // model 默认为空：名字一律等实拉，不预置任何可能已经过期的模型名
-  settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
+  settings:{ baseUrl:"https://api.deepseek.com/v1", model:"",
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
@@ -1720,23 +1702,19 @@ const $ = s => document.querySelector(s);
 const docBody = $("#docBody");
 
 /* ============ 运行环境 / CSP 检测 ============ */
-// WorkBuddy 预览窗会下发限制性 CSP（connect-src 不含各 AI 服务商域名），
-// 浏览器据此拦截对外 fetch，表现为裸「Failed to fetch」。此处自动识别，给出精准提示。
+// 被限制性 CSP（connect-src 不含接口域名）拦下的请求在浏览器里表现为裸「Failed to fetch」。
+// 此处自动识别 CSP 拦截与 file:// 两种环境，给出可操作的提示。
 let cspBlocked = null;
 document.addEventListener("securitypolicyviolation", function(e){
   const dir = e.effectiveDirective || e.violatedDirective || "";
   if(dir.indexOf("connect-src") >= 0) cspBlocked = e.blockedURI || "external-api";
 });
-function isPreviewHost(){
-  return /^127\.0\.0\.1(:\d+)?$/.test(location.host) && /static-html/i.test(location.pathname);
-}
 function networkFailHint(){
-  if(cspBlocked || isPreviewHost()){
-    return " 检测到当前在 WorkBuddy 预览窗内：预览服务器的安全策略(CSP)禁止网页直接对外请求 AI 接口，故被拦截。"
-      + "解决办法：用本地浏览器打开本文件——双击 html，或在文件目录运行 python -m http.server 8000 后访问 http://localhost:8000/index.html；CORS 我已实测通过，本地浏览器可正常拉取并调用。";
+  if(cspBlocked){
+    return " 当前页面的安全策略(CSP)禁止对外请求 AI 接口（connect-src）。解决办法：用本地浏览器打开本文件，或在文件目录运行 python -m http.server 8000 后访问 http://localhost:8000/index.html。";
   }
   if(location.protocol === "file:"){
-    return " 当前以 file:// 打开：部分浏览器/环境会拦截本地文件的对外请求。建议用本地服务器方式打开（文件目录运行 python -m http.server 8000，访问 http://localhost:8000/index.html）。";
+    return " 当前以 file:// 打开：部分浏览器会拦截本地文件的对外请求。建议用本地服务器方式打开（文件目录运行 python -m http.server 8000，访问 http://localhost:8000/index.html）。";
   }
   return " 多为网络不通或服务商不可达（确认能正常访问该域名）；也可能是浏览器/插件拦截了跨域请求。";
 }
@@ -3556,10 +3534,6 @@ function setReasonUI(){
     ? "上次实测：此模型拒收思考参数（已记住，之后直接按标准温度发送）。"
     : reasonFamily(model).note(lv)) + (pn? "  "+pn : "");
 }
-function fillProviderSelect(){
-  $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
-}
-function providerById(id){ return PROVIDERS.find(p=>p.id===id) || PROVIDERS[PROVIDERS.length-1]; }
 function baseKey(){ return ($("#setBase").value.trim()||"").replace(/\/+$/,""); }
 function renderModelList(list){
   /* 候选唯一出口：点输入框展开的自绘菜单。原生 datalist 会按输入框已有文字过滤（填了模型名后另一个就“看不见”），
@@ -3594,30 +3568,25 @@ function modelNoteText(hasKey, cached){
     : "候选来自上次实拉的名单；填上 Key 可随时刷新。";
   return hasKey
     ? "正在从接口实拉候选名单…（拉不到就手动输入模型名）"
-    : "候选只能从接口实拉：填上 Key 后点「拉取模型列表」。也可手动输入模型名。";
+    : "候选只能从接口实拉：填上 Key 并保存后自动拉一次。也可手动输入模型名。";
 }
-function onProviderChange(){
-  const p = providerById($("#setProvider").value);
-  $("#setBase").value = p.baseUrl || $("#setBase").value;
+/* 接口地址一改＝换一整套模型名。上一家的名字在新地址上基本一定不存在，
+   所以按新地址的实拉缓存重新定；没有缓存就留空等实拉，绝不塞任何手写的名字。 */
+function onBaseChange(){
   const hasKey = !!$("#setKey").value.trim();
   const cached = cachedModels(baseKey());
-  // 换服务商＝换一整套模型名。上一家的名字在这家基本一定不存在，
-  // 所以按新地址的实拉缓存重新定；没有缓存就留空等实拉，绝不塞任何手写的名字。
   renderModelList(cached || []);
   $("#setModel").value = cached? pickFast(cached) : "";
   $("#modelNote").textContent = modelNoteText(hasKey, cached);
   setReasonUI();
-  if(hasKey && !cached) fetchModels(true);
+  if(hasKey && !cached) fetchModels();
 }
 /* 划线颜色不再给选项：一个默认色就够，多一个色板只是多一个要维护的开关。
    老数据里存过的自选色仍然生效（applyMarkColor 优先用 state.settings.markColor）。 */
 const MARK_DEFAULT = "#a7f3d0";
 function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_DEFAULT); }
 function fillSettings(){
-  fillProviderSelect();
-  $("#setProvider").value = PROVIDERS.some(p=>p.id===state.settings.provider)? state.settings.provider : "deepseek";
-  const p = providerById($("#setProvider").value);
-  $("#setBase").value = state.settings.baseUrl || p.baseUrl || "";
+  $("#setBase").value = state.settings.baseUrl || DEFAULT_STATE.settings.baseUrl || "";
   $("#setKey").value = state.settings.apiKey||"";
   const kh = $("#keyHelp"); if(kh) kh.open = !state.settings.apiKey;   // 没 Key 的人打开设置就看到申请教程；填了 Key 的保持折叠
   // 模型名与候选名单都只认实拉结果：值来自上次存下的选择，候选来自该地址的实拉缓存
@@ -3627,30 +3596,23 @@ function fillSettings(){
   $("#modelNote").textContent = modelNoteText(!!state.settings.apiKey, cached);
   state.settings.reasonLevel = state.settings.reasonLevel || "standard";
   setReasonUI();
-  $("#setOrg").value = state.settings.orgName||"";
-  $("#setNo").value = state.settings.noPrefix||"";
 }
 function applyForm(){
-  state.settings.provider = $("#setProvider").value;
   state.settings.baseUrl = $("#setBase").value.trim();
   state.settings.model = $("#setModel").value.trim();
   state.settings.apiKey = $("#setKey").value.trim();
   state.settings.reasonLevel = state.settings.reasonLevel || "standard";
   state.settings.temperature = (REASON_LEVELS[state.settings.reasonLevel] || REASON_LEVELS.standard).temp;
-  state.settings.orgName = $("#setOrg").value.trim() || DEFAULT_STATE.settings.orgName;   // 回落到现行默认值，不回落到已被迁移掉的旧默认名
-  state.settings.noPrefix = $("#setNo").value.trim() || "综应练";
 }
 // 从实拉名单里挑个“跑得快”的做默认：优先轻量款，否则取第一个
 function pickFast(ids){
   const fast = (ids||[]).filter(id=>/flash|mini|lite|chat|air|instant/i.test(id));
   return fast[0] || (ids&&ids[0]) || "";
 }
-async function fetchModels(silent){
+async function fetchModels(){
   const base = baseKey();
   const key = $("#setKey").value.trim();
-  if(!base){ if(!silent) $("#setMsg").textContent = "请先填接口地址"; return; }
-  if(!key){ if(!silent) $("#setMsg").textContent = "请先填 API Key"; return; }
-  if(!silent) $("#setMsg").textContent = "拉取中…";
+  if(!base || !key) return;   // 没地址或没 Key 就什么都不做：界面上的说明已经写清楚了
   try{
     const res = await fetchWithTimeout(base + "/models", { headers:{ Authorization:"Bearer "+key } }, 30000);
     if(!res.ok){ const t = await res.text().catch(()=> ""); throw {code:"API", status:res.status, text:t.slice(0,160)}; }
@@ -3666,22 +3628,13 @@ async function fetchModels(silent){
     const cur = $("#setModel").value.trim();
     // 实拉名单只做三件事：进下拉、补空、在用户手动拉取时纠偏。
     // 不静默改写当前模型——实测有服务商名单不全（名字不在列表里照样能用），不能拿列表当生死簿。
-    if(cur==="" || (!silent && !ids.includes(cur))) $("#setModel").value = pickFast(ids);
-    $("#modelNote").textContent = silent
-      ? `已从接口实拉 ${ids.length} 个模型（每次启动自动刷新）；点输入框展开候选，点谁用谁。`
-      : `已从接口实拉 ${ids.length} 个模型；点输入框展开候选，点谁用谁。`;
-    if(!silent) $("#setMsg").textContent = "已拉取 " + ids.length + " 个模型 ✓";
+    if(cur==="") $("#setModel").value = pickFast(ids);
+    $("#modelNote").textContent = `已从接口实拉 ${ids.length} 个模型（每次启动自动刷新）；点输入框展开候选，点谁用谁。`;
   }catch(e){
     // 拉不到就保持现状：上次拉到过就继续用它，没有就留空等人手动输入。
     // 不再回退到任何手写的「推荐模型」——那正是会写错模型名的来源。
     const cached = cachedModels(base);
     const tail = cached? "候选保持上次实拉的名单。" : "还没有候选名单，可手动输入模型名。";
-    if(silent){
-      $("#modelNote").textContent = cached
-        ? `自动刷新未成功，候选仍是上次实拉的 ${cached.length} 个；可点「拉取模型列表」重试，或手动输入模型名。`
-        : "自动实拉未成功（可能没网或被拦截）；可点「拉取模型列表」重试，或手动输入模型名。";
-      return;
-    }
     if(e && e.code==="API"){
       const body = String(e.text||"").replace(/\s+/g," ").slice(0,100);
       let reason;
@@ -3697,10 +3650,10 @@ async function fetchModels(silent){
       $("#modelNote").textContent = "接口返回内容不是 JSON（可能是 HTML 错误页）。请确认 Base URL 是否正确（需带 /v1）。";
       $("#setMsg").textContent = "返回内容非 JSON，检查地址";
     } else if(e && e.code==="TIMEOUT"){
-      $("#modelNote").textContent = "拉取模型列表超时（30 秒无响应）。" + tail;
+      $("#modelNote").textContent = "拉取模型超时（30 秒无响应）。" + tail;
       $("#setMsg").textContent = "拉取超时";
     } else {
-      // 真正的网络/异常：把真实报错透出来，并给针对性提示（区分预览窗 CSP / 真网络）
+      // 真正的网络/异常：把真实报错透出来，并给针对性提示（区分 CSP 拦截 / file:// / 真网络）
       const nm = (e && e.name) || "";
       const ms = (e && e.message) || "";
       $("#modelNote").textContent = `拉取失败（${nm||"网络"}：${ms}）。${tail}${networkFailHint()}`;
@@ -3713,7 +3666,7 @@ function saveSettings(){
   $("#setMsg").textContent = "已保存 ✓";
   setTimeout(()=>{ if($("#setMsg").textContent==="已保存 ✓") $("#setMsg").textContent=""; }, 1800);
   if(!state.settings.apiKey) banner("还没填 API Key，出题/阅卷功能暂不可用。填入后即可使用。");
-  else if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
+  else if(!useCachedModels(state.settings.baseUrl)) fetchModels();
 }
 async function testConnection(){
   applyForm();
@@ -3721,12 +3674,12 @@ async function testConnection(){
   try{
     const r = await callLLM("你是一个测试助手。", "只回复两个字：正常", false);
     msg.textContent = "连接成功 ✓ 返回：" + String(r).replace(/\s+/g," ").slice(0,16);
-    if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
+    if(!useCachedModels(state.settings.baseUrl)) fetchModels();
   }catch(e){
     if(e && e.code==="NO_KEY") msg.textContent = "请先填 API Key";
-    else if(e && e.code==="NO_MODEL") msg.textContent = "请先点「拉取模型列表」选一个模型（或手动输入）";
+    else if(e && e.code==="NO_MODEL") msg.textContent = "请先在设置里选一个模型（或手动输入）";
     else if(e && e.code==="API") msg.textContent = `失败（${e.status}）：${(e.text||"").slice(0,90)}`;
-    else msg.textContent = "失败：" + ((e && e.message) || "未知错误") + ((cspBlocked||isPreviewHost())? "（预览窗 CSP 可能拦截了对外请求，请用本地浏览器打开本文件）":"");
+    else msg.textContent = "失败：" + ((e && e.message) || "未知错误") + (cspBlocked? "（页面安全策略拦住了对外请求，请用本地浏览器打开）":"");
   }
 }
 
@@ -4031,14 +3984,14 @@ function cardNoteHtml(module, subtype){
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
-  if(e && e.code==="NO_KEY") banner("未配置 API Key：出题和阅卷都要用它，选服务商、填 Key 即可开始。" + OPEN_SETTINGS_BTN);
-  else if(e && e.code==="NO_MODEL") banner("还没选定模型。到设置页的模型栏点「拉取模型列表」，从接口拉一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。" + OPEN_SETTINGS_BTN);
-  else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
-      + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
+  if(e && e.code==="NO_KEY") banner("未配置 API Key：出题和阅卷都要用它，填接口地址与 Key 即可开始。" + OPEN_SETTINGS_BTN);
+  else if(e && e.code==="NO_MODEL") banner("还没选定模型。到设置页点模型栏展开候选，从接口实拉的名单里点一个（有 Key 时每次启动会自动拉），也可手动输入模型名。" + OPEN_SETTINGS_BTN);
+  else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查接口地址/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
+      + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：到设置里的模型栏展开候选，挑一个真实存在的模型。" : "")
       + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""), "error");
   else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。", "error");
   else if(e && e.code==="BADJSON") banner("服务商返回的内容不是 JSON（多半是 Base URL 不对，需带 /v1）。请检查后重试。", "error");
-  else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或把「推理程度」调低。", "error");
+  else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换一个更快的模型再试。", "error");
   else if(e && e.code==="ABORT") banner("已取消本次请求。");
   else if(e && /Failed to fetch|NetworkError|TypeError|Load failed|Network request failed/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint(), "error");
   else banner("出错了：" + esc((e && e.message) ? e.message : "未知错误"), "error");
@@ -4067,7 +4020,7 @@ function renderChangelog(){
 }
 
 /* 构建标识：回答「我装的是不是新版」。唯一来源是 app/build.json，打包时由 stamp-build.mjs 写入，页面只读。
-   包里没有这个文件就是源码直跑（双击 html / 预览窗），显示「开发版」。失败一律静默，不影响启动。 */
+   包里没有这个文件就是源码直跑（双击 html 用浏览器打开），显示「开发版」。失败一律静默，不影响启动。 */
 function loadBuildNote(){
   const el = $("#buildNote"); if(!el) return;
   el.textContent = "练习台 · 开发版（未打包）";
@@ -4200,13 +4153,12 @@ renderChangelog();
   installFlowListeners();   // 找点步的全局监听只装一次
   fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderStart();
   // 模型候选只有一个来源：这次启动就从接口实拉一遍（拉到什么就是什么）
-  if(state.settings.apiKey) fetchModels(true);
+  if(state.settings.apiKey) fetchModels();
   // 提示可以并列，不能互相覆盖
   const notices = [];
-  if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
   if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
   if(notices.length) banner(notices.join("<br>"));
-  $("#setProvider").onchange = onProviderChange;
+  $("#setBase").onchange = onBaseChange;
   $("#btnTutReset").onclick = ()=>{
     state.tut = { zy:false, sl:false, pd:false };
     state.tutVersion = DEFAULT_STATE.tutVersion;
@@ -4216,7 +4168,6 @@ renderChangelog();
     if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到科目首页或快判页时会重新显示引导。"); return; }
     if(pdActive) renderPDLanding(); else renderStart();
   };
-  $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
   setModelEl.addEventListener("click", ()=> modelMenuShow(true));
