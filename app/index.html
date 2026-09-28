@@ -941,11 +941,7 @@ function load(){
     }
     const s = JSON.parse(raw);
     let migrated = false;   // 任何一处旧数据被改写 -> 整份回写一次（幂等：改完的键下次就匹配不上）
-    s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings||{});
-    if(!s.settings.reasonLevel){ const t=Number(s.settings.temperature); s.settings.reasonLevel = (t<=0.35?"quick":(t<=0.95?"standard":"deep")); }
-    if(["quick","standard","deep"].indexOf(s.settings.reasonLevel)<0) s.settings.reasonLevel="standard";
-    if(s.settings.orgName === "综应练习台") s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
-    if(!SUBJECTS[s.settings.subject]) s.settings.subject = DEFAULT_SUBJECT;       // 旧数据没有科目这一层，补默认
+    s.settings = normalizeSettings(s.settings);
     s.profile = (s.profile && typeof s.profile === "object" && !Array.isArray(s.profile))? s.profile : {};
     // profile.modules 是旧数据 pass-through 容器：只补科目前缀，不再重建/补默认聚合字段（画像由 history 即时推导）
     if(s.profile.modules && typeof s.profile.modules === "object" && !Array.isArray(s.profile.modules)){
@@ -1079,29 +1075,24 @@ async function fetchWithTimeout(url, opt, ms){
   finally{ clearTimeout(timer); }
 }
 
-// 解析一行 SSE：返回本次增量；非数据行、[DONE]、坏行都返回空串
-function sseDelta(line){
-  const l = line.trim();
-  if(l.indexOf("data:") !== 0) return "";
+/* 解析一行 SSE：非数据行、[DONE]、坏行都返回 null，解出来的对象交给 pick 取自己要的字段。
+   取正文与取思考内容（reasoning_content）的外层判断完全一样，只有最后一步取值不同。 */
+function ssePick(line, pick){
+  const l = String(line).trim();
+  if(l.indexOf("data:") !== 0) return null;
   const payload = l.slice(5).trim();
-  if(payload === "[DONE]") return "";
-  try{
-    const j = JSON.parse(payload);
-    const ch = j.choices && j.choices[0];
-    return (ch && ((ch.delta && ch.delta.content) || ch.text)) || "";
-  }catch(e){ return ""; }
+  if(payload === "[DONE]") return null;
+  try{ return pick(JSON.parse(payload)); }catch(e){ return null; }
 }
+// 本次增量（正文）
+function sseDelta(line){
+  const ch = ssePick(line, j=> j.choices && j.choices[0]);
+  return (ch && ((ch.delta && ch.delta.content) || ch.text)) || "";
+}
+// 思考内容（reasoning_content）：它的量是「档位是否真生效」的可观测信号
 function sseReasonDelta(line){
-  // 与 sseDelta 同源解析，只取思考内容（reasoning_content）：它的量是「档位是否真生效」的可观测信号
-  const l = line.trim();
-  if(l.indexOf("data:") !== 0) return "";
-  const payload = l.slice(5).trim();
-  if(payload === "[DONE]") return "";
-  try{
-    const j = JSON.parse(payload);
-    const d = j.choices && j.choices[0] && j.choices[0].delta;
-    return (d && typeof d.reasoning_content === "string") ? d.reasoning_content : "";
-  }catch(e){ return ""; }
+  const d = ssePick(line, j=> j.choices && j.choices[0] && j.choices[0].delta);
+  return (d && typeof d.reasoning_content === "string") ? d.reasoning_content : "";
 }
 
 // 从还没收完的流式 JSON 里抠出正在生成的可读片段，给“它在写题了”的实况感；同类字段取最后一个（最新写到的那条）
@@ -1316,29 +1307,27 @@ function recordTotal(h){
   if(isFinite(t)) return t;
   return g.scores? dimTotal(g.scores, MODULES[k].dims) : null;
 }
-function dimStat(k, dim){
+/* 近期加权平均——画像里所有「现在什么水平」的统计都是这一个循环：最新一次权重 1，往前每次 ×RECENCY_DECAY。
+   match 说这条记录算不算，pick 给出它的取值（null 或非数就不算）。
+   以前维度分、子类型总分、模块总分、翻卡次数各抄了一遍同样的循环，权重口径散在四处。 */
+function recencyAvg(match, pick){
   let sum=0, wsum=0, n=0;
   for(const h of state.history){
-    if(h.module !== k) continue;
-    const v = Number(h.grade && h.grade.scores && h.grade.scores[dim]);
-    if(!isFinite(v)) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += v*w; wsum += w; n++;
-  }
-  return n? { avg: sum/wsum, n } : null;
-}
-function subtypeListOf(k){ return k===GONGWEN_KEY? GONGWEN_TYPES.map(t=>t.type) : ((MODULES[k] && MODULES[k].subtypes) || []); }
-function subtypeWord(k){ return k===GONGWEN_KEY? "文种" : "子类型"; }
-function subtypeStat(k, t){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k || (h.subtype||null) !== t) continue;
-    const v = recordTotal(h);
+    if(!match(h)) continue;
+    const v = pick(h);
     if(v == null || !isFinite(v)) continue;
     const w = Math.pow(RECENCY_DECAY, n);
     sum += v*w; wsum += w; n++;
   }
   return n? { avg: sum/wsum, n } : null;
+}
+function dimStat(k, dim){
+  return recencyAvg(h=> h.module === k, h=> Number(h.grade && h.grade.scores && h.grade.scores[dim]));
+}
+function subtypeListOf(k){ return k===GONGWEN_KEY? GONGWEN_TYPES.map(t=>t.type) : ((MODULES[k] && MODULES[k].subtypes) || []); }
+function subtypeWord(k){ return k===GONGWEN_KEY? "文种" : "子类型"; }
+function subtypeStat(k, t){
+  return recencyAvg(h=> h.module === k && (h.subtype||null) === t, recordTotal);
 }
 
 /* ============ 自适应选择 ============ */
@@ -1346,15 +1335,8 @@ function subtypeStat(k, t){
    以前这里是拿维度分平均当模块水平，于是画像的「均分」和练习记录表的「总分」是两个数：
    同一条答卷可以既显示均分 75 又显示总分 60。维度分是诊断用的，不该在这里代表水平。 */
 function moduleAvg(k){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k) continue;
-    const v = recordTotal(h);
-    if(v == null || !isFinite(v)) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += v*w; wsum += w; n++;
-  }
-  return n? sum/wsum : null;
+  const r = recencyAvg(h=> h.module === k, recordTotal);
+  return r? r.avg : null;
 }
 
 // 自适应推送的第一性原理：没有数据并不等于“已经好了”。
@@ -1363,15 +1345,8 @@ const COLD_START_SCORE = 60;  // 未练过 = 未知，不当作“已掌握”
 const REPEAT_PENALTY   = 12;  // 刚练过再练，代价上浮
 const PEEK_WEIGHT      = 8;   // 翻卡紧迫度：平均多翻 1 次卡 ≈ 抵 8 分——翻得勤说明卡还没长在身上，优先再出
 function recentPeeks(k, subtype){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k) continue;
-    if(subtype != null && (h.subtype||null) !== subtype) continue;
-    if(h.cardPeeks == null) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += h.cardPeeks*w; wsum += w; n++;
-  }
-  return n? sum/wsum : null;
+  const r = recencyAvg(h=> h.module === k && (subtype == null || (h.subtype||null) === subtype) && h.cardPeeks != null, h=> h.cardPeeks);
+  return r? r.avg : null;
 }
 function recentCount(k){
   const last = state.profile.lastModules.slice(0,3);
@@ -2033,17 +2008,22 @@ async function startModule(k){
 }
 
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
+// 出题等待计时（仿真题与快判共用）：每秒把「已等待 N 秒」写进 #elapsed，元素没了就自停
+function startElapsed(t0){
+  const tick = setInterval(()=>{
+    const el = $("#elapsed");
+    if(!el){ clearInterval(tick); return; }
+    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
+  }, 1000);
+  return tick;
+}
 async function loadQuestion(k, subtype){
   banner("");
   const mySeq = ++reqSeq;
   const prev = current;   // 出题失败时保住上一题，不打回首页
   const t0 = Date.now();
   showLoading(`AI 正在为「${MODULES[k].name}${subtype?' · '+subtype:''}」准备学习卡与仿真题…`);
-  const tick = setInterval(()=>{
-    const el = $("#elapsed");
-    if(!el){ clearInterval(tick); return; }
-    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
-  }, 1000);
+  const tick = startElapsed(t0);
   // 流式实况：字数 + 抠出正在生成的背景材料片段，让等待变成“看它写题”
   let peekAt = 0;
   const onDelta = (d, full)=>{
@@ -2121,20 +2101,13 @@ function zyHeadHtml(showQuestion){
     html += `<div class="hint" style="margin:8px 0">题目先不亮出来，看完卡再开始。</div>`;
     return html;
   }
-  html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  html += metaLineHtml(question);
+  html += requireBlockHtml(question);
   return html;
 }
 function zyCardHtml(){
-  const {module, subtype} = current;
   let html = "";
   if(current.studyCard){
-    html += `<div class="card"><div class="card-body">${cardHtml(current.studyCard)}
-      <h4>我的笔记</h4>
-      <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-      <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-    </div></div>`;
+    html += `<div class="card"><div class="card-body">${cardBodyHtml()}</div></div>`;
   } else {
     html += `<div class="hint" style="margin-top:10px">本题没有学习卡，直接作答即可。</div>`;
   }
@@ -2157,8 +2130,30 @@ function renderZyPage(){
   renderHeader();
   wireZyPage(phase);
 }
+// 题面：作答要求 + 建议结构 + 出处/字数那行。综应A 整页与申论各步共用，别各抄一遍
+function requireBlockHtml(q){
+  let html = `<div class="require"><b>作答要求：</b><br>${esc(q.requirements||"")}</div>`;
+  if(q.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(q.suggestedFormat)}</div>`;
+  return html + metaLineHtml(q);
+}
+// 学习卡正文 + 笔记框 + 「换一张学习卡」：综应A 整页与申论读材料步嵌的是同一块
+function cardBodyHtml(){
+  const {module, subtype} = current;
+  return `${cardHtml(current.studyCard)}
+      <h4>我的笔记</h4>
+      <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
+      <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>`;
+}
+/* 卡片与题面的公共控件（换一题 / 换一张卡 / 笔记框）：综应A 与申论两条路嵌的是同一套，
+   接线只写一次——以前两个 wire 里各抄一遍，改一处忘一处是迟早的事。 */
+function wireCardControls(){
+  const bs = $("#btnSwitch"); if(bs) bs.onclick = ()=> loadQuestion(current.module, current.subtype);
+  const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
+  const cn = $("#cardNote");
+  if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
+}
 function wireZyPage(phase){
-  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  wireCardControls();
   if(phase === "answer"){
     wireMarks();
     wireDraft(null);
@@ -2167,9 +2162,6 @@ function wireZyPage(phase){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
   } else {
     const ba = $("#btnZyAnswer"); if(ba) ba.onclick = ()=>{ current.phase = "answer"; renderZyPage(); };
-    const cn = $("#cardNote");
-    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
-    const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
   }
 }
 
@@ -2421,11 +2413,7 @@ async function genPDRound(form, theme){
   pdForm = form;
   const t0 = Date.now();
   showLoading(`AI 正在出「${f.name}」快判题（主题：${theme}）…`);
-  const tick = setInterval(()=>{
-    const el = $("#elapsed");
-    if(!el){ clearInterval(tick); return; }
-    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
-  }, 1000);
+  const tick = startElapsed(t0);
   const onDelta = (d, full)=>{ const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`; };
   const exps = pdExperienceBlock(theme);
   const weakTraps = pdWeakTraps(3);   // 闭环：上一轮小结答应「这些辨析点会再考你」，这里把它写进出题请求
@@ -2950,9 +2938,7 @@ function renderFlowStep(){
   const step = f? f.step : (lastGrade? "review" : "draft");
   const {question} = current;
   let html = `<div class="secrow"><div class="sec-title">题目</div><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  html += metaLineHtml(question);
+  html += requireBlockHtml(question);
   if(f) html += railHtml(f);
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
   if(f) html += navHtml(step, f);
@@ -2970,11 +2956,7 @@ function stepPanelHtml(step, f){
       // 收起后 summary 行照旧（「先看卡再看材料，可折叠」），材料回到首屏。综应A 的卡是整页平铺（zyCardHtml），不在此列。
       html += `<details class="card">
         <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">先看卡再看材料，可折叠</span></summary>
-        <div class="card-body">${cardHtml(current.studyCard)}
-          <h4>我的笔记</h4>
-          <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-          <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-        </div></details>`;
+        <div class="card-body">${cardBodyHtml()}</div></details>`;
     }
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:10px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
@@ -3168,7 +3150,7 @@ function wireOrganize(f){
   const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> flowGoStep("draft");
 }
 function wireStep(step, f){
-  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  wireCardControls();
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
   if(step === "read"){
@@ -3186,9 +3168,6 @@ function wireStep(step, f){
       }
       save(); renderFlowStep();
     };
-    const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
-    const cn = $("#cardNote");
-    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
   }
   if(step === "organize" && f) wireOrganize(f);
   if(step === "draft") wireDraft(f);
@@ -3718,6 +3697,16 @@ function plainPick(o){
   return out;
 }
 function plainObj(v){ return (v && typeof v === "object" && !Array.isArray(v))? v : null; }
+/* 设置的归一：启动读盘（load 就地迁移）与导入备份（importJSON 从默认值重建）都得走一遍，
+   同一套旧值规则不写两遍——以前分头拄了两份，其中一份还漏了「改完要回写」的标记。 */
+function normalizeSettings(raw){
+  const s = Object.assign({}, DEFAULT_STATE.settings, raw || {});
+  if(!s.reasonLevel){ const t = Number(s.temperature); s.reasonLevel = (t<=0.35? "quick" : (t<=0.95? "standard" : "deep")); }
+  if(["quick","standard","deep"].indexOf(s.reasonLevel)<0) s.reasonLevel = "standard";
+  if(s.orgName === "综应练习台") s.orgName = "模拟练习专用";   // 旧默认机关名迁移：个人工具不必像真单位
+  if(!SUBJECTS[s.subject]) s.subject = DEFAULT_SUBJECT;        // 旧数据没有科目这一层，补默认
+  return s;
+}
 function importJSON(file){
   const r = new FileReader();
   r.onload = ()=>{
@@ -3727,11 +3716,9 @@ function importJSON(file){
       const keepKey = state.settings.apiKey || "";   // 重建前先抓住本机已填的 Key
       state = structuredClone(DEFAULT_STATE);   // 从默认值重建，逐字段收合格的，不整包信任导入文件
       const st = plainObj(s.settings);
-      if(st) state.settings = Object.assign({}, DEFAULT_STATE.settings, plainPick(st));
+      state.settings = normalizeSettings(st? plainPick(st) : null);
       const hadKey = !!(st && st.apiKey);
       state.settings.apiKey = keepKey;   // Key 只认本机填的：文件里的不采用，也不因文件没带而被清空
-      if(state.settings.orgName === "综应练习台") state.settings.orgName = "模拟练习专用";
-      if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
       // profile：modules 是旧数据 pass-through 容器（只迁移键，死字段不再重建）；lastModules 必须是数组
       const pf = plainObj(s.profile);
       if(pf){
@@ -3896,21 +3883,28 @@ function saveMarks(sig, set){
     localStorage.setItem(MARKS_KEY, JSON.stringify(all));
   }catch(e){}
 }
-function materialHtml(q){
-  const text = String((q&&q.background)||"");
-  const marks = loadMarks(qSig(q));
-  let html = "", i = 0;
-  while(i < text.length){
+/* 材料高亮的唯一分段算法：把 [from,to) 按「是否被划线」切成等状态的片段，再交给 wrap 出标签。
+   materialHtml 与局部重铺（materialRangeHtml）以前各写了一遍这个循环。 */
+function segHtml(text, marks, from, to, wrap){
+  let html = "", i = from;
+  while(i < to){
     const on = marks.has(i);
     let j = i;
-    while(j < text.length && marks.has(j) === on) j++;
-    const seg = esc(text.slice(i, j));
-    html += on
-      ? `<mark class="ms on" data-s="${i}" data-e="${j}">${seg}</mark>`
-      : `<span class="ms" data-s="${i}" data-e="${j}">${seg}</span>`;
+    while(j < to && marks.has(j) === on) j++;
+    html += wrap(esc(text.slice(i, j)), on, i, j);
     i = j;
   }
   return html;
+}
+// 划线片段：未划线也要带 data-s/data-e，点选与取消都靠它定位
+function msWrap(seg, on, i, j){
+  return on
+    ? `<mark class="ms on" data-s="${i}" data-e="${j}">${seg}</mark>`
+    : `<span class="ms" data-s="${i}" data-e="${j}">${seg}</span>`;
+}
+function materialHtml(q){
+  const text = String((q&&q.background)||"");
+  return segHtml(text, loadMarks(qSig(q)), 0, text.length, msWrap);
 }
 
 /* 局部重建 [rs,re) 的片段（边界对齐到现有片段边界），替代整块材料重铺。
@@ -3919,19 +3913,7 @@ function materialRangeHtml(q, rs, re){
   const f = activeFlow();
   if(f && f.step === "read" && f.sig === qSig(q)) return mergedMaterialRange(q, f, rs, re);
   const text = String((q&&q.background)||"");
-  const marks = loadMarks(qSig(q));
-  let html = "", i = rs;
-  while(i < re){
-    const on = marks.has(i);
-    let j = i;
-    while(j < re && marks.has(j) === on) j++;
-    const seg = esc(text.slice(i, j));
-    html += on
-      ? `<mark class="ms on" data-s="${i}" data-e="${j}">${seg}</mark>`
-      : `<span class="ms" data-s="${i}" data-e="${j}">${seg}</span>`;
-    i = j;
-  }
-  return html;
+  return segHtml(text, loadMarks(qSig(q)), rs, re, msWrap);
 }
 function updateMaterialRange(mbox, q, s, e){
   let startNode = null, endNode = null;
