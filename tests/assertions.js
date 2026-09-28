@@ -460,7 +460,7 @@ ok(activeFlow() && activeFlow().module === "sl.guina", "申论七步链: 渲染�
 ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0, "读材料: 题目与材料同屏（找点合并后材料按句分段）");
 ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡折叠并入本步（展开可看）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
-ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
+ok(el("#docBody").innerHTML.indexOf("翻了") < 0, "熟悉度: 不再展示翻卡次数与「越少越熟」评价（次数只在内部参与调度）");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始归类」推进）");
 ok(el("#docBody").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存");
 ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
@@ -509,7 +509,7 @@ ok(!state.flows.some(x=>x.sig === qSig(current.question)) && (activeFlow() === n
 ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A: 不渲染七步步骤条");
 ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A: 学习卡阶段有「开始作答」入口");
 ok(el("#docBody").innerHTML.indexOf("综应要点：格式三件套") >= 0, "综应A: 学习卡阶段笔记可见");
-ok(el("#docBody").innerHTML.indexOf("上次作答中你翻了 2 次卡") >= 0, "综应A: 翻卡熟悉度提示照旧");
+ok(el("#docBody").innerHTML.indexOf("翻了") < 0, "综应A: 翻卡次数不上界面（内部照旧记）");
 ok(el("#docBody").innerHTML.indexOf("展开可看") < 0 && el("#docBody").innerHTML.indexOf("解题要点") >= 0,
    "综应A: 卡阶段整页平铺不再折叠（页面就是给卡的）");
 ok(cardHtml({points:["要点"],pitfalls:["失分"],templates:"框架",example:{scene:"燃气泄漏的示例场景。",ask:"你会怎么处置？"}}).indexOf("这类题长什么样") >= 0,
@@ -584,12 +584,13 @@ ok(loadMarks(qSig(mq)).has(0) && loadMarks(qSig(mq)).has(8) && loadMarks(qSig(mq
 for(let i=0;i<9;i++){ saveMarks("mk"+i, new Set([i])); }
 ok(!loadMarks("mk0").size, "划线: 超 8 份淘汰最旧");
 
-/* 8.10 划线颜色自选 */
-ok(MARK_COLORS.length === 5, "颜色: 预设五色");
-state.settings.markColor = "#a7f3d0"; applyMarkColor(); renderMarkSwatches();
-ok((el("#markSwatches").innerHTML.match(/swatch sel/g)||[]).length === 1, "颜色: 选中标记唯一");
-ok(el("#markSwatches").innerHTML.indexOf("#fbcfe8") >= 0 && el("#markSwatches").innerHTML.indexOf("#fde68a") >= 0, "颜色: 黄色仍在备选，但非默认");
-ok(document.documentElement.style["--mark"] === "#a7f3d0", "颜色: CSS 变量已应用");
+/* 8.10 划线颜色：不再给色板（2026-09-28 精简），存过的自选色仍生效，没存就用默认色 */
+ok(typeof MARK_DEFAULT === "string" && MARK_DEFAULT.length === 7, "颜色: 只有一个默认色常量");
+ok(typeof renderMarkSwatches === "undefined" && PAGE_HTML.indexOf("markSwatches") < 0, "颜色: 色板 UI 已撕掉（页面里不再有 markSwatches）");
+state.settings.markColor = "#fbcfe8"; applyMarkColor();
+ok(document.documentElement.style["--mark"] === "#fbcfe8", "颜色: 老数据里存过的自选色仍然生效");
+delete state.settings.markColor; applyMarkColor();
+ok(document.documentElement.style["--mark"] === MARK_DEFAULT, "颜色: 没存过就用默认色");
 
 /* 9. 科目切换：页签只列当前科目的模块 / 抬头跟科目 / 画像分组 / prompt 口径 */
 state.history = [];
