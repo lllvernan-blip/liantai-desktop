@@ -143,7 +143,9 @@ html,body{margin:0;padding:0;}
   .qtop button.linkbtn:hover{background:var(--ctl);border-color:var(--gov-red);}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:28px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
-  .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:28px 0 10px;}
+  .secrow .sec-title{margin:0;}   /* 标题自带的上 28 下 10 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
+  .secright{display:flex;align-items:center;gap:12px;}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
   ::selection{background:rgba(192,21,26,.16);}
   /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
@@ -189,6 +191,14 @@ html,body{margin:0;padding:0;}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
   .hint{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
   .counter{font-size:13px;color:var(--muted);}
+  /* 作答限时：控件与剩余时间贴在作答区标题行右侧；超时用焦橙（与「部分命中」同一支） */
+  .tlrow{display:flex;align-items:center;gap:8px;}
+  /* 下拉自己画箭头：系统箭头在这么小的控件上是唯一一处“原生感” */
+  .tlselw{position:relative;display:inline-flex;align-items:center;}
+  .tlselw::after{content:"";position:absolute;right:9px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--muted);pointer-events:none;}
+  .tlsel{appearance:none;-webkit-appearance:none;height:var(--h-ctl);font-family:var(--yahei);font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);padding:0 22px 0 9px;cursor:pointer;}
+  .tlleft{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .tlleft.warn{color:var(--warn);font-weight:600;}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
   .counter b.over{color:#fff;background:var(--danger);padding:0 5px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
@@ -780,6 +790,7 @@ const DEFAULT_STATE = {
   // model 默认为空：名字一律等实拉，不预置任何可能已经过期的模型名
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
+             timeLimit:0,   // 作答限时的默认值（分钟，0 = 不限）：选过一次，下一题按同样时长起
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
   tut:{ zy:false, sl:false, pd:false },
@@ -2984,7 +2995,9 @@ function renderFlowStep(){
   }
   const step = f? f.step : (lastGrade? "review" : "draft");
   const {question} = current;
-  let html = `<div class="secrow"><div class="sec-title">题目</div><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
+  // 读材料 / 归类这两步也把限时摆出来：时钟从「开始作答」就起算，不摆出来用户不知道它在跑
+  const showTl = step === "read" || step === "organize";
+  let html = `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   html += metaLineHtml(question);
@@ -3032,6 +3045,81 @@ function stepPanelHtml(step, f){
   if(step === "distill") return distillPanelHtml();
   return "";
 }
+/* ============ 作答限时 ============ */
+/* 从「开始作答」那一刻起算：申论从读材料步、综应A 从作答区（综应A 的学习卡是预习，不算作答）。
+   读了多久、归了多久、写了多久都算在里，切步与刷新不重置；交卷停表（再进一稿是下一次尝试）。
+   剩余时间在题目行与作答区标题行右侧，剩最后 5 分钟转焦橙，第一次超时时报一声
+   （不自动交卷：写到一半被截断是不可逆的）。 */
+const LIMIT_OPTS = [0, 15, 20, 30, 45, 60, 90];
+let _timeUpSaid = false, _timeTick = null;
+function curLimitMin(){
+  const f = activeFlow();
+  if(f && current && f.sig === qSig(current.question)) return (f.limitMin != null)? f.limitMin : (state.settings.timeLimit || 0);
+  return (current && current.limitMin != null)? current.limitMin : (state.settings.timeLimit || 0);
+}
+function curLimitFrom(){
+  const f = activeFlow();
+  if(f && current && f.sig === qSig(current.question)) return f.limitFrom || 0;
+  return (current && current.limitFrom) || 0;
+}
+function setLimitState(min, from){   // 申论跨步要持久（挂在链上），综应A 挂在 current 上
+  const f = activeFlow();
+  if(f && current && f.sig === qSig(current.question)){ f.limitMin = min; f.limitFrom = from; save(); }
+  else if(current){ current.limitMin = min; current.limitFrom = from; }
+}
+function ensureLimitStart(){   // 开始作答就起算：整一道题只起算一次，切步与刷新都不重置
+  if(!curLimitMin() || curLimitFrom()) return;
+  _timeUpSaid = false;
+  setLimitState(curLimitMin(), Date.now());
+}
+function limitRowHtml(){
+  const cur = curLimitMin();
+  return `<span class="tlrow"><span class="tlleft" id="timeLeft"></span><span class="tlselw"><select class="tlsel" id="selLimit" title="作答限时">` +
+    LIMIT_OPTS.map(m=> `<option value="${m}"${m===cur? " selected":""}>${m? m+" 分钟":"不限时"}</option>`).join("") +
+  `</select></span></span>`;
+}
+function fmtDur(sec){
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s/60)} 分 ${String(s%60).padStart(2,"0")} 秒`;
+}
+function overtimeSec(min, usedSec){ return (min > 0 && usedSec != null)? Math.round(usedSec - min*60) : 0; }   // 超0 = 没超时/没计时
+function paintTimeLeft(el){
+  const m = curLimitMin(), from = curLimitFrom();
+  if(!m || !from){ el.textContent = ""; el.className = "tlleft"; return; }
+  const left = m*60 - Math.round((Date.now() - from)/1000);
+  const mmss = (x)=> `${Math.floor(x/60)}:${String(x%60).padStart(2,"0")}`;
+  el.className = "tlleft" + (left <= 300? " warn" : "");
+  el.textContent = left >= 0? `剩余 ${mmss(left)}` : `已超时 ${mmss(-left)}`;
+  if(left < 0 && !_timeUpSaid){
+    _timeUpSaid = true;
+    banner("时间到。可以停笔交卷，也可以写完再交——记录里会记下超时。");
+  }
+}
+function wireTimeControls(){   // 限时控件的接线只有一份：起算 + 换时长 + 剩余时间的表
+  ensureLimitStart();
+  const sel = $("#selLimit"); if(sel) sel.onchange = ()=> setTimeLimit(sel.value);
+  if($("#timeLeft")) startTimeLeft();
+}
+function startTimeLeft(){
+  if(_timeTick){ clearInterval(_timeTick); _timeTick = null; }   // 切步会重渲一行，旧表要停掉：不然两个表同时画同一格
+  const el = $("#timeLeft");
+  if(!el) return null;
+  paintTimeLeft(el);
+  _timeTick = setInterval(()=>{
+    const e = $("#timeLeft");
+    if(!e){ clearInterval(_timeTick); _timeTick = null; return; }
+    paintTimeLeft(e);
+  }, 1000);
+  return _timeTick;
+}
+function setTimeLimit(m){
+  m = Number(m) || 0;
+  setLimitState(m, m? Date.now() : 0);
+  state.settings.timeLimit = m; save();   // 记住这个选择：下一题按同样时长起
+  _timeUpSaid = false;
+  const el = $("#timeLeft");
+  if(el) paintTimeLeft(el);   // 就地更新，不重渲：重渲会重建作答区
+}
 function draftPanelHtml(f){
   const {module, subtype} = current;
   const question = current.question;
@@ -3046,7 +3134,7 @@ function draftPanelHtml(f){
   html += cardNoteHtml(module, subtype);   // 材料之后：这一类题通用的笔记
   if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
-    <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
+    <div class="secrow"><div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>${limitRowHtml()}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
@@ -3164,6 +3252,8 @@ function wireDraft(f){
   if(draft){ ta.value = draft; $("#draftNote").textContent = "已恢复上次未提交的草稿"; }
   setWordCount(ta.value.length, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
+  // 作答限时：进作答区就把这次的时钟接上；下拉只改时长，不重渲
+  wireTimeControls();
   // 回改稿：预填上一稿（有未提交的回改草稿则以草稿优先），并做行级差异实时对照
   if(f && f.step === "revise"){
     const prev = (f.attempts && f.attempts.length)? String(f.attempts[f.attempts.length-1].answer||"") : "";
@@ -3207,6 +3297,8 @@ function wireOrganize(f){
 }
 function wireStep(step, f){
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  // 读材料 / 归类这两步：时钟已经在跑（从开始作答起算），把控件与剩余时间接上
+  if(step === "read" || step === "organize") wireTimeControls();
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
   if(step === "read"){
@@ -3300,6 +3392,9 @@ async function submitAnswer(){
   const rewriting = !!(inFlow && f.step === "revise");   // 回改稿：走同一条 grade 路径，但带上轮批改要点
   const outline = inFlow? buildOrganizeOutline(f.groups, f.selections) : "";   // 归类提纲：只进 prompt 供诊断
   const kps = current.keyPoints || [], peeks = current.cardPeeks || 0;
+  // 限时：交卷即停表。这两个数先取下来，记录与批改页都用它
+  const limMin = curLimitMin(), limFrom = curLimitFrom();
+  const usedSec = (limMin && limFrom)? Math.max(0, Math.round((Date.now() - limFrom)/1000)) : null;
   // 阅卷往往是全程最慢的一次调用：像出题页一样给实时秒数
   const t0 = Date.now();
   const tick = setInterval(()=>{
@@ -3324,6 +3419,8 @@ async function submitAnswer(){
     const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub, flowId: inFlow? f.id : undefined,
       mode: rewriting? "rewrite" : undefined,
+      timeLimit: usedSec == null? undefined : limMin,
+      usedSec: usedSec == null? undefined : usedSec,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       expCheck: (expCheck.again.length || expCheck.fixed.length)? { again:expCheck.again.slice(), fixed:expCheck.fixed.slice() } : undefined,
       grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
@@ -3335,7 +3432,9 @@ async function submitAnswer(){
     if(saveHistory()){ clearDraft(qSig(q)); }
     else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
-    renderGrade(g, total, expCheck);   // 申论：提交即进入「批改」步；综应A：显示结果页
+    renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec });   // 申论：提交即进入「批改」步；综应A：显示结果页
+    setLimitState(limMin, 0);   // 这一稿停表：回改是新的一稿，下次进作答区重新起算
+    _timeUpSaid = false;
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
     const fullMark = pts && pts.got === pts.max && !(g.weaknesses||[]).length;
@@ -3413,6 +3512,12 @@ function gradeHtml(g, total, inFlow){
   if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
   html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div>`;
+  // 限时：只在这次真的计了时才报——用时多少、超没超，都说清
+  const tm = lastGrade && lastGrade.time;
+  if(tm){
+    const over = overtimeSec(tm.min, tm.usedSec);
+    html += `<div class="hint" style="margin-top:6px">本题限时 ${tm.min} 分钟 · 用时 ${fmtDur(tm.usedSec)}${over > 0? `（超时 ${fmtDur(over)}）` : ""}。</div>`;
+  }
   // 丢分清单替代单独的「待改进」段：同一个意思，但它带扣分与证据，能按扣分排序——先改哪条不用猜
   if(lost.length){
     const top = lost.slice().sort((a,b)=> (Number(b.score)-Number(b.awarded)) - (Number(a.score)-Number(a.awarded))).slice(0,3);
@@ -3463,8 +3568,8 @@ function gradeHtml(g, total, inFlow){
   return html;
 }
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
-function renderGrade(g, total, expCheck){
-  lastGrade = { g, total, expCheck: expCheck || null };
+function renderGrade(g, total, expCheck, time){
+  lastGrade = { g, total, expCheck: expCheck || null, time: time || null };
   if(current && usesFlowChain(current.module)){
     const f = activeFlow();
     if(f && f.sig === qSig(current.question)) f.step = "review";
