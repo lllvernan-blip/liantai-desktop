@@ -1615,6 +1615,72 @@ ok(capSys18.indexOf("半分") >= 0 && capSys18.indexOf("evidence") >= 0,
    "口径: 改成要求「判半分要写得出依据」，治的正是那次 0↔半 的摆动");
 callLLM = realCall18;
 
+/* ---- 19. 作答限时：从「开始作答」起算（剩余 / 超时 / 用时进记录与批改页） ---- */
+const dtHtml = ()=> el("#docBody").innerHTML;
+state.history = [];
+state.settings.timeLimit = 0;
+localStorage.clear();
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"材".repeat(120), requirements:"不超过250字。" }, keyPoints:[], cardPeeks:0 };
+renderQuestion();
+flowGoStep("read");
+ok(dtHtml().indexOf('id="selLimit"') >= 0 && dtHtml().indexOf('value="0" selected') >= 0,
+   "限时: 读材料步就有控件（时钟从开始作答起算），默认「不限时」");
+ok(el("#timeLeft").textContent === "", "限时: 不限时不显示任何时间");
+
+/* 19.2 选了时长就起算：锚点落在链上，切步不重置（读材料那几行也算在里面） */
+el("#selLimit").value = "30"; el("#selLimit").onchange();
+ok(curLimitMin() === 30 && curLimitFrom() > 0, "限时: 选 30 分钟后起算");
+const tlAnchor = curLimitFrom();
+flowGoStep("organize"); flowGoStep("draft");
+ok(curLimitFrom() === tlAnchor && activeFlow().limitFrom === tlAnchor,
+   "限时: 读材料 → 归类 → 一稿 用的是同一个时钟（切步不重置）");
+ok(activeFlow().limitMin === 30, "限时: 时长也在链上（跨步与刷新都不丢）");
+ok(state.settings.timeLimit === 30, "限时: 选择被记住，下一题按同样时长起");
+ok(/^剩余 (30:0\d|29:5\d)$/.test(el("#timeLeft").textContent), "限时: 立刻显示剩余 -> " + el("#timeLeft").textContent);
+
+/* 19.3 最后 5 分钟转焦橙；超时只报一声，不自动交卷 */
+setLimitState(30, Date.now() - 25*60*1000);
+paintTimeLeft(el("#timeLeft"));
+ok(el("#timeLeft").className.indexOf("warn") >= 0 && el("#timeLeft").textContent.indexOf("剩余 5:0") === 0,
+   "限时: 剩最后 5 分钟转焦橙 -> " + el("#timeLeft").textContent);
+el("#answer").value = "写到一半的内容，超时也不该被动。";
+el("#bannerSlot").innerHTML = "";
+setLimitState(30, Date.now() - 31*60*1000);
+paintTimeLeft(el("#timeLeft"));
+ok(el("#timeLeft").textContent.indexOf("已超时 1:0") === 0 && el("#bannerSlot").innerHTML.indexOf("时间到") >= 0,
+   "限时: 超时后报「已超时」并提示一声（不自动交卷）");
+ok(el("#answer").value.indexOf("写到一半") >= 0, "限时: 超时不打断作答（已写的内容不动）");
+
+/* 19.4 交卷：用时进记录，批改页报用时与超时；交卷即停表 */
+el("#answer").value = "这是一段超过二十个字的作答内容，用来验证限时记录的用时与超时口径。";
+el("#btnSubmit").disabled = false;   // 桩不会重渲按钮，前面用例交过卷后这个标志会留着
+const realCallTL = callLLM;
+callLLM = async ()=>({ hits:[{ point:"p", score:20, awarded:16, status:"满分", evidence:"e" }], scores:{}, strengths:[], weaknesses:[], comment:"x" });
+await submitAnswer();
+callLLM = realCallTL;
+const recTL = state.history[0];
+ok(recTL.timeLimit === 30 && recTL.usedSec >= 31*60 && recTL.usedSec <= 31*60 + 5,
+   "限时: 记录存下限时与用时 -> " + JSON.stringify({ limit: recTL.timeLimit, used: recTL.usedSec }));
+ok(curLimitFrom() === 0, "限时: 交卷即停表（再进一稿是下一次尝试，重新起算）");
+ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().indexOf("（超时 1 分") >= 0,
+   "限时: 批改页报出用时与超时");
+
+/* 19.5 不限时：记录不带字段，批改页不报用时；综应A 与申论共用同一处控件 */
+state.settings.timeLimit = 0;
+current = { module:"zy.guina", subtype:"概括做法", question:{ background:"材".repeat(120), requirements:"不超过300字。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
+renderZyPage();
+ok(dtHtml().indexOf('id="selLimit"') >= 0 && dtHtml().indexOf('value="0" selected') >= 0,
+   "限时: 综应A 作答页也有控件（与申论共用同一处渲染）");
+el("#answer").value = "综应A 的一段作答内容，用来验证不限时的时候什么也不报。";
+el("#btnSubmit").disabled = false;
+callLLM = async ()=>({ hits:[{ point:"p", score:20, awarded:20, status:"满分", evidence:"e" }], scores:{}, strengths:[], weaknesses:[], comment:"x" });
+await submitAnswer();
+callLLM = realCallTL;
+ok(state.history[0].timeLimit === undefined && state.history[0].usedSec === undefined, "限时: 不限时不写限时字段");
+ok(dtHtml().indexOf("本题限时") < 0, "限时: 不限时批改页不报用时");
+state.history = [];
+state.settings.timeLimit = 0;
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

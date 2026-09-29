@@ -167,6 +167,47 @@ function s26_gongwen_landing() {
 
 
 
+function s24_answer_limit() {
+  // 限时开着、已经进最后 5 分钟：控件与剩余时间在作答区标题行右侧（焦橙）
+  __reset();
+  current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 1, phase: "answer" };
+  activeModule = "zy.guina";
+  current.limitMin = 30;
+  current.limitFrom = Date.now() - 25 * 60 * 1000;
+  renderZyPage();
+  const ta = $("#answer");
+  if (ta) ta.value = "一、集中受理。把分散在各部门的审批事项集中到一窗受理，平均办理时限由 12 个工作日压缩到 4 个。\n二、上线好差评系统，评价结果直接与窗口考核挂钩。";
+  if (ta && typeof setWordCount === "function") setWordCount(ta.value.length, ansLimitFor("zy.guina", __q));
+}
+
+function s25_grade_limit() {
+  // 批改页上的限时那一行：用时 32 分 06 秒，超时 2 分 06 秒（限时 30 分钟）
+  __reset({ history: true });
+  const dims = MODULES["zy.guina"].dims;
+  const sc = {};
+  dims.forEach((d, i) => { sc[d] = [16, 14, 15, 17, 13][i % 5]; });
+  const g = { hits: [
+    { point: "把分散审批事项集中到一窗受理", score: 4, awarded: 4, status: "满分", kind: "-" },
+    { point: "上线「好差评」并与窗口考核挂钩", score: 4, awarded: 2, status: "半分", kind: "表达", evidence: "△ 只提到上线好差评，没说与考核挂钩" },
+    { point: "跨部门数据共享（问题类信息）", score: 12, awarded: 0, status: "零分", kind: "漏点", evidence: "【缺：数据共享】" },
+  ], scores: sc, strengths: ["结构分条清楚"], weaknesses: ["漏了材料里的问题类信息"], comment: "材料里那句「数据没有真正打通」没接住。" };
+  const total = 30;
+  current = { module: "zy.guina", subtype: "归纳概括", question: __q, keyPoints: [], cardPeeks: 0, phase: "grade" };
+  state.history.unshift({ ts: Date.now(), module: "zy.guina", subtype: "归纳概括", question: __q, answer: "一、集中受理。……", keyPoints: [], hits: g.hits,
+    timeLimit: 30, usedSec: 1926, grade: { total, scored: pointsOf(g.hits), scores: sc } });
+  renderGrade(g, total, null, { min: 30, usedSec: 1926 });
+}
+
+function s29_flow_read_limit() {
+  // 申论读材料步的限时：时钟从这一步就起算（控件与剩余时间在题目行右侧）
+  __reset({ history: true });
+  __flow("read");
+  const f = activeFlow();
+  if (f) { f.limitMin = 30; f.limitFrom = Date.now() - (17 * 60 + 30) * 1000; }
+  state.settings.timeLimit = 30;
+  renderQuestion();
+}
+
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
   ["02-起始页-已配置", s02_start_ready, true],
@@ -188,7 +229,10 @@ const SCENES = [
   ["17-综应起始-首次引导", s17_landing_tut, true],
   ["18-快判-首次引导", s18_pd_tut, true],
   ["19-设置-重置后当场重播", s19_tut_reset_replay, true],
+  ["24-作答-限时", s24_answer_limit, true],
+  ["25-批改-限时用时", s25_grade_limit, true],
   ["26-公文写作-落地页", s26_gongwen_landing, false],
+  ["29-申论-读材料-限时", s29_flow_read_limit, true],
 ];
 
 export const scenes = SCENES.map(([name, fn, full, extra]) => Object.assign({
