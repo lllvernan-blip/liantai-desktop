@@ -189,6 +189,40 @@ function s22_grade_selfcheck() {
   renderLastGrade();
 }
 
+function s23_profile_missbook() {
+  __reset({ history: true, exp: true });
+  const q = __q;
+  const now = Date.now();
+  const rec = (ts, module, subtype, hits) => ({ ts, module, subtype, question: q, answer: "……", keyPoints: [], hits, grade: { total: 60, scored: pointsOf(hits), scores: {} } });
+  state.history = [
+    rec(now - 3600e3, "zy.gongwen", "通知", [
+      { point: "漏写发文机关与日期", score: 4, awarded: 0, kind: "格式", evidence: "【缺：落款】", where: "发文机关：XX 市人民政府", selfCheck: { at: now, verdict: "miss" } },
+      { point: "正文事项未分条列明", score: 4, awarded: 2, kind: "结构", evidence: "△ 挤在一段里" },
+      { point: "把整改要求写成建议", score: 4, awarded: 4, kind: "-" },
+    ]),
+    rec(now - 26 * 3600e3, "zy.guina", "概括做法", [
+      { point: "跨部门数据共享（问题类信息）", score: 4, awarded: 0, kind: "漏点", evidence: "【缺：数据共享】", where: "跨部门数据没有真正打通" },
+      { point: "压缩平均办理时限", score: 4, awarded: 3, kind: "漏点" },
+    ]),
+    rec(now - 50 * 3600e3, "zy.gongwen", "函", [
+      { point: "结尾未写发文机关和日期", score: 4, awarded: 0, kind: "格式", appeal: { at: now, verdict: "维持", before: 0, note: "卷面确实没有落款" } },
+      { point: "把「商洽」写成「请示」", score: 4, awarded: 0, kind: "跑偏" },
+    ]),
+    rec(now - 74 * 3600e3, "zy.gongwen", "通知", [
+      { point: "正文事项未分条列明", score: 4, awarded: 0, kind: "结构" },
+      { point: "漏写发文机关与日期", score: 4, awarded: 2, kind: "格式" },
+    ]),
+  ];
+  openModal("modalProfile"); renderProfile();
+  // 画像弹层一屏只看得见模块那几行：滚到「漏点本」那一段。
+  // 只设一次不够：弹层内容是在场景跑完之后才量准的（前面那个整屏跑出来就滞在了上面），所以隔一拍再铉一次。
+  const pb = document.querySelector("#profileBody");
+  const t = Array.prototype.slice.call(document.querySelectorAll("#profileBody .sec-title")).filter(x=> x.textContent.indexOf("漏点本") === 0)[0];
+  const toBook = () => { if (pb && t) pb.scrollTop = t.offsetTop - 120; };
+  toBook();
+  setTimeout(toBook, 300);
+}
+
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
   ["02-起始页-已配置", s02_start_ready, true],
@@ -213,6 +247,7 @@ const SCENES = [
   ["20-练自己的题-弹层", s20_own_modal, false],
   ["21-批改-材料出处与申诉", s21_grade_sources, true, { height: 1320 }],   // 申诉框在第一屏下方：把视口抻高，一屏拍完
   ["22-批改-拿不准与自查", s22_grade_selfcheck, true, { height: 1500 }],
+  ["23-画像-漏点本", s23_profile_missbook, false],
 ];
 
 export const scenes = SCENES.map(([name, fn, full, extra]) => Object.assign({

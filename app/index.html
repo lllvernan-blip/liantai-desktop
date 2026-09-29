@@ -1511,14 +1511,17 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
                             : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const exps = expBlock(k);   // 经验闭环：当前模块未停用的经验（≤3 条）注入出题，两科都带
   const tags = weakGradeTags(k, 3);   // 错因标签：批改累计出来最常丢分的几类，出题重点覆盖
+  const miss = weakMissedPoints(k, 3);   // 漏点本：他实际反复丢过的要点，再出一道得能考到同一方向
   const lib = SL_STUDY_CARDS[k];   // 申论内置资料库（课堂笔记提炼）：学习卡以此为纲生成
   const libNote = (needCard && lib)? "学习卡必须以内置资料库（library 字段）的方法论为纲，按本题场景重新组织措辞，不得偏离或遗漏资料库要点。" : "";
   const note = (needCard
     ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式，另附一个 example：两三句话的示例小案例 + 典型问法，让用户认出这类题的样子；example 必须是全新编的示例，严禁使用本题背景材料的情节）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。")
     + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "")
-    + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "");
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined });
+    + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "")
+    + (miss.length? ` 他在最近的练习里反复漏过这些采分点：「${miss.map(m=>m.point).join("」「")}」。本题请自选新场景，但要能考到同一方向（把这几条当作要点方向，不是把原句和旧场景搬过来，也不要求字面相同）。` : "");
+  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined,
+    missedPoints: miss.length? miss.map(m=>({ point:m.point, kind:m.kind || undefined, times:m.count })) : undefined });
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
@@ -1724,6 +1727,97 @@ function expSourceLabel(e){
   return `来源题：${moduleName(h.module)}${h.subtype? " · "+h.subtype : ""}（${d.getMonth()+1}/${d.getDate()} 练）`;
 }
 // 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
+/* ============ 漏点本（跨题累计 · 出题重点覆盖） ============
+   与「我的经验」分工：经验是模型提炼出来的话（错因 / 规则 / 表达，带复测排期），
+   漏点本是考生实际丢掉的那些采分点原文（连同材料出处），攒着是为了看得见「同一条反复漏」。
+   全部从 state.history 现算：不新增持久字段，也就不需要迁移。
+   窗口与错因统计同口径：只数最近 MISS_WINDOW 条有采分点的记录——痛点能练掉，背一身旧账只会让「最常丢的」永远停在很早以前那次失手。 */
+const MISS_WINDOW = 30;
+function normPoint(s){
+  return String(s||"").replace(/[\s，。、；：（）「」『』“”"'’,.;:!?！？\-—·【】\[\]()]/g, "");
+}
+function bigrams(s){
+  const set = new Set();
+  for(let i=0;i<s.length-1;i++) set.add(s.slice(i,i+2));
+  return set;
+}
+/* 同一条要点换个说法（「漏写发文机关与日期」/「结尾未写发文机关和日期」）要并成一条，
+   否则跨题累计永远不会超过 1，「反复漏的排前面」就成了空话。只在本模块内并（跨模块的表述本来就不该算一条）。
+   0.5 是实测拍的：真的同一个点落在 0.55–0.71，不相干的两条落在 0–0.48。 */
+function pointSim(a, b){
+  if(!a || !b) return 0;
+  if(a === b) return 1;
+  if(a.length < 6 || b.length < 6) return 0;   // 太短的（「要点全面」这种）一重就乱并
+  const A = bigrams(a), B = bigrams(b);
+  let inter = 0;
+  for(const g of A) if(B.has(g)) inter++;
+  return (2 * inter) / (A.size + B.size);
+}
+const POINT_SAME = 0.5;
+function missedPoints(k, n){
+  const out = [];
+  let seen = 0;
+  for(const h of state.history){
+    if(!h || h.track === "pd" || !Array.isArray(h.hits)) continue;
+    if(k && h.module !== k) continue;
+    if(++seen > MISS_WINDOW) break;
+    for(const x of h.hits){
+      if(hitClass(x) === "hit") continue;
+      if(!isFinite(Number(x.score)) || !isFinite(Number(x.awarded))) continue;   // 老记录没分值：算不出丢了多少，不硬塞进来
+      const key = normPoint(x.point);
+      if(!key) continue;
+      let it = null;
+      for(const o of out){ if(o.module === h.module && pointSim(key, o.key) >= POINT_SAME){ it = o; break; } }
+      if(!it){
+        it = { key, module:h.module, point:String(x.point||"").trim(), count:0, lastAt:0, subtype:"", lastLost:0, lastWhere:"", kind:"", selfCheck:"", appealed:false };
+        out.push(it);
+      }
+      it.count++;
+      const kt = gradeTagOf(x);
+      if(kt) it.kind = kt;
+      if(x.appeal) it.appealed = true;
+      if(x.selfCheck && (x.selfCheck.verdict === "hit" || x.selfCheck.verdict === "miss")) it.selfCheck = x.selfCheck.verdict;
+      if((h.ts||0) >= it.lastAt){   // 最近一次的说法、题型、出处、失分都留最新的那份
+        it.lastAt = h.ts||0;
+        it.subtype = h.subtype||"";
+        it.lastLost = Math.round((Number(x.score) - Number(x.awarded)) * 10) / 10;
+        it.lastWhere = (x.where && String(x.where).trim() !== "-")? String(x.where).trim() : "";
+        it.point = String(x.point||"").trim();
+      }
+    }
+  }
+  out.sort((a,b)=> b.count - a.count || b.lastAt - a.lastAt);   // 反复漏的在前，同次数按最近漏的在前
+  return n? out.slice(0, n) : out;
+}
+/* 出题要重点覆盖的前几条（只算本模块）：与 experiences / weakTags 同一个出口——统计不出口就是给用户看一堆没用的数字 */
+function weakMissedPoints(k, n){
+  return missedPoints(k, n || 3);
+}
+/* 画像里那一段：按模块分组、一行一条、点开看最近一次漏的情形 */
+function missedBookHtml(){
+  const list = missedPoints(null);
+  if(!list.length) return `<div class="hint">还没有漏点。练过几道题、有子项没拿满分，就会自动攒到这里。</div>`;
+  const groups = [];
+  for(const it of list){ let g = groups.find(x=> x.module === it.module); if(!g){ g = { module:it.module, items:[] }; groups.push(g); } g.items.push(it); }
+  groups.sort((a,b)=> b.items.length - a.items.length);
+  // 只收最近 MISS_WINDOW 题、且要能算出去掉了多少分：老记录没分值，宁可不进来也不给个假数
+  let html = `<div class="hint" style="margin:0 0 6px">同一条要点换个说法会并成一条，反复漏的排前面；只统计最近 ${MISS_WINDOW} 题的批改。前几条会写进下次出题，重点考同一方向。</div>`;
+  for(const g of groups){
+    html += `<div class="hint" style="margin:8px 0 2px">${esc(moduleName(g.module))}（${g.items.length} 条）</div><div class="explist">`;
+    for(const it of g.items){
+      const bits = [];
+      if(it.kind) bits.push(`错因 ${it.kind}`);
+      if(it.subtype) bits.push(it.subtype);   // 次数不走这一列：行首那个「N 次」已经是它，不写两遍
+      if(it.selfCheck === "miss") bits.push("你已认下");
+      if(it.selfCheck === "hit") bits.push("你认为答到了");
+      if(it.appealed) bits.push("申诉过");
+      html += `<details class="expline"><summary title="${esc(it.point)}"><span class="etag">${it.count > 1? esc(it.count + " 次") : "—"}</span><span class="etitle">${esc(it.point)}</span><span class="ebody">${esc(bits.join(" · "))}</span></summary><div class="expbody">${esc(it.point)}<div class="hint" style="margin-top:4px">${esc(bits.join(" · "))} · 最近一次 ${esc(mmdd(it.lastAt))} · 丢 ${it.lastLost} 分${it.lastWhere? ` · 材料出处：${esc(it.lastWhere)}`: ""}</div></div></details>`;
+    }
+    html += `</div>`;
+  }
+  return html;
+}
+
 function experienceListHtml(){
   if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。完成一次批改后会自动提炼。</div>`;
   return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
@@ -3776,6 +3870,7 @@ function renderProfile(){
     html += `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
   }
   html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div><div class="explist">` + experienceListHtml() + `</div>`;
+  html += `<div class="sec-title">漏点本（两科共用 · 跨题累计，出题时自动带上）</div>` + missedBookHtml();
   const histAll = state.history.length;
   const histShown = state.history.slice(0, histLimit);
   html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th>待改进</th></tr></thead><tbody>`;
