@@ -179,7 +179,8 @@ ok(el("#docBody").innerHTML.indexOf("hitline part") >= 0, "阅卷页: 部分命�
 ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
 
 /* 4.5 采分点分值口径（满分/半分/零分三档 + 标注符号） */
-ok(SCORING_RULES.indexOf("80%") >= 0 && SCORING_RULES.indexOf("40%") >= 0, "阅卷: prompt 写明三档阈值 (80% / 40%)");
+ok(SCORING_RULES.indexOf("数点不估百分比") >= 0 && SCORING_RULES.indexOf("全部答到") >= 0 && SCORING_RULES.indexOf("一个都没答到") >= 0,
+   "阅卷: 三档判法是数点（子项里的具体情形答到几个），不再估 80%/40% 百分比阈值");
 ok(SCORING_RULES.indexOf("【缺：") >= 0 && SCORING_RULES.indexOf("△") >= 0 && SCORING_RULES.indexOf("✗") >= 0, "阅卷: prompt 写明三个标注符号");
 ok(SCORING_RULES.indexOf("不倒扣") >= 0, "阅卷: prompt 写明不倒扣");
 ok(GEN_POINT_RULES.indexOf("必须正好等于 question.score") >= 0, "出题: prompt 要求子项分值之和等于题目满分");
@@ -646,7 +647,7 @@ await gen("zy.gongwen", "通知", null, false);
 ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf(SUBJECTS.sl.role) < 0, "出题 prompt: 综应模块用综应A 口径");
 ok(cap.sys.indexOf("不超过500字") >= 0, "出题 prompt: 公文写作把文种的字数上限写死进 prompt（通知 500），不再让模型自己编");
 await grade("sl.guanche", "讲话稿", { background:"b" }, [], "答案");
-ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SCORING_RULES) >= 0 && cap.sys.indexOf("80%") >= 0,
+ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SCORING_RULES) >= 0 && cap.sys.indexOf("数点不估百分比") >= 0,
    "阅卷 prompt: 申论口径 + 三档计分规则原样保留");
 await grade("zy.shiwu", null, { background:"b" }, [], "答案");
 ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf("维度分只用于画像诊断") >= 0,
