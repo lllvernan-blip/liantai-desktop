@@ -4631,6 +4631,7 @@ renderChangelog();
   $("#btnExport2").onclick = ()=> $("#btnExport").click();   // 设置页里的备份入口复用顶栏那一套，导出/导入只有一份实现
   $("#btnImport2").onclick = ()=> $("#btnImport").click();
   $("#btnProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+  $("#btnOwnGo").onclick = beginOwnQuestion;   // 练自己的题：弹层的主按钮（这行以前漏了，按钮点了没反应）
   document.querySelectorAll(".modal .mhead .x").forEach(b=> b.onclick = closeModals);
   document.querySelectorAll(".modal").forEach(m=> m.addEventListener("click", e=>{ if(e.target===m) closeModals(); }));
   document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModals(); });
