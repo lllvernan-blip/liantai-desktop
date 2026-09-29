@@ -85,7 +85,13 @@ const METRICS_JS = `(() => {
 
 // 自检规则：只放「客观、不靠审美」的几条。宁少勿滥——规则误报一次，以后就没人信它的结论了。
 // 折叠起来的内容 offsetHeight 为 0，天然被排除在外；跑展开态时它们才参与检查。
-const AUDIT_JS = `(() => {
+// 入口屏的辅助字（≤ 14px 的说明字）预算。入口只写「这是什么 + 怎么开始」（2026-09-29 定的口径），
+// 数字是清理后的实测值加了一点余量；超了就是有人往入口加解释字，脚本当场叫。
+// 判 WARN 不判 FAIL——它是口径不是缺陷；但「WARN 0」这条线一破就得给个说法。
+const ENTRY_AUX_BUDGET = { "01": 30, "02": 62, "03": 74, "12": 145, "26": 95 };
+const AUDIT_JS = (scene) => `(() => {
+  const SCENE = ${JSON.stringify(String(scene))};
+  const ENTRY_BUDGET = ${JSON.stringify(ENTRY_AUX_BUDGET)};
   const issues = [];
   const add = (lv, rule, detail) => issues.push(lv + " " + rule + " — " + detail);
   const body = document.querySelector("#docBody"), doc = document.querySelector("#doc");
@@ -134,6 +140,21 @@ const AUDIT_JS = `(() => {
     if (!c || c === "none" || c === "normal") noMark.push((s.className || "summary") + " 无三角");
   }
   if (noMark.length) add("WARN", "折叠件缺三角标记", noMark.length + " 处：" + noMark.slice(0, 4).join("；"));
+  // ⑥ 入口屏的辅助字预算：入口只写「这是什么 + 怎么开始」，说明字得数得出来
+  const budget = ENTRY_BUDGET[SCENE.slice(0, 2)];
+  if (budget != null) {
+    let aux = 0; const blocks = [];
+    for (const el of live) {
+      if (!textLeaf(el)) continue;
+      if (Math.round(parseFloat(getComputedStyle(el).fontSize)) > 14) continue;
+      let t = "";
+      for (const n of el.childNodes) if (n.nodeType === 3) t += n.textContent;
+      t = t.replace(/\s+/g, "");
+      if (!t) continue;
+      aux += t.length; blocks.push(t.length + "·" + t.slice(0, 16));
+    }
+    if (aux > budget) add("WARN", "入口屏辅助字超预算", SCENE + " 实测 " + aux + " > 预算 " + budget + "；最大的几块 " + blocks.sort((a, b) => parseInt(b) - parseInt(a)).slice(0, 3).join(" / "));
+  }
   return issues;
 })()`;
 
@@ -179,7 +200,7 @@ app.whenReady().then(async () => {
         const m = await win.webContents.executeJavaScript(METRICS_JS, true);
         // 自检：客观规则自己判，结论进日志。图是给人看的，规则是给机器看的
         let audit = [];
-        try { audit = await win.webContents.executeJavaScript(AUDIT_JS, true); } catch (e) { audit = ["WARN 自检脚本自身失败 — " + (e && e.message)]; }        try {
+        try { audit = await win.webContents.executeJavaScript(AUDIT_JS(name), true); } catch (e) { audit = ["WARN 自检脚本自身失败 — " + (e && e.message)]; }        try {
           const errs = await win.webContents.executeJavaScript("(window.__errors || []).splice(0).join(' | ')", true);
           if (errs) audit.push("FAIL 页面报错 — " + String(errs).slice(0, 300));
         } catch (e) {}
