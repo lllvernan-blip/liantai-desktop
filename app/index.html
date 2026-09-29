@@ -322,8 +322,8 @@ html,body{margin:0;padding:0;}
 
   /* 画像：一个模块一行（名称 · 均分 · 细条 · 次数 · 短板），点开才看维度明细 */
   .mrowbox{border-top:1px solid var(--line);margin-bottom:14px;}
-  .mrow{border-bottom:1px solid var(--line);}
-  .mrow>summary{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;list-style:none;font-size:14px;}
+  .mrow{border-bottom:1px solid var(--line);padding:8px 12px;display:flex;align-items:center;gap:10px;}   /* 一级是 button.navrow，二级的快判页是 div.mrow——两种都应当是同一套 flex 行，否则子元素会挤成一团 */
+  .mrow>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;font-size:14px;}
   .mrow>summary::-webkit-details-marker{display:none;}
   .mrow>summary:hover{background:var(--wash);}
   .mrow[open]>summary{background:var(--wash-2);border-bottom:1px solid var(--line);}
@@ -554,7 +554,7 @@ html,body{margin:0;padding:0;}
       <div class="field">
         <label>API Key</label>
         <input type="password" id="setKey" placeholder="粘贴你的 API Key">
-        <div class="note">调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
+        <div class="note">Key 只发往上面这个地址，别用来路不明的地址。</div>
       </div>
       <details class="notebox" id="keyHelp">
         <summary>还没有 API Key？四步拿到（推荐 DeepSeek，几分钱练一次）</summary>
@@ -589,7 +589,7 @@ html,body{margin:0;padding:0;}
       <details class="more">
         <summary>更多设置（练习抬头 / 文号前缀）</summary>
         <div class="inner">
-          <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">这只是练习界面的装饰，不是真实公文；用明显虚构的名字即可。</div></div>
+          <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">只做界面装饰，不是真实公文；建议用明显虚构的名字。</div></div>
           <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div></div>
           <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"></div>
         </div>
@@ -600,7 +600,7 @@ html,body{margin:0;padding:0;}
           <button type="button" id="btnExport2">导出备份</button>
           <button type="button" id="btnImport2">导入备份</button>
         </div>
-        <div class="note">练习记录、草稿、划线与 API Key 只存在本地，不联网、不上传。换电脑或重装之前先「导出备份」存一份 JSON，新机器上装好后「导入备份」即可接着练。备份里不含 API Key，可以放心转存。</div>
+        <div class="note">练习记录、草稿、划线和 API Key 只存在本地，不上传；备份里不含 Key，可以放心转存。换电脑前先「导出备份」，新机器上「导入备份」接着练。</div>
       </div>
       <div class="field">
         <label>使用引导</label>

@@ -101,12 +101,38 @@ const AUDIT_JS = (scene) => `(() => {
   const skip = (el) => el.closest(".drawer,.markpop,.mask,.fab");
   const floating = (el) => { const p = getComputedStyle(el).position; return p === "fixed" || p === "absolute"; };
   const textLeaf = (el) => { for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return true; return false; };
-  const live = Array.from(body.querySelectorAll("*")).filter((el) => el.offsetHeight && !skip(el));
+  // 折叠的内容必须显式排除：**Chromium 里 details:not([open]) 的子元素照样有 offsetHeight 和 rect**
+  // （2026-09-29 实测：关着的 .expline 里 .expbody 报 38~96px，而 details 自己只有 40px）。
+  // 注意：这个字符串是模板字符串，注释里不许出现反引号（写了会把字符串提前截断，
+  // 整个 main.js 语法报错、取景器卡在启动不吐一个字）。
+  // 之前那句「折叠内容的 offsetHeight 为 0，天然被排除在外」是错的——原始态那一遍
+  // 一直在连收起的内容一起查，展开态那一遍也就白跑了。
+  const inClosed = (el) => {
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      if (p.tagName === "DETAILS" && !p.open) {
+        const s = p.querySelector(":scope > summary");
+        if (!s || !s.contains(el)) return true;
+      }
+    }
+    return false;
+  };
+  const rendered = (el) => el.offsetHeight && !skip(el) && !inClosed(el);
+  // 弹层里的内容原来根本没进过自检（body 只取 #docBody）——设置页、画像页一直是盲区，
+  // 现在把开着的弹层面板也算进来；纸面那几条规则仍然只看 #docBody。
+  const roots = [body];
+  for (const m of document.querySelectorAll(".modal:not([hidden])")) {
+    const pb = m.querySelector(".panel-body") || m.querySelector(".box");
+    if (pb && pb.offsetHeight) roots.push(pb);
+  }
+  const all = new Set();
+  for (const r of roots) for (const el of r.querySelectorAll("*")) all.add(el);
+  const liveDoc = Array.from(all).filter((el) => rendered(el) && body.contains(el));
+  const live = Array.from(all).filter(rendered);
   // ① 字形越出纸面：量字形（Range），不是量盒子——盒子把 padding 也算进去，
   //    会把「看着没出纸」误判成出了，也会把真出纸的漏过去（2026-09-23 踩过）
   if (doc) {
     const pb = doc.getBoundingClientRect(), rg = document.createRange(), bad = [];
-    for (const el of live) {
+    for (const el of liveDoc) {
       if (!textLeaf(el) || floating(el)) continue;
       rg.selectNodeContents(el);
       const r = rg.getBoundingClientRect();
@@ -126,14 +152,14 @@ const AUDIT_JS = (scene) => `(() => {
   // ③ 可点热区：低于 24px 就属于「点不准」。24 是行内文字按钮（.asgline 的「移出」）那一档的下限，
   //    顶栏文字按钮 30、正文按钮 36、主行动 40
   const small = [];
-  for (const el of Array.from(body.querySelectorAll("button,summary,a")).filter((e) => e.offsetHeight && !skip(e))) {
+  for (const el of live.filter((e) => e.matches("button,summary,a"))) {
     const r = el.getBoundingClientRect();
     if (Math.round(r.height) < 24) small.push((el.className || el.tagName) + " " + Math.round(r.height) + "px");
   }
   if (small.length) add("WARN", "可点热区不足 24px", small.length + " 处：" + small.slice(0, 4).join("；"));
   // ④ 折叠件必须带可见三角：没有 ::after 的 details 在纸上就是一句普通文字，用户不知道它点得开
   const noMark = [];
-  for (const d of body.querySelectorAll("details")) {
+  for (const d of live.filter((e) => e.tagName === "DETAILS")) {
     const s = d.querySelector(":scope > summary");
     if (!s) { noMark.push("details 缺 summary"); continue; }
     const c = getComputedStyle(s, "::after").content;
@@ -144,7 +170,7 @@ const AUDIT_JS = (scene) => `(() => {
   const budget = ENTRY_BUDGET[SCENE.slice(0, 2)];
   if (budget != null) {
     let aux = 0; const blocks = [];
-    for (const el of live) {
+    for (const el of liveDoc) {
       if (!textLeaf(el)) continue;
       if (Math.round(parseFloat(getComputedStyle(el).fontSize)) > 14) continue;
       let t = "";
