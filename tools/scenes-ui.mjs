@@ -136,6 +136,12 @@ function s11c_profile_hist() {
   openModal("modalProfile");
   profGo("hist");
 }
+function s11d_profile_exp() {
+  // 画像二级页：经验（一条经验还没核过时的状态行）
+  __reset({ history: true, exp: true });
+  openModal("modalProfile");
+  profGo("exp");
+}
 function s12_pd_landing() { __reset({ history: true }); enterPD(); }
 function s13_pd_round() {
   __reset({ history: true }); pdActive = true; state.settings.subject = "zy";
@@ -226,6 +232,7 @@ const SCENES = [
   ["11-画像", s11_profile, false],
   ["11b-画像-模块详情", s11b_profile_module, false],
   ["11c-画像-练习记录", s11c_profile_hist, false],
+  ["11d-画像-经验", s11d_profile_exp, false],
   ["12-快判-落地页", s12_pd_landing, true],
   ["13-快判-作答", s13_pd_round, true],
   ["14-快判-小结", s14_pd_summary, true],

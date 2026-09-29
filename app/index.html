@@ -1693,7 +1693,7 @@ function expStatusSummaryHtml(){
   const all = state.experiences || [];
   let cleared = 0, recur = 0, fresh = 0;
   for(const e of all){ const st = expState(e); if(st === "cleared") cleared++; else if(st === "recur") recur++; else fresh++; }
-  if(!cleared && !recur) return `<div class="hint" style="margin:2px 0 8px">${all.length} 条经验都还没核过。出题会带上它们，批改时逐条核对。</div>`;
+  if(!cleared && !recur) return `<div class="hint" style="margin:2px 0 8px">${all.length} 条经验都还没核过。</div>`;
   return `<div class="hint" style="margin:2px 0 8px">已改掉 ${cleared} 条 · 复犯 ${recur} 条 · 待验证 ${fresh} 条</div>`;
 }
 function previousReviewHits(){
@@ -3631,7 +3631,7 @@ function renderProfile(){
       let n = 0; for(const h of state.history) if(h.module === k) n++;
       // 没练过的模块只占一行：无维度可看，铺开五张「未练」卡只是占地方
       if(avg == null){
-        html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">未练</span><span class="mnone">${esc(MODULES[k].note)}</span></button>`;
+        html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">未练</span></button>`;
         continue;
       }
       // 一级行上只挂一条最该先补的短板（或强项）；维度条、常错类型、文种统计都在二级页面里
