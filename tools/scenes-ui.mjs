@@ -181,6 +181,61 @@ function s21_grade_sources() {
   renderLastGrade();
 }
 
+function s24_answer_limit() {
+  // 限时开着、已经进最后 5 分钟：控件与剩余时间在作答区标题行右侧（焦橙）
+  __reset();
+  current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 1, phase: "answer" };
+  activeModule = "zy.guina";
+  current.limitMin = 30;
+  current.limitFrom = Date.now() - 25 * 60 * 1000;
+  renderZyPage();
+  const ta = $("#answer");
+  if (ta) ta.value = "一、集中受理。把分散在各部门的审批事项集中到一窗受理，平均办理时限由 12 个工作日压缩到 4 个。\n二、上线好差评系统，评价结果直接与窗口考核挂钩。";
+  if (ta && typeof setWordCount === "function") setWordCount(ta.value.length, ansLimitFor("zy.guina", __q));
+}
+function s25_grade_limit() {
+  // 批改页上的限时那一行：用时 32 分 06 秒，超时 2 分 06 秒（限时 30 分钟）
+  __reset({ history: true });
+  const dims = MODULES["zy.guina"].dims;
+  const sc = {};
+  dims.forEach((d, i) => { sc[d] = [16, 14, 15, 17, 13][i % 5]; });
+  const g = { hits: [
+    { point: "把分散审批事项集中到一窗受理", score: 4, awarded: 4, status: "满分", kind: "-", where: "把分散在各部门的审批事项集中到一窗受理" },
+    { point: "上线「好差评」并与窗口考核挂钩", score: 4, awarded: 2, status: "半分", kind: "表达", evidence: "△ 只提到上线好差评，没说与考核挂钩", where: "上线了「好差评」系统，办事群众扫码即可评价" },
+    { point: "跨部门数据共享（问题类信息）", score: 12, awarded: 0, status: "零分", kind: "漏点", evidence: "【缺：数据共享】", where: "部分事项仍需线下重复提交纸质材料，跨部门数据没有真正打通" },
+  ], scores: sc, strengths: ["结构分条清楚"], weaknesses: ["漏了材料里的问题类信息"], comment: "材料里那句「数据没有真正打通」没接住。" };
+  const total = 30;
+  current = { module: "zy.guina", subtype: "归纳概括", question: __q, keyPoints: [], cardPeeks: 0, phase: "grade" };
+  state.history.unshift({ ts: Date.now(), module: "zy.guina", subtype: "归纳概括", question: __q, answer: "一、集中受理。……", keyPoints: [], hits: g.hits,
+    timeLimit: 30, usedSec: 1926, grade: { total, scored: pointsOf(g.hits), scores: sc } });
+  renderGrade(g, total, null, { min: 30, usedSec: 1926 });
+  renderLastGrade();
+}
+
+function s26_gongwen_landing() {
+  // 公文写作落地页：现在多一个「公文格式默写」入口
+  __reset({ history: true });
+  state.settings.subject = "zy";
+  renderModuleLanding("zy.gongwen");
+}
+function s27_fmt_blank() {
+  // 默写页空态：文种 chips + 白纸（当前项是「通知」）
+  __reset();
+  state.settings.subject = "zy";
+  _fmtType = "通知"; _fmtRes = null; _fmtDrafts["通知"] = "";
+  renderFmtDrill();
+}
+function s28_fmt_result() {
+  // 默写对照结果：这次漏了主送机关，上一次也漏了它（标「上次也漏了」）
+  __reset();
+  state.settings.subject = "zy";
+  state.fmt = { "通知": { at: Date.now() - 86400e3, rounds: 2, miss: ["to"] } };
+  _fmtType = "通知"; _fmtRes = null;
+  _fmtDrafts["通知"] = "关于……的通知\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日";
+  renderFmtDrill();
+  judgeFmtDrill();
+}
+
 function s22_grade_selfcheck() {
   __reset({ history: true });
   const dims = MODULES["zy.guina"].dims;
@@ -260,6 +315,11 @@ const SCENES = [
   ["21-批改-材料出处与申诉", s21_grade_sources, true, { height: 1320 }],   // 申诉框在第一屏下方：把视口抻高，一屏拍完
   ["22-批改-拿不准与自查", s22_grade_selfcheck, true, { height: 1500 }],
   ["23-画像-漏点本", s23_profile_missbook, false],
+  ["24-作答-限时", s24_answer_limit, true],
+  ["25-批改-限时用时", s25_grade_limit, true],
+  ["26-公文写作-落地页", s26_gongwen_landing, false],
+  ["27-公文默写-空白", s27_fmt_blank, true],
+  ["28-公文默写-对照结果", s28_fmt_result, true],
 ];
 
 export const scenes = SCENES.map(([name, fn, full, extra]) => Object.assign({

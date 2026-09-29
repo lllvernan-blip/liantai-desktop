@@ -189,10 +189,18 @@ app.whenReady().then(async () => {
         // capturePage 会拿到「最后一次合成的帧」。show:false 的窗口改完 DOM 不会自己重绘，
         // 于是截出上一屏的内容（本项目踩过，且 webContents.invalidate() 无效）。
         // 实测管用的是「改一下窗口尺寸」——它逼着窗口重新合成一帧。
+        // 注意：这个尺寸必须和真正要截的那一屏一致。full 场景中途把窗口擑到文档全高，
+        // 若这里按 900 去「抖」一下，就会把窗口缩回 900——截出来的图只有开头 900px，
+        // 下面的内容根本没进画面（2026-09-29 发现：full 场景一直只拍到上半截）。
         const w = sc.width || 1280, h = sc.height || 900;
-        win.setContentSize(w, h + 1);
+        let keepH = h;
+        if (sc.full) {
+          const dh = await win.webContents.executeJavaScript("document.documentElement.scrollHeight", true);
+          keepH = Math.max(600, Math.min(dh + 8, 6000));
+        }
+        win.setContentSize(w, keepH + 1);
         await wait(120);
-        win.setContentSize(w, h);
+        win.setContentSize(w, keepH);
         await wait(260);
         // sc.crop：只截指定区域（CSS 像素），用来看清某一行到底压在哪条线上——
         // 整页截图缩到 900px 宽以后，10px 的错位肉眼分不出来，而「一条线对不齐」正是要查的东西
