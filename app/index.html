@@ -119,7 +119,6 @@ html,body{margin:0;padding:0;}
 .model-item{display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
-  .chip.sel{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}   /* 当前项：与页签 / 步骤条同一套红底 */
   .chip small{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}   /* 不写 font-size 就会按浏览器的 smaller 算：13px × 0.833 = 10.8px，六档之外的野字号 */
 
   .wrap{max-width:880px;margin:24px auto 56px;padding:0 14px;}
@@ -144,9 +143,7 @@ html,body{margin:0;padding:0;}
   .qtop button.linkbtn:hover{background:var(--ctl);border-color:var(--gov-red);}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:28px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
-  .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:28px 0 10px;}
-  .secrow .sec-title{margin:0;}   /* 标题自带的上 28 下 10 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
-  .secright{display:flex;align-items:center;gap:12px;}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
+  .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;}
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
   ::selection{background:rgba(192,21,26,.16);}
   /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
@@ -187,20 +184,11 @@ html,body{margin:0;padding:0;}
 
   .answer-wrap{margin-top:18px;}
   .markrun{border-left:2px solid var(--mark,#a7f3d0);padding-left:8px;margin:0 0 8px;font-size:13px;line-height:1.7;}   /* 划线色是用户在设置里选的，不能写死成默认那张绿 */
-  textarea#answer,.fmtwrite{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:16px;line-height:2.05;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
-  /* 输入态的焦点圈：作答区 / 笔记框 / 设置里的多行框同一套（以前写了三遍） */
-  textarea#answer:focus,.noteedit:focus,.field textarea:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
+  textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:16px;line-height:2.05;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  textarea#answer:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
   .hint{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
   .counter{font-size:13px;color:var(--muted);}
-  /* 作答限时：控件与剩余时间贴在作答区标题行右侧；超时用焦橙（与「部分命中」同一支） */
-  .tlrow{display:flex;align-items:center;gap:8px;}
-  /* 下拉自己画箭头：系统箭头在这么小的控件上是唯一一处“原生感” */
-  .tlselw{position:relative;display:inline-flex;align-items:center;}
-  .tlselw::after{content:"";position:absolute;right:9px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--muted);pointer-events:none;}
-  .tlsel{appearance:none;-webkit-appearance:none;height:var(--h-ctl);font-family:var(--yahei);font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);padding:0 22px 0 9px;cursor:pointer;}
-  .tlleft{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
-  .tlleft.warn{color:var(--warn);font-weight:600;}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
   .counter b.over{color:#fff;background:var(--danger);padding:0 5px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
@@ -241,8 +229,8 @@ html,body{margin:0;padding:0;}
   .grade .total{font-family:var(--hei);font-size:30px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
   .ghead .gtag{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
-  /* 批改页里的折叠区收成「带顶线的行」：页面里已经有一层纸面，再套两层盒子只剩噪音。
-     行本身的样式就是 .notebox（下面通用那条），这里只给批改页特写。 */
+  /* 批改页里的折叠区收成「带顶线的行」：页面里已经有一层纸面，再套两层盒子只剩噪音 */
+  .grade details.notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
   .grade details.notebox>summary{padding:9px 2px;}
   .grade details.notebox .notebody{padding:2px 2px 10px;}
   /* 丢分清单：按扣分从多到少，一行一条（点 · 证据 · 扣了几分） */
@@ -254,13 +242,6 @@ html,body{margin:0;padding:0;}
 /* 错因类型小标：批改页丢分处的那一小块文字。字号走六档里的 12px，颜色维度只借 token，不新造色。 */
 .kindtag{flex:0 0 auto;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 6px;border-radius:var(--r-ctl);white-space:nowrap;}
 .hitline .kindtag{order:1;}
-.kindtag.un{color:var(--warn);}   /* 「拿不准」跟半分的标记同色：都是「这条在两档之间」的意思，不另引入一种颜色 */
-/* 单条申诉与逐条自查：入口都贴在子项行里，展开的框跟正文共用一条顶线——不另起一种视觉 */
-.hitline .ap,.hitline .ck{flex:0 0 auto;font-size:12px;color:var(--muted);padding:2px 6px;min-height:24px;}
-.hitline .ap:hover,.hitline .ck:hover{color:var(--gov-red);}
-.appealbox{border-top:1px solid var(--line);background:var(--wash);padding:10px 12px;}
-.appealbox .noteedit{min-height:72px;}
-.appealbox .actions{margin-top:8px;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:8px 0 4px;}
   .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
@@ -302,6 +283,7 @@ html,body{margin:0;padding:0;}
   .tour-tip .tacts{display:flex;gap:8px;align-items:center;margin-top:10px;}
   .tour-tip .tourskip{margin-left:auto;color:var(--muted-2);}
   .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
   .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13px;padding:8px 12px;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
@@ -313,7 +295,6 @@ html,body{margin:0;padding:0;}
   /* 设置弹层的分界：上面是接哪家 AI，下面是版本与更新 */
   #updateField{border-top:1px solid var(--line);margin-top:20px;padding-top:18px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
-  .field textarea{width:100%;min-height:96px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:10px 12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .field .note{font-size:12px;color:var(--muted-2);margin-top:4px;}
   /* 地址与 Key 是技术串：仿宋里 l / 1 / I 长得一样，这两格单独换雅黑 */
   #setBase,#setKey,#setModel{font-family:var(--yahei);font-size:13px;}
@@ -347,16 +328,6 @@ html,body{margin:0;padding:0;}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
-  /* 公文格式对照：一行一个要素（✓ / ✗ / — + 依据），与经验清单同一套行样式，不套框 */
-  .fmtlist{border-top:1px solid var(--line);}
-  .fmtline{display:flex;align-items:baseline;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:14px;}
-  .fmtline .fmk{flex:0 0 20px;text-align:center;font-family:var(--hei);font-weight:700;}
-  .fmtline.ok .fmk{color:var(--success);}
-  .fmtline.bad .fmk{color:var(--warn);}
-  .fmtline.na .fmk{color:var(--muted-2);}
-  .fmtline .fname{flex:0 0 116px;font-family:var(--hei);}
-  .fmtline .fnote{flex:1 1 auto;min-width:0;color:var(--muted-2);font-size:13px;}
-  .fmtline .fprev{flex:0 0 auto;font-size:12px;color:var(--warn);}
   .explist{border-top:1px solid var(--line);}
   .expline{border-bottom:1px solid var(--line);}
   .expline>summary{display:flex;align-items:baseline;gap:8px;padding:7px 2px;cursor:pointer;list-style:none;font-size:14px;}
@@ -527,7 +498,7 @@ html,body{margin:0;padding:0;}
 </header>
 
 <div class="wrap">
-  <div id="bannerSlot" aria-live="polite"></div>
+  <div id="bannerSlot"></div>
 
   <div class="doc" id="doc">
     <div class="redhead">
@@ -638,36 +609,6 @@ html,body{margin:0;padding:0;}
     <div class="box">
       <div class="mhead"><span>我的画像（按科目分组 · 模块强弱 / 题型统计 / 历史）</span><button class="x" title="关闭">✕</button></div>
       <div class="panel-body" id="profileBody"></div>
-    </div>
-  </div>
-
-  <div class="modal" id="modalOwn" hidden role="dialog" aria-modal="true" aria-label="粘贴我自己的题">
-    <div class="box">
-      <div class="mhead"><span>粘贴我自己的题（材料 + 作答要求，可附参考答案）</span><button class="x" title="关闭">✕</button></div>
-      <div class="panel-body">
-        <div class="field">
-          <label>背景材料</label>
-          <textarea id="ownMaterial" rows="9" placeholder="把材料原文粘进来，含题干中附的材料。"></textarea>
-          <div class="note">按你给的原文拆采分点，不会改写材料。</div>
-        </div>
-        <div class="field">
-          <label>作答要求</label>
-          <textarea id="ownAsk" rows="3" placeholder="例如：根据给定材料，概括该市推进政务服务标准化的主要做法。（20 分，不超过 300 字）"></textarea>
-        </div>
-        <details class="field addpick"><summary>官方参考答案（可选）</summary>
-          <textarea id="ownRef" rows="6" placeholder="把真题配套的参考答案整段粘进来。给了它，采分点就从它里面拆——标杆是真题口径，不是 AI 自己编的。"></textarea>
-          <div class="note">不给也能练：那杆采分点由 AI 按材料自己拆。</div>
-        </details>
-        <div class="field" style="margin-bottom:0">
-          <label>本题分值</label>
-          <input type="text" id="ownScore" value="20">
-          <div class="note">填数字，留空按 20 分算。</div>
-        </div>
-        <div class="actions" style="justify-content:flex-end">
-          <button class="linkbtn" id="btnOwnCancel">取消</button>
-          <button class="primary" id="btnOwnGo">拆采分点，开始作答</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -839,7 +780,6 @@ const DEFAULT_STATE = {
   // model 默认为空：名字一律等实拉，不预置任何可能已经过期的模型名
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
-             timeLimit:0,   // 作答限时的默认值（分钟，0 = 不限）：选过一次，下一题按同样时长起
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
   tut:{ zy:false, sl:false, pd:false },
@@ -850,8 +790,7 @@ const DEFAULT_STATE = {
   cache:{ studyCards:{}, notes:{} },
   modelCache:{},
   modelCaps:{},   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
-  modelProbe:{},  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
-  fmt:{}          // 公文格式默写：文种 → { at, rounds, miss:[要素 id] }（不参与计分，只记「这次漏了哪几项」）
+  modelProbe:{}  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
 };
 
 /* ============ 申论训练链（读材料·找点 → 归类 → 一稿 → 批改 → 沉淀；找点并入读材料，回改已下线） ============ */
@@ -1064,9 +1003,6 @@ function load(){
     s.modelCache = s.modelCache||{};
     s.modelCaps = s.modelCaps||{};
     Object.keys(s.modelCaps).forEach(k=>{ if(s.modelCaps[k]!=="ok" && s.modelCaps[k]!=="rejected") delete s.modelCaps[k]; });
-    // 公文格式默写：缺省补空表；条目不合法的丢掉（不整包失败）
-    s.fmt = (s.fmt && typeof s.fmt === "object" && !Array.isArray(s.fmt))? s.fmt : {};
-    Object.keys(s.fmt).forEach(k=>{ const v = s.fmt[k]; if(!v || typeof v !== "object" || !Array.isArray(v.miss)) delete s.fmt[k]; });
     s.modelProbe = s.modelProbe||{};
     // 经验闭环（两科共用）：缺省补空数组；条目不合法的丢弃，不整包失败
     s.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
@@ -1167,26 +1103,29 @@ async function fetchWithTimeout(url, opt, ms){
   finally{ clearTimeout(timer); }
 }
 
-// 解析一行 SSE：非数据行、[DONE]、坏行都返回空串；pick 决定从这条增量里取哪个字段
-function ssePick(line, pick){
+// 解析一行 SSE：返回本次增量；非数据行、[DONE]、坏行都返回空串
+function sseDelta(line){
   const l = line.trim();
   if(l.indexOf("data:") !== 0) return "";
   const payload = l.slice(5).trim();
   if(payload === "[DONE]") return "";
-  try{ return pick(JSON.parse(payload)); }catch(e){ return ""; }
-}
-function sseDelta(line){
-  return ssePick(line, j=>{
+  try{
+    const j = JSON.parse(payload);
     const ch = j.choices && j.choices[0];
     return (ch && ((ch.delta && ch.delta.content) || ch.text)) || "";
-  });
+  }catch(e){ return ""; }
 }
 function sseReasonDelta(line){
   // 与 sseDelta 同源解析，只取思考内容（reasoning_content）：它的量是「档位是否真生效」的可观测信号
-  return ssePick(line, j=>{
+  const l = line.trim();
+  if(l.indexOf("data:") !== 0) return "";
+  const payload = l.slice(5).trim();
+  if(payload === "[DONE]") return "";
+  try{
+    const j = JSON.parse(payload);
     const d = j.choices && j.choices[0] && j.choices[0].delta;
     return (d && typeof d.reasoning_content === "string") ? d.reasoning_content : "";
-  });
+  }catch(e){ return ""; }
 }
 
 // 从还没收完的流式 JSON 里抠出正在生成的可读片段，给“它在写题了”的实况感；同类字段取最后一个（最新写到的那条）
@@ -1401,27 +1340,29 @@ function recordTotal(h){
   if(isFinite(t)) return t;
   return g.scores? dimTotal(g.scores, MODULES[k].dims) : null;
 }
-/* 近期加权求平均的统一口径：按时间从新到旧，第 n 条记录权重 RECENCY_DECAY^n（越早越轻）。
-   filter 决定「算哪些记录」，pick 决定「算哪个值」；没有可用记录时返回 null。
-   这个循环原先在四处各写了一遍，口径一改就得同时改四处——现在只有这里一份。 */
-function recencyAvg(pick, filter){
+function dimStat(k, dim){
   let sum=0, wsum=0, n=0;
   for(const h of state.history){
-    if(filter && !filter(h)) continue;
-    const v = pick(h);
-    if(v == null || !isFinite(v)) continue;
+    if(h.module !== k) continue;
+    const v = Number(h.grade && h.grade.scores && h.grade.scores[dim]);
+    if(!isFinite(v)) continue;
     const w = Math.pow(RECENCY_DECAY, n);
     sum += v*w; wsum += w; n++;
   }
   return n? { avg: sum/wsum, n } : null;
 }
-function dimStat(k, dim){
-  return recencyAvg(h=> Number(h.grade && h.grade.scores && h.grade.scores[dim]), h=> h.module === k);
-}
 function subtypeListOf(k){ return k===GONGWEN_KEY? GONGWEN_TYPES.map(t=>t.type) : ((MODULES[k] && MODULES[k].subtypes) || []); }
 function subtypeWord(k){ return k===GONGWEN_KEY? "文种" : "子类型"; }
 function subtypeStat(k, t){
-  return recencyAvg(recordTotal, h=> h.module === k && (h.subtype||null) === t);
+  let sum=0, wsum=0, n=0;
+  for(const h of state.history){
+    if(h.module !== k || (h.subtype||null) !== t) continue;
+    const v = recordTotal(h);
+    if(v == null || !isFinite(v)) continue;
+    const w = Math.pow(RECENCY_DECAY, n);
+    sum += v*w; wsum += w; n++;
+  }
+  return n? { avg: sum/wsum, n } : null;
 }
 
 /* ============ 自适应选择 ============ */
@@ -1429,8 +1370,15 @@ function subtypeStat(k, t){
    以前这里是拿维度分平均当模块水平，于是画像的「均分」和练习记录表的「总分」是两个数：
    同一条答卷可以既显示均分 75 又显示总分 60。维度分是诊断用的，不该在这里代表水平。 */
 function moduleAvg(k){
-  const s = recencyAvg(recordTotal, h=> h.module === k);
-  return s? s.avg : null;
+  let sum=0, wsum=0, n=0;
+  for(const h of state.history){
+    if(h.module !== k) continue;
+    const v = recordTotal(h);
+    if(v == null || !isFinite(v)) continue;
+    const w = Math.pow(RECENCY_DECAY, n);
+    sum += v*w; wsum += w; n++;
+  }
+  return n? sum/wsum : null;
 }
 
 // 自适应推送的第一性原理：没有数据并不等于“已经好了”。
@@ -1439,9 +1387,15 @@ const COLD_START_SCORE = 60;  // 未练过 = 未知，不当作“已掌握”
 const REPEAT_PENALTY   = 12;  // 刚练过再练，代价上浮
 const PEEK_WEIGHT      = 8;   // 翻卡紧迫度：平均多翻 1 次卡 ≈ 抵 8 分——翻得勤说明卡还没长在身上，优先再出
 function recentPeeks(k, subtype){
-  const s = recencyAvg(h=> h.cardPeeks,
-    h=> h.module === k && (subtype == null || (h.subtype||null) === subtype));
-  return s? s.avg : null;
+  let sum=0, wsum=0, n=0;
+  for(const h of state.history){
+    if(h.module !== k) continue;
+    if(subtype != null && (h.subtype||null) !== subtype) continue;
+    if(h.cardPeeks == null) continue;
+    const w = Math.pow(RECENCY_DECAY, n);
+    sum += h.cardPeeks*w; wsum += w; n++;
+  }
+  return n? sum/wsum : null;
 }
 function recentCount(k){
   const last = state.profile.lastModules.slice(0,3);
@@ -1522,20 +1476,14 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
                             : "作答要求（含作答身份、对象、明确字数上限，如：不超过300字）";
   const exps = expBlock(k);   // 经验闭环：当前模块未停用的经验（≤3 条）注入出题，两科都带
   const tags = weakGradeTags(k, 3);   // 错因标签：批改累计出来最常丢分的几类，出题重点覆盖
-  const miss = weakMissedPoints(k, 3);   // 漏点本：他实际反复丢过的要点，再出一道得能考到同一方向
-  const fmtW = (k === GONGWEN_KEY)? weakFmtMisses(2) : [];   // 默写反复漏的格式项：只在公文写作出题时带
   const lib = SL_STUDY_CARDS[k];   // 申论内置资料库（课堂笔记提炼）：学习卡以此为纲生成
   const libNote = (needCard && lib)? "学习卡必须以内置资料库（library 字段）的方法论为纲，按本题场景重新组织措辞，不得偏离或遗漏资料库要点。" : "";
   const note = (needCard
     ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式，另附一个 example：两三句话的示例小案例 + 典型问法，让用户认出这类题的样子；example 必须是全新编的示例，严禁使用本题背景材料的情节）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。")
     + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "")
-    + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "")
-    + (miss.length? ` 他在最近的练习里反复漏过这些采分点：「${miss.map(m=>m.point).join("」「")}」。本题请自选新场景，但要能考到同一方向（把这几条当作要点方向，不是把原句和旧场景搬过来，也不要求字面相同）。` : "")
-    + (fmtW.length? ` 他在「公文格式默写」里反复漏这些格式项：「${fmtW.map(w=>`${w.type}的${w.item}`).join("」「")}」。出题时请在格式要素上留出可判的地方。` : "");
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined,
-    missedPoints: miss.length? miss.map(m=>({ point:m.point, kind:m.kind || undefined, times:m.count })) : undefined,
-    fmtWeak: fmtW.length? fmtW : undefined });
+    + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "");
+  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined });
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
@@ -1568,7 +1516,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     exps? { experiences:exps, expNote } : {},
     rewrite? { mode:"rewrite", previousReview:(rewrite.previousReview||[]) } : {}));
   const schema = `{
-    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注","where":"材料里支撑这一条的原文片段（10-30字，照抄材料原句；材料里确实没有对应表述的填 -）","unsure":"这一条自己在相邻两档之间摇摆时填 {\"range\":\"如 0.5-1\",\"why\":\"摇摆的原因，40字内\"}，没有摇摆填 null"}],
+    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
@@ -1585,8 +1533,6 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     expCheck +
     "\n" + SCORING_RULES +
     `\n错因归类：每条子项都要给 kind——${GRADE_TAG_LINE}；拿不准选最接近的一类，拿满分的填 -。kind 只用于考生自己的错因统计，不参与计分，不得因此改动 awarded 与总分。` +
-    `\n材料出处：每条子项再给一个 where——把材料里支撑这一条的原文照抄 10-30 字（照抄，不改写、不拼接两处）；材料里确实没有对应表述的才填 -。它只帮考生回材料核对，不参与计分。` +
-    `\n拿不准也照实说：逐条判完，如果某一条你是在相邻两档之间摇摆（比如「半分」与「零分」都有理由），在它的 unsure 里写清摇摆区间与原因，全卷最多标 2 条；标出来不改分——awarded 仍按你当前的判断给，不许因为标了拿不准就往中间档靠。它只让考生知道哪几条的依据不够硬，不参与计分。` +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。` +
     `\n同一份答卷重复阅卷时，个别子项可能在相邻档位之间摆动：判「半分」时必须在 evidence 里写出考生答到了哪些内容，写不出对应表述的就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按中间档判，不要为了鼓励考生抬分。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
@@ -1741,100 +1687,9 @@ function expSourceLabel(e){
   return `来源题：${moduleName(h.module)}${h.subtype? " · "+h.subtype : ""}（${d.getMonth()+1}/${d.getDate()} 练）`;
 }
 // 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
-/* ============ 漏点本（跨题累计 · 出题重点覆盖） ============
-   与「我的经验」分工：经验是模型提炼出来的话（错因 / 规则 / 表达，带复测排期），
-   漏点本是考生实际丢掉的那些采分点原文（连同材料出处），攒着是为了看得见「同一条反复漏」。
-   全部从 state.history 现算：不新增持久字段，也就不需要迁移。
-   窗口与错因统计同口径：只数最近 MISS_WINDOW 条有采分点的记录——痛点能练掉，背一身旧账只会让「最常丢的」永远停在很早以前那次失手。 */
-const MISS_WINDOW = 30;
-function normPoint(s){
-  return String(s||"").replace(/[\s，。、；：（）「」『』“”"'’,.;:!?！？\-—·【】\[\]()]/g, "");
-}
-function bigrams(s){
-  const set = new Set();
-  for(let i=0;i<s.length-1;i++) set.add(s.slice(i,i+2));
-  return set;
-}
-/* 同一条要点换个说法（「漏写发文机关与日期」/「结尾未写发文机关和日期」）要并成一条，
-   否则跨题累计永远不会超过 1，「反复漏的排前面」就成了空话。只在本模块内并（跨模块的表述本来就不该算一条）。
-   0.5 是实测拍的：真的同一个点落在 0.55–0.71，不相干的两条落在 0–0.48。 */
-function pointSim(a, b){
-  if(!a || !b) return 0;
-  if(a === b) return 1;
-  if(a.length < 6 || b.length < 6) return 0;   // 太短的（「要点全面」这种）一重就乱并
-  const A = bigrams(a), B = bigrams(b);
-  let inter = 0;
-  for(const g of A) if(B.has(g)) inter++;
-  return (2 * inter) / (A.size + B.size);
-}
-const POINT_SAME = 0.5;
-function missedPoints(k, n){
-  const out = [];
-  let seen = 0;
-  for(const h of state.history){
-    if(!h || h.track === "pd" || !Array.isArray(h.hits)) continue;
-    if(k && h.module !== k) continue;
-    if(++seen > MISS_WINDOW) break;
-    for(const x of h.hits){
-      if(hitClass(x) === "hit") continue;
-      if(!isFinite(Number(x.score)) || !isFinite(Number(x.awarded))) continue;   // 老记录没分值：算不出丢了多少，不硬塞进来
-      const key = normPoint(x.point);
-      if(!key) continue;
-      let it = null;
-      for(const o of out){ if(o.module === h.module && pointSim(key, o.key) >= POINT_SAME){ it = o; break; } }
-      if(!it){
-        it = { key, module:h.module, point:String(x.point||"").trim(), count:0, lastAt:0, subtype:"", lastLost:0, lastWhere:"", kind:"", selfCheck:"", appealed:false };
-        out.push(it);
-      }
-      it.count++;
-      const kt = gradeTagOf(x);
-      if(kt) it.kind = kt;
-      if(x.appeal) it.appealed = true;
-      if(x.selfCheck && (x.selfCheck.verdict === "hit" || x.selfCheck.verdict === "miss")) it.selfCheck = x.selfCheck.verdict;
-      if((h.ts||0) >= it.lastAt){   // 最近一次的说法、题型、出处、失分都留最新的那份
-        it.lastAt = h.ts||0;
-        it.subtype = h.subtype||"";
-        it.lastLost = Math.round((Number(x.score) - Number(x.awarded)) * 10) / 10;
-        it.lastWhere = (x.where && String(x.where).trim() !== "-")? String(x.where).trim() : "";
-        it.point = String(x.point||"").trim();
-      }
-    }
-  }
-  out.sort((a,b)=> b.count - a.count || b.lastAt - a.lastAt);   // 反复漏的在前，同次数按最近漏的在前
-  return n? out.slice(0, n) : out;
-}
-/* 出题要重点覆盖的前几条（只算本模块）：与 experiences / weakTags 同一个出口——统计不出口就是给用户看一堆没用的数字 */
-function weakMissedPoints(k, n){
-  return missedPoints(k, n || 3);
-}
-/* 画像里那一段：按模块分组、一行一条、点开看最近一次漏的情形 */
-function missedBookHtml(){
-  const list = missedPoints(null);
-  if(!list.length) return `<div class="hint">还没有漏点。练过几道题、有子项没拿满分，就会自动攒到这里。</div>`;
-  const groups = [];
-  for(const it of list){ let g = groups.find(x=> x.module === it.module); if(!g){ g = { module:it.module, items:[] }; groups.push(g); } g.items.push(it); }
-  groups.sort((a,b)=> b.items.length - a.items.length);
-  // 只收最近 MISS_WINDOW 题、且要能算出去掉了多少分：老记录没分值，宁可不进来也不给个假数
-  let html = `<div class="hint" style="margin:0 0 6px">同一条要点换个说法会并成一条，反复漏的排前面；只统计最近 ${MISS_WINDOW} 题的批改。前几条会写进下次出题，重点考同一方向。</div>`;
-  for(const g of groups){
-    html += `<div class="hint" style="margin:8px 0 2px">${esc(moduleName(g.module))}（${g.items.length} 条）</div><div class="explist">`;
-    for(const it of g.items){
-      const bits = [];
-      if(it.kind) bits.push(`错因 ${it.kind}`);
-      if(it.subtype) bits.push(it.subtype);   // 次数不走这一列：行首那个「N 次」已经是它，不写两遍
-      if(it.selfCheck === "miss") bits.push("你已认下");
-      if(it.selfCheck === "hit") bits.push("你认为答到了");
-      if(it.appealed) bits.push("申诉过");
-      html += `<details class="expline"><summary title="${esc(it.point)}"><span class="etag">${it.count > 1? esc(it.count + " 次") : "—"}</span><span class="etitle">${esc(it.point)}</span><span class="ebody">${esc(bits.join(" · "))}</span></summary><div class="expbody">${esc(it.point)}<div class="hint" style="margin-top:4px">${esc(bits.join(" · "))} · 最近一次 ${esc(mmdd(it.lastAt))} · 丢 ${it.lastLost} 分${it.lastWhere? ` · 材料出处：${esc(it.lastWhere)}`: ""}</div></div></details>`;
-    }
-    html += `</div>`;
-  }
-  return html;
-}
-
 function experienceListHtml(){
   if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。完成一次批改后会自动提炼。</div>`;
-  return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-drill="${esc(e.id)}" title="用一道新题考考这条">练一道</button><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
+  return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 function distillPanelHtml(){
   let html = `<div class="hint" style="margin-top:10px">这一步不用动手：每次批改完成都会自动提炼经验，下次出题与批改会自动带上（两科共用一个经验库）。</div>`;
@@ -1858,13 +1713,6 @@ function wireExperiences(){
   document.querySelectorAll("[data-exp-del]").forEach(b=> b.onclick = ()=>{
     const i = (state.experiences||[]).findIndex(x=>x.id===b.dataset.expDel);
     if(i >= 0){ state.experiences.splice(i,1); save(); refreshAfterExpChange(); }
-  });
-  // 复测的最后一公里：到期/待验证的经验旁边直接开练，不用自己退回模块页
-  document.querySelectorAll("[data-exp-drill]").forEach(b=> b.onclick = async ()=>{
-    const e = (state.experiences||[]).find(x=>x.id===b.dataset.expDrill);
-    if(!e || !e.module) return;
-    closeModals();
-    await startModule(e.module);
   });
 }
 function refreshAfterExpChange(){
@@ -1975,7 +1823,7 @@ function backToStart(){
 let _focusBack = null;   // 弹层打开前的焦点落点（声明在 openModal 之前，避开 TDZ）
 function openModal(id){
   _focusBack = document.activeElement;   // 关掉弹层把焦点还给原来那个按钮，键盘用户不会掉到页首
-  ["modalSettings","modalProfile","modalOwn"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
+  ["modalSettings","modalProfile"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
   document.body.style.overflow = "hidden";
   const m = $("#"+id);
   const box = (m && typeof m.querySelector === "function")? m.querySelector(".box") : null;
@@ -1985,14 +1833,14 @@ function openModal(id){
   }
 }
 function closeModals(){
-  $("#modalSettings").hidden = true; $("#modalProfile").hidden = true; $("#modalOwn").hidden = true;
+  $("#modalSettings").hidden = true; $("#modalProfile").hidden = true;
   document.body.style.overflow = "";
   if(_focusBack && typeof _focusBack.focus === "function"){ try{ _focusBack.focus({preventScroll:true}); }catch(e){} }
   _focusBack = null;
 }
 /* 弹层开着时把 Tab 圈在弹层里：否则焦点会跑到遮罩后面的页面上，看着焦点环消失、回车却改了背后那页 */
 function openModalEl(){
-  for(const id of ["modalSettings","modalProfile","modalOwn"]){
+  for(const id of ["modalSettings","modalProfile"]){
     const m = $("#"+id);
     if(m && !m.hidden) return m;
   }
@@ -2022,16 +1870,6 @@ function banner(html, kind){
   if(bo) bo.onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
 }
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
-/* 等待计时：出题 / 出学习卡这类慢调用，把秒数写进 #elapsed。
-   元素不在了（已经换了页）就自己收摊。调用方只负责在 finally 里 clearInterval。 */
-function startElapsed(t0){
-  const tick = setInterval(()=>{
-    const el = $("#elapsed");
-    if(!el){ clearInterval(tick); return; }
-    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
-  }, 1000);
-  return tick;
-}
 
 function renderStart(){
   _view = "start";
@@ -2062,12 +1900,6 @@ function renderStart(){
 
 /* ---- 使用引导：首次进入科目起始页时说明入口和练习流程；快判在自己的落地页说明规则。
     走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
-/* 两科起始页都有、说法完全一样的几步：只留一份，免得改一句要改两处。 */
-const TOUR_TAIL = [
-  { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
-  { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
-  { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
-];
 const TOURS = {
   pd:[
     // 先讲主行动，再讲细分入口：先讲模块页签会把不打算挑题型的人往手动选题带，正与「不选题型也能练」相反
@@ -2079,10 +1911,16 @@ const TOURS = {
   ],
   zy:[
     { sel:"#btnStart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。" },
-  ].concat(TOUR_TAIL),
+    { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
+    { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
+    { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
+  ],
   sl:[
     { sel:"#btnStart", text:"不选模块也可以，直接点这里。先读材料划出要点，再归类成稿。" },
-  ].concat(TOUR_TAIL),
+    { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
+    { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
+    { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
+  ],
 };
 let tour = null;   // { sub, steps, i }
 // 当前页面形态：start（科目首页）| pd（快判页）| landing（模块落地页）| q（作答中）。
@@ -2186,198 +2024,6 @@ function tourEnd(markSeen){
 }
 
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
-/* ============ 公文格式默写（不看提示写出格式框架，逐要素对照） ============ */
-// 判的是「有没有这一项、位置对不对」：规则直白、本地判，不调模型，写完立刻有结果。
-// 位置口径：法定公文照《党政机关公文格式》（GB/T 9704-2012）的通行写法，应用文照行业通行写法——
-// 标题在第一行、称谓顶格加冒号、正文每段首行空两字、落款（署名与日期）靠右。
-// 文种差异只影响「要不要这一项、这一项叫什么、这一项该怎么写」；
-// 内容层面的东西（新闻稿的导语、讲话稿的结束语）本地判不了，不硬判：标「不判」并写清原因。
-const GW_FMT_ITEM_NAME = { title:"标题", to:"主送机关", body:"正文", sign:"发文机关署名", date:"成文日期" };
-// 只写与通用格式不同那几处：默认有标题、有主送机关、有署名与日期
-const GW_FMT_SPEC = {
-  // 法定公文
-  "公告": { to:false, note:"公告面向社会公布，不写主送机关" },
-  "通告": { to:false, note:"通告面向一定范围公布，不写主送机关" },
-  "纪要": { to:false, sign:false, extra:"出席人员：……\n列席人员：……", note:"纪要不写主送机关与发文机关署名，另有出席、列席人员" },
-  // 应用文
-  "讲话稿": { toName:"称呼", toHint:"同志们：", titleHint:"在××会议上的讲话", sign:false, date:false, note:"讲话稿开头是称呼、结尾是结束语（如「谢谢大家！」），不写发文机关署名与成文日期" },
-  "倡议书": { toName:"称呼", toHint:"广大市民朋友们：" },
-  "公开信": { toName:"称呼", toHint:"×××：" },
-  "新闻稿": { to:false, sign:false, date:false, titleHint:"×××（标题就说清这件事）", note:"新闻稿不写称呼与落款（署「通讯员××」时就写在末尾括号里）" },
-  "短评": { to:false, sign:false, date:false, titleHint:"×××（观点就是标题）", note:"短评只有标题与正文，不写称呼与落款" },
-  "宣传稿": { to:false, sign:false, date:false, titleHint:"×××（标题要抓人）", note:"宣传稿只有标题与正文，不写称呼与落款" },
-  "编者按": { title:false, to:false, sign:false, date:false, bodyHint:"编者按：……", bodyPrefix:"编者按", note:"编者按不写标题、称呼与落款，就是一段按语" },
-  "工作方案": { to:false, note:"工作方案不写主送机关，末尾署制定单位与日期" },
-  "调研报告": { to:false, note:"调研报告不写主送机关，末尾署调研单位与日期" },
-  "汇报材料": { to:false, note:"汇报材料不写主送机关，末尾署汇报单位与日期" },
-};
-function gwFmtSpec(type){ return GW_FMT_SPEC[type] || {}; }
-function fmtItemName(id, sp){ return (id === "to" && sp && sp.toName)? sp.toName : GW_FMT_ITEM_NAME[id]; }
-// 默写覆盖公文写作池的全部文种（应用文虽无国标，但称谓/正文/落款的规矩是通的）
-const GW_FMT_TYPES = GONGWEN_TYPES.map(t=> t.type);
-function gwIsLegal(type){ return GONGWEN_TYPES.some(t=> t.type === type && t.cat === "法定公文"); }
-/* 公文骨架：作答页的「插入公文骨架」与默写的「标准格式」共用这一份，不给同一件事写两份 */
-function gwSkeletonText(type){
-  const sp = gwFmtSpec(type), d = new Date();
-  let out = "";
-  if(sp.title !== false) out += `（标题）${sp.titleHint || `关于……的${type}`}\n\n`;
-  if(sp.to !== false) out += `${sp.toHint || fmtItemName("to", sp) + "："}\n\n`;
-  out += `　　${sp.bodyHint || "正文：……"}\n\n`;
-  if(sp.extra) out += sp.extra + "\n\n";
-  if(sp.sign !== false) out += `　　　　　　　　　　　　${state.settings.orgName||"XX单位"}\n`;
-  if(sp.date !== false) out += `　　　　　　　　　　　　${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
-  return out;
-}
-/* 逐要素判：每条给出「判成什么」与「依据」（匹配到的原句，或没找到什么） */
-function judgeGwFormat(text, type){
-  const sp = gwFmtSpec(type), legal = gwIsLegal(type);
-  const rows = String(text||"").split("\n").map((l,i)=> ({ l, i })).filter(x=> x.l.trim());
-  const leadN = s=> (String(s).match(/^\s*/) || [""])[0].length;                        // 前导空白字数
-  const isDate = s=> /\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日/.test(String(s));          // 写全年月日
-  // 先把末尾那两行认出来（日期 / 靠右的署名）：它们也是缩进的，不先认出来就会被当成正文
-  const tail = rows.slice(-4);
-  const dHit = tail.find(x=> isDate(x.l));
-  const sHit = tail.find(x=> x !== dHit && leadN(x.l) >= 4);
-  const out = [];
-  const push = (id, ok, note, na)=> out.push({ id, ok: !!ok, na: !!na, note });
-  // 标题：法定公文看第一行有没有文种名；应用文只要第一行不是称谓/正文（标题长什么样因文种而异，不硬套）
-  if(sp.title === false) push("title", false, "", true);
-  else{
-    const t0 = rows[0]? rows[0].l.trim() : "";
-    const ok = !!t0 && (legal? t0.indexOf(type) >= 0 : (leadN(t0) === 0 && !/[：:]\s*$/.test(t0)));
-    push("title", ok, t0? (ok? `第 1 行：${t0}` : (legal? `第 1 行里没有「${type}」两个字` : "第 1 行看起来是称谓或正文——标题要在第一行")) : "没有标题行");
-  }
-  // 称谓（主送机关 / 称呼）：写在标题下一行、顶格、以冒号结尾。搜索限在前三行，且在正文之前——
-  // 正文里顶格带冒号的行（「一、总体要求：」这种小标题、附件说明）不是主送机关
-  if(sp.to === false) push("to", false, "", true);
-  else{
-    const firstBody = rows.findIndex(x=> leadN(x.l) >= 2);
-    const isHead = s=> /^([一二三四五六七八九十]+[、.．]|（[一二三四五六七八九十]+）|\d+[、.．])/.test(String(s).trim());
-    const hit = rows.slice(1, 3).find(x=> (firstBody < 0 || x.i < rows[firstBody].i) && leadN(x.l) === 0 && /[：:]\s*$/.test(x.l) && !isHead(x.l) && x.l.indexOf("附件") < 0);
-    push("to", hit, hit? `第 ${hit.i+1} 行：${hit.l.trim()}` : `没找到顶格、以冒号结尾的那一行（${fmtItemName("to", sp)}写在标题下一行）`);
-  }
-  // 正文：首行空两字那一段；名单里规定的（如编者按）按「以什么起头」判
-  if(sp.body === false) push("body", false, "", true);
-  else if(sp.bodyPrefix){
-    const hit = rows.find(x=> x.l.trim().indexOf(sp.bodyPrefix) >= 0);
-    push("body", hit, hit? `第 ${hit.i+1} 行：${hit.l.trim()}` : `没找到以「${sp.bodyPrefix}」起头的那一段`);
-  }
-  else{
-    const hit = rows.find(x=> leadN(x.l) >= 2 && x !== sHit && x !== dHit);
-    push("body", hit, hit? `第 ${hit.i+1} 行：首行空两字` : "没有首行空两字的段落（正文每段开头空两字）");
-  }
-  if(sp.sign === false) push("sign", false, "", true);
-  else push("sign", sHit, sHit? `第 ${sHit.i+1} 行靠右：${sHit.l.trim()}` : "末尾没找到靠右的署名（至少空四格）");
-  if(sp.date === false) push("date", false, "", true);
-  else push("date", dHit, dHit? `第 ${dHit.i+1} 行：${dHit.l.trim()}` : "末尾没找到「××××年×月×日」");
-  return out;
-}
-function fmtLastOf(type){ return (state.fmt && state.fmt[type]) || null; }
-let _fmtType = null, _fmtRes = null;
-const _fmtDrafts = {};   // 本次会话里各文种写了一半的草稿：换文种不丢字
-function fmtResultHtml(res){
-  if(!res) return "";
-  const prev = res.prev, sp = gwFmtSpec(res.type);
-  const miss = res.items.filter(x=> !x.ok && !x.na).map(x=> x.id);
-  const anyNa = res.items.some(x=> x.na);
-  let html = `<div class="sec-title">要素对照</div><div class="fmtlist">` +
-    res.items.map(x=>{
-      const cls = x.na? "na" : (x.ok? "ok" : "bad");
-      const mk = x.na? "—" : (x.ok? "✓" : "✗");
-      const pv = (!x.ok && !x.na && prev && prev.miss.indexOf(x.id) >= 0)? `<span class="fprev">上次也漏了</span>` : "";
-      return `<div class="fmtline ${cls}"><span class="fmk">${mk}</span><span class="fname">${fmtItemName(x.id, sp)}</span><span class="fnote">${esc(x.na? "本项不适用" : x.note)}${pv}</span></div>`;
-    }).join("") + `</div>`;
-  if(anyNa && sp.note) html += `<div class="hint" style="margin-top:6px">说明：${esc(sp.note)}。</div>`;
-  html += miss.length
-    ? `<div class="hint" style="margin-top:8px">漏了 ${miss.length} 项：${miss.map(id=>fmtItemName(id, sp)).join("、")}。</div>`
-    : `<div class="hint" style="margin-top:8px">要判的几项都写到了，位置也对。</div>`;
-  html += `<div class="sec-title">标准格式（照这个位置排）</div><div class="tpl">${esc(gwSkeletonText(res.type))}</div>`;
-  return html;
-}
-function fmtDrillHtml(){
-  const type = _fmtType || GW_FMT_TYPES[0];
-  const prev = fmtLastOf(type);
-  let html = `<div class="secrow"><div class="sec-title">公文格式默写</div><button class="linkbtn" id="btnFmtBack">返回「公文写作」</button></div>
-    <div class="hint" style="margin:2px 0 12px">选一个文种，不看提示写出它的格式框架——占位文字就行。写完逐条对照：有没有这一项、位置对不对。法定公文按《党政机关公文格式》判，应用文按通行写法判；导语、结束语这类内容层面的项不判。</div>
-    <div class="subtypechips" style="justify-content:flex-start;max-width:none;margin:0">${GW_FMT_TYPES.map(t=> `<button class="chip${t===type? " sel":""}" data-ftype="${t}">${t}</button>`).join("")}</div>`;
-  html += `<div class="sec-title" style="margin-top:22px">默写 · ${type}</div><textarea class="fmtwrite" id="fmtText">${esc(_fmtDrafts[type]||"")}</textarea>`;
-  html += `<div class="actions"><button class="primary" id="btnFmtJudge">对照标准格式</button><span class="counter" id="fmtCount">0 字</span><span class="hint">只对照要素与位置，不计分</span></div>`;
-  html += fmtResultHtml(_fmtRes && _fmtRes.type === type? _fmtRes : null);
-  if(prev) html += `<div class="hint" style="margin-top:10px">这个文种默过 ${prev.rounds||1} 次，上一次（${mmdd(prev.at)}）${prev.miss.length? `漏了 ${prev.miss.map(id=>fmtItemName(id, gwFmtSpec(type))).join("、")}` : "没漏项"}。</div>`;
-  return html;
-}
-function renderFmtDrill(){
-  _view = "fmt";
-  activeModule = GONGWEN_KEY; tabActiveKey = GONGWEN_KEY; renderHeader(); renderTabs();
-  docBody.innerHTML = fmtDrillHtml();
-  wireFmtDrill();
-}
-function wireFmtDrill(){
-  const back = $("#btnFmtBack"); if(back) back.onclick = ()=> renderModuleLanding(GONGWEN_KEY);
-  docBody.querySelectorAll(".chip[data-ftype]").forEach(b=> b.onclick = ()=>{
-    const t = b.dataset.ftype;
-    const ta = $("#fmtText"); if(ta) _fmtDrafts[_fmtType] = ta.value;   // 换文种不丢已写的字
-    _fmtType = t; _fmtRes = null;
-    renderFmtDrill();
-  });
-  const ta = $("#fmtText");
-  const cnt = $("#fmtCount");
-  const paint = ()=>{ if(cnt && ta) cnt.textContent = ta.value.length + " 字"; };
-  if(ta){
-    paint();
-    ta.addEventListener("input", ()=>{ _fmtDrafts[_fmtType] = ta.value; paint(); });
-  }
-  const jd = $("#btnFmtJudge"); if(jd) jd.onclick = judgeFmtDrill;
-}
-function judgeFmtDrill(){
-  const ta = $("#fmtText");
-  const text = ta? String(ta.value||"") : "";
-  if(text.replace(/\s/g,"").length < 10){ banner("太短了：先把框架写出来再对照。"); return; }
-  banner("");
-  const type = _fmtType || GW_FMT_TYPES[0];
-  const prevBefore = fmtLastOf(type);
-  const items = judgeGwFormat(text, type);
-  _fmtRes = { type, items, prev: prevBefore };
-  const miss = items.filter(x=> !x.ok && !x.na).map(x=> x.id);
-  if(!state.fmt || typeof state.fmt !== "object") state.fmt = {};
-  // tally 是跨次累计：画像与出题看的是「反复漏」，单看 miss[] 只有最近一次
-  const tally = Object.assign({}, (prevBefore && prevBefore.tally) || {});
-  for(const id of miss) tally[id] = (tally[id] || 0) + 1;
-  state.fmt[type] = { at: Date.now(), rounds: ((prevBefore&&prevBefore.rounds)||0) + 1, miss, tally };
-  save();
-  renderFmtDrill();
-}
-/* 默写统计的出口：攒的计数不出口就是给用户看一堆没用的数字（与漏点本同一个理）
-   fmtWeakAll：每个默过的文种一行，weak = 反复漏（≥2 次）的要素；weakFmtMisses：前几条给 gen 用 */
-function fmtWeakAll(){
-  const out = [];
-  const fmt = state.fmt || {};
-  for(const type of Object.keys(fmt)){
-    const f = fmt[type];
-    if(!f || !f.rounds) continue;
-    const tally = f.tally || {};
-    const weak = Object.keys(tally).filter(id=> tally[id] >= 2).sort((a,b)=> tally[b] - tally[a]).map(id=>({ id, n: tally[id] }));
-    out.push({ type, rounds: f.rounds, at: f.at || 0, miss: Array.isArray(f.miss)? f.miss : [], weak });
-  }
-  return out.sort((a,b)=> b.at - a.at);
-}
-function weakFmtMisses(n){
-  const out = [];
-  for(const r of fmtWeakAll()) for(const w of r.weak) out.push({ type: r.type, item: fmtItemName(w.id, gwFmtSpec(r.type)), times: w.n });
-  return out.sort((a,b)=> b.times - a.times).slice(0, n || 3);
-}
-function fmtBookHtml(){
-  const rows = fmtWeakAll();
-  if(!rows.length) return `<div class="hint">还没默写过。到「公文写作」里点「公文格式默写」，不看提示写一遍格式框架。</div>`;
-  let html = `<div class="hint" style="margin:0 0 6px">同一个文种里反复漏的项会累计到一起；漏过两次以上的前两项会写进下次公文写作出题。</div>`;
-  for(const r of rows){
-    const sp = gwFmtSpec(r.type);
-    const lastMiss = r.miss.length? `上次漏 ${r.miss.map(id=>fmtItemName(id, sp)).join("、")}` : "上次没漏项";
-    html += `<details class="expline"><summary><span class="etag">${r.rounds > 1? esc("默 " + r.rounds + " 次") : "—"}</span><span class="etitle">${esc(r.type)}</span><span class="ebody">${esc(lastMiss)}</span></summary><div class="expbody">默过 ${r.rounds} 次 · 最近一次 ${esc(mmdd(r.at))} · ${esc(lastMiss)}${r.weak.length? `<div class="hint" style="margin-top:4px">反复漏：${esc(r.weak.map(w=>`${fmtItemName(w.id, sp)} ×${w.n}`).join("、"))}</div>` : ""}</div></details>`;
-  }
-  return `<div class="explist">` + html + `</div>`;
-}
-
 function renderModuleLanding(k){
   _view = "landing";
   activeModule = k; tabActiveKey = k; renderHeader(); renderTabs();
@@ -2396,12 +2042,9 @@ function renderModuleLanding(k){
     }).join("")}
     </div>
     <div class="actions" style="justify-content:center;margin-top:26px"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
-    <div class="actions" style="justify-content:center;margin-top:10px"><button class="linkbtn" id="btnOwnQuestion">粘贴我自己的题</button>${k===GONGWEN_KEY? `<button class="linkbtn" id="btnFmtDrill">公文格式默写</button>`:""}</div>
   </div>`;
   docBody.innerHTML = html;
   $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
-  $("#btnOwnQuestion").onclick = ()=> openOwnQuestion(k);
-  const fd = $("#btnFmtDrill"); if(fd) fd.onclick = ()=>{ _fmtType = null; _fmtRes = null; renderFmtDrill(); };
   docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
 }
 
@@ -2415,65 +2058,6 @@ async function startModule(k){
   await loadQuestion(k, pickSubtypeFor(k));
 }
 
-/* ============ 练自己的题：材料与要求照抄粘贴，只让 AI 拆采分点 ============
-   出题那一步的活一点不干：材料是用户给的原文，不生成材料、不改写要求、也不套本地字数表。
-   拆出来的采分点与生成题同格式，所以后面的作答、批改、画像全部照旧。 */
-let _ownModule = null;   // 弹层是全局的，模块随入口走
-function openOwnQuestion(k){
-  _ownModule = k;
-  openModal("modalOwn");
-}
-/* 拆采分点：分值口径与出题共用 GEN_POINT_RULES，但只拆点、不写题 */
-async function ownKeyPoints(k, question, refAnswer){
-  const user = JSON.stringify({ module:MODULES[k].name, background:question.background, requirements:question.requirements, score:question.score, reference:refAnswer || undefined });
-  const sys = sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES +
-    "\n这次是考生自己贴来的题：材料与作答要求都是他给的原文，照抄理解即可——不要改写材料、不要另编一道题、不要改字数要求。" +
-    (refAnswer
-      ? "\n他同时给了这道题的官方参考答案（reference 字段）：采分点必须从参考答案里拆——参考答案里写到的要点都要有对应子项，参考答案里没有的不要编；子项措辞可以照抄参考答案里的小点。"
-      : "") +
-    "\n只做一件事：把这道题拆成带分值的采分点，并给一句建议作答结构。\n返回 JSON：\n" +
-    `{
-    "keyPoints":[{"point":"采分点子项1（拆成 6-10 个带分值的子项）","score":5}],
-    "suggestedFormat":"建议作答结构（一两句）"
-  }`;
-  return await callLLM(sys, user, true);
-}
-async function beginOwnQuestion(){
-  const k = _ownModule || activeModule || weakestModule();
-  const mat = ((($("#ownMaterial")||{}).value)||"").trim();
-  const ask = ((($("#ownAsk")||{}).value)||"").trim();
-  const raw = Number((((($("#ownScore")||{}).value)||"").trim()));
-  if(mat.length < 60){ banner("材料太短：把题干与材料原文整段粘进来再开始。"); return; }
-  if(ask.length < 6){ banner("还差作答要求：把题目要求那几句一起粘进来。"); return; }
-  const ref = ((($("#ownRef")||{}).value)||"").trim();
-  if(ref && ref.replace(/\s/g,"").length < 20){ banner("参考答案太短：要贴就贴完整的一份，不然标杆立不住。"); return; }
-  const score = (isFinite(raw) && raw > 0)? Math.round(raw) : 20;
-  closeModals();
-  banner("");
-  const mySeq = ++reqSeq;
-  const t0 = Date.now();
-  showLoading("正在按你粘的材料拆采分点…");
-  const tick = startElapsed(t0);
-  try{
-    const question = { background:mat, requirements:ask, score, difficulty:"适中" };
-    const data = await ownKeyPoints(k, question, ref);
-    if(mySeq !== reqSeq) return;
-    if(!data || !Array.isArray(data.keyPoints) || !data.keyPoints.length) throw {code:"JSON"};
-    question.suggestedFormat = String(data.suggestedFormat||"").trim();
-    activeModule = k; renderHeader();
-    // 自拟题没有学习卡，也不套本地字数表：直接进作答（综应A 的 card 阶段没什么可看的）
-    current = { module:k, subtype:null, question, keyPoints:data.keyPoints, cardPeeks:0, phase:"answer", ownRef: !!ref };   // ownRef：标杆是真题答案，批改页要说明
-    renderQuestion();
-    $("#ownMaterial").value = ""; $("#ownAsk").value = ""; $("#ownScore").value = "20";   // 下一次贴新题从空白开始
-    const refBox = $("#ownRef");
-    if(refBox){ refBox.value = ""; const d = refBox.closest("details"); if(d) d.open = false; }   // 参考答案默认收起：它是可选件，展开着会把弹层主按钮顶到视口外
-  }catch(e){
-    if(mySeq !== reqSeq) return;
-    renderModuleLanding(k);   // 回到落地页：粘进去的文字还在弹层里，点开就能重来
-    handleErr(e, true);
-  }finally{ clearInterval(tick); }
-}
-
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
 async function loadQuestion(k, subtype){
   banner("");
@@ -2481,7 +2065,11 @@ async function loadQuestion(k, subtype){
   const prev = current;   // 出题失败时保住上一题，不打回首页
   const t0 = Date.now();
   showLoading(`AI 正在为「${MODULES[k].name}${subtype?' · '+subtype:''}」准备学习卡与仿真题…`);
-  const tick = startElapsed(t0);
+  const tick = setInterval(()=>{
+    const el = $("#elapsed");
+    if(!el){ clearInterval(tick); return; }
+    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
+  }, 1000);
   // 流式实况：字数 + 抠出正在生成的背景材料片段，让等待变成“看它写题”
   let peekAt = 0;
   const onDelta = (d, full)=>{
@@ -2539,16 +2127,6 @@ function cardHtml(studyCard){
     </div>
     <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>${exHtml}`;
 }
-/* 学习卡内部那一坨（要点/失分点/句式 + 我的笔记 + 换卡）：综应整页平铺、申论读材料步折叠，卡内是共用的一份。
-   peekHtml 是「上次翻了几次卡」那句提示——两处说法本来就不同（一处指这张卡、一处指上次作答），由调用方传进来。 */
-function cardBlockHtml(card, peekHtml){
-  const {module, subtype} = current;
-  return `${cardHtml(card)}
-      <h4>我的笔记</h4>
-      <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-      <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-      ${peekHtml || ""}`;
-}
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
   if(!current || !current.question){ renderStart(); return; }
@@ -2568,13 +2146,6 @@ function metaLineHtml(q){
   if(q && q.difficulty) parts.push(`<b>难度：</b>${esc(q.difficulty)}`);
   return parts.length? `<div class="require">${parts.join("　　")}</div>` : "";
 }
-/* 题面元信息（作答要求 / 建议结构 / 分值难度）：综应作答页与申论流程页共用一份。 */
-function requireBlockHtml(q){
-  const question = q || {};
-  let html = `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  return html + metaLineHtml(question);
-}
 function zyHeadHtml(showQuestion){
   const {question} = current;
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
@@ -2582,7 +2153,9 @@ function zyHeadHtml(showQuestion){
     html += `<div class="hint" style="margin:8px 0">题目先不亮出来，看完卡再开始。</div>`;
     return html;
   }
-  html += requireBlockHtml(question);
+  html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
+  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
+  html += metaLineHtml(question);
   return html;
 }
 function zyCardHtml(){
@@ -2590,8 +2163,12 @@ function zyCardHtml(){
   let html = "";
   if(current.studyCard){
     const lp = lastPeeks(module, subtype);
-    const peek = lp != null? `<div class="hint" style="margin-top:8px">上次作答中你翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : "";
-    html += `<div class="card"><div class="card-body">${cardBlockHtml(current.studyCard, peek)}</div></div>`;
+    html += `<div class="card"><div class="card-body">${cardHtml(current.studyCard)}
+      <h4>我的笔记</h4>
+      <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
+      <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
+      ${lp != null? `<div class="hint" style="margin-top:8px">上次作答中你翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
+    </div></div>`;
   } else {
     html += `<div class="hint" style="margin-top:10px">本题没有学习卡，直接作答即可。</div>`;
   }
@@ -2614,20 +2191,8 @@ function renderZyPage(){
   renderHeader();
   wireZyPage(phase);
 }
-/* 「换一题」：综应作答页与申论流程页挂在同一个按钮 id 上，接线只留一份 */
-function wireSwitch(){
-  const b = $("#btnSwitch");
-  if(b) b.onclick = ()=> loadQuestion(current.module, current.subtype);
-}
-/* 学习卡的笔记框与换卡按钮：两个页面各渲一份 DOM，接线是同一份 */
-function wireCardBlock(){
-  const cn = $("#cardNote");
-  if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
-  const bn = $("#btnNewCard");
-  if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
-}
 function wireZyPage(phase){
-  wireSwitch();
+  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
   if(phase === "answer"){
     wireMarks();
     wireDraft(null);
@@ -2635,10 +2200,11 @@ function wireZyPage(phase){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
-    wireAppeal();
   } else {
     const ba = $("#btnZyAnswer"); if(ba) ba.onclick = ()=>{ current.phase = "answer"; renderZyPage(); };
-    wireCardBlock();
+    const cn = $("#cardNote");
+    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
+    const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
   }
 }
 
@@ -2890,7 +2456,11 @@ async function genPDRound(form, theme){
   pdForm = form;
   const t0 = Date.now();
   showLoading(`AI 正在出「${f.name}」快判题（主题：${theme}）…`);
-  const tick = startElapsed(t0);
+  const tick = setInterval(()=>{
+    const el = $("#elapsed");
+    if(!el){ clearInterval(tick); return; }
+    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
+  }, 1000);
   const onDelta = (d, full)=>{ const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`; };
   const exps = pdExperienceBlock(theme);
   const weakTraps = pdWeakTraps(3);   // 闭环：上一轮小结答应「这些辨析点会再考你」，这里把它写进出题请求
@@ -3230,9 +2800,6 @@ function buildOrganizeOutline(groups, selections){
 /* 归类面板：一组一条「已归入的点」清单，备选收进各自的「加要点」。
    同一个点要归进两组时，在两组的加要点里各勾一次，就各出现在两组的清单里——不再 N 组 × M 点铺满整屏。
    归属只认一个地方：本组已归清单里的 data-si ∪ 本组加要点里勾上的框（domFacts 读的就是这两处）。 */
-/* 归类步的两句话：初渲与局部更新说的是同一件事，只留一份（两处必须一样） */
-function uncHintText(n){ return `有 ${n} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。`; }
-function addPickLabel(n){ return n? `加要点（备选 ${n} 个）` : "加要点（备选已全部归入本组）"; }
 function organizePanelHtml(f){
   const groups = f.groups || [];
   if(!groups.length) return `<div class="hint" style="margin-top:10px">上一步还没有找点。可以直接进一稿（提纲将为空），或回上一步找点。</div>`;
@@ -3240,7 +2807,7 @@ function organizePanelHtml(f){
   const covered = new Set();
   groups.forEach(g=> (g.facts||[]).forEach(fi=> covered.add(fi)));
   const unc = sels.filter((sl,i)=> !covered.has(i)).length;
-  const uncHint = `<div class="hint" id="uncHint" style="color:var(--warn);margin-top:6px"${unc? "": " hidden"}>${unc? uncHintText(unc) : ""}</div>`;
+  const uncHint = `<div class="hint" id="uncHint" style="color:var(--warn);margin-top:6px"${unc? "": " hidden"}>${unc? `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。` : ""}</div>`;
   return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词。提纲只供批改诊断，不参与计分。</div>` + uncHint +
     `<div id="organizeBox">${groups.map((g,i)=>{
       const facts = Array.isArray(g.facts)? g.facts.filter(si=> sels[si]) : [];
@@ -3250,7 +2817,7 @@ function organizePanelHtml(f){
       <div class="ogroup" data-g="${i}">
         <div class="grow"><input type="text" class="gname" placeholder="上位概括词，如：政务服务效能" value="${esc(g.name||"")}"><span class="gcount">${facts.length} 点</span></div>
         <div class="assigned">${assignedHtml(facts, sels, groups, i, holder)}</div>
-        <details class="addpick"><summary>${addPickLabel(rest.length)}</summary><div class="picks">${picksHtml(rest, sels)}</div></details>
+        <details class="addpick"><summary>${rest.length? `加要点（备选 ${rest.length} 个）` : "加要点（备选已全部归入本组）"}</summary><div class="picks">${picksHtml(rest, sels)}</div></details>
       </div>`; }).join("")}
     </div>
     <div class="actions"><button id="btnRegroup">重新均衡分组</button><button class="primary" id="btnToDraft">生成提纲，进入一稿</button></div>
@@ -3312,7 +2879,7 @@ function repaintGroups(f, override){
     if(ad){
       const rest = sels.map((sl,si)=>si).filter(si=> factsOf[gi].indexOf(si) < 0);
       const sum = ad.querySelector("summary");
-      if(sum) sum.textContent = addPickLabel(rest.length);
+      if(sum) sum.textContent = rest.length? `加要点（备选 ${rest.length} 个）` : "加要点（备选已全部归入本组）";
       const pk = ad.querySelector(".picks");
       if(pk) pk.innerHTML = picksHtml(rest, sels);
     }
@@ -3323,7 +2890,7 @@ function repaintGroups(f, override){
   const uh = $("#uncHint");
   if(uh){
     uh.hidden = !unc;
-    if(unc) uh.textContent = uncHintText(unc);
+    if(unc) uh.textContent = `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。`;
   }
 }
 function readGroupsDom(){
@@ -3417,10 +2984,10 @@ function renderFlowStep(){
   }
   const step = f? f.step : (lastGrade? "review" : "draft");
   const {question} = current;
-  // 读材料 / 归类这两步也把限时摆出来：时钟从「开始作答」就起算，不摆出来用户不知道它在跑
-  const showTl = step === "read" || step === "organize";
-  let html = `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
-  html += requireBlockHtml(question);
+  let html = `<div class="secrow"><div class="sec-title">题目</div><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
+  html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
+  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
+  html += metaLineHtml(question);
   if(f) html += railHtml(f);
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
   if(f) html += navHtml(step, f);
@@ -3437,10 +3004,14 @@ function stepPanelHtml(step, f){
       const lp = lastPeeks(module, subtype);
       // 读材料步默认折叠学习卡：卡片约 530px，展开时会把材料推到首屏之外（这一步恰恰叫「读材料」）。
       // 收起后 summary 行照旧（「先看卡再看材料，可折叠」），材料回到首屏。综应A 的卡是整页平铺（zyCardHtml），不在此列。
-      const peek = lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : "";
       html += `<details class="card">
         <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">先看卡再看材料，可折叠</span></summary>
-        <div class="card-body">${cardBlockHtml(current.studyCard, peek)}</div></details>`;
+        <div class="card-body">${cardHtml(current.studyCard)}
+          <h4>我的笔记</h4>
+          <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
+          <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
+          ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
+        </div></details>`;
     }
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:10px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
@@ -3461,81 +3032,6 @@ function stepPanelHtml(step, f){
   if(step === "distill") return distillPanelHtml();
   return "";
 }
-/* ============ 作答限时 ============ */
-/* 从「开始作答」那一刻起算：申论从读材料步、综应A 从作答区（综应A 的学习卡是预习，不算作答）。
-   读了多久、归了多久、写了多久都算在里，切步与刷新不重置；交卷停表（再进一稿是下一次尝试）。
-   剩余时间在题目行与作答区标题行右侧，剩最后 5 分钟转焦橙，第一次超时时报一声
-   （不自动交卷：写到一半被截断是不可逆的）。 */
-const LIMIT_OPTS = [0, 15, 20, 30, 45, 60, 90];
-let _timeUpSaid = false, _timeTick = null;
-function curLimitMin(){
-  const f = activeFlow();
-  if(f && current && f.sig === qSig(current.question)) return (f.limitMin != null)? f.limitMin : (state.settings.timeLimit || 0);
-  return (current && current.limitMin != null)? current.limitMin : (state.settings.timeLimit || 0);
-}
-function curLimitFrom(){
-  const f = activeFlow();
-  if(f && current && f.sig === qSig(current.question)) return f.limitFrom || 0;
-  return (current && current.limitFrom) || 0;
-}
-function setLimitState(min, from){   // 申论跨步要持久（挂在链上），综应A 挂在 current 上
-  const f = activeFlow();
-  if(f && current && f.sig === qSig(current.question)){ f.limitMin = min; f.limitFrom = from; save(); }
-  else if(current){ current.limitMin = min; current.limitFrom = from; }
-}
-function ensureLimitStart(){   // 开始作答就起算：整一道题只起算一次，切步与刷新都不重置
-  if(!curLimitMin() || curLimitFrom()) return;
-  _timeUpSaid = false;
-  setLimitState(curLimitMin(), Date.now());
-}
-function limitRowHtml(){
-  const cur = curLimitMin();
-  return `<span class="tlrow"><span class="tlleft" id="timeLeft"></span><span class="tlselw"><select class="tlsel" id="selLimit" title="作答限时">` +
-    LIMIT_OPTS.map(m=> `<option value="${m}"${m===cur? " selected":""}>${m? m+" 分钟":"不限时"}</option>`).join("") +
-  `</select></span></span>`;
-}
-function fmtDur(sec){
-  const s = Math.max(0, Math.round(sec));
-  return `${Math.floor(s/60)} 分 ${String(s%60).padStart(2,"0")} 秒`;
-}
-function overtimeSec(min, usedSec){ return (min > 0 && usedSec != null)? Math.round(usedSec - min*60) : 0; }   // 超0 = 没超时/没计时
-function paintTimeLeft(el){
-  const m = curLimitMin(), from = curLimitFrom();
-  if(!m || !from){ el.textContent = ""; el.className = "tlleft"; return; }
-  const left = m*60 - Math.round((Date.now() - from)/1000);
-  const mmss = (x)=> `${Math.floor(x/60)}:${String(x%60).padStart(2,"0")}`;
-  el.className = "tlleft" + (left <= 300? " warn" : "");
-  el.textContent = left >= 0? `剩余 ${mmss(left)}` : `已超时 ${mmss(-left)}`;
-  if(left < 0 && !_timeUpSaid){
-    _timeUpSaid = true;
-    banner("时间到。可以停笔交卷，也可以写完再交——记录里会记下超时。");
-  }
-}
-function wireTimeControls(){   // 限时控件的接线只有一份：起算 + 换时长 + 剩余时间的表
-  ensureLimitStart();
-  const sel = $("#selLimit"); if(sel) sel.onchange = ()=> setTimeLimit(sel.value);
-  if($("#timeLeft")) startTimeLeft();
-}
-function startTimeLeft(){
-  if(_timeTick){ clearInterval(_timeTick); _timeTick = null; }   // 切步会重渲一行，旧表要停掉：不然两个表同时画同一格
-  const el = $("#timeLeft");
-  if(!el) return null;
-  paintTimeLeft(el);
-  _timeTick = setInterval(()=>{
-    const e = $("#timeLeft");
-    if(!e){ clearInterval(_timeTick); _timeTick = null; return; }
-    paintTimeLeft(e);
-  }, 1000);
-  return _timeTick;
-}
-function setTimeLimit(m){
-  m = Number(m) || 0;
-  setLimitState(m, m? Date.now() : 0);
-  state.settings.timeLimit = m; save();   // 记住这个选择：下一题按同样时长起
-  _timeUpSaid = false;
-  const el = $("#timeLeft");
-  if(el) paintTimeLeft(el);   // 就地更新，不重渲：重渲会重建作答区
-}
 function draftPanelHtml(f){
   const {module, subtype} = current;
   const question = current.question;
@@ -3550,7 +3046,7 @@ function draftPanelHtml(f){
   html += cardNoteHtml(module, subtype);   // 材料之后：这一类题通用的笔记
   if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
-    <div class="secrow"><div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>${limitRowHtml()}</div>
+    <div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
@@ -3668,8 +3164,6 @@ function wireDraft(f){
   if(draft){ ta.value = draft; $("#draftNote").textContent = "已恢复上次未提交的草稿"; }
   setWordCount(ta.value.length, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
-  // 作答限时：进作答区就把这次的时钟接上；下拉只改时长，不重渲
-  wireTimeControls();
   // 回改稿：预填上一稿（有未提交的回改草稿则以草稿优先），并做行级差异实时对照
   if(f && f.step === "revise"){
     const prev = (f.attempts && f.attempts.length)? String(f.attempts[f.attempts.length-1].answer||"") : "";
@@ -3712,9 +3206,7 @@ function wireOrganize(f){
   const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> flowGoStep("draft");
 }
 function wireStep(step, f){
-  wireSwitch();
-  // 读材料 / 归类这两步：时钟已经在跑（从开始作答起算），把控件与剩余时间接上
-  if(step === "read" || step === "organize") wireTimeControls();
+  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
   if(step === "read"){
@@ -3732,7 +3224,9 @@ function wireStep(step, f){
       }
       save(); renderFlowStep();
     };
-    wireCardBlock();
+    const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
+    const cn = $("#cardNote");
+    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
   }
   if(step === "organize" && f) wireOrganize(f);
   if(step === "draft") wireDraft(f);
@@ -3745,7 +3239,6 @@ function wireStep(step, f){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
-    wireAppeal();
   }
 }
 /* 找点已并入读材料步：这里的监听只服务合并后的 read 步（点句子=找点开关，选区弹窗=划线/选要点） */
@@ -3784,7 +3277,7 @@ function insertSkeleton(){
   }
   _tplArm = 0;
   const type = current.subtype || "公文";
-  t.value = gwSkeletonText(type);
+  t.value = `（标题）关于……的${type}\n\n主送机关：\n\n　　正文：……\n\n　　　　　　　　　　　　${state.settings.orgName||"XX单位"}\n　　　　　　　　　　　　${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日`;
   const caret = t.value.length;
   t.focus();
   if(t.setSelectionRange) t.setSelectionRange(caret, caret);   // 光标明示落在末尾，别让用户找竖线
@@ -3807,9 +3300,6 @@ async function submitAnswer(){
   const rewriting = !!(inFlow && f.step === "revise");   // 回改稿：走同一条 grade 路径，但带上轮批改要点
   const outline = inFlow? buildOrganizeOutline(f.groups, f.selections) : "";   // 归类提纲：只进 prompt 供诊断
   const kps = current.keyPoints || [], peeks = current.cardPeeks || 0;
-  // 限时：交卷即停表。这两个数先取下来，记录与批改页都用它
-  const limMin = curLimitMin(), limFrom = curLimitFrom();
-  const usedSec = (limMin && limFrom)? Math.max(0, Math.round((Date.now() - limFrom)/1000)) : null;
   // 阅卷往往是全程最慢的一次调用：像出题页一样给实时秒数
   const t0 = Date.now();
   const tick = setInterval(()=>{
@@ -3834,8 +3324,6 @@ async function submitAnswer(){
     const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub, flowId: inFlow? f.id : undefined,
       mode: rewriting? "rewrite" : undefined,
-      timeLimit: usedSec == null? undefined : limMin,
-      usedSec: usedSec == null? undefined : usedSec,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       expCheck: (expCheck.again.length || expCheck.fixed.length)? { again:expCheck.again.slice(), fixed:expCheck.fixed.slice() } : undefined,
       grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
@@ -3847,9 +3335,7 @@ async function submitAnswer(){
     if(saveHistory()){ clearDraft(qSig(q)); }
     else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
-    renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec });   // 申论：提交即进入「批改」步；综应A：显示结果页
-    setLimitState(limMin, 0);   // 这一稿停表：回改是新的一稿，下次进作答区重新起算
-    _timeUpSaid = false;
+    renderGrade(g, total, expCheck);   // 申论：提交即进入「批改」步；综应A：显示结果页
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
     const fullMark = pts && pts.got === pts.max && !(g.weaknesses||[]).length;
@@ -3927,16 +3413,6 @@ function gradeHtml(g, total, inFlow){
   if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
   html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div>`;
-  if(current && current.ownRef) html += `<div class="hint" style="margin:2px 0 4px">这道题的采分点拆自你贴的参考答案——标杆是真题口径，分高分低都按它算。</div>`;
-  // 限时：只在这次真的计了时才报——用时多少、超没超，都说清
-  const tm = lastGrade && lastGrade.time;
-  if(tm){
-    const over = overtimeSec(tm.min, tm.usedSec);
-    html += `<div class="hint" style="margin-top:6px">本题限时 ${tm.min} 分钟 · 用时 ${fmtDur(tm.usedSec)}${over > 0? `（超时 ${fmtDur(over)}）` : ""}。</div>`;
-  }
-  // 拿不准：阅卷自陈「这条在两档之间摇摆」的子项，先在页眉报个数——它们就是最可能浮动的那几条
-  const unList = hits.filter(h=> h && h.unsure && typeof h.unsure === "object" && (h.unsure.range || h.unsure.why));
-  if(unList.length) html += `<div class="hint" style="margin-top:6px">本次有 ${unList.length} 条判定标了「拿不准」：证据不够硬，可直接申诉重判。</div>`;
   // 丢分清单替代单独的「待改进」段：同一个意思，但它带扣分与证据，能按扣分排序——先改哪条不用猜
   if(lost.length){
     const top = lost.slice().sort((a,b)=> (Number(b.score)-Number(b.awarded)) - (Number(a.score)-Number(a.awarded))).slice(0,3);
@@ -3963,36 +3439,13 @@ function gradeHtml(g, total, inFlow){
   // 没有分值信息的老记录排不出丢分清单，退回「待改进」的原话
   if(!lost.length && bads) html += `<div class="pills"><span class="plabel">待改进</span>${bads}</div>`;
   if(hits.length){
-    const sc = selfClStats(hits);
-    const progress = sc.done? (sc.done >= sc.need? `自查完成：认下 ${sc.accept} 条漏点${sc.claim? `，${sc.claim} 条你认为答到了`: ""}` : `已自查 ${sc.done}/${sc.need}`) : "";
-    html += `<details class="notebox" open style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）${progress? `<span class="hint" style="margin-left:8px">${progress}</span>`: ""}</summary><div class="notebody">`;
-    for(let i=0;i<hits.length;i++){
-      const h = hits[i];
+    html += `<details class="notebox" open style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）</summary><div class="notebody">`;
+    for(const h of hits){
       const cls = hitClass(h);
-      const need = cls !== "hit";   // 拿满分的子项：既没什么可申诉，也没什么可自查
       const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
-      const scTxt = (isFinite(Number(h.score)) && isFinite(Number(h.awarded)))? `${h.awarded}/${h.score} 分` : "没拿满分";
-      const scEl = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
-      const kth = need? gradeTagOf(h) : "";   // 拿满分的子项不算错因，不贴标签
-      // 拿不准：摇摆区间与原因跟着证据走（同一个格子里换行），行内只留一个能扫的标签
-      const un = (h.unsure && typeof h.unsure === "object")? h.unsure : null;
-      const unLine = (un && (un.range || un.why))? `摇摆 ${un.range? esc(un.range) + " 分之间": "两档之间"}${un.why? `：${esc(un.why)}` : ""}` : "";
-      // 材料出处跟着证据走：同一个格子里换行显示，不另起一列
-      const src = (h.where && String(h.where).trim() !== "-")? String(h.where).trim() : "";
-      const evBits = [];
-      if(h.evidence) evBits.push(esc(h.evidence));
-      if(src) evBits.push(`材料出处：${esc(src)}`);
-      const ev = evBits.length? `<span class="ev">${evBits.join("<br>")}</span>` : "";
-      const ap = need? `<button class="linkbtn ap" data-appeal="${i}">申诉</button>` : "";
-      const ck = need? `<button class="linkbtn ck" data-self="${i}">自查</button>` : "";
-      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${unLine? `<span class="kindtag un">拿不准</span>`:""}${scEl}${ev}${ap}${ck}</div>`;
-      // 行下的三行小字，次序就是事情发生的次序：摇摆（阅卷自陈）→ 自查（考生自己的判断）→ 申诉（复核结果）
-      if(unLine) html += `<div class="hint" style="padding:0 12px 6px">${esc(unLine)}</div>`;
-      const myv = (h.selfCheck && h.selfCheck.verdict) || "";
-      if(myv) html += `<div class="hint" style="padding:0 12px 6px">${myv === "hit"? `你的自查：答到了。阅卷判 ${scTxt}，两边不一致——可申诉这一条。` : "你的自查：确实没答到。这条记为你认下的漏点。"}</div>`;
-      if(h.appeal) html += `<div class="hint" style="padding:0 12px 6px">${h.appeal.verdict === "改判"? `申诉已改判：${h.appeal.before} → ${h.awarded} 分` : (h.appeal.verdict === "复核降分"? `申诉后复核为 ${h.awarded} 分（原 ${h.appeal.before} 分）` : "申诉后维持原判")}${h.appeal.note? `：${esc(h.appeal.note)}` : ""}</div>`;
-      if(_appealIdx === i) html += `<div class="appealbox"><textarea class="noteedit" id="appealText" placeholder="说清你答到了哪些内容、为什么该给分。"></textarea><div class="actions"><button class="primary" id="btnAppealGo">提交申诉</button><button class="linkbtn" data-appeal="-1">取消</button></div></div>`;
-      if(_selfIdx === i) html += `<div class="appealbox"><div class="hint">自己判一遍：这条你答到了吗？判断会与阅卷的判定并排留着。</div><div class="actions"><button data-self="${i}:hit">我答到了</button><button data-self="${i}:miss">确实没答到</button><button class="linkbtn" data-self="-1">取消</button></div></div>`;
+      const sc = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
+      const kth = (cls !== "hit")? gradeTagOf(h) : "";   // 拿满分的子项不算错因，不贴标签
+      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${sc}${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
     }
     html += `</div></details>`;
   }
@@ -4009,131 +3462,9 @@ function gradeHtml(g, total, inFlow){
     </div></div>`;
   return html;
 }
-/* ============ 单条申诉：只重判这一条子项 ============
-   总分口径一字不动：重判后仍是「各子项实得分之和」，所以改一条就得把卷面与那条记录一起重算。
-   复核只回答一个问题——考生到底答到什么程度；不因为「他来申诉」就抬分。 */
-let _appealIdx = null;   // 正在编辑哪一条（null = 没开）
-let _selfIdx = null;     // 正在自查哪一条（与申诉框互斥：一次只开一个）
-/* 自查进度：只有没拿满分的子项需要自查 */
-function selfClStats(hits){
-  const need = (hits||[]).filter(h=> hitClass(h) !== "hit");
-  const done = need.filter(h=> h && h.selfCheck && (h.selfCheck.verdict === "hit" || h.selfCheck.verdict === "miss"));
-  const claim = done.filter(h=> h.selfCheck.verdict === "hit").length;
-  return { need:need.length, done:done.length, claim, accept:done.length - claim };
-}
-function currentRecord(){
-  const sig = (current && current.question)? qSig(current.question) : "";
-  if(sig) for(const h of state.history){ if(h && h.question && qSig(h.question) === sig) return h; }
-  return state.history[0] || null;
-}
-async function regradeHit(k, subtype, question, keyPoints, answer, hit, reason){
-  const user = JSON.stringify({ module:(MODULES[k]||{}).name||k, subtype:subtype||"", question, answer, keyPoints:keyPoints||[],
-    item:{ point:hit.point, score:hit.score, awarded:hit.awarded, evidence:hit.evidence||"", kind:hit.kind||"-" }, appeal:reason });
-  const sys = sysGrader(k) + "\n" + modInstruction(k) +
-    "\n现在只复核其中一条子项：考生对它的判分提出了申诉。" +
-    "\n只看材料与答卷原文，判断考生是否答到了这条要求的内容（用自己的话表达、意思到位即算命中，不得苛求原文）。" +
-    "\n不能因为考生申诉就抬分：证据不足就维持原判，维持时必须在 reason 里写清缺的是什么。" +
-    "\n若发现原判偏松（答得并不够），也照实判——复核不是只在一个方向上改。" +
-    "\n档位与这条子项满分对齐：" + SCORING_RULES +
-    `\n返回 JSON：\n{ "awarded": 数字, "status": "满分 / 半分 / 零分", "evidence": "考生答案中的对应表述；没答到的用【缺：xxx】", "verdict": "改判 / 维持", "reason": "一句话说明依据（40字内）" }`;
-  return await callLLM(sys, user, true, null, { temp: GRADE_TEMP });
-}
-/* 重判后把那条练习记录改到与卷面一致：hits、实得分、折百分制的总分三处一起改，不是就画像与批改页对不上 */
-function applyRecordGrade(rec, g){
-  if(!rec) return;
-  rec.hits = (g && g.hits) || [];
-  const pts = pointsOf(rec.hits);
-  const total = pts? Math.round(pts.got / pts.max * 100) : (rec.grade && rec.grade.total);
-  rec.grade = Object.assign({}, rec.grade, { scored:pts, total });
-}
-async function submitAppeal(){
-  const g = lastGrade && lastGrade.g;
-  const idx = _appealIdx;
-  const h = (g && g.hits)? g.hits[idx] : null;
-  if(!g || !h) return;
-  const ta = $("#appealText");
-  const reason = (((ta && ta.value)||"").trim());
-  if(reason.length < 5){ banner("先写清理由：你答到了哪些内容、为什么该给分。"); return; }
-  const go = $("#btnAppealGo"); if(go){ go.disabled = true; go.textContent = "重判中…"; }
-  banner("");
-  const rec = currentRecord();
-  const before = Number(h.awarded), sc = Number(h.score);
-  const mySeq = ++reqSeq;
-  try{
-    const r = await regradeHit(current.module, current.subtype, current.question, current.keyPoints||[], (rec && rec.answer)||"", h, reason);
-    if(mySeq !== reqSeq) return;
-    let aw = Number(r && r.awarded);
-    if(!isFinite(aw)) aw = before;
-    aw = isFinite(sc)? Math.max(0, Math.min(aw, sc)) : Math.max(0, aw);   // 夹在 [0, 该子项满分] 之间
-    h.awarded = aw;
-    if(r && typeof r.evidence === "string" && r.evidence) h.evidence = r.evidence;
-    if(r && r.status) h.status = r.status;
-    const verdict = aw > before? "改判" : (aw < before? "复核降分" : "维持");   // 按实际得分变化说，不按模型自报的结论说
-    h.appeal = { at:Date.now(), reason, verdict, before, note:(r && r.reason)||"" };
-    delete h.unsure;   // 这一条已经有人（阅卷复核 + 考生理由）看过了：摇摆的说法到此为止，申诉痕迹才是这条的最终说明
-    applyRecordGrade(rec, g);
-    saveHistory(); save();
-    const pts = pointsOf(g.hits);
-    const total = pts? Math.round(pts.got / pts.max * 100) : lastGrade.total;
-    const expCheck = lastGrade.expCheck;
-    _appealIdx = null;
-    renderGrade(g, total, expCheck);   // 卷面重画：总分与那条子项一起更新
-    banner(verdict === "改判"? `申诉已受理：这一条由 ${before} 分改为 ${aw} 分。`
-        : (verdict === "复核降分"? `复核后这一条由 ${before} 分改为 ${aw} 分。` : "申诉已受理：这一条维持原判。"));
-  }catch(e){
-    if(mySeq !== reqSeq) return;
-    handleErr(e, true);
-    if(go){ go.disabled = false; go.textContent = "提交申诉"; }
-  }
-}
-/* 就地把批改页重画一遍（开/收申诉框用），不重算分数 */
-/* 逐条自查：考生自己判一遍「这条答到没有」，与阅卷的判定并排留着。
-   只是考生自己的判断——不动 awarded、不动总分；认下的漏点跟着记录走，供以后按漏点复盘。 */
-function submitSelfCl(i, verdict){
-  const g = lastGrade && lastGrade.g;
-  const h = (g && g.hits)? g.hits[i] : null;
-  if(!h) return;
-  h.selfCheck = { at:Date.now(), verdict };
-  const rec = currentRecord();
-  if(rec) rec.hits = g.hits;   // 卷面与记录是同一份：自查结果跟着记录存，不另立一份状态
-  saveHistory();
-  _selfIdx = null;
-  renderGrade(g, lastGrade.total, lastGrade.expCheck);
-}
-function renderLastGrade(){
-  if(!lastGrade) return;
-  const f = activeFlow();
-  if(current && usesFlowChain(current.module) && f && f.step === "review"){ renderFlowStep(); return; }
-  if(current){ current.grade = { g:lastGrade.g, total:lastGrade.total }; renderZyPage(); }
-}
-/* 批改页的行内动作：综应A 结果页与申论批改步绑的是同一份 */
-function wireAppeal(){
-  const go = $("#btnAppealGo"); if(go) go.onclick = submitAppeal;
-  const box = $("#appealText");
-  if(box && _appealIdx != null && typeof box.focus === "function"){ try{ box.focus({preventScroll:true}); }catch(e){} }
-  docBody.querySelectorAll("[data-appeal]").forEach(b=> b.onclick = ()=>{
-    const v = Number(b.dataset.appeal);
-    _appealIdx = (v < 0)? null : v;
-    _selfIdx = null;   // 申诉框与自查框互斥：一次只开一个
-    renderLastGrade();
-  });
-  docBody.querySelectorAll("[data-self]").forEach(b=> b.onclick = ()=>{
-    const v = String(b.dataset.self);
-    if(v === "-1"){ _selfIdx = null; renderLastGrade(); return; }
-    const parts = v.split(":");
-    const idx = Number(parts[0]), verdict = parts[1];
-    if(verdict === "hit" || verdict === "miss"){ submitSelfCl(idx, verdict); return; }
-    _selfIdx = Number.isFinite(idx)? idx : null;
-    _appealIdx = null;
-    renderLastGrade();
-  });
-}
-
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
-function renderGrade(g, total, expCheck, time){
-  _appealIdx = null;   // 新一轮批改：申诉框与自查框一律收起
-  _selfIdx = null;
-  lastGrade = { g, total, expCheck: expCheck || null, time: time || null };
+function renderGrade(g, total, expCheck){
+  lastGrade = { g, total, expCheck: expCheck || null };
   if(current && usesFlowChain(current.module)){
     const f = activeFlow();
     if(f && f.sig === qSig(current.question)) f.step = "review";
@@ -4204,8 +3535,6 @@ function renderProfile(){
     html += `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
   }
   html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div><div class="explist">` + experienceListHtml() + `</div>`;
-  html += `<div class="sec-title">漏点本（两科共用 · 跨题累计，出题时自动带上）</div>` + missedBookHtml();
-  html += `<div class="sec-title">公文格式默写（公文写作 · 反复漏的项，出题时自动带上）</div>` + fmtBookHtml();
   const histAll = state.history.length;
   const histShown = state.history.slice(0, histLimit);
   html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th>待改进</th></tr></thead><tbody>`;
@@ -4216,10 +3545,7 @@ function renderProfile(){
       continue;
     }
     const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
-    // 超时是要紧的记录：交卷页报过一次之后就只有这里还能看见
-    const ot = overtimeSec(h.timeLimit, h.usedSec);
-    const otTxt = ot > 0? `超时 ${fmtDur(ot)}` : "";
-    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td><td>${esc(otTxt? (weak? `${otTxt}；${weak}` : otTxt) : (weak||"—"))}</td></tr>`;
+    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td><td>${esc(weak||"—")}</td></tr>`;
   }
   html += `</tbody></table></div>`;
   if(histAll > HIST_PAGE){
@@ -4638,13 +3964,14 @@ function saveMarks(sig, set){
     localStorage.setItem(MARKS_KEY, JSON.stringify(all));
   }catch(e){}
 }
-/* 把 [from,to) 切成「有的划了线、有的没划」的一串片段。材料的两处渲染（整块 / 局部重铺）共用这一段。 */
-function segHtml(text, marks, from, to){
-  let html = "", i = from;
-  while(i < to){
+function materialHtml(q){
+  const text = String((q&&q.background)||"");
+  const marks = loadMarks(qSig(q));
+  let html = "", i = 0;
+  while(i < text.length){
     const on = marks.has(i);
     let j = i;
-    while(j < to && marks.has(j) === on) j++;
+    while(j < text.length && marks.has(j) === on) j++;
     const seg = esc(text.slice(i, j));
     html += on
       ? `<mark class="ms on" data-s="${i}" data-e="${j}">${seg}</mark>`
@@ -4653,10 +3980,6 @@ function segHtml(text, marks, from, to){
   }
   return html;
 }
-function materialHtml(q){
-  const text = String((q&&q.background)||"");
-  return segHtml(text, loadMarks(qSig(q)), 0, text.length);
-}
 
 /* 局部重建 [rs,re) 的片段（边界对齐到现有片段边界），替代整块材料重铺。
    读材料步的材料是 mergedMaterial 渲的，这里必须走同一套分段，否则重铺出的那段会丢 pt-seg/data-sid。 */
@@ -4664,7 +3987,19 @@ function materialRangeHtml(q, rs, re){
   const f = activeFlow();
   if(f && f.step === "read" && f.sig === qSig(q)) return mergedMaterialRange(q, f, rs, re);
   const text = String((q&&q.background)||"");
-  return segHtml(text, loadMarks(qSig(q)), rs, re);
+  const marks = loadMarks(qSig(q));
+  let html = "", i = rs;
+  while(i < re){
+    const on = marks.has(i);
+    let j = i;
+    while(j < re && marks.has(j) === on) j++;
+    const seg = esc(text.slice(i, j));
+    html += on
+      ? `<mark class="ms on" data-s="${i}" data-e="${j}">${seg}</mark>`
+      : `<span class="ms" data-s="${i}" data-e="${j}">${seg}</span>`;
+    i = j;
+  }
+  return html;
 }
 function updateMaterialRange(mbox, q, s, e){
   let startNode = null, endNode = null;
@@ -4960,7 +4295,6 @@ renderChangelog();
   $("#btnExport2").onclick = ()=> $("#btnExport").click();   // 设置页里的备份入口复用顶栏那一套，导出/导入只有一份实现
   $("#btnImport2").onclick = ()=> $("#btnImport").click();
   $("#btnProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
-  $("#btnOwnGo").onclick = beginOwnQuestion;   // 练自己的题：弹层的主按钮（这行以前漏了，按钮点了没反应）
   document.querySelectorAll(".modal .mhead .x").forEach(b=> b.onclick = closeModals);
   document.querySelectorAll(".modal").forEach(m=> m.addEventListener("click", e=>{ if(e.target===m) closeModals(); }));
   document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModals(); });
