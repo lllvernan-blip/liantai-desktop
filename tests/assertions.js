@@ -1623,13 +1623,13 @@ localStorage.clear();
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"材".repeat(120), requirements:"不超过250字。" }, keyPoints:[], cardPeeks:0 };
 renderQuestion();
 flowGoStep("read");
-ok(dtHtml().indexOf('id="selLimit"') >= 0 && dtHtml().indexOf('value="0" selected') >= 0,
-   "限时: 读材料步就有控件（时钟从开始作答起算），默认「不限时」");
+ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('placeholder="不限时"') >= 0 && dtHtml().indexOf('value=""') >= 0,
+   "限时: 读材料步就有控件（时钟从开始作答起算），默认留空 = 不限时");
 ok(el("#timeLeft").textContent === "", "限时: 不限时不显示任何时间");
 
-/* 19.2 选了时长就起算：锚点落在链上，切步不重置（读材料那几行也算在里面） */
-el("#selLimit").value = "30"; el("#selLimit").onchange();
-ok(curLimitMin() === 30 && curLimitFrom() > 0, "限时: 选 30 分钟后起算");
+/* 19.2 填了就起算：锚点落在链上，切步不重置（读材料那几行也算在里面） */
+el("#inpLimit").value = "30"; el("#inpLimit").onchange();
+ok(curLimitMin() === 30 && curLimitFrom() > 0, "限时: 填 30 分钟后起算");
 const tlAnchor = curLimitFrom();
 flowGoStep("organize"); flowGoStep("draft");
 ok(curLimitFrom() === tlAnchor && activeFlow().limitFrom === tlAnchor,
@@ -1637,6 +1637,21 @@ ok(curLimitFrom() === tlAnchor && activeFlow().limitFrom === tlAnchor,
 ok(activeFlow().limitMin === 30, "限时: 时长也在链上（跨步与刷新都不丢）");
 ok(state.settings.timeLimit === 30, "限时: 选择被记住，下一题按同样时长起");
 ok(/^剩余 (30:0\d|29:5\d)$/.test(el("#timeLeft").textContent), "限时: 立刻显示剩余 -> " + el("#timeLeft").textContent);
+
+/* 19.2b 时长不分档：写多少分钟就是多少；空 / 0 / 乱填 = 不限时，小数取整，超上限按上限 */
+el("#inpLimit").value = "45"; el("#inpLimit").onchange();
+ok(curLimitMin() === 45, "限时: 45 分钟这种非整十的时长照样收（不再只有几档）");
+el("#inpLimit").value = "12.7"; el("#inpLimit").onchange();
+ok(curLimitMin() === 13 && el("#inpLimit").value === "13", "限时: 小数取整并回写进框 -> " + el("#inpLimit").value);
+el("#inpLimit").value = "9999"; el("#inpLimit").onchange();
+ok(curLimitMin() === 600 && el("#inpLimit").value === "600", "限时: 手滑写太大按上限收（要真不限时就留空）");
+el("#inpLimit").value = "abc"; el("#inpLimit").onchange();
+ok(curLimitMin() === 0 && el("#inpLimit").value === "" && el("#timeLeft").textContent === "",
+   "限时: 填不出数的内容按不限时（不让框里留着看不懂的字）");
+el("#inpLimit").value = ""; el("#inpLimit").onchange();
+ok(curLimitMin() === 0 && curLimitFrom() === 0 && state.settings.timeLimit === 0, "限时: 清空 = 不限时，时钟跟着停");
+el("#inpLimit").value = "30"; el("#inpLimit").onchange();
+ok(curLimitMin() === 30 && curLimitFrom() > 0, "限时: 重新填值即重新起算");
 
 /* 19.3 最后 5 分钟转焦橙；超时只报一声，不自动交卷 */
 setLimitState(30, Date.now() - 25*60*1000);
@@ -1669,7 +1684,7 @@ ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().
 state.settings.timeLimit = 0;
 current = { module:"zy.guina", subtype:"概括做法", question:{ background:"材".repeat(120), requirements:"不超过300字。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
 renderZyPage();
-ok(dtHtml().indexOf('id="selLimit"') >= 0 && dtHtml().indexOf('value="0" selected') >= 0,
+ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('value=""') >= 0,
    "限时: 综应A 作答页也有控件（与申论共用同一处渲染）");
 el("#answer").value = "综应A 的一段作答内容，用来验证不限时的时候什么也不报。";
 el("#btnSubmit").disabled = false;
@@ -1678,6 +1693,16 @@ await submitAnswer();
 callLLM = realCallTL;
 ok(state.history[0].timeLimit === undefined && state.history[0].usedSec === undefined, "限时: 不限时不写限时字段");
 ok(dtHtml().indexOf("本题限时") < 0, "限时: 不限时批改页不报用时");
+
+/* 19.6 记录表：用时单独一列，超时的行把超了多少一并写出来 */
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf('<th class="num">用时</th>') >= 0, "记录表: 有「用时」列");
+ok(el("#profileBody").innerHTML.indexOf("超 1:0") >= 0,
+   "记录表: 超时的行写出超了多少 -> " + ((el("#profileBody").innerHTML.match(/[\d:]+ <small>超 [\d:]+/)||["(没找到)"])[0]));
+ok(el("#profileBody").innerHTML.indexOf('<td class="num">—</td>') >= 0, "记录表: 没计时的记录用时留「—」，不臆造 0");
+state.history.unshift({ ts: Date.now(), module:"zy.guina", subtype:"概括做法", grade:{ total:70 }, timeLimit:45, usedSec:1680 });
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf('<td class="num dur">28:00</td>') >= 0, "记录表: 没超时就只写用时（不写「超 0:00」）");
 state.history = [];
 state.settings.timeLimit = 0;
 

@@ -193,10 +193,12 @@ html,body{margin:0;padding:0;}
   .counter{font-size:13px;color:var(--muted);}
   /* 作答限时：控件与剩余时间贴在作答区标题行右侧；超时用焦橙（与「部分命中」同一支） */
   .tlrow{display:flex;align-items:center;gap:8px;}
-  /* 下拉自己画箭头：系统箭头在这么小的控件上是唯一一处“原生感” */
-  .tlselw{position:relative;display:inline-flex;align-items:center;}
-  .tlselw::after{content:"";position:absolute;right:9px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--muted);pointer-events:none;}
-  .tlsel{appearance:none;-webkit-appearance:none;height:var(--h-ctl);font-family:var(--yahei);font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);padding:0 22px 0 9px;cursor:pointer;}
+  /* 时长不分档：一个数字框，多少分钟都行；留空就是「不限时」，单位只在填了数字时才露出来 */
+  .tlset{display:inline-flex;align-items:center;gap:5px;}
+  .tlin{width:62px;height:var(--h-ctl);font-family:var(--yahei);font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);padding:0 8px;text-align:right;font-variant-numeric:tabular-nums;}
+  .tlin::-webkit-outer-spin-button,.tlin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}   /* 系统上下箭头在 36px 的框里太原生 */
+  .tlin:placeholder-shown + .tlunit{display:none;}
+  .tlunit{font-size:13px;color:var(--muted);}
   .tlleft{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
   .tlleft.warn{color:var(--warn);font-weight:600;}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
@@ -369,6 +371,10 @@ html,body{margin:0;padding:0;}
   .hist th{font-family:var(--hei);background:var(--head);position:sticky;top:0;}
   .hist tbody tr:nth-child(even){background:var(--wash-2);}   /* 隔行淡底：十行扫下来不跟丢 */
   .hist tbody tr:hover{background:var(--wash);}
+  /* 用时列：超时的行把「超了多少」写在用时后面（焦橙）——扫表时一眼看得出哪次是赶不完的 */
+  .hist td.dur{color:var(--muted);}
+  .hist td.dur.warn{color:var(--warn);font-weight:600;}
+  .hist td.dur small{font-size:12px;}
   .histfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;}
   /* 提示条分两种：日常提示是安静的一行（左缘一条红线表示「注意」），只有真正的失败才穿红——
      之前「欢迎」和「接口超时」长得一模一样，是全屏最像 bug 的一处 */
@@ -3050,7 +3056,12 @@ function stepPanelHtml(step, f){
    读了多久、归了多久、写了多久都算在里，切步与刷新不重置；交卷停表（再进一稿是下一次尝试）。
    剩余时间在题目行与作答区标题行右侧，剩最后 5 分钟转焦橙，第一次超时时报一声
    （不自动交卷：写到一半被截断是不可逆的）。 */
-const LIMIT_OPTS = [0, 15, 20, 30, 45, 60, 90];
+const LIMIT_MAX = 600;   // 时长不分档，上限只防手滑写错一位数；真要不限时，把框留空
+function normLimitMin(v){   // 空 / 0 / 乱填 = 不限时（0）；小数取整，超过上限按上限
+  const n = Math.round(Number(v));
+  if(!isFinite(n) || n <= 0) return 0;
+  return Math.min(LIMIT_MAX, n);
+}
 let _timeUpSaid = false, _timeTick = null;
 function curLimitMin(){
   const f = activeFlow();
@@ -3074,22 +3085,33 @@ function ensureLimitStart(){   // 开始作答就起算：整一道题只起算�
 }
 function limitRowHtml(){
   const cur = curLimitMin();
-  return `<span class="tlrow"><span class="tlleft" id="timeLeft"></span><span class="tlselw"><select class="tlsel" id="selLimit" title="作答限时">` +
-    LIMIT_OPTS.map(m=> `<option value="${m}"${m===cur? " selected":""}>${m? m+" 分钟":"不限时"}</option>`).join("") +
-  `</select></span></span>`;
+  return `<span class="tlrow"><span class="tlleft" id="timeLeft"></span><span class="tlset">` +
+    `<input class="tlin" id="inpLimit" type="number" min="1" max="${LIMIT_MAX}" step="1" inputmode="numeric"` +
+    ` placeholder="不限时" value="${cur? cur : ""}" title="作答限时（分钟，留空为不限时）" aria-label="作答限时（分钟）">` +
+    `<span class="tlunit">分钟</span></span></span>`;
+}
+function fmtClock(sec){   // mm:ss：剩余时间、用时、超时都用这一种写法
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 }
 function fmtDur(sec){
   const s = Math.max(0, Math.round(sec));
   return `${Math.floor(s/60)} 分 ${String(s%60).padStart(2,"0")} 秒`;
 }
 function overtimeSec(min, usedSec){ return (min > 0 && usedSec != null)? Math.round(usedSec - min*60) : 0; }   // 超0 = 没超时/没计时
+// 记录表「用时」列：没计时的记录留「—」（不臆造一个 0）；超时的行把超了多少一并写出来
+function usedCellHtml(h){
+  if(h.usedSec == null) return `<td class="num">—</td>`;
+  const over = overtimeSec(h.timeLimit, h.usedSec);
+  if(over <= 0) return `<td class="num dur">${fmtClock(h.usedSec)}</td>`;
+  return `<td class="num dur warn">${fmtClock(h.usedSec)} <small>超 ${fmtClock(over)}</small></td>`;
+}
 function paintTimeLeft(el){
   const m = curLimitMin(), from = curLimitFrom();
   if(!m || !from){ el.textContent = ""; el.className = "tlleft"; return; }
   const left = m*60 - Math.round((Date.now() - from)/1000);
-  const mmss = (x)=> `${Math.floor(x/60)}:${String(x%60).padStart(2,"0")}`;
   el.className = "tlleft" + (left <= 300? " warn" : "");
-  el.textContent = left >= 0? `剩余 ${mmss(left)}` : `已超时 ${mmss(-left)}`;
+  el.textContent = left >= 0? `剩余 ${fmtClock(left)}` : `已超时 ${fmtClock(-left)}`;
   if(left < 0 && !_timeUpSaid){
     _timeUpSaid = true;
     banner("时间到。可以停笔交卷，也可以写完再交——记录里会记下超时。");
@@ -3097,7 +3119,12 @@ function paintTimeLeft(el){
 }
 function wireTimeControls(){   // 限时控件的接线只有一份：起算 + 换时长 + 剩余时间的表
   ensureLimitStart();
-  const sel = $("#selLimit"); if(sel) sel.onchange = ()=> setTimeLimit(sel.value);
+  const inp = $("#inpLimit");
+  if(inp){
+    // 失焦 / 回车才生效：边打字边改会把时钟反复清零（想打「30」时先变成 3）
+    inp.onchange = ()=> setTimeLimit(inp.value);
+    inp.onkeydown = e=>{ if(e.key === "Enter"){ e.preventDefault(); inp.blur(); } };
+  }
   if($("#timeLeft")) startTimeLeft();
 }
 function startTimeLeft(){
@@ -3113,10 +3140,12 @@ function startTimeLeft(){
   return _timeTick;
 }
 function setTimeLimit(m){
-  m = Number(m) || 0;
+  m = normLimitMin(m);
   setLimitState(m, m? Date.now() : 0);
   state.settings.timeLimit = m; save();   // 记住这个选择：下一题按同样时长起
   _timeUpSaid = false;
+  const inp = $("#inpLimit");
+  if(inp){ const want = m? String(m) : ""; if(inp.value !== want) inp.value = want; }   // 取整 / 超上限的实际值回写进框里
   const el = $("#timeLeft");
   if(el) paintTimeLeft(el);   // 就地更新，不重渲：重渲会重建作答区
 }
@@ -3642,15 +3671,15 @@ function renderProfile(){
   html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div><div class="explist">` + experienceListHtml() + `</div>`;
   const histAll = state.history.length;
   const histShown = state.history.slice(0, histLimit);
-  html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th>待改进</th></tr></thead><tbody>`;
+  html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
   for(const h of histShown){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     if(h.track === "pd"){   // 判别轨行：形式当模块、主题当子类型，总分列是「对/总题数」
-      html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td>—</td></tr>`;
+      html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td class="num">—</td><td>—</td></tr>`;
       continue;
     }
     const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
-    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td><td>${esc(weak||"—")}</td></tr>`;
+    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
   }
   html += `</tbody></table></div>`;
   if(histAll > HIST_PAGE){
