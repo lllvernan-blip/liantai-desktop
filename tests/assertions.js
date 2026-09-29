@@ -109,20 +109,22 @@ ok(el("#profileBody").innerHTML.indexOf("width:52%") >= 0, "画像: 近期加权
 const mixed = scoresFor("zy.gongwen", 12); mixed["格式规范"] = 5; mixed["语言得体"] = 19;
 state.history = [{ module:"zy.gongwen", grade:{ scores: mixed } }];
 renderProfile();
-ok(el("#profileBody").innerHTML.indexOf("短板·格式规范") >= 0, "画像: 短板由加权分推导");
-ok(el("#profileBody").innerHTML.indexOf("强项·语言得体") >= 0, "画像: 强项由加权分推导");
+ok(el("#profileBody").innerHTML.indexOf("短板·格式规范") >= 0, "画像: 短板由加权分推导（一级行上就挂着一条）");
+profGo("mod", "zy.gongwen");
+ok(el("#profileBody").innerHTML.indexOf("强项·语言得体") >= 0, "画像: 强项由加权分推导（点进模块才铺开）");
 // 文种统计同样近期加权：新 80、旧 60 → (80+60*0.85)/1.85 ≈ 71，而非终身平均 70
 state.history = [ { module:"zy.gongwen", subtype:"通知", grade:{ total:80, scores: scoresFor("zy.gongwen",16) } },
                   { module:"zy.gongwen", subtype:"通知", grade:{ total:60, scores: scoresFor("zy.gongwen",12) } } ];
-renderProfile();
+profGo("mod", "zy.gongwen");
 ok(el("#profileBody").innerHTML.indexOf(">71<") >= 0, "画像: 文种统计近期加权 (71 而非 70)");
 
 /* 4.5 总分口径唯一：模块「均分」必须吃 grade.total，不能被维度分带偏 */
 state.history = [{ module:"zy.gongwen", subtype:"通知", grade:{ total:60, scores: scoresFor("zy.gongwen",15) } }];
 ok(moduleAvg("zy.gongwen") === 60, "口径: 模块均分取总分（同一条记录维度分全是 15 也不改口）");
-renderProfile();
+profBack();
 ok(el("#profileBody").innerHTML.indexOf("均分 60") >= 0 && el("#profileBody").innerHTML.indexOf("均分 75") < 0,
    "口径: 画像显示「均分 60」，与练习记录表的总分是同一个数");
+profGo("mod", "zy.gongwen");
 ok(el("#profileBody").innerHTML.indexOf("width:75%") >= 0, "口径: 维度条照旧按维度分铺 75%（诊断层不受影响）");
 
 /* 4.6 recordTotal：有总分用总分，老记录才回退维度分，都没有就不计入 */
@@ -621,13 +623,13 @@ state.settings.subject = "zy"; ensureActive(); renderTabs();
 
 // 画像按科目分组 + 练习记录加科目列
 state.history = [];
-renderProfile();
+profBack();
 const ph1 = el("#profileBody").innerHTML;
 ok(ph1.indexOf("综应A") >= 0 && ph1.indexOf("申论") >= 0 && ph1.indexOf("综应A") < ph1.indexOf("申论"),
    "画像: 按科目分组渲染，综应A 在前申论在后");
 ok(ph1.indexOf("公文写作") < ph1.indexOf("贯彻执行"), "画像: 科目组内按模块列出，下一科目接在后面");
 state.history = [{ ts:1, module:"sl.guanche", subtype:"讲话稿", grade:{ total:66, scores:{}, weaknesses:["少落款"] } }];
-renderProfile();
+profGo("hist");
 const ph2 = el("#profileBody").innerHTML;
 ok(ph2.indexOf(">科目<") >= 0, "画像: 练习记录新增「科目」列");
 ok(ph2.indexOf("申论</td><td>贯彻执行") >= 0, "画像: 记录行同时显示科目与模块");
@@ -1083,9 +1085,9 @@ ok(JSON.parse(localStorage.getItem("gw_history"))[0].track === "pd", "轮次: �
 ok(JSON.stringify(state.profile.modules) === pdDimsBefore, "隔离: 快判不写维度画像 dims");
 ok(state.profile.lastModules.length === pdLMBefore, "隔离: 快判不进 lastModules（不影响作答轨调度）");
 ok(distilledPD === false, "隔离: 快判不触发经验提炼");
-renderProfile();
+profGo("pd");
 const phPD = el("#profileBody").innerHTML;
-ok(phPD.indexOf("快判（点选即判") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 快判单独一节");
+ok(phPD.indexOf("快判（点选即判") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 快判单独一节（点进去才有）");
 
 /* ③ 综合快判：每题自带形式，统计按题归属（一轮里三种都有，按轮算会混成一笔） */
 const pdSan = sanitizePDItems([
@@ -1104,7 +1106,9 @@ ok(__pdSt.st["fact-select"].q === 1 && __pdSt.st["fact-select"].c === 1 && __pdS
 state.history = __pdHistKeep;
 ok(pdFormStats().st["fact-select"].q >= 1, "综合快判: 统计函数可重复调用（不污染 state）");
 ok(phPD.indexOf("正确率 50%") >= 0, "画像: 快判正确率 (1/2 = 50%)");
-ok(phPD.indexOf(">快判</td>") >= 0 && phPD.indexOf(">1/2<") >= 0, "画像: 记录表识别快判行（对/总题数）");
+profGo("hist");
+ok(el("#profileBody").innerHTML.indexOf(">快判</td>") >= 0 && el("#profileBody").innerHTML.indexOf(">1/2<") >= 0,
+   "画像: 记录表识别快判行（对/总题数）");
 distillExperience = realDistillPD;
 pdRound = null; pdForm = null;
 
@@ -1123,7 +1127,7 @@ ok(lmPD.history[1].track === "pd" && lmPD.history[1].form === "group-summarize" 
 const lmPD2 = load();
 ok(lmPD2.history.length === 2 && lmPD2.history[1].track === "pd" && lmPD2.history[1].form === "group-summarize",
    "迁移: 快判与旧记录二次 load 幂等");
-renderProfile();
+profGo("pd");
 ok(el("#profileBody").innerHTML.indexOf("分组概括") >= 0 && el("#profileBody").innerHTML.indexOf("0%") >= 0,
    "迁移: 新旧混合记录渲染不报错，画像统计正确");
 localStorage.clear();
@@ -1530,9 +1534,9 @@ ok(tagHtml.indexOf("kindtag") >= 0 && tagHtml.indexOf(">格式<") >= 0, "错因�
 ok((tagHtml.match(/kindtag/g)||[]).length === 2 && tagHtml.indexOf(`>做法</span><span class="sc"`) >= 0,
    "错因标签: 丢分处两处都贴类型，拿满分的子项不贴");
 lastGrade = null;
-renderProfile();
+profGo("mod", "sl.guina");
 ok(el("#profileBody").innerHTML.indexOf("常错类型：格式 1 处") >= 0,
-   "错因标签: 画像里看得到常错类型");
+   "错因标签: 画像里看得到常错类型（在模块页里）");
 current = null; state.history = [];
 
 /* 17.5 经验继承标签：提炼时归一次类，之后一直跟着这条经验走 */
@@ -1695,14 +1699,31 @@ ok(state.history[0].timeLimit === undefined && state.history[0].usedSec === unde
 ok(dtHtml().indexOf("本题限时") < 0, "限时: 不限时批改页不报用时");
 
 /* 19.6 记录表：用时单独一列，超时的行把超了多少一并写出来 */
-renderProfile();
+profGo("hist");
 ok(el("#profileBody").innerHTML.indexOf('<th class="num">用时</th>') >= 0, "记录表: 有「用时」列");
 ok(el("#profileBody").innerHTML.indexOf("超 1:0") >= 0,
    "记录表: 超时的行写出超了多少 -> " + ((el("#profileBody").innerHTML.match(/[\d:]+ <small>超 [\d:]+/)||["(没找到)"])[0]));
 ok(el("#profileBody").innerHTML.indexOf('<td class="num">—</td>') >= 0, "记录表: 没计时的记录用时留「—」，不臆造 0");
 state.history.unshift({ ts: Date.now(), module:"zy.guina", subtype:"概括做法", grade:{ total:70 }, timeLimit:45, usedSec:1680 });
-renderProfile();
+profGo("hist");
 ok(el("#profileBody").innerHTML.indexOf('<td class="num dur">28:00</td>') >= 0, "记录表: 没超时就只写用时（不写「超 0:00」）");
+
+/* 19.7 画像分两级：一级只列入口行，明细在二级（入口少字，点进去再密） */
+state.history = [{ ts: Date.now(), module:"zy.gongwen", subtype:"通知", grade:{ total:70, scores: scoresFor("zy.gongwen", 14) } }];
+profBack();
+const pRoot2 = el("#profileBody").innerHTML;
+ok(["mod:zy.gongwen","mod:sl.guina","pd","exp","hist"].every(k=> pRoot2.indexOf(`data-prof="${k}"`) >= 0),
+   "画像: 一级每行都是可点的入口行（模块 / 快判 / 经验 / 记录）");
+ok(pRoot2.indexOf("barline") < 0 && pRoot2.indexOf('class="hist"') < 0 && pRoot2.indexOf("expline") < 0,
+   "画像: 一级不铺维度条 / 记录表 / 经验列表（那些都在二级）");
+profGo("mod", "zy.gongwen");
+const pMod = el("#profileBody").innerHTML;
+ok(pMod.indexOf("barline") >= 0 && pMod.indexOf('id="profBack"') >= 0, "画像: 点进模块才有维度条，并给一个返回");
+profGo("hist");
+ok(el("#profileBody").innerHTML.indexOf('id="profBack"') >= 0 && el("#profileBody").innerHTML.indexOf('class="hist"') >= 0,
+   "画像: 记录在二级页，带返回");
+profBack();
+ok(el("#profileBody").innerHTML.indexOf('data-prof="hist"') >= 0, "画像: 点返回回到一级");
 state.history = [];
 state.settings.timeLimit = 0;
 
