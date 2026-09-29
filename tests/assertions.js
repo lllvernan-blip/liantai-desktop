@@ -194,6 +194,9 @@ ok(GEN_POINT_RULES.indexOf("必须正好等于 question.score") >= 0, "出题: p
 ok(GEN_POINT_RULES.indexOf("85%-95%") >= 0, "出题: prompt 要求子项长度落在字数上限的 85%-95%");
 ok(GEN_POINT_RULES.indexOf("need") >= 0 && GEN_POINT_RULES.indexOf("能对着答案划勾") >= 0,
    "出题: prompt 要求每条子项附一份 need（必须答到的具体情形），且要具体到能划勾");
+ok(GEN_POINT_RULES.indexOf("3-6 条") >= 0 && GEN_POINT_RULES.indexOf("只写一个可核对的事实") >= 0 && GEN_POINT_RULES.indexOf("拆成三条") >= 0,
+   "出题: prompt 要求 need 原子化（3-6 条、一条只写一个可核对的事实、不得塞并列要件）");
+ok(SCORING_RULES.indexOf("一条一条核") >= 0, "阅卷: prompt 要求 need 一条一条独立核，不许并起来判");
 ok(JSON.stringify(pointsOf([{score:5,awarded:5},{score:5,awarded:2.5}])) === '{"got":7.5,"max":10}', "采分点: 实得分与满分求和");
 ok(pointsOf([{score:5,awarded:99}]).got === 5, "采分点: 实得分夹在子项满分内（模型多给不算数）");
 ok(pointsOf([{point:"没有分值的老数据"}]) === null, "采分点: 无分值信息时不冒充总分");
