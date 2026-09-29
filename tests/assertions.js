@@ -1087,7 +1087,7 @@ ok(state.profile.lastModules.length === pdLMBefore, "隔离: 快判不进 lastMo
 ok(distilledPD === false, "隔离: 快判不触发经验提炼");
 profGo("pd");
 const phPD = el("#profileBody").innerHTML;
-ok(phPD.indexOf("快判（点选即判") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 快判单独一节（点进去才有）");
+ok(phPD.indexOf("快判（只看正确率") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 快判单独一节（点进去才有）");
 
 /* ③ 综合快判：每题自带形式，统计按题归属（一轮里三种都有，按轮算会混成一笔） */
 const pdSan = sanitizePDItems([

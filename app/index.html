@@ -255,8 +255,8 @@ html,body{margin:0;padding:0;}
 .kindtag{flex:0 0 auto;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 6px;border-radius:var(--r-ctl);white-space:nowrap;}
 .hitline .kindtag{order:1;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
-  .bars{border-top:1px solid var(--line);margin:8px 0 4px;}
-  .barline{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .bars{border-top:1px solid var(--line);margin:6px 0 2px;}
+  .barline{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
   .barline .bn{flex:0 0 92px;font-family:var(--hei);}
   /* 维度条是诊断数据，不是警示：默认中性墨灰，只有低于合格线（满分 20 的 60%）才染红 */
   /* 4px + 圆头：细条是诊断数据，不该比它旁边的字更重 */
@@ -266,7 +266,7 @@ html,body{margin:0;padding:0;}
   .barline .bv{flex:0 0 86px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
   /* 行内引导词：优点/短板的标签不占一整行 */
   .plabel{font-family:var(--hei);font-size:13px;color:var(--muted);margin-right:2px;}
-  .pills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px;}
+  .pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px;}
   .pill{padding:4px 10px;font-size:13px;border-radius:var(--r-ctl);}
   .pill.good{background:var(--success-bg);color:var(--success);}
   .pill.bad{background:var(--danger-bg);color:var(--danger);}
@@ -342,7 +342,7 @@ html,body{margin:0;padding:0;}
   .navrow{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;text-align:left;cursor:pointer;}
   .navrow:hover{background:var(--wash);}
   .navrow::after{content:"›";margin-left:auto;flex:0 0 auto;font-size:14px;color:var(--line-strong);}
-  .profback{margin:0 0 12px;}
+  .profback{margin:0 0 8px;}
   .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
   .explist{border-top:1px solid var(--line);}
@@ -363,15 +363,15 @@ html,body{margin:0;padding:0;}
   .mrow[open]>summary::after,.expline[open]>summary::after,details.card[open]>summary::after{content:"▾";}
   .notebox>summary::after,details.more>summary::after,.addpick>summary::after{content:"▸";float:right;font-size:12px;color:var(--line-strong);}
   .notebox[open]>summary::after,details.more[open]>summary::after,.addpick[open]>summary::after{content:"▾";}
-  .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
   .typestat .t{padding:4px 9px;font-size:13px;background:var(--wash-2);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
   .typestat .t .lo{color:var(--danger);}
   .typestat .t .hi{color:var(--success);}
   .typestat .t small{font-size:12px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
-  .hist{max-height:420px;overflow:auto;border-top:1px solid var(--line);margin-top:12px;}
+  .hist{max-height:420px;overflow:auto;border-top:1px solid var(--line);margin-top:10px;}
   .hist table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
-  .hist th,.hist td{border-bottom:1px solid var(--line);padding:8px;text-align:left;}
+  .hist th,.hist td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;}
   .hist th.num,.hist td.num{text-align:right;}   /* 总分/题数这类数字贴右：个位数与三位数不右对齐就会左右乱跳 */
   .hist th{font-family:var(--hei);background:var(--head);position:sticky;top:0;}
   .hist tbody tr:nth-child(even){background:var(--wash-2);}   /* 隔行淡底：十行扫下来不跟丢 */
@@ -545,7 +545,7 @@ html,body{margin:0;padding:0;}
       <div class="field">
         <label>AI 服务商</label>
         <select id="setProvider"></select>
-        <div class="note">选好服务商会自动填好接口地址，也可手动修改。推荐 DeepSeek：国内直连、便宜。</div>
+        <div class="note">推荐 DeepSeek：国内直连、便宜。</div>
       </div>
       <div class="field">
         <label>接口地址（Base URL）</label>
@@ -570,7 +570,7 @@ html,body{margin:0;padding:0;}
           <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
           <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--sh-2);max-height:220px;overflow:auto;"></div>
         </div>
-        <div class="note" id="modelNote">候选名单一律从接口实拉：有 Key 时每次启动自动刷新，点「拉取模型列表」可手动重拉。拉不到就手动输入模型名。</div>
+        <div class="note" id="modelNote">填上 Key 后可拉取候选名单，也可以直接输入模型名。</div>
       </div>
       <div class="field">
         <label>推理程度</label>
@@ -1070,23 +1070,21 @@ const REASON_LEVELS = {
 };
 /* 各家「思考」的开法不一样：特殊家族（参数长得不一样的）在这里各写各的发法；
    其余所有模型一律默认按「思考强度」（reasoning_effort）试探——是否真支持以实测为准，
-   被拒会记进 modelCaps 并自动改按温度发，不再拿名字猜能力（曾因 deepseek-flash 不带 v4 被冤枉过）。 */
+   被拒会记进 modelCaps 并自动改按温度发，不再拿名字猜能力（曾因 deepseek-flash 不带 v4 被冤枉过）。
+   参数细节（reasoning_effort = medium / thinking_budget = 8192 这类）**不往界面上写**：屏幕上看不出，
+   也帮不了用户决定；界面上只留两种状态：模型拒收过思考参数，以及两档实测差多少。 */
 const THINK_FAMILIES = [
   { name:"qwen3",
     re:/qwen3/i,
     build:lv=> lv==="quick" ? { enable_thinking:false }
-             : { enable_thinking:true, thinking_budget: lv==="deep"? 24576 : 8192 },
-    note:lv=> lv==="quick" ? "此模型：快速档=直接关闭思考（enable_thinking=false）。"
-             : `此模型：开启思考，thinking_budget = ${lv==="deep"?24576:8192}。` },
+             : { enable_thinking:true, thinking_budget: lv==="deep"? 24576 : 8192 } },
   { name:"glm",
     re:/glm-z1|glm-4\.5|glm-4\.6/i,
-    build:lv=> ({ thinking:{ type: lv==="quick" ? "disabled" : "enabled" } }),
-    note:lv=> `此模型：thinking.type = ${lv==="quick"?"disabled":"enabled"}。` }
+    build:lv=> ({ thinking:{ type: lv==="quick" ? "disabled" : "enabled" } }) }
 ];
 const DEFAULT_FAMILY = {
   name:"effort",
-  build:lv=> ({ reasoning_effort: lv==="quick"?"low" : lv==="deep"?"high" : "medium" }),
-  note:lv=> `此模型按「思考强度」发送：reasoning_effort = ${lv==="quick"?"low":lv==="deep"?"high":"medium"}；是否真支持以实测为准，被拒会自动记住并改按温度发。`
+  build:lv=> ({ reasoning_effort: lv==="quick"?"low" : lv==="deep"?"high" : "medium" })
 };
 function reasonFamily(m){
   m = String(m||"").toLowerCase();
@@ -3682,7 +3680,7 @@ function tagHintHtml(k){
   // 常错类型：改完要看得出「一直栽在同一类上」，否则每次丢分都是一条孤立记录，练十次也拼不出图
   const tagSt = gradeTagStats(k);
   const keys = Object.keys(tagSt).sort((a,b)=> tagSt[b].n - tagSt[a].n || (a < b? -1 : 1));
-  return keys.length? `<div class="hint" style="margin:2px 0 6px">常错类型：${esc(keys.map(t=>`${t} ${tagSt[t].n} 处`).join(" · "))}（按最近 ${GRADE_TAG_WINDOW} 题的批改统计）</div>` : "";
+  return keys.length? `<div class="hint" style="margin:2px 0 6px">常错类型：${esc(keys.map(t=>`${t} ${tagSt[t].n} 处`).join(" · "))}</div>` : "";
 }
 function profilePageHtml(p){
   if(p.kind === "mod") return profileModuleHtml(p.key);
@@ -3698,15 +3696,15 @@ function profileModuleHtml(k){
   if(avg == null) return html + `<div class="hint">还没练过。评分维度：${esc(MODULES[k].dims.join("、"))}</div>`;
   const { weak, strong, bars } = dimScan(k);
   html += `<div class="bars">${bars}</div>` + tagHintHtml(k);
-  if(weak.length) html += `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
-  if(strong.length) html += `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`;
+  const pills = weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("") + strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("");
+  if(pills) html += `<div class="pills">${pills}</div>`;
   const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
   if(rows.length) html += `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small> (${r.st.n})</small></span>`; }).join("") + `</div>`;
   return html;
 }
 function profilePdHtml(){
   const pds = pdFormStats(), ts = pdTrapStats();
-  let html = PROF_BACK + `<div class="sec-title">快判（点选即判 · 只看正确率，不计入维度画像）</div>`;
+  let html = PROF_BACK + `<div class="sec-title">快判（只看正确率，不计入维度画像）</div>`;
   if(!PD_FORM_ORDER.some(id=> pds.st[id].q > 0)) return html + `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
   html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
     const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
@@ -3716,8 +3714,8 @@ function profilePdHtml(){
   // 综合快判不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
   const traps = pdWeakTraps(3);
   const stMiss = k => { const x = ts[k]; return x? x.q - x.c : 0; };
-  if(traps.length) html += `<div class="hint" style="margin:-6px 0 14px">最该回头考的辨析点：${esc(traps.map(k=>`${k}（错过 ${stMiss(k)} 题）`).join("、"))}——下次出题会优先考这几类。</div>`;
-  if(pds.mixRounds) html += `<div class="hint" style="margin:-6px 0 14px">综合快判已出 ${pds.mixRounds} 轮，每题都归入了上面三类。</div>`;
+  if(traps.length) html += `<div class="hint" style="margin:-6px 0 14px">最该回头考的辨析点：${esc(traps.map(k=>`${k}（错过 ${stMiss(k)} 题）`).join("、"))}</div>`;
+  if(pds.mixRounds) html += `<div class="hint" style="margin:-6px 0 14px">综合快判已出 ${pds.mixRounds} 轮。</div>`;
   return html;
 }
 function profileExpHtml(){
@@ -3756,10 +3754,9 @@ function setReasonUI(){
   $("#segReason").style.display = cap === "rejected" ? "none" : "";   // 只有实测被拒过才收档
   document.querySelectorAll("#segReason button").forEach(b=> b.classList.toggle("active", b.dataset.lv===lv));
   const note = $("#reasonNote"); if(!note) return;
-  const pn = (cap !== "rejected") ? probeNote(model) : "";
-  note.textContent = (cap === "rejected"
-    ? "上次实测：此模型拒收思考参数（已记住，之后直接按标准温度发送）。"
-    : reasonFamily(model).note(lv)) + (pn? "  "+pn : "");
+  const txt = (cap === "rejected"? "此模型拒收思考参数，已改按标准温度发送。" : "") + (cap !== "rejected"? probeNote(model) : "");
+  note.textContent = txt;
+  note.style.display = txt? "" : "none";   // 没话说就不留一行空白
 }
 function fillProviderSelect(){
   $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
@@ -3792,14 +3789,14 @@ function cachedModels(base){
   const c = state.modelCache && state.modelCache[(base||"").replace(/\/+$/,"")];
   return (c && c.length)? c : null;
 }
-/* 模型栏文案的唯一出处：只说清「候选从哪来」，不假装有个官方推荐值 */
+/* 模型栏文案的唯一出处：只说清「候选从哪来」，不假装有个官方推荐值，也不写刷新机制 */
 function modelNoteText(hasKey, cached){
   if(cached) return hasKey
-    ? "候选来自上次实拉的名单，正在后台刷新最新版；点输入框从下拉里选，也可手动输入。"
-    : "候选来自上次实拉的名单；填上 Key 可随时刷新。";
+    ? "候选来自上次拉取的名单。"
+    : "候选来自上次拉取的名单；填上 Key 可刷新。";
   return hasKey
-    ? "正在从接口实拉候选名单…（拉不到就手动输入模型名）"
-    : "候选只能从接口实拉：填上 Key 后点「拉取模型列表」。也可手动输入模型名。";
+    ? "正在拉取候选名单…"
+    : "填上 Key 后可拉取候选名单，也可以直接输入模型名。";
 }
 function onProviderChange(){
   const p = providerById($("#setProvider").value);
