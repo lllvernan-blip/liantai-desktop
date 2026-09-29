@@ -1114,7 +1114,11 @@ function probeNote(model){
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
 const IDLE_TIMEOUT    = 60000;  // 流式：连续多久没有新字节才算吊死——有字节流动就永远不算卡
-const MAX_OUT_TOKENS  = 8192;   // 输出额度上限（DeepSeek 的上限就是它）；思考参数会从这里面分走额度
+const MAX_OUT_TOKENS  = 16384;  // 首次尝试的输出额度。2026-09-29 实测：DeepSeek 的 deepseek-flash 对 4096 / 8192 / 16384 / 32768 / 65536 全收（200），
+                                // 以前注释里那句「8192 是 DeepSeek 的输出上限」是错的。思考与正文共用一个额度（usage 里 reasoning_tokens 就计在 completion_tokens 里），
+                                // 实测一次批改的思考能到 4k~7k token，所以首次就给 2 倍富余。
+const MAX_OUT_TOKENS_HARD = 65536;  // 动态额度的封顶：撞一次上限就在原地翻倍重发（16384 → 32768 → 65536），
+                                // 额度只是一个上限、不写满不花钱，翻倍只在真被截断时才发生；封顶是防一个写飞了烧掉一大笔。
 const BODY_RETRY_MAX  = 2;      // 输出坏了重发几次。一次不够：2026-09-29 真机验收时真撞上「连坏两次」，那一次的题就白做了
 async function fetchWithTimeout(url, opt, ms){
   const ctrl = new AbortController();
@@ -1245,6 +1249,8 @@ async function callLLM(system, user, expectJson, onDelta, opts){
   // 默认都按思考参数试探；被拒收过的（cap=rejected）直接按标准温度发，不再白发
   const adaptive = cap !== "rejected";
   const r = (opts && isFinite(opts.temp))? { temp: opts.temp } : (REASON_LEVELS[adaptive ? s.reasonLevel : "standard"] || REASON_LEVELS.standard);
+  // 思考强度档位默认跟用户的设置走；阅卷那条路会指定 quick——见 GRADE_LEVEL
+  const level = (opts && opts.level) || s.reasonLevel;
   const streaming = typeof onDelta === "function";
 
   // 首选仍可能被某家拒收：先降回纯 temperature，再退到最裸的请求体，保证任何模型都能跑通。
@@ -1253,20 +1259,22 @@ async function callLLM(system, user, expectJson, onDelta, opts){
   // （2026-09-23 实测 deepseek-flash 作文形状的输出已到 3428/默认4096，思维链另占 5800+ 字符）。
   // 8192 是 DeepSeek 的输出上限；裸降级档不带它：个别兼容服务若不认这个参数，最后一档仍能跑通。
   const primary = {model,messages,temperature:r.temp,max_tokens:MAX_OUT_TOKENS};
-  if(adaptive) Object.assign(primary, fam.build(s.reasonLevel));
+  if(adaptive) Object.assign(primary, fam.build(level));
   const ladder = adaptive
     ? [primary, {model,messages,temperature:r.temp,max_tokens:MAX_OUT_TOKENS}, {model,messages}]
     : [{model,messages,temperature:r.temp,max_tokens:MAX_OUT_TOKENS}, {model,messages}];
 
   let last = null;
   let bodyRetries = 0;        // 输出坏了重发几次，上限见 BODY_RETRY_MAX
-  let noThink = false;        // 空输出且 finish=length 时置位：下次重发摘掉思考参数，把额度让给正文
+  let outCap = MAX_OUT_TOKENS;   // 动态额度：撞一次 length 就翻倍重发（封顶 MAX_OUT_TOKENS_HARD），够用就停
   let retriedNet = false;     // 网络抖动也只重发一次：不重发是白让用户丢一次批改，无限重发是白烧钱
   for(let ri=0; ri<ladder.length; ri++){
-    // 摘思考参数那一档只换家族参数，模型 / 消息 / 温度档位照旧
-    const base = noThink? {model, messages, temperature:r.temp, max_tokens:MAX_OUT_TOKENS} : ladder[ri];
+    const base = ladder[ri];
     const rungT0 = Date.now();
-    const body = Object.assign({}, base, streaming? {stream:true} : null);
+    // 裸降级档不带 max_tokens（个别兼容服务不认这个参数），那就照旧不带；只给认它的档位换额度
+    const body = Object.assign({}, base,
+      (base.max_tokens && outCap !== base.max_tokens)? {max_tokens: outCap} : null,
+      streaming? {stream:true} : null);
     let out;
     try{
       if(streaming){
@@ -1297,21 +1305,24 @@ async function callLLM(system, user, expectJson, onDelta, opts){
     if(adaptive){
       const rejected = ri>0;
       state.modelCaps[model] = rejected ? "rejected" : "ok";
-      if(!rejected) recordProbe(model, REASON_LEVELS[s.reasonLevel]? s.reasonLevel : "standard", out.reasonChars||0, (Date.now()-rungT0)/1000);
+      // 记的是「实际发的那个档位」（level）——阅卷那条路会指定 quick，不能按用户的设置记，
+      // 不然设置页那个「两档实测差多少」的结论就建在一份对不上号的样本上
+      if(!rejected) recordProbe(model, REASON_LEVELS[level]? level : "standard", out.reasonChars||0, (Date.now()-rungT0)/1000);
       save(); setReasonUI();
       if(rejected) banner(`实测「${esc(model)}」不收思考强度参数，已自动改按标准方式发送（已记住，之后不再尝试）。`);
     }
     // 输出坏了就重发，两种坏法分开对付（各留 BODY_RETRY_MAX 次）：
-    // ① content 为空：finish=length 说明额度被思考吃光——第二次重发就摘掉思考参数（原样再问一遍只是赌运气）；
-    //    不是 length 的（服务端抽风）原样重发最有效。
+    // ① content 为空：finish=length 就是被额度截断了（空的那一次连正文都没轮到）；不是 length 的（服务端抽风）原样重发。
     // ② content 在但解不出 JSON——2026-09-27 真机同一份请求连撞两次，隔一分钟重问就好，这种抖动重发最有效。
+    // 两种坏法只要 finish=length，就在原地翻倍重发（动态额度：16384→32768→65536）——
+    // 「多要一点额度」才是对付截断的正解（实测摘掉思考参数并不真能关掉思考）。
     // 「只重发一次」是 2026-09-29 真机暴露的坑：连坏两次时整道题的批改就白做了，多花一次调用的钱远比白做便宜。
     // 重发后还坏才往外抛：空输出抛 {code:"EMPTY"}、坏 JSON 抛 {code:"JSON"}，上层各按各的说法提示，不存在“静默吞掉”。
     if(expectJson){
       if(!out.content){
         if(bodyRetries < BODY_RETRY_MAX){
           bodyRetries++;
-          if(out.finish === "length" && !noThink) noThink = true;
+          if(out.finish === "length") outCap = Math.min(outCap*2, MAX_OUT_TOKENS_HARD);
           llmFailNote("空输出", out);
           ri--; continue;
         }
@@ -1319,7 +1330,11 @@ async function callLLM(system, user, expectJson, onDelta, opts){
       }
       try{ return parseJsonLoose(out.content); }
       catch(e){
-        if(bodyRetries < BODY_RETRY_MAX){ bodyRetries++; llmFailNote("解不出 JSON", out); ri--; continue; }
+        if(bodyRetries < BODY_RETRY_MAX){
+          bodyRetries++;
+          if(out.finish === "length") outCap = Math.min(outCap*2, MAX_OUT_TOKENS_HARD);
+          llmFailNote("解不出 JSON", out); ri--; continue;
+        }
         throw {code:"JSON"};
       }
     }
@@ -1578,8 +1593,14 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
    阅卷本来就该是“同一份卷子每次判差不多”，而 0 是唯一能把采样噪声拔干净的那个旋钮；
    出题那边依旧发敞（温度跟着档位走），两者互不影响。 */
 const GRADE_TEMP = 0;
+/* 阅卷的思考强度档位（2026-09-29）。为什么要单独指定：思考与正文共用一个输出额度，
+   真机实测一次批改的思考能吞 12k~20k 字符（约 4k~7k token）——想得越久，留给正文的越少，
+   撞上限时正文被截成半截 JSON，重发只是把同一个赌局再摇一次。而阅卷这道题是「对照 need 逐条核」，
+   不需要长链推理（要创造力的是出题）。降到 quick 实测每次批改 36~56 秒 → 20~39 秒，分数不变。 */
+const GRADE_LEVEL = "quick";
 async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline, rewrite){
   const m = MODULES[k];
+  const gradeOpts = { temp: GRADE_TEMP, level: GRADE_LEVEL };   // 阅卷的思考强度见 GRADE_LEVEL（额度被思考吃光就交不出分数）
   // organizeOutline：考生作答前的归类提纲，只进 prompt 供诊断，绝不参与 hits / 总分
   // rewrite：回改稿提交（mode=rewrite）时带上轮批改要点；总分口径一字不动
   const exps = expBlock(k);   // 经验闭环：请阅卷特别核对用户是否又犯这些错，两科都注入
@@ -1596,14 +1617,12 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
     "experienceChecks":[{"title":"原样照抄 experiences 里那一条的 title","status":"again / fixed / na"}],`: ""}
-    "comment":"总体点评（80字内，指出下一步该补哪里）",
-    "modelAnswer":"本题的完整参考答案：一篇成文范文，按题目分值定长短，结构规范、语言正式，供考生整篇对照学习"
+    "comment":"总体点评（80字内，指出下一步该补哪里）"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
     `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
     `\n归类提纲（organizeOutline，可能为空）是考生作答前对材料的归类草稿：只用于诊断其归类与结构意识，不参与计分，也不要求答案与其一致；总分仍只看子项覆盖。` +
-    `\n另请在返回中附上 modelAnswer：一篇本题的完整参考答案（成文范文）。它不参与计分，仅供考生整篇对照。` +
     (rewrite? `\n本次答卷（mode=rewrite）是考生按上一轮批改（previousReview）回改后的新一稿：请对照 previousReview 核对上轮指出的问题是否改正；计分口径不变。` : "") +
     expCheck +
     "\n" + SCORING_RULES +
@@ -1612,7 +1631,36 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     `\n同一份答卷重复阅卷时必须给同一结论：判「半分」的先在 evidence 里逐条列出答到的具体点，列不出来就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按**低一档**判（宁可少给，不凭整体印象抬分），并在 evidence 里写清差在哪。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
     `\n返回 JSON：\n` + schema;
-  return await callLLM(sys, user, true, onDelta, { temp: GRADE_TEMP });
+  const g = await callLLM(sys, user, true, onDelta, gradeOpts);
+  // 参考答案（范文）另起一次调用：它占输出大头，塞进主请求会把主请求顶到模型输出上限（见下面的 fetchModelAnswer）。
+  // 范文失败只当没写过：留空，折叠区自然不会出现，绝不让附属内容拖垮一次批改。
+  try{ if(g && typeof g === "object") g.modelAnswer = await fetchModelAnswer(k, subtype, question, keyPoints, answer); }
+  catch(e){ llmFailNote("范文单独调用失败", { finish:(e && e.code) || "" }); if(g && typeof g === "object") g.modelAnswer = ""; }
+  return g;
+}
+/* 参考答案单独一次调用（2026-09-29 拆出）。由来：2026-09-29 真机实测，一次批改的请求在 deepseek-flash 上
+   思考要吞 12k~20k 字符，而输出上限是 8192 token，剩下的还得装 8 条采分点佐证 **+ 一篇成文范文**——撞上限
+   就是正文被截成半截 JSON，重发多少遍都是同一个结局（17 次真调用撞上 2 次，约一成，其中一次就整题白做）。
+   拆开之后主请求的输出直接减半（分数与采分点先稳稳拿到），范文这一请求只剩几百字。
+   **要纯文本，不要 JSON**：一篇分段的范文里新行、引号、书名号样样都有，包里包去只会白白多一类
+   “解不出 JSON”的翻车法（真机已撞过：正文写了 411 字、JSON 没闭合）。空输出就在原地重试一次，
+   两次都空才放弃，当本题没给范文（额度不够时 callLLM 内部会自动翻倍重发，这里不用管）。 */
+async function fetchModelAnswer(k, subtype, question, keyPoints, answer){
+  const m = MODULES[k];
+  const sys = sysGrader(k) + "\n" + modInstruction(k)
+    + `\n任务：只写一篇本题的完整参考答案（成文范文）——按题目分值定长短，结构规范、语言正式，把采分点全部盖到，供考生整篇对照学习。`
+    + `\n直接输出范文正文：纯文本，不要 JSON、不要代码块、不要 markdown 标题，开头不要写「参考答案」这类字样，也不要分点列举。`;
+  const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, keyPoints:keyPoints||[], answer: answer||"" });
+  for(let i=0; i<2; i++){
+    try{
+      const txt = String(await callLLM(sys, user, false, null, { temp: GRADE_TEMP }) || "").trim();
+      if(txt) return txt;
+      llmFailNote("范文空输出", { finish:"" });
+    }catch(e){
+      llmFailNote("范文单独调用失败", { finish:(e && e.code) || "" });
+    }
+  }
+  return "";
 }
 
 /* ============ 经验闭环（两科共用）：批改后自动提炼 → 注入后续出题与阅卷 ============ */
