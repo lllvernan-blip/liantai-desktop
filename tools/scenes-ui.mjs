@@ -169,6 +169,26 @@ function s21_grade_sources() {
   renderLastGrade();
 }
 
+function s22_grade_selfcheck() {
+  __reset({ history: true });
+  const dims = MODULES["zy.guina"].dims;
+  const sc = {};
+  dims.forEach((d, i) => { sc[d] = [16, 14, 15, 17, 13][i % 5]; });
+  const g = { hits: [
+    { point: "把分散审批事项集中到一窗受理", score: 4, awarded: 4, status: "满分", kind: "-", where: "把分散在各部门的审批事项集中到一窗受理" },
+    { point: "上线「好差评」并与窗口考核挂钩", score: 4, awarded: 2, status: "半分", kind: "表达", evidence: "△ 只提到上线好差评，没说与考核挂钩", where: "上线了「好差评」系统，办事群众扫码即可评价，评价结果直接与窗口考核挂钩", unsure: { range: "0.5-1", why: "「与窗口考核挂钩」算不算做法说不准" } },
+    { point: "跨部门数据共享（问题类信息）", score: 4, awarded: 0, status: "零分", kind: "漏点", evidence: "【缺：数据共享】", where: "部分事项仍需线下重复提交纸质材料，跨部门数据没有真正打通", selfCheck: { at: Date.now(), verdict: "miss" } },
+    { point: "把标准化清单覆盖率提高到九成", score: 4, awarded: 0, status: "零分", kind: "漏点", evidence: "【缺：覆盖率目标】", where: "把标准化清单覆盖率提高到九成", selfCheck: { at: Date.now(), verdict: "hit" } },
+    { point: "压缩平均办理时限", score: 4, awarded: 3, status: "半分", kind: "漏点", evidence: "只写了压缩时限，没写具体数字" },
+  ], scores: sc, strengths: ["结构分条清楚"], weaknesses: ["漏了材料里的问题类信息"], comment: "材料里那句「数据没有真正打通」没接住。" };
+  const total = 45;
+  current = { module: "zy.guina", subtype: "归纳概括", question: __q, keyPoints: [], cardPeeks: 0, phase: "grade" };
+  state.history.unshift({ ts: Date.now(), module: "zy.guina", subtype: "归纳概括", question: __q, answer: "一、集中受理。……", keyPoints: [], hits: g.hits, grade: { total, scored: pointsOf(g.hits), scores: sc } });
+  renderGrade(g, total, null);
+  _selfIdx = 4;   // 最后一条展开自查框：看的就是它长什么样
+  renderLastGrade();
+}
+
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
   ["02-起始页-已配置", s02_start_ready, true],
@@ -192,6 +212,7 @@ const SCENES = [
   ["19-设置-重置后当场重播", s19_tut_reset_replay, true],
   ["20-练自己的题-弹层", s20_own_modal, false],
   ["21-批改-材料出处与申诉", s21_grade_sources, true, { height: 1320 }],   // 申诉框在第一屏下方：把视口抻高，一屏拍完
+  ["22-批改-拿不准与自查", s22_grade_selfcheck, true, { height: 1500 }],
 ];
 
 export const scenes = SCENES.map(([name, fn, full, extra]) => Object.assign({

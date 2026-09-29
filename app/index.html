@@ -242,9 +242,10 @@ html,body{margin:0;padding:0;}
 /* 错因类型小标：批改页丢分处的那一小块文字。字号走六档里的 12px，颜色维度只借 token，不新造色。 */
 .kindtag{flex:0 0 auto;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 6px;border-radius:var(--r-ctl);white-space:nowrap;}
 .hitline .kindtag{order:1;}
-/* 单条申诉：入口贴在子项行里，展开的编辑框跟正文共用一条顶线——不另起一种视觉 */
-.hitline .ap{flex:0 0 auto;font-size:12px;color:var(--muted);padding:2px 6px;min-height:24px;}
-.hitline .ap:hover{color:var(--gov-red);}
+.kindtag.un{color:var(--warn);}   /* 「拿不准」跟半分的标记同色：都是「这条在两档之间」的意思，不另引入一种颜色 */
+/* 单条申诉与逐条自查：入口都贴在子项行里，展开的框跟正文共用一条顶线——不另起一种视觉 */
+.hitline .ap,.hitline .ck{flex:0 0 auto;font-size:12px;color:var(--muted);padding:2px 6px;min-height:24px;}
+.hitline .ap:hover,.hitline .ck:hover{color:var(--gov-red);}
 .appealbox{border-top:1px solid var(--line);background:var(--wash);padding:10px 12px;}
 .appealbox .noteedit{min-height:72px;}
 .appealbox .actions{margin-top:8px;}
@@ -1550,7 +1551,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     exps? { experiences:exps, expNote } : {},
     rewrite? { mode:"rewrite", previousReview:(rewrite.previousReview||[]) } : {}));
   const schema = `{
-    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注","where":"材料里支撑这一条的原文片段（10-30字，照抄材料原句；材料里确实没有对应表述的填 -）"}],
+    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注","where":"材料里支撑这一条的原文片段（10-30字，照抄材料原句；材料里确实没有对应表述的填 -）","unsure":"这一条自己在相邻两档之间摇摆时填 {\"range\":\"如 0.5-1\",\"why\":\"摇摆的原因，40字内\"}，没有摇摆填 null"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
@@ -1568,6 +1569,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "\n" + SCORING_RULES +
     `\n错因归类：每条子项都要给 kind——${GRADE_TAG_LINE}；拿不准选最接近的一类，拿满分的填 -。kind 只用于考生自己的错因统计，不参与计分，不得因此改动 awarded 与总分。` +
     `\n材料出处：每条子项再给一个 where——把材料里支撑这一条的原文照抄 10-30 字（照抄，不改写、不拼接两处）；材料里确实没有对应表述的才填 -。它只帮考生回材料核对，不参与计分。` +
+    `\n拿不准也照实说：逐条判完，如果某一条你是在相邻两档之间摇摆（比如「半分」与「零分」都有理由），在它的 unsure 里写清摇摆区间与原因，全卷最多标 2 条；标出来不改分——awarded 仍按你当前的判断给，不许因为标了拿不准就往中间档靠。它只让考生知道哪几条的依据不够硬，不参与计分。` +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。` +
     `\n同一份答卷重复阅卷时，个别子项可能在相邻档位之间摆动：判「半分」时必须在 evidence 里写出考生答到了哪些内容，写不出对应表述的就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按中间档判，不要为了鼓励考生抬分。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
@@ -3504,6 +3506,9 @@ function gradeHtml(g, total, inFlow){
   if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
   html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div>`;
+  // 拿不准：阅卷自陈「这条在两档之间摇摆」的子项，先在页眉报个数——它们就是最可能浮动的那几条
+  const unList = hits.filter(h=> h && h.unsure && typeof h.unsure === "object" && (h.unsure.range || h.unsure.why));
+  if(unList.length) html += `<div class="hint" style="margin-top:6px">本次有 ${unList.length} 条判定标了「拿不准」：证据不够硬，可直接申诉重判。</div>`;
   // 丢分清单替代单独的「待改进」段：同一个意思，但它带扣分与证据，能按扣分排序——先改哪条不用猜
   if(lost.length){
     const top = lost.slice().sort((a,b)=> (Number(b.score)-Number(b.awarded)) - (Number(a.score)-Number(a.awarded))).slice(0,3);
@@ -3530,20 +3535,36 @@ function gradeHtml(g, total, inFlow){
   // 没有分值信息的老记录排不出丢分清单，退回「待改进」的原话
   if(!lost.length && bads) html += `<div class="pills"><span class="plabel">待改进</span>${bads}</div>`;
   if(hits.length){
-    html += `<details class="notebox" open style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）</summary><div class="notebody">`;
+    const sc = selfClStats(hits);
+    const progress = sc.done? (sc.done >= sc.need? `自查完成：认下 ${sc.accept} 条漏点${sc.claim? `，${sc.claim} 条你认为答到了`: ""}` : `已自查 ${sc.done}/${sc.need}`) : "";
+    html += `<details class="notebox" open style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）${progress? `<span class="hint" style="margin-left:8px">${progress}</span>`: ""}</summary><div class="notebody">`;
     for(let i=0;i<hits.length;i++){
       const h = hits[i];
       const cls = hitClass(h);
+      const need = cls !== "hit";   // 拿满分的子项：既没什么可申诉，也没什么可自查
       const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
-      const sc = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
-      const kth = (cls !== "hit")? gradeTagOf(h) : "";   // 拿满分的子项不算错因，不贴标签
+      const scTxt = (isFinite(Number(h.score)) && isFinite(Number(h.awarded)))? `${h.awarded}/${h.score} 分` : "没拿满分";
+      const scEl = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
+      const kth = need? gradeTagOf(h) : "";   // 拿满分的子项不算错因，不贴标签
+      // 拿不准：摇摆区间与原因跟着证据走（同一个格子里换行），行内只留一个能扫的标签
+      const un = (h.unsure && typeof h.unsure === "object")? h.unsure : null;
+      const unLine = (un && (un.range || un.why))? `摇摆 ${un.range? esc(un.range) + " 分之间": "两档之间"}${un.why? `：${esc(un.why)}` : ""}` : "";
       // 材料出处跟着证据走：同一个格子里换行显示，不另起一列
       const src = (h.where && String(h.where).trim() !== "-")? String(h.where).trim() : "";
-      const ev = (h.evidence || src)? `<span class="ev">${h.evidence? esc(h.evidence):""}${src? `${h.evidence? "<br>":""}材料出处：${esc(src)}`:""}</span>` : "";
-      const ap = (cls !== "hit")? `<button class="linkbtn ap" data-appeal="${i}">申诉</button>` : "";   // 拿满分的子项没什么可申诉
-      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${sc}${ev}${ap}</div>`;
+      const evBits = [];
+      if(h.evidence) evBits.push(esc(h.evidence));
+      if(src) evBits.push(`材料出处：${esc(src)}`);
+      const ev = evBits.length? `<span class="ev">${evBits.join("<br>")}</span>` : "";
+      const ap = need? `<button class="linkbtn ap" data-appeal="${i}">申诉</button>` : "";
+      const ck = need? `<button class="linkbtn ck" data-self="${i}">自查</button>` : "";
+      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${unLine? `<span class="kindtag un">拿不准</span>`:""}${scEl}${ev}${ap}${ck}</div>`;
+      // 行下的三行小字，次序就是事情发生的次序：摇摆（阅卷自陈）→ 自查（考生自己的判断）→ 申诉（复核结果）
+      if(unLine) html += `<div class="hint" style="padding:0 12px 6px">${esc(unLine)}</div>`;
+      const myv = (h.selfCheck && h.selfCheck.verdict) || "";
+      if(myv) html += `<div class="hint" style="padding:0 12px 6px">${myv === "hit"? `你的自查：答到了。阅卷判 ${scTxt}，两边不一致——可申诉这一条。` : "你的自查：确实没答到。这条记为你认下的漏点。"}</div>`;
       if(h.appeal) html += `<div class="hint" style="padding:0 12px 6px">${h.appeal.verdict === "改判"? `申诉已改判：${h.appeal.before} → ${h.awarded} 分` : (h.appeal.verdict === "复核降分"? `申诉后复核为 ${h.awarded} 分（原 ${h.appeal.before} 分）` : "申诉后维持原判")}${h.appeal.note? `：${esc(h.appeal.note)}` : ""}</div>`;
       if(_appealIdx === i) html += `<div class="appealbox"><textarea class="noteedit" id="appealText" placeholder="说清你答到了哪些内容、为什么该给分。"></textarea><div class="actions"><button class="primary" id="btnAppealGo">提交申诉</button><button class="linkbtn" data-appeal="-1">取消</button></div></div>`;
+      if(_selfIdx === i) html += `<div class="appealbox"><div class="hint">自己判一遍：这条你答到了吗？判断会与阅卷的判定并排留着。</div><div class="actions"><button data-self="${i}:hit">我答到了</button><button data-self="${i}:miss">确实没答到</button><button class="linkbtn" data-self="-1">取消</button></div></div>`;
     }
     html += `</div></details>`;
   }
@@ -3564,6 +3585,14 @@ function gradeHtml(g, total, inFlow){
    总分口径一字不动：重判后仍是「各子项实得分之和」，所以改一条就得把卷面与那条记录一起重算。
    复核只回答一个问题——考生到底答到什么程度；不因为「他来申诉」就抬分。 */
 let _appealIdx = null;   // 正在编辑哪一条（null = 没开）
+let _selfIdx = null;     // 正在自查哪一条（与申诉框互斥：一次只开一个）
+/* 自查进度：只有没拿满分的子项需要自查 */
+function selfClStats(hits){
+  const need = (hits||[]).filter(h=> hitClass(h) !== "hit");
+  const done = need.filter(h=> h && h.selfCheck && (h.selfCheck.verdict === "hit" || h.selfCheck.verdict === "miss"));
+  const claim = done.filter(h=> h.selfCheck.verdict === "hit").length;
+  return { need:need.length, done:done.length, claim, accept:done.length - claim };
+}
 function currentRecord(){
   const sig = (current && current.question)? qSig(current.question) : "";
   if(sig) for(const h of state.history){ if(h && h.question && qSig(h.question) === sig) return h; }
@@ -3613,6 +3642,7 @@ async function submitAppeal(){
     if(r && r.status) h.status = r.status;
     const verdict = aw > before? "改判" : (aw < before? "复核降分" : "维持");   // 按实际得分变化说，不按模型自报的结论说
     h.appeal = { at:Date.now(), reason, verdict, before, note:(r && r.reason)||"" };
+    delete h.unsure;   // 这一条已经有人（阅卷复核 + 考生理由）看过了：摇摆的说法到此为止，申诉痕迹才是这条的最终说明
     applyRecordGrade(rec, g);
     saveHistory(); save();
     const pts = pointsOf(g.hits);
@@ -3629,6 +3659,19 @@ async function submitAppeal(){
   }
 }
 /* 就地把批改页重画一遍（开/收申诉框用），不重算分数 */
+/* 逐条自查：考生自己判一遍「这条答到没有」，与阅卷的判定并排留着。
+   只是考生自己的判断——不动 awarded、不动总分；认下的漏点跟着记录走，供以后按漏点复盘。 */
+function submitSelfCl(i, verdict){
+  const g = lastGrade && lastGrade.g;
+  const h = (g && g.hits)? g.hits[i] : null;
+  if(!h) return;
+  h.selfCheck = { at:Date.now(), verdict };
+  const rec = currentRecord();
+  if(rec) rec.hits = g.hits;   // 卷面与记录是同一份：自查结果跟着记录存，不另立一份状态
+  saveHistory();
+  _selfIdx = null;
+  renderGrade(g, lastGrade.total, lastGrade.expCheck);
+}
 function renderLastGrade(){
   if(!lastGrade) return;
   const f = activeFlow();
@@ -3643,13 +3686,25 @@ function wireAppeal(){
   docBody.querySelectorAll("[data-appeal]").forEach(b=> b.onclick = ()=>{
     const v = Number(b.dataset.appeal);
     _appealIdx = (v < 0)? null : v;
+    _selfIdx = null;   // 申诉框与自查框互斥：一次只开一个
+    renderLastGrade();
+  });
+  docBody.querySelectorAll("[data-self]").forEach(b=> b.onclick = ()=>{
+    const v = String(b.dataset.self);
+    if(v === "-1"){ _selfIdx = null; renderLastGrade(); return; }
+    const parts = v.split(":");
+    const idx = Number(parts[0]), verdict = parts[1];
+    if(verdict === "hit" || verdict === "miss"){ submitSelfCl(idx, verdict); return; }
+    _selfIdx = Number.isFinite(idx)? idx : null;
+    _appealIdx = null;
     renderLastGrade();
   });
 }
 
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
 function renderGrade(g, total, expCheck){
-  _appealIdx = null;   // 新一轮批改：申诉框一律收起
+  _appealIdx = null;   // 新一轮批改：申诉框与自查框一律收起
+  _selfIdx = null;
   lastGrade = { g, total, expCheck: expCheck || null };
   if(current && usesFlowChain(current.module)){
     const f = activeFlow();
