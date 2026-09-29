@@ -1622,6 +1622,8 @@ renderModuleLanding("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("btnOwnQuestion") >= 0 && PAGE_HTML.indexOf('id="modalOwn"') >= 0
    && PAGE_HTML.indexOf('id="ownMaterial"') >= 0 && PAGE_HTML.indexOf('id="ownAsk"') >= 0 && PAGE_HTML.indexOf('id="ownScore"') >= 0,
    "练自己的题: 落地页有入口，弹层里材料 / 要求 / 分值三项齐全");
+ok(typeof el("#btnOwnGo").onclick === "function",
+   "练自己的题: 弹层主按钮真的接上了（曾经漏接线，点了没反应）");
 
 /* 19.2 拆采分点：只拆点不写题，粘的材料原样进题面 */
 let capOwn = null;
@@ -1631,7 +1633,7 @@ openOwnQuestion("zy.guina");
 el("#ownMaterial").value = "材料原文".repeat(20);
 el("#ownAsk").value = "根据给定材料，概括主要做法。";
 el("#ownScore").value = "20";
-await beginOwnQuestion();
+await el("#btnOwnGo").onclick();   // 走真实路径：弹层主按钮的接线
 ok(capOwn && capOwn.sys.indexOf("不要另编一道题") >= 0 && capOwn.sys.indexOf("拆成带分值的采分点") >= 0,
    "练自己的题: 只拆采分点——明写不另编题、不改写材料");
 ok(current && current.module === "zy.guina" && current.question.background === "材料原文".repeat(20)
