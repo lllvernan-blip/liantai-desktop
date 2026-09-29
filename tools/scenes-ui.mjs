@@ -9,6 +9,18 @@
 // —— 页面侧公共依赖（注入时拼在每个场景前面）——
 // 注意：这里的一切都必须自包含——注入的只有这个函数的源码，Node 侧的常量它看不到。
 function PRELUDE() {
+  /* 取景要能逐字节比对：种子历史里的 ts 都来自 Date.now()，渲染成「9/29 08:58」这种分钟数——
+     两次跑只要跨了分钟，画像那几张图就必然不同。曾因此把「同一份代码连跑两次」当成界面改动查了一轮。
+     把页面里的时钟钉在一个固定时刻，「重构不许动界面」才能用字节比对来验。真实等待（setTimeout）不受影响。 */
+  var __FROZEN_NOW = new Date(2026, 8, 29, 9, 0, 0).getTime();
+  Date.now = function () { return __FROZEN_NOW; };
+  /* 另一个不稳定源：入场动画（弹层 / 正文首屏）。抓在不同进度上，整屏像素都不一样。
+     这里把动画与过渡全关掉——「both」填充模式下动画播完的终态就是无动画态，所以画面不多不少。 */
+  try {
+    var __st = document.createElement("style");
+    __st.textContent = "*{animation:none !important;transition:none !important;}";
+    document.head.appendChild(__st);
+  } catch (e) {}
   var MATERIAL = [
     "近年来，某市持续推进政务服务标准化建设。市政务服务中心把分散在各部门的审批事项集中到一窗受理，平均办理时限由 12 个工作日压缩到 4 个。",
     "同时上线了「好差评」系统，办事群众扫码即可评价，评价结果直接与窗口考核挂钩。",
