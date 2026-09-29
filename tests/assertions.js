@@ -1643,6 +1643,19 @@ ok(current && current.module === "zy.guina" && current.question.background === "
 ok(capOwn && capOwn.user.indexOf("材料原文") >= 0 && capOwn.user.indexOf("300") < 0,
    "练自己的题: 拆点请求带的是原文，不套本地字数表");
 
+/* 19.2b 附官方参考答案：标杆来自真题，采分点必须拆自它 */
+el("#ownMaterial").value = "材料原文".repeat(20);
+el("#ownAsk").value = "根据给定材料，概括主要做法。";
+el("#ownRef").value = "参考答案全文".repeat(10);
+await el("#btnOwnGo").onclick();
+ok(capOwn && capOwn.user.indexOf('"reference"') >= 0 && capOwn.sys.indexOf("采分点必须从参考答案里拆") >= 0 && capOwn.sys.indexOf("不要编") >= 0,
+   "练自己的题: 附了参考答案，请求带 reference，prompt 明写拆自它、没有的不要编");
+ok(current && current.ownRef === true, "练自己的题: ownRef 标记记在当前题上");
+ok(PAGE_HTML.indexOf('class="field addpick"') >= 0 && PAGE_HTML.indexOf('refBox.closest("details")') >= 0,
+   "练自己的题: 参考答案默认收起（可选件不占版面：展开着会把主按钮顶到视口外）");
+ok(gradeHtml({ hits:[], scores:{}, strengths:[], weaknesses:[], comment:"" }, 0).indexOf("拆自你贴的参考答案") >= 0,
+   "练自己的题: 批改页说明标杆口径（采分点拆自参考答案）");
+
 /* 19.3 材料太短 / 没写作答要求：先不发请求，也不落记录 */
 let calls19 = 0;
 callLLM = async ()=>{ calls19++; return {}; };
@@ -1656,6 +1669,13 @@ el("#ownAsk").value = "";
 await beginOwnQuestion();
 ok(calls19 === 0 && el("#bannerSlot").innerHTML.indexOf("作答要求") >= 0,
    "练自己的题: 没写作答要求也拦下来（拆点少了要求会拆歪）");
+el("#ownMaterial").value = "材料原文".repeat(20);
+el("#ownAsk").value = "根据给定材料，概括主要做法。";
+el("#ownRef").value = "太短";
+await beginOwnQuestion();
+ok(calls19 === 0 && el("#bannerSlot").innerHTML.indexOf("参考答案太短") >= 0,
+   "练自己的题: 参考答案太短也拦下来（残缺的标杆立不住）");
+el("#ownRef").value = "";
 
 /* 19.4 材料出处：阅卷 schema 增 where，且明写不参与计分 */
 let capSys19 = null;
@@ -1912,6 +1932,9 @@ ok(recTL.timeLimit === 30 && recTL.usedSec >= 31*60 && recTL.usedSec <= 31*60 + 
 ok(curLimitFrom() === 0, "限时: 交卷即停表（再进一稿是下一次尝试，重新起算）");
 ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().indexOf("（超时 1 分") >= 0,
    "限时: 批改页报出用时与超时");
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("超时 1 分") >= 0,
+   "限时: 记录表里也看得见超时（交卷页之外的第二处）");
 
 /* 22.5 不限时：记录不带字段，批改页不报用时；综应A 与申论共用同一处控件 */
 state.settings.timeLimit = 0;
@@ -2015,10 +2038,32 @@ el("#btnFmtJudge").onclick();
 ok(dtHtml().indexOf("本项不适用") >= 0 && dtHtml().indexOf("说明：公告面向社会公布，不写主送机关") >= 0,
    "公文默写: 不判的项写明「本项不适用」并给类型说明");
 _fmtType = "通知"; _fmtRes = null; renderFmtDrill();
+
+/* 23.6 复测直达：经验行里给「练一道」，点了直接用一道新题考这条 */
+state.experiences = [{ id:"dr1", type:"规则", title:"对策要落到具体主体", body:"先看动作主体是谁", module:"sl.guina", subject:"sl", ts:1, disabled:false }];
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf('data-exp-drill="dr1"') >= 0 && el("#profileBody").innerHTML.indexOf(">练一道<") >= 0
+   && PAGE_HTML.indexOf('querySelectorAll("[data-exp-drill]")') >= 0,
+   "复测直达: 经验行里有「练一道」（渲染在行内，接线在 wireExperiences）");
+state.experiences = [];
 el("#fmtText").value = "关于……的通知\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日";
 el("#btnFmtJudge").onclick();
 ok(dtHtml().indexOf("上次也漏了") >= 0, "公文默写: 同一个漏点再漏一次会标「上次也漏了」");
 ok(state.fmt["通知"].rounds === 2, "公文默写: 默写次数累计");
+ok(state.fmt["通知"].tally && state.fmt["通知"].tally.to === 2,
+   "公文默写: tally 跨次累计 -> " + JSON.stringify(state.fmt["通知"].tally));
+const fw = weakFmtMisses(2);
+ok(fw.length === 1 && fw[0].type === "通知" && fw[0].item === "主送机关" && fw[0].times === 2,
+   "公文默写: 反复漏的格式项有出口 -> " + JSON.stringify(fw));
+renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("公文格式默写") >= 0 && el("#profileBody").innerHTML.indexOf("主送机关 ×2") >= 0,
+   "公文默写: 画像里有这一行，反复漏的项带着次数");
+/* 出题带上：公文写作出题时格式上留可判的地方 */
+let capFmt = null;
+callLLM = async (sys, user)=>{ capFmt = { sys, user }; return { question:{ background:"b", requirements:"r" }, keyPoints:[] }; };
+await gen(GONGWEN_KEY, "通知", null, false);
+ok(capFmt && capFmt.user.indexOf("fmtWeak") >= 0 && capFmt.user.indexOf("公文格式默写") >= 0 && capFmt.user.indexOf("通知的主送机关") >= 0,
+   "公文默写: 公文写作出题带上反复漏的格式项");
 callLLM = realCallTL;
 state.fmt = {};
 

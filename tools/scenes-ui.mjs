@@ -300,6 +300,8 @@ function s23_profile_missbook() {
       { point: "漏写发文机关与日期", score: 4, awarded: 2, kind: "格式" },
     ]),
   ];
+  state.fmt = { "通知": { at: now - 3600e3, rounds: 3, miss: ["to"], tally: { to: 2, date: 1 } } };   // 默写统计：反复漏的项进画像与出题
+  if (state.history[0]) { state.history[0].timeLimit = 30; state.history[0].usedSec = 32 * 60 + 6; }   // 限时：记录表里看得见超时
   openModal("modalProfile"); renderProfile();
   // 画像弹层一屏只看得见模块那几行：滚到「漏点本」那一段。
   // 只设一次不够：弹层内容是在场景跑完之后才量准的（前面那个整屏跑出来就滞在了上面），所以隔一拍再铉一次。
