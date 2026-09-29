@@ -1114,6 +1114,8 @@ function probeNote(model){
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
 const IDLE_TIMEOUT    = 60000;  // 流式：连续多久没有新字节才算吊死——有字节流动就永远不算卡
+const MAX_OUT_TOKENS  = 8192;   // 输出额度上限（DeepSeek 的上限就是它）；思考参数会从这里面分走额度
+const BODY_RETRY_MAX  = 2;      // 输出坏了重发几次。一次不够：2026-09-29 真机验收时真撞上「连坏两次」，那一次的题就白做了
 async function fetchWithTimeout(url, opt, ms){
   const ctrl = new AbortController();
   const timer = setTimeout(()=>ctrl.abort(), ms);
@@ -1146,6 +1148,28 @@ function sseReasonDelta(line){
     return (d && typeof d.reasoning_content === "string") ? d.reasoning_content : "";
   }catch(e){ return ""; }
 }
+// 同源解析 finish_reason（只有最后一帧有）：用来区分「模型自己写完停下」和「额度用尽被截断」。
+// 空输出碰上 length，说明额度被思考吃光了——那重发就得换打法（摘掉思考参数），而不是原样再问一遍。
+function sseFinish(line){
+  const l = line.trim();
+  if(l.indexOf("data:") !== 0) return "";
+  const payload = l.slice(5).trim();
+  if(payload === "[DONE]") return "";
+  try{
+    const j = JSON.parse(payload);
+    const ch = j.choices && j.choices[0];
+    return (ch && typeof ch.finish_reason === "string") ? ch.finish_reason : "";
+  }catch(e){ return ""; }
+}
+// 坏输出的现场留一句到控制台：main.js 把渲染进程的警告以上消息收进 logs/startup.log，
+// 所以用户那边真出事时，日志里查得到「是空输出还是坏 JSON、finish 是什么、吐了多少字」。
+function llmFailNote(kind, out){
+  try{
+    const c = String((out && out.content) || "");
+    console.warn("[输出异常] " + kind + " finish=" + ((out && out.finish) || "?") + " 正文字数=" + c.length
+      + " 思考字数=" + ((out && out.reasonChars) || 0) + " 片段=" + c.slice(0,120).replace(/\s+/g, " "));
+  }catch(e){}
+}
 
 // 从还没收完的流式 JSON 里抠出正在生成的可读片段，给“它在写题了”的实况感；同类字段取最后一个（最新写到的那条）
 function streamPeek(text, keys){
@@ -1177,11 +1201,12 @@ async function postStream(url, body, headers, onDelta){
     const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
     const c = msg.content || "";
     onDelta(c, c);
-    return { content:c, reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0 };
+    return { content:c, reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0,
+             finish:(data.choices && data.choices[0] && data.choices[0].finish_reason) || "" };
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder("utf-8");
-  let buf = "", content = "", reason = "", lastByte = Date.now();
+  let buf = "", content = "", reason = "", finish = "", lastByte = Date.now();
   const idleTimer = setInterval(()=>{ if(Date.now() - lastByte > IDLE_TIMEOUT) ctrl.abort(); }, 1000);
   try{
     for(;;){
@@ -1195,13 +1220,14 @@ async function postStream(url, body, headers, onDelta){
         const d = sseDelta(line);
         if(d){ content += d; onDelta(d, content); }
         reason += sseReasonDelta(line);
+        const fr = sseFinish(line); if(fr) finish = fr;
       }
     }
   }catch(err){
     if(ctrl.signal.aborted) throw {code:"TIMEOUT"};
     throw err;
   }finally{ clearInterval(idleTimer); clearTimeout(connectTimer); }
-  return { content, reasonChars: reason.length };
+  return { content, reasonChars: reason.length, finish };
 }
 
 async function callLLM(system, user, expectJson, onDelta, opts){
@@ -1226,17 +1252,19 @@ async function callLLM(system, user, expectJson, onDelta, opts){
   // 思考型模型会把输出额度分给思维链，不设 max_tokens 时吃满服务端默认额度，content 可能直接为空
   // （2026-09-23 实测 deepseek-flash 作文形状的输出已到 3428/默认4096，思维链另占 5800+ 字符）。
   // 8192 是 DeepSeek 的输出上限；裸降级档不带它：个别兼容服务若不认这个参数，最后一档仍能跑通。
-  const primary = {model,messages,temperature:r.temp,max_tokens:8192};
+  const primary = {model,messages,temperature:r.temp,max_tokens:MAX_OUT_TOKENS};
   if(adaptive) Object.assign(primary, fam.build(s.reasonLevel));
   const ladder = adaptive
-    ? [primary, {model,messages,temperature:r.temp,max_tokens:8192}, {model,messages}]
-    : [{model,messages,temperature:r.temp,max_tokens:8192}, {model,messages}];
+    ? [primary, {model,messages,temperature:r.temp,max_tokens:MAX_OUT_TOKENS}, {model,messages}]
+    : [{model,messages,temperature:r.temp,max_tokens:MAX_OUT_TOKENS}, {model,messages}];
 
   let last = null;
-  let retriedBody = false;    // 输出坏了（空 / 解不出 JSON）也只重发一次，防止死循环
+  let bodyRetries = 0;        // 输出坏了重发几次，上限见 BODY_RETRY_MAX
+  let noThink = false;        // 空输出且 finish=length 时置位：下次重发摘掉思考参数，把额度让给正文
   let retriedNet = false;     // 网络抖动也只重发一次：不重发是白让用户丢一次批改，无限重发是白烧钱
   for(let ri=0; ri<ladder.length; ri++){
-    const base = ladder[ri];
+    // 摘思考参数那一档只换家族参数，模型 / 消息 / 温度档位照旧
+    const base = noThink? {model, messages, temperature:r.temp, max_tokens:MAX_OUT_TOKENS} : ladder[ri];
     const rungT0 = Date.now();
     const body = Object.assign({}, base, streaming? {stream:true} : null);
     let out;
@@ -1249,7 +1277,8 @@ async function callLLM(system, user, expectJson, onDelta, opts){
         else{
           const data = await res.json();
           const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
-          out = { content: msg.content || "", reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0 };
+          out = { content: msg.content || "", reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0,
+                  finish: (data.choices && data.choices[0] && data.choices[0].finish_reason) || "" };
         }
       }
     }catch(netErr){
@@ -1272,13 +1301,27 @@ async function callLLM(system, user, expectJson, onDelta, opts){
       save(); setReasonUI();
       if(rejected) banner(`实测「${esc(model)}」不收思考强度参数，已自动改按标准方式发送（已记住，之后不再尝试）。`);
     }
-    // 输出坏了也原样重发一次再放弃，两种坏法：① content 为空（思考型模型把额度全花在思维链上，finish=length）；
-    // ② content 在但解不出 JSON——2026-09-27 真机用同一份请求连撞两次（同一分钟重问就好了），这种抖动重发最有效。
-    // 重发后还坏才往外抛：抛 {code:"JSON"} 让上层照旧提示重试，不存在“静默吞掉”。
+    // 输出坏了就重发，两种坏法分开对付（各留 BODY_RETRY_MAX 次）：
+    // ① content 为空：finish=length 说明额度被思考吃光——第二次重发就摘掉思考参数（原样再问一遍只是赌运气）；
+    //    不是 length 的（服务端抽风）原样重发最有效。
+    // ② content 在但解不出 JSON——2026-09-27 真机同一份请求连撞两次，隔一分钟重问就好，这种抖动重发最有效。
+    // 「只重发一次」是 2026-09-29 真机暴露的坑：连坏两次时整道题的批改就白做了，多花一次调用的钱远比白做便宜。
+    // 重发后还坏才往外抛：空输出抛 {code:"EMPTY"}、坏 JSON 抛 {code:"JSON"}，上层各按各的说法提示，不存在“静默吞掉”。
     if(expectJson){
-      if(!out.content){ if(!retriedBody){ retriedBody = true; ri--; continue; } throw {code:"JSON"}; }
+      if(!out.content){
+        if(bodyRetries < BODY_RETRY_MAX){
+          bodyRetries++;
+          if(out.finish === "length" && !noThink) noThink = true;
+          llmFailNote("空输出", out);
+          ri--; continue;
+        }
+        throw {code:"EMPTY"};
+      }
       try{ return parseJsonLoose(out.content); }
-      catch(e){ if(!retriedBody){ retriedBody = true; ri--; continue; } throw e; }
+      catch(e){
+        if(bodyRetries < BODY_RETRY_MAX){ bodyRetries++; llmFailNote("解不出 JSON", out); ri--; continue; }
+        throw {code:"JSON"};
+      }
     }
     return out.content;
   }
@@ -1466,14 +1509,20 @@ function sysGrader(k){ return `你是${roleOf(k)}阅卷专家，严格按对应�
    判定不靠印象分，只看考生对该子项内容的覆盖程度落三档。 */
 const GEN_POINT_RULES = "\n采分点分值：question.score 是题目满分（按真实试卷习惯取 15 / 20 / 25 分）；"
   + "keyPoints 的每一项是一个带 score 的子项，所有子项分值之和必须正好等于 question.score；"
-  + "子项要能拼成一份完整的满分答案，其总长度落在题干字数上限的 85%-95% 之间。";
+  + "子项要能拼成一份完整的满分答案，其总长度落在题干字数上限的 85%-95% 之间。"
+  + "\n每条子项都要附一份 need：2-4 条「必须答到的具体情形」，逐条写清考生答案里出现什么才算答到这一点。"
+  + "每条都具体到能对着答案划勾（写明做法、对象、数字、口径这类可核对的落点），不要写成「提到协同机制」这种话题级说法；"
+  + "need 只用于把该子项说细，不得提子项之外的新要求，也不得与子项分值不相称。判分就照 need 数点，所以 need 写不清就会判不准。";
 /* 三档判法：**数点，不估百分比**。
    原来写的是「覆盖 ≥80% 给满分 / 40-80% 给一半 / <40% 给 0」——让模型估一个连续百分比再映射到档位，
    78% 与 82% 这种边界就必然摆动（2026-09-29 基线实测：同一份卷子同一子项在满分与半分之间来回，极差 4.5/20）。
-   改成「把子项拆成几个具体情形、数考生答到几个」，判断变成可计数的，证据也强制逐条写出。 */
-const SCORING_RULES = "逐子项判三档，判法是数点不估百分比：先把该子项要求的内容拆成它自己写出的具体情形（子项文字里点了几个具体情形就是几个点，通常 2-4 个），再数考生答到了其中几个——"
-  + "全部答到 → 给满分（awarded = score）；答到一部分（既不是全无也不是全到）→ 给一半分（awarded = score 的一半）；一个都没答到 → 0 分。"
-  + "把数出来的点全部写进 evidence：答到的拄考生原话（考生用自己的话也行），没答到的用【缺：xxx】——数不出来、写不出对应表述的，不许给半分。"
+   改成「数点」后剩下一个漏洞：数哪几个点还是模型现场拆的，换成「只点名不给事实」的卷子就照摆（极差 4）。
+   现在把点提前到出题时就写死（keyPoints[].need），阅卷只做「对照 need 逐条核」——这才是完整的 rubric 改写。 */
+const SCORING_RULES = "逐子项判三档，判法是数点不估百分比：按该子项的 need 逐条核——"
+  + "need 全部答到 → 给满分（awarded = score）；答到一部分（既不是全无也不是全到）→ 给一半分（awarded = score 的一半）；一条都没答到 → 0 分。"
+  + "（子项没带 need 的，就把它文字里点到的具体情形拆出来当 need 用，判法不变。）"
+  + "考生用自己的话表达即可，不要求原文；但 need 里写明的做法、对象、数字、口径要真答到才算答到。"
+  + "把数出来的点全部写进 evidence：答到的抄考生原话，没答到的用【缺：xxx】—— need 里列了几条就要有几条着落，写不出对应表述的不许给半分。"
   + "判定不倒扣，编造内容只是该子项 0 分，不额外扣分。"
   + "evidence 用固定符号标注问题：【缺：xxx】= 完全没答到的内容；△ = 表述不准；✗ = 严重错误（口径 / 身份 / 文种错）。";
 
@@ -1503,20 +1552,22 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   const lib = SL_STUDY_CARDS[k];   // 申论内置资料库（课堂笔记提炼）：学习卡以此为纲生成
   const libNote = (needCard && lib)? "学习卡必须以内置资料库（library 字段）的方法论为纲，按本题场景重新组织措辞，不得偏离或遗漏资料库要点。" : "";
   const note = (needCard
-    ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式，另附一个 example：两三句话的示例小案例 + 典型问法，让用户认出这类题的样子；example 必须是全新编的示例，严禁使用本题背景材料的情节）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点。"
-    : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点。")
+    ? "生成：(1) 该模块的学习卡（解题要点、常见失分点、答题框架或常用句式，另附一个 example：两三句话的示例小案例 + 典型问法，让用户认出这类题的样子；example 必须是全新编的示例，严禁使用本题背景材料的情节）；(2) 一道贴近真实考试的仿真练习题；(3) 这道题的参考采分点（每条附上 need）。"
+    : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点（每条附上 need）。")
     + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "")
     + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "");
   const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined });
+  // 采分点带 need（必须答到的具体情形）：判分不再靠阅卷现场拆点，而是照出题时写死的那几条逐条核
+  const kpSchema = `"keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5,"need":["必须答到的具体情形1","必须答到的具体情形2"]}]`;
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
-    "keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5}]
+    ${kpSchema}
   }`
     : `{
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
-    "keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5}]
+    ${kpSchema}
   }`;
   return await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
 }
@@ -1549,7 +1600,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "modelAnswer":"本题的完整参考答案：一篇成文范文，按题目分值定长短，结构规范、语言正式，供考生整篇对照学习"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
-    `\n阅卷顺序：先逐条对照 keyPoints 判定（考生用自己的话表达即可，不要求原文；但子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
+    `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
     `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
     `\n归类提纲（organizeOutline，可能为空）是考生作答前对材料的归类草稿：只用于诊断其归类与结构意识，不参与计分，也不要求答案与其一致；总分仍只看子项覆盖。` +
     `\n另请在返回中附上 modelAnswer：一篇本题的完整参考答案（成文范文）。它不参与计分，仅供考生整篇对照。` +
@@ -4247,6 +4298,7 @@ function handleErr(e, keepView){
       + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
       + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""), "error");
   else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。", "error");
+  else if(e && e.code==="EMPTY") banner("AI 连发两次都没返回正文（多半是这次把额度用在思考上了）。答案还在，再点一次「提交批改」即可。", "error");
   else if(e && e.code==="BADJSON") banner("服务商返回的内容不是 JSON（多半是 Base URL 不对，需带 /v1）。请检查后重试。", "error");
   else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或把「推理程度」调低。", "error");
   else if(e && e.code==="ABORT") banner("已取消本次请求。");
