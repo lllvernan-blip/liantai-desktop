@@ -2369,11 +2369,11 @@ function weakFmtMisses(n){
 function fmtBookHtml(){
   const rows = fmtWeakAll();
   if(!rows.length) return `<div class="hint">还没默写过。到「公文写作」里点「公文格式默写」，不看提示写一遍格式框架。</div>`;
-  let html = `<div class="hint" style="margin:0 0 6px">一个文种反复漏的同一项会在这里攒次数；攒到两次以上，下次出题会在格式上留出可判的地方。</div>`;
+  let html = `<div class="hint" style="margin:0 0 6px">同一个文种里反复漏的项会累计到一起；漏过两次以上的前两项会写进下次公文写作出题。</div>`;
   for(const r of rows){
     const sp = gwFmtSpec(r.type);
     const lastMiss = r.miss.length? `上次漏 ${r.miss.map(id=>fmtItemName(id, sp)).join("、")}` : "上次没漏项";
-    html += `<details class="expline"><summary title="${esc(r.type)}"><span class="etag">${r.rounds > 1? esc(r.rounds + " 次") : "—"}</span><span class="etitle">${esc(r.type)}</span><span class="ebody">${esc(lastMiss)}</span></summary><div class="expbody">默过 ${r.rounds} 次 · 最近一次 ${esc(mmdd(r.at))} · ${esc(lastMiss)}${r.weak.length? `<div class="hint" style="margin-top:4px">反复漏：${esc(r.weak.map(w=>`${fmtItemName(w.id, sp)} ×${w.n}`).join("、"))}——出题时会带上。</div>` : ""}</div></details>`;
+    html += `<details class="expline"><summary><span class="etag">${r.rounds > 1? esc("默 " + r.rounds + " 次") : "—"}</span><span class="etitle">${esc(r.type)}</span><span class="ebody">${esc(lastMiss)}</span></summary><div class="expbody">默过 ${r.rounds} 次 · 最近一次 ${esc(mmdd(r.at))} · ${esc(lastMiss)}${r.weak.length? `<div class="hint" style="margin-top:4px">反复漏：${esc(r.weak.map(w=>`${fmtItemName(w.id, sp)} ×${w.n}`).join("、"))}</div>` : ""}</div></details>`;
   }
   return `<div class="explist">` + html + `</div>`;
 }
