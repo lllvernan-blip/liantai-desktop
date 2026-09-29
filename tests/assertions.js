@@ -1863,24 +1863,28 @@ ok(capGen21.indexOf("missedPoints") < 0 && capGen21.indexOf("反复漏过这些�
 callLLM = realCall21;
 state.history = [];
 
-/* ============ 22. 作答限时（只管「写」这一段：剩余 / 超时 / 用时进记录） ============ */
+/* ============ 22. 作答限时（从「开始作答」起算：剩余 / 超时 / 用时进记录） ============ */
 const dtHtml = ()=> el("#docBody").innerHTML;
 state.history = [];
 state.settings.timeLimit = 0;
 localStorage.clear();
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"材".repeat(120), requirements:"不超过250字。" }, keyPoints:[], cardPeeks:0 };
 renderQuestion();
-flowGoStep("draft");
+flowGoStep("read");
 ok(dtHtml().indexOf('id="selLimit"') >= 0 && dtHtml().indexOf('value="0" selected') >= 0,
-   "限时: 作答区标题行有控件，默认「不限时」");
+   "限时: 读材料步就有控件（时钟从开始作答起算），默认「不限时」");
 ok(el("#timeLeft").textContent === "", "限时: 不限时不显示任何时间");
 
-/* 22.2 选了时长就起算：锚点落在链上（申论跳步不丢），选择被记住 */
+/* 22.2 选了时长就起算：锚点落在链上，切步不重置（读材料那几行也算在里面） */
 el("#selLimit").value = "30"; el("#selLimit").onchange();
 ok(curLimitMin() === 30 && curLimitFrom() > 0, "限时: 选 30 分钟后起算");
-ok(activeFlow().limitMin === 30 && activeFlow().limitFrom === curLimitFrom(), "限时: 锚点存在链上（跨步与刷新都不丢）");
+const tlAnchor = curLimitFrom();
+flowGoStep("organize"); flowGoStep("draft");
+ok(curLimitFrom() === tlAnchor && activeFlow().limitFrom === tlAnchor,
+   "限时: 读材料 → 归类 → 一稿 用的是同一个时钟（切步不重置）");
+ok(activeFlow().limitMin === 30, "限时: 时长也在链上（跨步与刷新都不丢）");
 ok(state.settings.timeLimit === 30, "限时: 选择被记住，下一题按同样时长起");
-ok(el("#timeLeft").textContent.indexOf("剩余 30:0") === 0, "限时: 立刻显示剩余 -> " + el("#timeLeft").textContent);
+ok(/^剩余 (30:0\d|29:5\d)$/.test(el("#timeLeft").textContent), "限时: 立刻显示剩余 -> " + el("#timeLeft").textContent);
 
 /* 22.3 最后 5 分钟转焦橙；超时只报一声，不自动交卷 */
 setLimitState(30, Date.now() - 25*60*1000);
@@ -1905,7 +1909,7 @@ callLLM = realCallTL;
 const recTL = state.history[0];
 ok(recTL.timeLimit === 30 && recTL.usedSec >= 31*60 && recTL.usedSec <= 31*60 + 5,
    "限时: 记录存下限时与用时 -> " + JSON.stringify({ limit: recTL.timeLimit, used: recTL.usedSec }));
-ok(curLimitFrom() === 0, "限时: 交卷即停表（回改是新的一稿，重新起算）");
+ok(curLimitFrom() === 0, "限时: 交卷即停表（再进一稿是下一次尝试，重新起算）");
 ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().indexOf("（超时 1 分") >= 0,
    "限时: 批改页报出用时与超时");
 
@@ -1934,8 +1938,9 @@ renderModuleLanding("zy.guina");
 ok(el("#docBody").innerHTML.indexOf('id="btnFmtDrill"') < 0, "公文默写: 别的模块不给这个入口");
 renderFmtDrill();
 ok(dtHtml().indexOf('id="fmtText"') >= 0 && dtHtml().indexOf('id="btnFmtJudge"') >= 0, "公文默写: 默写框与对照按钮都在");
-ok(GW_FMT_TYPES.length === 11 && GW_FMT_TYPES.indexOf("通知") >= 0 && GW_FMT_TYPES.indexOf("讲话稿") < 0,
-   "公文默写: 只列 11 个法定公文（应用文格式不统一，不进来）");
+ok(GW_FMT_TYPES.length === 21 && GW_FMT_TYPES.indexOf("通知") >= 0 && GW_FMT_TYPES.indexOf("讲话稿") >= 0
+   && GW_FMT_TYPES.indexOf("编者按") >= 0,
+   "公文默写: 覆盖公文写作池的全部 21 个文种（含应用文）");
 ok(dtHtml().indexOf(">通知<") >= 0 && dtHtml().indexOf("默写 · 通知") >= 0, "公文默写: 默认选第一个文种");
 
 /* 23.2 规范的一份：五项全过 */
@@ -1954,16 +1959,35 @@ ok(jd[4].ok === false && jd[4].note.indexOf("年") >= 0, "公文默写: 日期�
 jd = judgeGwFormat("关于……的通知\n\n　　正文内容。", "通知");
 ok(jd[0].ok && jd[4].ok === false, "公文默写: 只有三行时该过的过、该错的错");
 jd = judgeGwFormat(fmtText("公告"), "公告");
-ok(jd[1].na && !jd[3].na && jd[1].note.indexOf("不写主送机关") >= 0,
-   "公文默写: 公告不写主送机关（标为不判）；但它仍有发文机关署名");
+ok(jd[1].na && !jd[3].na && gwFmtSpec("公告").note.indexOf("不写主送机关") >= 0,
+   "公文默写: 公告不写主送机关（标为不判，理由在类型说明里）；但它仍有发文机关署名");
 ok(jd[0].ok && jd[2].ok && jd[3].ok && jd[4].ok, "公文默写: 不判的项不影响其他项");
 ok(judgeGwFormat(fmtText("纪要"), "纪要").filter(x=> x.na).length === 2, "公文默写: 纪要两项不判（无主送机关、无署名）");
+
+/* 23.3b 应用文：称谓叫「称呼」、落款该不写的就不判；内容层面的项不硬判 */
+jd = judgeGwFormat("在××会议上的讲话\n\n同志们：\n\n　　正文内容。\n\n　　谢谢大家！", "讲话稿");
+ok(jd[0].ok && jd[1].ok && jd[1].note.indexOf("同志们") >= 0 && jd[3].na && jd[4].na,
+   "公文默写: 讲话稿判称呼、不判署名与日期");
+ok(judgeGwFormat("在××会议上的讲话\n\n　　正文内容。\n\n　　谢谢大家！", "讲话稿")[1].ok === false,
+   "公文默写: 讲话稿漏称呼判出来");
+let jb = judgeGwFormat("编者按：这是一段按语，说明为什么推荐这篇。", "编者按");
+ok(jb[0].na && jb[0].note === "" && jb[2].ok && jb[2].note.indexOf("编者按") >= 0,
+   "公文默写: 编者按不判标题、按语本身判出来了");
+
+/* 23.3c 两处误判回归：顶格写的正文不是署名；正文里顶格带冒号的小标题不是主送机关 */
+jd = judgeGwFormat("关于……的通知\n\n各有关单位：\n\n正文顶格写。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日", "通知");
+ok(jd[2].ok === false && jd[3].ok === true, "公文默写: 正文没空两字判错，不会把靠右的署名当成正文（回归）");
+jd = judgeGwFormat("关于……的通知\n\n一、总体要求：\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日", "通知");
+ok(jd[1].ok === false, "公文默写: 正文里顶格带冒号的小标题不算主送机关（回归）");
 
 /* 23.4 骨架：三个特殊文种各有写法；作答页的「插入公文骨架」用的就是这一份 */
 ok(gwSkeletonText("通知").indexOf("主送机关：") >= 0, "公文默写: 通知的骨架有主送机关");
 ok(gwSkeletonText("公告").indexOf("主送机关") < 0, "公文默写: 公告的骨架没有主送机关");
 ok(gwSkeletonText("纪要").indexOf("出席人员") >= 0 && gwSkeletonText("纪要").indexOf("模拟练习专用") < 0,
    "公文默写: 纪要的骨架有出席人员、没有发文机关署名");
+ok(gwSkeletonText("讲话稿").indexOf("同志们：") >= 0 && gwSkeletonText("讲话稿").indexOf("模拟练习专用") < 0
+   && gwSkeletonText("讲话稿").indexOf("年") < 0,
+   "公文默写: 讲话稿的骨架有称呼、没有落款");
 current = { module:GONGWEN_KEY, subtype:"通知", question:{ background:"材".repeat(60), requirements:"写一份通知。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
 renderZyPage();
 el("#answer").value = "";
@@ -1985,6 +2009,12 @@ ok(state.fmt["通知"] && state.fmt["通知"].rounds === 1 && state.fmt["通知"
 ok(callsFmt === 0, "公文默写: 全程不调模型（本地判）");
 ok(dtHtml().indexOf("要素对照") >= 0 && dtHtml().indexOf("漏了 1 项：主送机关") >= 0 && dtHtml().indexOf("标准格式（照这个位置排）") >= 0,
    "公文默写: 结果页报漏项并给出标准格式");
+/* 不判的项怎么显示：切到公告（不写主送机关）看一行 */
+_fmtType = "公告"; _fmtDrafts["公告"] = fmtText("公告"); _fmtRes = null; renderFmtDrill();
+el("#btnFmtJudge").onclick();
+ok(dtHtml().indexOf("本项不适用") >= 0 && dtHtml().indexOf("说明：公告面向社会公布，不写主送机关") >= 0,
+   "公文默写: 不判的项写明「本项不适用」并给类型说明");
+_fmtType = "通知"; _fmtRes = null; renderFmtDrill();
 el("#fmtText").value = "关于……的通知\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日";
 el("#btnFmtJudge").onclick();
 ok(dtHtml().indexOf("上次也漏了") >= 0, "公文默写: 同一个漏点再漏一次会标「上次也漏了」");
