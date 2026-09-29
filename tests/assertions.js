@@ -5,6 +5,12 @@ const ok = (c, m) => T.push((c ? "PASS  " : "FAIL  ") + m);
 // 画像从练习记录推导，测试统一用“往 history 里种成绩”的方式给数据
 function scoresFor(k, v){ const sc={}; for(const d of MODULES[k].dims) sc[d]=v; return sc; }
 
+/* 参考答案（范文）是批改成功后单独一次调用（2026-09-29 从主请求里拆出）：
+   默认在此短路——不短的话范文那次会把各处 callLLM 桩子里的 cap 顶掉；
+   专门考这条链路的断言（9.5）再临时把真身装回去。 */
+const realFetchModelAnswer = fetchModelAnswer;
+fetchModelAnswer = async ()=> "";
+
 /* 0. 启动顺序：页面脚本求值时，gw_history 里预置的练习记录必须已被 load() 读进内存（TDZ/顺序回归哨兵） */
 ok(state.history.length === 1 && state.history[0].ts === 42, "启动顺序: 首次求值即从 gw_history 读回练习记录");
 // 预置的是一条旧格式（裸模块键）记录：启动路径就得把它迁到科目前缀上
@@ -641,8 +647,14 @@ state.history = [];
 
 /* 9.5 prompt 口径随模块所属科目走（拦下 callLLM，直接看真拼出来的 system prompt） */
 const realCallLLM = callLLM;
-let cap = null;
-callLLM = async (sys, user)=>{ cap = { sys, user }; return { question:{ background:"b", requirements:"r" }, keyPoints:[] }; };
+let cap = null, answerCalls = 0;
+const ANSWERASK = "只写一篇本题的完整参考答案";
+fetchModelAnswer = realFetchModelAnswer;   // 这一段专考范文链路，把它装回真身
+callLLM = async (sys, user)=>{
+  if(sys.indexOf(ANSWERASK) >= 0){ answerCalls++; return "范文正文"; }   // 范文是另一次调用（纯文本），不让它把 cap 顶掉
+  cap = { sys, user };
+  return { question:{ background:"b", requirements:"r" }, keyPoints:[] };
+};
 await gen("sl.guina", "概括原因", null, false);
 ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SUBJECTS.zy.role) < 0, "出题 prompt: 申论模块用申论口径");
 ok(cap.sys.indexOf("归纳概括") >= 0 && cap.sys.indexOf(GEN_POINT_RULES) >= 0, "出题 prompt: 保留模块说明与采分点规则");
@@ -655,12 +667,25 @@ await grade("sl.guanche", "讲话稿", { background:"b" }, [], "答案");
 ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SCORING_RULES) >= 0 && cap.sys.indexOf("数点不估百分比") >= 0,
    "阅卷 prompt: 申论口径 + 三档计分规则原样保留");
 await grade("zy.shiwu", null, { background:"b" }, [], "答案");
+ok(cap.sys.indexOf("modelAnswer") < 0,
+   "阅卷 prompt: 主请求不再兼写参考答案（范文占输出大头，塞在里面会把请求顶到模型输出上限）");
 ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf("维度分只用于画像诊断") >= 0,
    "阅卷 prompt: 综应口径 + 维度锚定原样保留");
-await grade("zy.guina", "归纳概括", { background:"b", score:20 }, [{point:"p1",score:5,need:["情形A","情形B"]}], "答案");
+const gWithAns = await grade("zy.guina", "归纳概括", { background:"b", score:20 }, [{point:"p1",score:5,need:["情形A","情形B"]}], "答案");
 ok(cap.user.indexOf("情形A") >= 0 && cap.user.indexOf("情形B") >= 0 && cap.sys.indexOf("按 need 逐条核") >= 0,
    "阅卷 prompt: 采分点自带的 need 原样带进判分请求，且 prompt 要求照它逐条核");
+ok(gWithAns && gWithAns.modelAnswer === "范文正文" && answerCalls >= 1,
+   "阅卷: 范文由单独一次调用出，并合进批改结果（范文调用=" + answerCalls + " 次）");
+/* 范文那一次炸了不影响批改：分数与采分点先拿到手，折叠区不出现就行 */
+callLLM = async (sys, user)=>{
+  if(sys.indexOf(ANSWERASK) >= 0) throw {code:"EMPTY"};
+  cap = { sys, user }; return {};
+};
+const gAnsFail = await grade("zy.guina", "归纳概括", { background:"b" }, [], "答案");
+ok(gAnsFail && gAnsFail.modelAnswer === "" && cap.sys.indexOf(SCORING_RULES) >= 0,
+   "阅卷: 范文那一次失败也不影响批改（modelAnswer 留空、不往外抛）");
 callLLM = realCallLLM;
+fetchModelAnswer = async ()=> "";
 
 /* 10. 申论模块按申论阅卷口径写，不照抄综应A */
 const SL_DIM_VOCAB = ["要点全面","归类准确","表述精炼","条理清晰","语言准确","问题对应","对策可行","针对性强","观点明确","分析深入","论证充分","结论稳妥","格式规范","内容完整","身份贴切","语言得体","立意准确","结构完整","语言规范","结合材料"];
@@ -1625,7 +1650,7 @@ ok(calls18f === 3 && threwEmpty && threwEmpty.code === "EMPTY",
 handleErr({ code:"EMPTY" }, true);
 ok(el("#bannerSlot").innerHTML.indexOf("答案还在") >= 0, "网络抖动: 空输出的提示告诉用户答案没丢、再点一次就行");
 
-/* 18.7 空输出 + finish=length（额度被思考吃光）：第二次重发把思考参数摘掉，不再原样再问一遍 */
+/* 18.7 空输出 + finish=length（额度被思考吃光）：重发时动态翻倍额度（16384 → 32768），不是原样再问一遍 */
 let calls18g = 0, bodies18g = [];
 globalThis.fetch = (u, opt) => {
   calls18g++; bodies18g.push(JSON.parse(opt.body));
@@ -1636,9 +1661,19 @@ let okEmpty18 = null;
 try{ okEmpty18 = await callLLM("sys", "user", true); }catch(e){ okEmpty18 = e; }
 ok(calls18g === 2 && okEmpty18 && okEmpty18.a === 3,
    "网络抖动: 空输出重发一次就好 -> calls=" + calls18g + " res=" + JSON.stringify(okEmpty18));
-ok(bodies18g[0].reasoning_effort && !bodies18g[1].reasoning_effort,
-   "网络抖动: finish=length 时第二次重发摘掉思考参数（第1次 " + JSON.stringify(bodies18g[0].reasoning_effort || null)
-   + " / 第2次 " + JSON.stringify(bodies18g[1].reasoning_effort || null) + "）");
+ok(bodies18g[0].max_tokens === MAX_OUT_TOKENS && bodies18g[1].max_tokens === MAX_OUT_TOKENS * 2,
+   "网络抖动: finish=length 时第二次重发把额度翻倍（" + bodies18g[0].max_tokens + " → " + bodies18g[1].max_tokens + "）");
+
+/* 18.8 同样的坏法一直重：额度翻两下就到顶，不无限翻；封顶值就是 MAX_OUT_TOKENS_HARD */
+let calls18h = 0, caps18h = [];
+globalThis.fetch = (u, opt) => {
+  calls18h++; caps18h.push(JSON.parse(opt.body).max_tokens);
+  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:'' }, finish_reason:"length" }] }) });
+};
+let threw18h = null;
+try{ await callLLM("sys", "user", true); }catch(e){ threw18h = e; }
+ok(calls18h === 3 && threw18h && threw18h.code === "EMPTY" && caps18h.join("/") === [MAX_OUT_TOKENS, MAX_OUT_TOKENS*2, MAX_OUT_TOKENS*4].join("/"),
+   "网络抖动: 一直撞上限就重发两次、额度逐次翻倍（" + caps18h.join(" → ") + "），仍失败报 EMPTY");
 
 globalThis.fetch = realFetch18;
 

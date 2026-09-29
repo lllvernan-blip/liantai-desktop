@@ -88,6 +88,14 @@ if (${JSON.stringify(phase)} === "prepare") {
     console.log("DRIFT " + JSON.stringify({ 答卷: v, 次数: rows.length, 满分: full, 各次得分: nums,
       极差: Math.max.apply(null, nums) - Math.min.apply(null, nums), 折百分制: rows.map(r => r.折百), 摆动的子项: flip }));
   }
+  /* 思考量是“额度够不够”的关键变量（思考与正文共用一个输出上限）：按「模型×档位」累计的口径打出来，
+     以后就知道这次跑的时候它到底想了多少字——只读，不改任何状态。 */
+  const probe = state.modelProbe && state.modelProbe[state.settings.model];
+  if(probe){
+    const rows = Object.keys(probe).map(lv => ({ 档位: lv, 次数: probe[lv].n,
+      思考字数均值: Math.round(probe[lv].reason / probe[lv].n), 平均秒: Math.round(probe[lv].secs / probe[lv].n) }));
+    console.log("PROBE " + JSON.stringify({ 模型: state.settings.model, 档位: rows, 模型拒收过思考参数: state.modelCaps[state.settings.model] || "ok" }));
+  }
 }
 `;
 
