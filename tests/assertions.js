@@ -1720,6 +1720,74 @@ callLLM = realCall19;
 _appealIdx = null;
 current = null;
 
+/* ============ 20. 拿不准（阅卷自陈摇摆） / 采分点自查 ============ */
+const realCall20 = callLLM;
+
+/* 20.1 阅卷要 unsure，并明写标了不许改分 */
+let capSys20 = null;
+callLLM = async (sys)=>{ capSys20 = sys; return { hits:[], scores:{}, strengths:[], weaknesses:[], comment:"" }; };
+await grade("zy.guina", "归纳概括", { background:"b", requirements:"r", score:20 }, [], "答", null);
+ok(capSys20.indexOf('"unsure"') >= 0 && capSys20.indexOf("相邻两档之间摇摆") >= 0 && capSys20.indexOf("标出来不改分") >= 0
+   && capSys20.indexOf("不参与计分") >= 0,
+   "拿不准: 阅卷要自陈摇摆的区间与原因，并明写标了不改分、不参与计分");
+ok(capSys20.indexOf("最多标 2 条") >= 0, "拿不准: 全卷最多两条，不让模型见谁都标");
+
+/* 20.2 批改页：摇摆的子项贴「拿不准」+ 写明区间与原因，页眉只报条数 */
+current = { module:"zy.guina", subtype:"归纳概括", question:{background:"b", requirements:"r", score:20}, keyPoints:[], cardPeeks:0, phase:"grade" };
+const g20 = { hits:[
+    { point:"做法一", score:4, awarded:4, status:"满分", kind:"-" },
+    { point:"做法二", score:4, awarded:2, status:"半分", kind:"表达", evidence:"△ 只有半句", unsure:{ range:"0.5-1", why:"「相邻」算不算同义说不准" } },
+    { point:"做法三", score:12, awarded:10, status:"半分", kind:"漏点", evidence:"【缺：数据共享】" }],
+  scores:{}, strengths:[], weaknesses:[], comment:"" };
+const h20 = gradeHtml(g20, 80, false);
+ok((h20.match(/kindtag un">拿不准/g)||[]).length === 1 && h20.indexOf("摇摆 0.5-1 分之间：「相邻」算不算同义说不准") >= 0,
+   "拿不准: 摇摆的那一条贴标签 + 写明区间与原因，其余不贴");
+ok(h20.indexOf("本次有 1 条判定标了「拿不准」") >= 0, "拿不准: 页眉按实际条数报，并告诉考生可以直接申诉");
+ok(gradeHtml({ hits:[{point:"满分",score:4,awarded:4,status:"满分",kind:"-"}], scores:{}, strengths:[], weaknesses:[], comment:"" }, 90, false).indexOf("拿不准") < 0,
+   "拿不准: 一条摇摆都没有时，页眉那句不出现");
+ok(pointsOf(g20.hits).got === 16 && pointsOf(g20.hits).max === 20,
+   "拿不准: 摇摆标记不进总分（仍是各子项实得分之和 16/20）");
+
+/* 20.3 自查：入口只给没拿满分的子项，没点开不占地方 */
+ok(h20.indexOf('data-self="1"') >= 0 && h20.indexOf('data-self="2"') >= 0 && h20.indexOf('data-self="0"') < 0,
+   "自查: 只有没拿满分的子项才有自查入口");
+ok(h20.indexOf("已自查") < 0 && h20.indexOf("自查完成") < 0 && h20.indexOf("自己判一遍") < 0,
+   "自查: 一条都没查时，进度与判断框都不出现");
+
+/* 20.4 自查：先自己判一遍，选了不改分、不碰阅卷的判定，结果跟着练习记录走 */
+state.history.unshift({ ts:Date.now(), module:"zy.guina", subtype:"归纳概括", question:current.question, answer:"我的答卷", keyPoints:[], hits:g20.hits, grade:{ total:80, scored:pointsOf(g20.hits), scores:{} } });
+renderGrade(g20, 80, null);
+_selfIdx = 1;
+const h20b = gradeHtml(g20, 80, false);
+ok(h20b.indexOf("自己判一遍：这条你答到了吗？") >= 0 && h20b.indexOf('data-self="1:hit"') >= 0 && h20b.indexOf('data-self="1:miss"') >= 0,
+   "自查: 点开是「自己先判一遍」，两个选项都撑在明面上");
+submitSelfCl(1, "hit");
+ok(g20.hits[1].selfCheck && g20.hits[1].selfCheck.verdict === "hit" && g20.hits[1].awarded === 2 && _selfIdx === null,
+   "自查: 存下考生自己的判断，不动分数（阅卷仍判 2/4）");
+const h20c = gradeHtml(g20, 80, false);
+ok(h20c.indexOf("你的自查：答到了。阅卷判 2/4 分，两边不一致——可申诉这一条。") >= 0 && h20c.indexOf("已自查 1/2") >= 0,
+   "自查: 两边不一致就摆到明面（并指向已有的申诉），进度跟着走");
+
+/* 20.5 认下的漏点；全查完报一次总账 */
+submitSelfCl(2, "miss");
+const h20d = gradeHtml(g20, 80, false);
+ok(h20d.indexOf("你的自查：确实没答到。这条记为你认下的漏点。") >= 0, "自查: 认下的漏点单独留一句");
+ok(h20d.indexOf("自查完成：认下 1 条漏点，1 条你认为答到了") >= 0, "自查: 全查完报一次总账（认下几条 / 几条你认为答到了）");
+ok(state.history[0].hits[2].selfCheck.verdict === "miss" && state.history[0].grade.total === 80 && pointsOf(state.history[0].hits).got === 16,
+   "自查: 结果跟着练习记录存下来（以后能按漏点复盘），总分不动");
+
+/* 20.6 申诉复核后收掉摇摆说法：自查结果不受影响 */
+callLLM = async ()=>({ awarded:4, status:"满分", evidence:"答卷里有这句", verdict:"改判", reason:"有对应表述" });
+_appealIdx = 1;
+el("#appealText").value = "我答到了「相邻同义」那句";
+await submitAppeal();
+ok(!g20.hits[1].unsure && g20.hits[1].appeal && g20.hits[1].selfCheck.verdict === "hit",
+   "拿不准: 申诉复核后收掉摇摆说法（申诉痕迹才是这条的最终说明），自查结果不受影响");
+
+callLLM = realCall20;
+_appealIdx = null; _selfIdx = null;
+current = null;
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
