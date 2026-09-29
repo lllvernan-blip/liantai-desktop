@@ -4,6 +4,7 @@
  *   $env:LIANTAI_KEY="sk-..."; node tools/drift.mjs prepare      # 用真接口出一道题，存成 %TEMP%\liantai-drift-case.json
  *   # 打开那个 JSON，把 answers 里每一份答卷写好（clear = 覆盖清楚的，edge = 刻意骑在档位临界线上的）
  *   $env:LIANTAI_KEY="sk-..."; node tools/drift.mjs run 5        # 每份答卷批 5 次，打印每次得分、极差、以及哪几个子项在摆
+ *   $env:LIANTAI_DRIFT_CASE="C:\...\别的 case.json"             # 想拿两份 case 做对照（比如同一道题带 need / 不带 need）时指定另一份
  *
  * 为什么要两份答卷：2026-09-29 第一次基线跑下来「覆盖清楚」那种答卷 5 次一字不差（11.5/20，极差 0），
  * 而 2026-09-27 真机又确实量到过摆动（折百分制 45/53/45）。差别在答卷——会摆的是**卡在档位临界点**的
@@ -29,7 +30,7 @@ if (phase !== "prepare" && phase !== "run") {
   process.exit(1);
 }
 const times = Math.max(1, Number(process.argv[3]) || 5);
-const casePath = join(tmpdir(), "liantai-drift-case.json");
+const casePath = process.env.LIANTAI_DRIFT_CASE || join(tmpdir(), "liantai-drift-case.json");
 if (phase === "run" && !existsSync(casePath)) {
   console.error("还没有 case：" + casePath + " —— 先跑 prepare 并写好 answers。");
   process.exit(1);

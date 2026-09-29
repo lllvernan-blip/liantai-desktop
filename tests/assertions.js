@@ -179,12 +179,15 @@ ok(el("#docBody").innerHTML.indexOf("hitline part") >= 0, "阅卷页: 部分命�
 ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
 
 /* 4.5 采分点分值口径（满分/半分/零分三档 + 标注符号） */
-ok(SCORING_RULES.indexOf("数点不估百分比") >= 0 && SCORING_RULES.indexOf("全部答到") >= 0 && SCORING_RULES.indexOf("一个都没答到") >= 0,
-   "阅卷: 三档判法是数点（子项里的具体情形答到几个），不再估 80%/40% 百分比阈值");
+ok(SCORING_RULES.indexOf("数点不估百分比") >= 0 && SCORING_RULES.indexOf("need") >= 0 && SCORING_RULES.indexOf("全部答到") >= 0 && SCORING_RULES.indexOf("一条都没答到") >= 0,
+   "阅卷: 三档判法是数点数（按子项自带的 need 逐条核），不再估 80%/40% 百分比阈值");
+ok(SCORING_RULES.indexOf("没带 need") >= 0, "阅卷: 子项没带 need 时退回按子项文字拆点（老题/老记录仍能判）");
 ok(SCORING_RULES.indexOf("【缺：") >= 0 && SCORING_RULES.indexOf("△") >= 0 && SCORING_RULES.indexOf("✗") >= 0, "阅卷: prompt 写明三个标注符号");
 ok(SCORING_RULES.indexOf("不倒扣") >= 0, "阅卷: prompt 写明不倒扣");
 ok(GEN_POINT_RULES.indexOf("必须正好等于 question.score") >= 0, "出题: prompt 要求子项分值之和等于题目满分");
 ok(GEN_POINT_RULES.indexOf("85%-95%") >= 0, "出题: prompt 要求子项长度落在字数上限的 85%-95%");
+ok(GEN_POINT_RULES.indexOf("need") >= 0 && GEN_POINT_RULES.indexOf("能对着答案划勾") >= 0,
+   "出题: prompt 要求每条子项附一份 need（必须答到的具体情形），且要具体到能划勾");
 ok(JSON.stringify(pointsOf([{score:5,awarded:5},{score:5,awarded:2.5}])) === '{"got":7.5,"max":10}', "采分点: 实得分与满分求和");
 ok(pointsOf([{score:5,awarded:99}]).got === 5, "采分点: 实得分夹在子项满分内（模型多给不算数）");
 ok(pointsOf([{point:"没有分值的老数据"}]) === null, "采分点: 无分值信息时不冒充总分");
@@ -646,12 +649,17 @@ ok(cap.sys.indexOf("归纳概括") >= 0 && cap.sys.indexOf(GEN_POINT_RULES) >= 0
 await gen("zy.gongwen", "通知", null, false);
 ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf(SUBJECTS.sl.role) < 0, "出题 prompt: 综应模块用综应A 口径");
 ok(cap.sys.indexOf("不超过500字") >= 0, "出题 prompt: 公文写作把文种的字数上限写死进 prompt（通知 500），不再让模型自己编");
+ok(cap.sys.indexOf('"need"') >= 0 && cap.sys.indexOf("必须答到的具体情形1") >= 0,
+   "出题 prompt: 采分点 schema 带 need（必须答到的具体情形）");
 await grade("sl.guanche", "讲话稿", { background:"b" }, [], "答案");
 ok(cap.sys.indexOf(SUBJECTS.sl.role) >= 0 && cap.sys.indexOf(SCORING_RULES) >= 0 && cap.sys.indexOf("数点不估百分比") >= 0,
    "阅卷 prompt: 申论口径 + 三档计分规则原样保留");
 await grade("zy.shiwu", null, { background:"b" }, [], "答案");
 ok(cap.sys.indexOf(SUBJECTS.zy.role) >= 0 && cap.sys.indexOf("维度分只用于画像诊断") >= 0,
    "阅卷 prompt: 综应口径 + 维度锚定原样保留");
+await grade("zy.guina", "归纳概括", { background:"b", score:20 }, [{point:"p1",score:5,need:["情形A","情形B"]}], "答案");
+ok(cap.user.indexOf("情形A") >= 0 && cap.user.indexOf("情形B") >= 0 && cap.sys.indexOf("按 need 逐条核") >= 0,
+   "阅卷 prompt: 采分点自带的 need 原样带进判分请求，且 prompt 要求照它逐条核");
 callLLM = realCallLLM;
 
 /* 10. 申论模块按申论阅卷口径写，不照抄综应A */
@@ -1599,13 +1607,38 @@ try{ okJson18 = await callLLM("sys", "user", true); }catch(e){ errJson18 = e; }
 ok(calls18d === 2 && okJson18 && okJson18.a === 2,
    "网络抖动: 吐坏 JSON 也重发一次（重发成则正常返回） -> calls=" + calls18d + " res=" + JSON.stringify(okJson18));
 
-/* 18.5 一直吐坏：重发一次就认输，不能无限重发 */
+/* 18.5 一直吐坏：重发两次就认输，不能无限重发 */
 let calls18e = 0;
 globalThis.fetch = () => { calls18e++; return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"坏" } }] }) }); };
 let threwJson = null;
 try{ await callLLM("sys", "user", true); }catch(e){ threwJson = e; }
-ok(calls18e === 2 && threwJson && threwJson.code === "JSON",
-   "网络抖动: 一直吐坏 JSON 就重发一次后报格式异常 -> 发了 " + calls18e + " 次");
+ok(calls18e === 3 && threwJson && threwJson.code === "JSON",
+   "网络抖动: 一直吐坏 JSON 就重发两次后报格式异常 -> 发了 " + calls18e + " 次");
+
+/* 18.6 一直空输出：也重发两次，报的是 EMPTY（不是笼统的「格式异常」） */
+let calls18f = 0;
+globalThis.fetch = () => { calls18f++; return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:'' }, finish_reason:"stop" }] }) }); };
+let threwEmpty = null;
+try{ await callLLM("sys", "user", true); }catch(e){ threwEmpty = e; }
+ok(calls18f === 3 && threwEmpty && threwEmpty.code === "EMPTY",
+   "网络抖动: 一直空输出就重发两次后报 EMPTY -> 发了 " + calls18f + " 次 code=" + (threwEmpty && threwEmpty.code));
+handleErr({ code:"EMPTY" }, true);
+ok(el("#bannerSlot").innerHTML.indexOf("答案还在") >= 0, "网络抖动: 空输出的提示告诉用户答案没丢、再点一次就行");
+
+/* 18.7 空输出 + finish=length（额度被思考吃光）：第二次重发把思考参数摘掉，不再原样再问一遍 */
+let calls18g = 0, bodies18g = [];
+globalThis.fetch = (u, opt) => {
+  calls18g++; bodies18g.push(JSON.parse(opt.body));
+  const ok = calls18g >= 2;
+  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content: ok? '{"a":3}' : '' }, finish_reason: ok? "stop" : "length" }] }) });
+};
+let okEmpty18 = null;
+try{ okEmpty18 = await callLLM("sys", "user", true); }catch(e){ okEmpty18 = e; }
+ok(calls18g === 2 && okEmpty18 && okEmpty18.a === 3,
+   "网络抖动: 空输出重发一次就好 -> calls=" + calls18g + " res=" + JSON.stringify(okEmpty18));
+ok(bodies18g[0].reasoning_effort && !bodies18g[1].reasoning_effort,
+   "网络抖动: finish=length 时第二次重发摘掉思考参数（第1次 " + JSON.stringify(bodies18g[0].reasoning_effort || null)
+   + " / 第2次 " + JSON.stringify(bodies18g[1].reasoning_effort || null) + "）");
 
 globalThis.fetch = realFetch18;
 
