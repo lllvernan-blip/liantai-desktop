@@ -98,6 +98,7 @@ function PRELUDE() {
     state.cache = state.cache || {};
     state.cache.studyCards = {}; state.cache.notes = {};
     _flowId = null; current = null; lastGrade = null; activeModule = null; pdActive = false; pdRound = null;
+    profPage = null;   // 画像的二级页也不跨场景留着：上一屏翻到哪一页，下一屏会直接从那页开始
     if (typeof tourEnd === "function") tourEnd(false);   // 上一场在播的引导先收掉，否则它会留在本场盖住画面（且本场不再播）
     closeModals();   // 取景器所有场景共用一个窗口：上一屏开着的弹层不关，会把后面的场景盖住
     banner("");
@@ -123,14 +124,17 @@ function s11_profile() {
   state.experiences[0].cleared = false; state.experiences[0].recur = 2;
   openModal("modalProfile"); renderProfile();
 }
-function s11b_profile_bottom() {
-  // 与 s11 同一现场（场景各自只注入自己那一个函数，不能互相调用）
+function s11b_profile_module() {
+  // 画像二级页（点进去的明细）：维度条 / 常错类型 / 短板强项 / 文种统计都在这页
   __reset({ history: true, exp: true });
-  state.experiences[0].lastCheckAt = Date.now(); state.experiences[0].lastRecurAt = Date.now();
-  state.experiences[0].cleared = false; state.experiences[0].recur = 2;
-  openModal("modalProfile"); renderProfile();
-  // 画像弹层一屏只看得见模块那几行：滚到底把「我的经验」与快判辨析点也拍下来
-  const pb = document.querySelector("#profileBody"); if (pb) pb.scrollTop = 999999;
+  openModal("modalProfile");
+  profGo("mod", "sl.guina");
+}
+function s11c_profile_hist() {
+  // 画像二级页：练习记录（含用时列）
+  __reset({ history: true, exp: true });
+  openModal("modalProfile");
+  profGo("hist");
 }
 function s12_pd_landing() { __reset({ history: true }); enterPD(); }
 function s13_pd_round() {
@@ -220,7 +224,8 @@ const SCENES = [
   ["09-申论-批改", s09_flow_review, true],
   ["10-申论-沉淀", s10_flow_distill, true],
   ["11-画像", s11_profile, false],
-  ["11b-画像-滚到底", s11b_profile_bottom, false],
+  ["11b-画像-模块详情", s11b_profile_module, false],
+  ["11c-画像-练习记录", s11c_profile_hist, false],
   ["12-快判-落地页", s12_pd_landing, true],
   ["13-快判-作答", s13_pd_round, true],
   ["14-快判-小结", s14_pd_summary, true],

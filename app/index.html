@@ -338,6 +338,11 @@ html,body{margin:0;padding:0;}
   .mrow .mweak{flex:0 0 120px;text-align:right;color:var(--danger);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .mrow .mweak.good{color:var(--success);}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  /* 画像一级的行是入口（点进去看明细），不是折叠件：尾部用 › 而不是三角，方形、无底色、整行可点 */
+  .navrow{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;text-align:left;cursor:pointer;}
+  .navrow:hover{background:var(--wash);}
+  .navrow::after{content:"›";margin-left:auto;flex:0 0 auto;font-size:14px;color:var(--line-strong);}
+  .profback{margin:0 0 12px;}
   .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
   .explist{border-top:1px solid var(--line);}
@@ -540,17 +545,16 @@ html,body{margin:0;padding:0;}
       <div class="field">
         <label>AI 服务商</label>
         <select id="setProvider"></select>
-        <div class="note">选好服务商会自动填好接口地址；模型名一律从接口实拉，不预置。推荐 DeepSeek，国内直连、便宜。</div>
+        <div class="note">选好服务商会自动填好接口地址，也可手动修改。推荐 DeepSeek：国内直连、便宜。</div>
       </div>
       <div class="field">
         <label>接口地址（Base URL）</label>
         <input type="text" id="setBase" placeholder="https://api.deepseek.com/v1">
-        <div class="note">换服务商会自动填好，也可手动修改。</div>
       </div>
       <div class="field">
         <label>API Key</label>
         <input type="password" id="setKey" placeholder="粘贴你的 API Key">
-        <div class="note">只保存在本地，不会上传到任何第三方；调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
+        <div class="note">调用时只发往你上方填写的接口地址，请勿填来路不明的地址。</div>
       </div>
       <details class="notebox" id="keyHelp">
         <summary>还没有 API Key？四步拿到（推荐 DeepSeek，几分钱练一次）</summary>
@@ -586,8 +590,8 @@ html,body{margin:0;padding:0;}
         <summary>更多设置（练习抬头 / 文号前缀）</summary>
         <div class="inner">
           <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">这只是练习界面的装饰，不是真实公文；用明显虚构的名字即可。</div></div>
-          <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div><div class="note">点色块选择，作答页高亮即时换色。</div></div>
-          <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"><div class="note">文号自动生成为「前缀〔年份〕第 NNN 号」。</div></div>
+          <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div></div>
+          <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"></div>
         </div>
       </details>
       <div class="field">
@@ -596,12 +600,12 @@ html,body{margin:0;padding:0;}
           <button type="button" id="btnExport2">导出备份</button>
           <button type="button" id="btnImport2">导入备份</button>
         </div>
-        <div class="note">练习记录、草稿和划线只存在本地，不联网、不上传。换电脑或重装之前先「导出备份」存一份 JSON，新机器上装好后「导入备份」即可接着练。备份里不含 API Key，可以放心转存。</div>
+        <div class="note">练习记录、草稿、划线与 API Key 只存在本地，不联网、不上传。换电脑或重装之前先「导出备份」存一份 JSON，新机器上装好后「导入备份」即可接着练。备份里不含 API Key，可以放心转存。</div>
       </div>
       <div class="field">
         <label>使用引导</label>
         <button type="button" id="btnTutReset">重置使用引导</button>
-        <div class="note">每个科目第一次进入时会播放分步引导；点这里清掉「已看过」的记录，下次进入会重新播放。</div>
+        <div class="note">清掉「已看过」的记录，下次进入会重新播放。</div>
       </div>
       <div class="field" id="updateField">
         <label>版本与更新</label>
@@ -623,7 +627,7 @@ html,body{margin:0;padding:0;}
 
   <div class="modal" id="modalProfile" hidden role="dialog" aria-modal="true" aria-label="我的画像">
     <div class="box">
-      <div class="mhead"><span>我的画像（按科目分组 · 模块强弱 / 题型统计 / 历史）</span><button class="x" title="关闭">✕</button></div>
+      <div class="mhead"><span>我的画像</span><button class="x" title="关闭">✕</button></div>
       <div class="panel-body" id="profileBody"></div>
     </div>
   </div>
@@ -1690,7 +1694,7 @@ function expStatusSummaryHtml(){
   let cleared = 0, recur = 0, fresh = 0;
   for(const e of all){ const st = expState(e); if(st === "cleared") cleared++; else if(st === "recur") recur++; else fresh++; }
   if(!cleared && !recur) return `<div class="hint" style="margin:2px 0 8px">${all.length} 条经验都还没核过。出题会带上它们，批改时逐条核对。</div>`;
-  return `<div class="hint" style="margin:2px 0 8px">已改掉 ${cleared} 条 · 复犯 ${recur} 条 · 待验证 ${fresh} 条（批改时逐条核对）</div>`;
+  return `<div class="hint" style="margin:2px 0 8px">已改掉 ${cleared} 条 · 复犯 ${recur} 条 · 待验证 ${fresh} 条</div>`;
 }
 function previousReviewHits(){
   const g = lastGrade && lastGrade.g;
@@ -1705,21 +1709,19 @@ function expSourceLabel(e){
 }
 // 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
 function experienceListHtml(){
-  if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。完成一次批改后会自动提炼。</div>`;
+  if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。</div>`;
   return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 function distillPanelHtml(){
-  let html = `<div class="hint" style="margin-top:10px">这一步不用动手：每次批改完成都会自动提炼经验，下次出题与批改会自动带上（两科共用一个经验库）。</div>`;
-  html += `<div class="sec-title">本次新提炼</div><div class="explist">`;
+  let html = `<div class="sec-title">本次新提炼</div><div class="explist">`;
   if(_lastDistilled.length){
     html += _lastDistilled.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span><span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}</div></details>`).join("");
   } else {
-    html += `<div class="hint" style="padding:6px 2px">这次没有提炼出新经验（可能提炼还没跑完、这次无需沉淀，或提炼服务暂时不可用——静默跳过，不影响批改）。</div>`;
+    html += `<div class="hint" style="padding:6px 2px">这次没有提炼出新经验。</div>`;
   }
   html += `</div>`;
   html += `<div class="sec-title">我的经验（${(state.experiences||[]).length}/${EXP_MAX}）</div><div class="explist">` + experienceListHtml() + `</div>`;
-  html += `<div class="hint" style="margin-top:8px">下次出题和批改会自动带上未停用的经验。</div>`;
-  html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnFlowDone">完成，回首页</button><span class="hint">本次练习到此闭环；还想再练点上方「换一题」。</span></div>`;
+  html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnFlowDone">完成，回首页</button><span class="hint">还想再练，点上方「换一题」。</span></div>`;
   return html;
 }
 function wireExperiences(){
@@ -1840,6 +1842,7 @@ function backToStart(){
 let _focusBack = null;   // 弹层打开前的焦点落点（声明在 openModal 之前，避开 TDZ）
 function openModal(id){
   _focusBack = document.activeElement;   // 关掉弹层把焦点还给原来那个按钮，键盘用户不会掉到页首
+  if(id === "modalProfile") profPage = null;   // 每次打开都从一级进来，不留上次翻到的那一页
   ["modalSettings","modalProfile"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
   document.body.style.overflow = "hidden";
   const m = $("#"+id);
@@ -1886,7 +1889,7 @@ function banner(html, kind){
   const bo = $("#bnrOpenSettings");
   if(bo) bo.onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
 }
-function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">（长文阅卷通常 10-60 秒；下方会实时显示 AI 正在写的内容）</span><div class="peek" id="streamPeek"></div></p>`; }
+function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">长文阅卷通常 10-60 秒。</span><div class="peek" id="streamPeek"></div></p>`; }
 
 function renderStart(){
   _view = "start";
@@ -1896,7 +1899,7 @@ function renderStart(){
   const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
   docBody.innerHTML = `<div class="startbox">
     <h2>开始今天的练习</h2>
-    <p>不选具体题型，就按综合来推：AI 按你最近的表现自动出题，先给学习卡再做题，越练越准。</p>
+    <p>不选具体题型，就按综合来推：AI 按你最近的表现自动出题。</p>
     <div class="actions" style="justify-content:center;margin:0"><button class="primary big" id="btnStart">智能推送下一题</button></div>
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
@@ -2051,7 +2054,7 @@ function renderModuleLanding(k){
   let html = `<div class="startbox">
     <h2>${esc(m.name)}</h2>
     <p>${esc(m.note)}</p>
-    <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过——第一次进来会有引导。"}<br>评分维度：${m.dims.join("、")}</p>
+    <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过——第一次进来会有引导。"}</p>
     <div class="subtypechips">
     ${subtypeListOf(k).map(t=>{
       const st = subtypeStat(k,t);
@@ -2166,10 +2169,7 @@ function metaLineHtml(q){
 function zyHeadHtml(showQuestion){
   const {question} = current;
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  if(showQuestion === false){   // 学习卡阶段不亮题面：题目等点了「开始作答」再见面
-    html += `<div class="hint" style="margin:8px 0">题目先不亮出来，看完卡再开始。</div>`;
-    return html;
-  }
+  if(showQuestion === false) return html;   // 学习卡阶段不亮题面：题目等点了「开始作答」再见面
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   html += metaLineHtml(question);
@@ -2440,7 +2440,7 @@ function renderPDLanding(){
   const recent = pdRecentTheme();
   let html = `<div class="startbox">
     <h2>快判 · 从材料里做判断</h2>
-    <p style="margin:0">看材料 → 点选答案 → 立刻对错。一轮 5 题，练信息取舍与表达规范的眼力。</p>
+    <p style="margin:0">一轮 5 题，点选即判。</p>
     <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
     <div class="pdforms">
       <div class="pdformslabel">或只练一种形式</div>
@@ -2587,7 +2587,7 @@ function renderPDRound(){
     return `<button type="button" class="${cls}"${it.done? " disabled" : ` data-pdopt="${i}"`}>${mark} ${esc(o)}</button>`;
   }).join("") + `</div>`;
   if(!it.done){
-    html += `<div class="actions"><span class="hint">点选即判，不用等整组做完。</span><button class="linkbtn" id="pdSkip">直接看答案（算未答）</button></div>`;
+    html += `<div class="actions"><button class="linkbtn" id="pdSkip">直接看答案（算未答）</button></div>`;
   } else {
     const verdict = it.ok? `<span class="pill good">答对了</span>` : (it.picked==null? `<span class="pill bad">未作答</span>` : `<span class="pill bad">答错了${it.trap? " · "+esc(it.trap) : ""}</span>`);
     html += `<div class="actions">${verdict}</div><div class="pdexplain">${esc(it.explain || "（这题没给出解析）")}</div>`;
@@ -3156,7 +3156,7 @@ function draftPanelHtml(f){
   const rewriting = !!(f && f.step === "revise");   // 回改稿：同一面板，多一份回改清单与差异对照
   let html = "";
   if(rewriting){
-    html += `<div class="hint" style="margin-top:10px">按批改回改：对照下面的清单修改，提交后重新阅卷（记为同一题的新一次尝试，总分口径不变）。</div>`;
+    html += `<div class="hint" style="margin-top:10px">按下面的清单逐条回改，提交后重新阅卷。</div>`;
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
   if(outline) html += `<details class="notebox" style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
@@ -3540,7 +3540,8 @@ function gradeHtml(g, total, inFlow){
   const lost = hits.filter(h=> hitClass(h)!=="hit" && isFinite(Number(h.score)) && isFinite(Number(h.awarded)));
   if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
-  html += `<div class="hint" style="margin:2px 0 4px">${pts? "总分 = 各采分点实得分之和。" : ""}下面的维度分只用于画像诊断，不参与总分。${mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : ""}</div>`;
+  const sumNote = (pts? "总分 = 各采分点实得分之和。" : "") + (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
+  if(sumNote) html += `<div class="hint" style="margin:2px 0 4px">${sumNote}</div>`;
   // 限时：只在这次真的计了时才报——用时多少、超没超，都说清
   const tm = lastGrade && lastGrade.time;
   if(tm){
@@ -3614,8 +3615,14 @@ function renderGrade(g, total, expCheck, time){
 /* 练习记录一屏只看最近 10 条：四十条连滚不是为了看数据，是为了找“上次哪题拉胯” */
 const HIST_PAGE = 10;
 let histLimit = HIST_PAGE;
+/* 画像分两级：一级是入口，只回答「有什么、练得怎么样」，一行一条；点进去才是明细。
+   一级字要少，二级可以密——要查数据的人不需要先在入口读一堆解释。 */
+let profPage = null;   // null = 一级；{kind:"mod"|"pd"|"exp"|"hist", key}
+function profGo(kind, key){ profPage = { kind, key: key || "" }; renderProfile(); const pb = $("#profileBody"); if(pb) pb.scrollTop = 0; }
+function profBack(){ profPage = null; renderProfile(); }
 function renderProfile(){
-  let html = `<details class="notebox" style="margin:0 0 14px"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；下面的维度分只用来诊断弱在哪，不参与均分。按科目分组看：先综应A各模块，再申论各模块。</div></details>`;
+  if(profPage){ $("#profileBody").innerHTML = profilePageHtml(profPage); wireProfileNav(); return; }
+  let html = `<details class="notebox" style="margin:0 0 14px"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；维度分只用来诊断弱在哪，不参与均分。</div></details>`;
   for(const sid of SUBJECT_ORDER){
     const subj = SUBJECTS[sid];
     html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div><div class="mrowbox">`;
@@ -3624,54 +3631,102 @@ function renderProfile(){
       let n = 0; for(const h of state.history) if(h.module === k) n++;
       // 没练过的模块只占一行：无维度可看，铺开五张「未练」卡只是占地方
       if(avg == null){
-        html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">未练</span><span class="mnone">${esc(MODULES[k].note)}</span></summary><div class="mdetail"><div class="hint">还没练过。评分维度：${esc(MODULES[k].dims.join("、"))}</div></div></details>`;
+        html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">未练</span><span class="mnone">${esc(MODULES[k].note)}</span></button>`;
         continue;
       }
-      const weak=[], strong=[];
-      let bars = "";
-      for(const d of MODULES[k].dims){
-        const st = dimStat(k,d);
-        const pct = st? Math.round(st.avg/20*100) : 0;
-        if(st){ if(pct<70) weak.push(d); else if(pct>=85) strong.push(d); }
-        bars += `<div class="barline"><span class="bn">${esc(d)}</span><span class="bt"><i class="${(st && pct<60)? "lo":""}" style="width:${st?pct:0}%"></i></span><span class="bv">${st? pct+"分 · "+st.n+"次" : "未练"}</span></div>`;
-      }
-      const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
-      let rowsHtml = "";
-      if(rows.length){ rowsHtml = `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small> (${r.st.n})</small></span>`; }).join("") + `</div>`; }
-      // 收起的行上只挂一条最该先补的短板；全量短板/强项与文种明细都在展开里
+      // 一级行上只挂一条最该先补的短板（或强项）；维度条、常错类型、文种统计都在二级页面里
+      const { weak, strong } = dimScan(k);
       const head = weak.length? { cls:"", text:`短板·${esc(weak[0])}` } : (strong.length? { cls:" good", text:`强项·${esc(strong[0])}` } : null);
-      // 常错类型：改完要看得出「一直栽在同一类上」，否则每次丢分都是一条孤立记录，练十次也拼不出图
-      const tagSt = gradeTagStats(k);
-      const tagKeys = Object.keys(tagSt).sort((a,b)=> tagSt[b].n - tagSt[a].n || (a < b? -1 : 1));
-      const tagHint = tagKeys.length? `<div class="hint" style="margin:2px 0 6px">常错类型：${esc(tagKeys.map(t=>`${t} ${tagSt[t].n} 处`).join(" · "))}（按最近 ${GRADE_TAG_WINDOW} 题的批改统计）</div>` : "";
-      html += `<details class="mrow"><summary><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak${head? head.cls : ""}">${head? head.text : ""}</span></summary><div class="mdetail"><div class="bars">${bars}</div>${tagHint}${weak.length? `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`:""}${strong.length? `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`:""}${rowsHtml}</div></details>`;
+      html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak${head? head.cls : ""}">${head? head.text : ""}</span></button>`;
     }
     html += `</div>`;
   }
   // 判别轨单独一节：记录带 track:'pd'，不进 dims 维度画像，不与综应A/申论混算
   const pds = pdFormStats();
-  const ts = pdTrapStats();
-  html += `<div class="sec-title">快判（点选即判 · 只看正确率，不计入维度画像）</div>`;
-  if(PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
-    html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
-      const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
-      // 「没练过」行不补 mweak：它与模块「未练」行一样以 .mnone 收尾，两行的 .mnone 右沿本就同为 956；
-      // 补了空 mweak 反而把此处 mnone 挤到 826，与模块「未练」行错位——只有已练行（下面那个 return）才需要对齐尾部占位。
-      if(!t.q) return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mmeta">没练过</span><span class="mnone">${esc(PD_FORMS[id].desc)}</span></summary><div class="mdetail"><div class="hint">还没练过这个形式。</div></div></details>`;
-      return `<details class="mrow"><summary><span class="mname">${PD_FORMS[id].name}</span><span class="mavg">正确率 ${rate}%</span><span class="mbar"><i class="${rate<70?"lo":""}" style="width:${rate}%"></i></span><span class="mmeta">${t.rounds} 轮 · ${t.q} 题</span><span class="mweak"></span></summary><div class="mdetail"><div class="hint">${esc(PD_FORMS[id].desc)}本形式已练 ${t.rounds} 轮、${t.q} 题，答对 ${t.c} 题。</div></div></details>`;
-    }).join("") + `</div>`;
-    // 综合快判不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
-    const traps = pdWeakTraps(3);
-    const stMiss = k => { const x = ts[k]; return x? x.q - x.c : 0; };
-    if(traps.length) html += `<div class="hint" style="margin:-6px 0 14px">最该回头考的辨析点：${esc(traps.map(k=>`${k}（错过 ${stMiss(k)} 题）`).join("、"))}——下次出题会优先考这几类。</div>`;
-    if(pds.mixRounds) html += `<div class="hint" style="margin:-6px 0 14px">综合快判已出 ${pds.mixRounds} 轮，每题都归入了上面三类。</div>`;
-  } else {
-    html += `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
+  const qAll = PD_FORM_ORDER.reduce((s,id)=> s + pds.st[id].q, 0);
+  const cAll = PD_FORM_ORDER.reduce((s,id)=> s + pds.st[id].c, 0);
+  const pdRate = qAll? Math.round(cAll/qAll*100) : 0;
+  html += `<div class="sec-title">快判</div><div class="mrowbox"><button class="mrow navrow" data-prof="pd">` +
+    (qAll? `<span class="mavg">正确率 ${pdRate}%</span><span class="mbar"><i class="${pdRate<70?"lo":""}" style="width:${pdRate}%"></i></span><span class="mmeta">${cAll}/${qAll} 题</span>`
+         : `<span class="mavg">没练过</span><span class="mnone">点选即判，一轮 5 题。</span>`) + `</button></div>`;
+  const expAll = state.experiences || [];
+  let eCleared = 0, eRecur = 0, eFresh = 0;
+  for(const e of expAll){ const st = expState(e); if(st === "cleared") eCleared++; else if(st === "recur") eRecur++; else eFresh++; }
+  html += `<div class="sec-title">我的经验</div><div class="mrowbox"><button class="mrow navrow" data-prof="exp">` +
+    (expAll.length? `<span class="mavg">${expAll.length} 条</span><span class="mnone">已改掉 ${eCleared} · 复犯 ${eRecur} · 待验证 ${eFresh}</span>`
+                   : `<span class="mavg">还没有</span>`) + `</button></div>`;
+  const histAll = state.history.length;
+  const h0 = histAll? state.history[0] : null;
+  const d0 = h0? new Date(h0.ts) : null;
+  const lastTxt = d0? `${d0.getMonth()+1}/${d0.getDate()} ${String(d0.getHours()).padStart(2,"0")}:${String(d0.getMinutes()).padStart(2,"0")}` : "";
+  html += `<div class="sec-title">练习记录</div><div class="mrowbox"><button class="mrow navrow" data-prof="hist">` +
+    (histAll? `<span class="mavg">共 ${histAll} 条</span><span class="mnone">最近一次 ${lastTxt} · ${esc(h0.track === "pd"? "快判" : moduleName(h0.module))}</span>`
+            : `<span class="mavg">还没有</span>`) + `</button></div>`;
+  $("#profileBody").innerHTML = html;
+  wireExperiences();
+  wireProfileNav();
+}
+
+/* 二级页面：点进去的明细，这里可以密 */
+const PROF_BACK = `<div class="profback"><button class="linkbtn" id="profBack">‹ 返回</button></div>`;
+function dimScan(k){   // 维度条 + 短板/强项：一级行与二级页面共用同一份算法
+  const weak=[], strong=[]; let bars = "";
+  for(const d of MODULES[k].dims){
+    const st = dimStat(k,d), pct = st? Math.round(st.avg/20*100) : 0;
+    if(st){ if(pct<70) weak.push(d); else if(pct>=85) strong.push(d); }
+    bars += `<div class="barline"><span class="bn">${esc(d)}</span><span class="bt"><i class="${(st && pct<60)? "lo":""}" style="width:${st?pct:0}%"></i></span><span class="bv">${st? pct+"分 · "+st.n+"次" : "未练"}</span></div>`;
   }
-  html += `<div class="sec-title">我的经验（两科共用 · 批改后自动沉淀，出题与阅卷自动带上）</div><div class="explist">` + experienceListHtml() + `</div>`;
+  return { weak, strong, bars };
+}
+function tagHintHtml(k){
+  // 常错类型：改完要看得出「一直栽在同一类上」，否则每次丢分都是一条孤立记录，练十次也拼不出图
+  const tagSt = gradeTagStats(k);
+  const keys = Object.keys(tagSt).sort((a,b)=> tagSt[b].n - tagSt[a].n || (a < b? -1 : 1));
+  return keys.length? `<div class="hint" style="margin:2px 0 6px">常错类型：${esc(keys.map(t=>`${t} ${tagSt[t].n} 处`).join(" · "))}（按最近 ${GRADE_TAG_WINDOW} 题的批改统计）</div>` : "";
+}
+function profilePageHtml(p){
+  if(p.kind === "mod") return profileModuleHtml(p.key);
+  if(p.kind === "pd") return profilePdHtml();
+  if(p.kind === "exp") return profileExpHtml();
+  if(p.kind === "hist") return profileHistHtml();
+  return PROF_BACK;
+}
+function profileModuleHtml(k){
+  const avg = moduleAvg(k);
+  let n = 0; for(const h of state.history) if(h.module === k) n++;
+  let html = PROF_BACK + `<div class="sec-title">${esc(MODULES[k].name)}${avg!=null? ` · 均分 ${Math.round(avg)} · ${n} 次` : ""}</div>`;
+  if(avg == null) return html + `<div class="hint">还没练过。评分维度：${esc(MODULES[k].dims.join("、"))}</div>`;
+  const { weak, strong, bars } = dimScan(k);
+  html += `<div class="bars">${bars}</div>` + tagHintHtml(k);
+  if(weak.length) html += `<div class="pills">${weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("")}</div>`;
+  if(strong.length) html += `<div class="pills">${strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("")}</div>`;
+  const rows = subtypeListOf(k).map(t=>({ t, st:subtypeStat(k,t) })).filter(r=>r.st).sort((a,b)=>a.st.avg-b.st.avg);
+  if(rows.length) html += `<div class="typestat">` + rows.map(r=>{ const av=Math.round(r.st.avg); const cls=av<70?"lo":"hi"; return `<span class="t">${esc(r.t)} <b class="${cls}">${av}</b><small> (${r.st.n})</small></span>`; }).join("") + `</div>`;
+  return html;
+}
+function profilePdHtml(){
+  const pds = pdFormStats(), ts = pdTrapStats();
+  let html = PROF_BACK + `<div class="sec-title">快判（点选即判 · 只看正确率，不计入维度画像）</div>`;
+  if(!PD_FORM_ORDER.some(id=> pds.st[id].q > 0)) return html + `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
+  html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
+    const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
+    if(!t.q) return `<div class="mrow"><span class="mname">${PD_FORMS[id].name}</span><span class="mmeta">没练过</span><span class="mnone">${esc(PD_FORMS[id].desc)}</span></div>`;
+    return `<div class="mrow"><span class="mname">${PD_FORMS[id].name}</span><span class="mavg">正确率 ${rate}%</span><span class="mbar"><i class="${rate<70?"lo":""}" style="width:${rate}%"></i></span><span class="mmeta">${t.rounds} 轮 · ${t.q} 题</span><span class="mweak"></span></div>`;
+  }).join("") + `</div>`;
+  // 综合快判不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
+  const traps = pdWeakTraps(3);
+  const stMiss = k => { const x = ts[k]; return x? x.q - x.c : 0; };
+  if(traps.length) html += `<div class="hint" style="margin:-6px 0 14px">最该回头考的辨析点：${esc(traps.map(k=>`${k}（错过 ${stMiss(k)} 题）`).join("、"))}——下次出题会优先考这几类。</div>`;
+  if(pds.mixRounds) html += `<div class="hint" style="margin:-6px 0 14px">综合快判已出 ${pds.mixRounds} 轮，每题都归入了上面三类。</div>`;
+  return html;
+}
+function profileExpHtml(){
+  return PROF_BACK + `<div class="sec-title">我的经验（两科共用）</div><div class="explist">` + experienceListHtml() + `</div>`;
+}
+function profileHistHtml(){
   const histAll = state.history.length;
   const histShown = state.history.slice(0, histLimit);
-  html += `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
+  let html = PROF_BACK + `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
   for(const h of histShown){
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     if(h.track === "pd"){   // 判别轨行：形式当模块、主题当子类型，总分列是「对/总题数」
@@ -3681,18 +3736,16 @@ function renderProfile(){
     const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
     html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
   }
-  html += `</tbody></table></div>`;
-  if(histAll > HIST_PAGE){
-    html += `<div class="histfoot">` + (histLimit < histAll
-      ? `<button class="linkbtn" id="btnHistMore">展开全部 ${histAll} 条</button>`
-      : `<button class="linkbtn" id="btnHistLess">只看最近 ${HIST_PAGE} 条</button>`) + `<span class="hint">共 ${histAll} 条</span></div>`;
-  }
-  $("#profileBody").innerHTML = html;
-  wireExperiences();
-  const hm = $("#btnHistMore");
-  if(hm) hm.onclick = ()=>{ histLimit = histAll; renderProfile(); };
-  const hl = $("#btnHistLess");
-  if(hl) hl.onclick = ()=>{ histLimit = HIST_PAGE; renderProfile(); };
+  html += `</tbody></table></div><div class="histfoot">` + (histAll > HIST_PAGE
+    ? (histLimit < histAll? `<button class="linkbtn" id="btnHistMore">展开全部 ${histAll} 条</button>` : `<button class="linkbtn" id="btnHistLess">只看最近 ${HIST_PAGE} 条</button>`)
+    : "<span></span>") + `<span class="hint">共 ${histAll} 条</span></div>`;
+  return html;
+}
+function wireProfileNav(){   // 一级行与「返回」的接线只有一份；二级页里的展开全部也在这里接
+  document.querySelectorAll("[data-prof]").forEach(b=> b.onclick = ()=>{ const v = String(b.dataset.prof).split(":"); profGo(v[0], v[1] || ""); });
+  const bk = $("#profBack"); if(bk) bk.onclick = profBack;
+  const hm = $("#btnHistMore"); if(hm) hm.onclick = ()=>{ histLimit = state.history.length; renderProfile(); };
+  const hl = $("#btnHistLess"); if(hl) hl.onclick = ()=>{ histLimit = HIST_PAGE; renderProfile(); };
 }
 
 /* ============ 设置 ============ */
