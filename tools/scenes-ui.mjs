@@ -142,6 +142,27 @@ function s11d_profile_exp() {
   openModal("modalProfile");
   profGo("exp");
 }
+function s11e_profile_pd() {
+  // 画像二级页：快判（三种形式各自的正确率 + 最该回头考的辨析点）
+  __reset({ history: true, exp: true });
+  state.history.unshift(
+    { ts: Date.now() - 900e3, track: "pd", subject: "zy", form: "fact-select", theme: "政务服务", correct: 2, total: 3,
+      items: [
+        { form: "fact-select", trap: "", ok: true },
+        { form: "fact-select", trap: "改数量时限", ok: false },
+        { form: "fact-select", trap: "换主体", ok: false },
+      ] },
+    { ts: Date.now() - 3600e3, track: "pd", subject: "zy", form: PD_MIX, theme: "营商环境", correct: 3, total: 4,
+      items: [
+        { form: "fact-select", trap: "改数量时限", ok: false },
+        { form: "group-summary", trap: "归并不同类", ok: false },
+        { form: "expression", trap: "抹掉限定语", ok: false },
+        { form: "expression", trap: "", ok: true },
+      ] },
+  );
+  openModal("modalProfile");
+  profGo("pd");
+}
 function s12_pd_landing() { __reset({ history: true }); enterPD(); }
 function s13_pd_round() {
   __reset({ history: true }); pdActive = true; state.settings.subject = "zy";
@@ -233,6 +254,7 @@ const SCENES = [
   ["11b-画像-模块详情", s11b_profile_module, false],
   ["11c-画像-练习记录", s11c_profile_hist, false],
   ["11d-画像-经验", s11d_profile_exp, false],
+  ["11e-画像-快判", s11e_profile_pd, false],
   ["12-快判-落地页", s12_pd_landing, true],
   ["13-快判-作答", s13_pd_round, true],
   ["14-快判-小结", s14_pd_summary, true],

@@ -1329,7 +1329,7 @@ ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PAGE_HTML.indexOf("${esc(PD_FO
 ok(PAGE_HTML.indexOf('data-pdform="${id}" title=') < 0, "快判落地页: 不再只把说明挂在 title 上");
 ok(PAGE_HTML.indexOf(".mrow .mweak.good{color:var(--success);}") >= 0 && PAGE_HTML.indexOf('class="mweak${head? head.cls : ""}"') >= 0,
    "画像: 强项不再与短板共用红色");
-ok(PAGE_HTML.indexOf('id="btnExport2"') >= 0 && PAGE_HTML.indexOf('id="btnImport2"') >= 0 && PAGE_HTML.indexOf("换电脑或重装之前先「导出备份」") >= 0,
+ok(PAGE_HTML.indexOf('id="btnExport2"') >= 0 && PAGE_HTML.indexOf('id="btnImport2"') >= 0 && PAGE_HTML.indexOf("换电脑前先「导出备份」") >= 0,
    "设置页: 数据与备份有导出/导入入口与说明");
 ok(PAGE_HTML.indexOf('id="bnrOpenSettings"') >= 0 && PAGE_HTML.indexOf("bo.onclick") >= 0,
    "提示横幅: 无 Key 时横幅里能直接点开设置");
