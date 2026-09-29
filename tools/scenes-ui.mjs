@@ -236,6 +236,26 @@ function s28_fmt_result() {
   judgeFmtDrill();
 }
 
+function s29_flow_read_limit() {
+  // 申论读材料步的限时：时钟从这一步就起算（控件与剩余时间在题目行右侧）
+  __reset({ history: true });
+  __flow("read");
+  const f = activeFlow();
+  if (f) { f.limitMin = 30; f.limitFrom = Date.now() - (17 * 60 + 30) * 1000; }
+  state.settings.timeLimit = 30;
+  renderQuestion();
+}
+function s30_fmt_app() {
+  // 默写一份应用文（讲话稿）：称呼判过、落款两项不判（应用文也进默写池了）
+  __reset();
+  state.settings.subject = "zy";
+  state.fmt = {};
+  _fmtType = "讲话稿"; _fmtRes = null;
+  _fmtDrafts["讲话稿"] = "在××市政务服务工作推进会上的讲话\n\n同志们：\n\n　　今天开这个会，主要讲三件事。\n\n　　谢谢大家！";
+  renderFmtDrill();
+  judgeFmtDrill();
+}
+
 function s22_grade_selfcheck() {
   __reset({ history: true });
   const dims = MODULES["zy.guina"].dims;
@@ -320,6 +340,8 @@ const SCENES = [
   ["26-公文写作-落地页", s26_gongwen_landing, false],
   ["27-公文默写-空白", s27_fmt_blank, true],
   ["28-公文默写-对照结果", s28_fmt_result, true],
+  ["29-申论-读材料-限时", s29_flow_read_limit, true],
+  ["30-公文默写-应用文", s30_fmt_app, true],
 ];
 
 export const scenes = SCENES.map(([name, fn, full, extra]) => Object.assign({

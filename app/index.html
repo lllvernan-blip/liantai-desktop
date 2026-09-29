@@ -146,6 +146,7 @@ html,body{margin:0;padding:0;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
   .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:28px 0 10px;}
   .secrow .sec-title{margin:0;}   /* 标题自带的上 28 下 10 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
+  .secright{display:flex;align-items:center;gap:12px;}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
   ::selection{background:rgba(192,21,26,.16);}
   /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
@@ -2171,57 +2172,91 @@ function tourEnd(markSeen){
 }
 
 /* 模块落地页：点页签先到这里，看清子类型和自己的底子，点开始才调 AI */
-/* ============ 公文格式默写（法定公文：不看提示写出格式框架，逐要素对照） ============ */
+/* ============ 公文格式默写（不看提示写出格式框架，逐要素对照） ============ */
 // 判的是「有没有这一项、位置对不对」：规则直白、本地判，不调模型，写完立刻有结果。
-// 位置口径照《党政机关公文格式》（GB/T 9704-2012）的常见写法：标题居中、主送机关顶格加冒号、
-// 正文首行空两字、发文机关署名与成文日期都靠右。文种差异只影响「要不要主送机关 / 要不要署名」。
+// 位置口径：法定公文照《党政机关公文格式》（GB/T 9704-2012）的通行写法，应用文照行业通行写法——
+// 标题在第一行、称谓顶格加冒号、正文每段首行空两字、落款（署名与日期）靠右。
+// 文种差异只影响「要不要这一项、这一项叫什么、这一项该怎么写」；
+// 内容层面的东西（新闻稿的导语、讲话稿的结束语）本地判不了，不硬判：标「不判」并写清原因。
 const GW_FMT_ITEMS = ["title","to","body","sign","date"];
 const GW_FMT_ITEM_NAME = { title:"标题", to:"主送机关", body:"正文", sign:"发文机关署名", date:"成文日期" };
-const GW_FMT_TYPES = GONGWEN_TYPES.filter(t=> t.cat === "法定公文").map(t=> t.type);
-// 只写与通用格式不同的：默认有主送机关、有发文机关署名
+// 只写与通用格式不同那几处：默认有标题、有主送机关、有署名与日期
 const GW_FMT_SPEC = {
-  "公告": { to:false,  note:"公告面向社会公布，不写主送机关" },
-  "通告": { to:false,  note:"通告面向一定范围公布，不写主送机关" },
+  // 法定公文
+  "公告": { to:false, note:"公告面向社会公布，不写主送机关" },
+  "通告": { to:false, note:"通告面向一定范围公布，不写主送机关" },
   "纪要": { to:false, sign:false, extra:"出席人员：……\n列席人员：……", note:"纪要不写主送机关与发文机关署名，另有出席、列席人员" },
+  // 应用文
+  "讲话稿": { toName:"称呼", toHint:"同志们：", titleHint:"在××会议上的讲话", sign:false, date:false, note:"讲话稿开头是称呼、结尾是结束语（如「谢谢大家！」），不写发文机关署名与成文日期" },
+  "倡议书": { toName:"称呼", toHint:"广大市民朋友们：" },
+  "公开信": { toName:"称呼", toHint:"×××：" },
+  "新闻稿": { to:false, sign:false, date:false, titleHint:"×××（标题就说清这件事）", note:"新闻稿不写称呼与落款（署「通讯员××」时就写在末尾括号里）" },
+  "短评": { to:false, sign:false, date:false, titleHint:"×××（观点就是标题）", note:"短评只有标题与正文，不写称呼与落款" },
+  "宣传稿": { to:false, sign:false, date:false, titleHint:"×××（标题要抓人）", note:"宣传稿只有标题与正文，不写称呼与落款" },
+  "编者按": { title:false, to:false, sign:false, date:false, bodyHint:"编者按：……", bodyPrefix:"编者按", note:"编者按不写标题、称呼与落款，就是一段按语" },
+  "工作方案": { to:false, note:"工作方案不写主送机关，末尾署制定单位与日期" },
+  "调研报告": { to:false, note:"调研报告不写主送机关，末尾署调研单位与日期" },
+  "汇报材料": { to:false, note:"汇报材料不写主送机关，末尾署汇报单位与日期" },
 };
 function gwFmtSpec(type){ return GW_FMT_SPEC[type] || {}; }
+function fmtItemName(id, sp){ return (id === "to" && sp && sp.toName)? sp.toName : GW_FMT_ITEM_NAME[id]; }
+// 默写覆盖公文写作池的全部文种（应用文虽无国标，但称谓/正文/落款的规矩是通的）
+const GW_FMT_TYPES = GONGWEN_TYPES.map(t=> t.type);
+function gwIsLegal(type){ return GONGWEN_TYPES.some(t=> t.type === type && t.cat === "法定公文"); }
 /* 公文骨架：作答页的「插入公文骨架」与默写的「标准格式」共用这一份，不给同一件事写两份 */
 function gwSkeletonText(type){
   const sp = gwFmtSpec(type), d = new Date();
-  let out = `（标题）关于……的${type}\n\n`;
-  if(sp.to !== false) out += `主送机关：\n\n`;
-  out += `　　正文：……\n\n`;
+  let out = "";
+  if(sp.title !== false) out += `（标题）${sp.titleHint || `关于……的${type}`}\n\n`;
+  if(sp.to !== false) out += `${sp.toHint || fmtItemName("to", sp) + "："}\n\n`;
+  out += `　　${sp.bodyHint || "正文：……"}\n\n`;
   if(sp.extra) out += sp.extra + "\n\n";
   if(sp.sign !== false) out += `　　　　　　　　　　　　${state.settings.orgName||"XX单位"}\n`;
-  out += `　　　　　　　　　　　　${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  if(sp.date !== false) out += `　　　　　　　　　　　　${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
   return out;
 }
 /* 逐要素判：每条给出「判成什么」与「依据」（匹配到的原句，或没找到什么） */
 function judgeGwFormat(text, type){
-  const sp = gwFmtSpec(type);
+  const sp = gwFmtSpec(type), legal = gwIsLegal(type);
   const rows = String(text||"").split("\n").map((l,i)=> ({ l, i })).filter(x=> x.l.trim());
   const leadN = s=> (String(s).match(/^\s*/) || [""])[0].length;                        // 前导空白字数
   const isDate = s=> /\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日/.test(String(s));          // 写全年月日
-  const out = [];
-  const push = (id, ok, note, na)=> out.push({ id, ok: !!ok, na: !!na, note });
-  const t0 = rows[0]? rows[0].l.trim() : "";
-  push("title", t0.indexOf(type) >= 0,
-    t0? (t0.indexOf(type) >= 0? `第 1 行：${t0}` : `第 1 行里没有「${type}」两个字`) : "没有标题行");
-  if(sp.to === false) push("to", false, sp.note, true);
-  else{
-    const hit = rows.slice(1).find(x=> /[：:]\s*$/.test(x.l) && leadN(x.l) === 0 && x.l.indexOf("附件") < 0);
-    push("to", hit, hit? `第 ${hit.i+1} 行：${hit.l.trim()}` : "没找到顶格、以冒号结尾的那一行");
-  }
-  const bHit = rows.find(x=> leadN(x.l) >= 2);
-  push("body", bHit, bHit? `第 ${bHit.i+1} 行：首行空两字` : "没有首行空两字的段落");
+  // 先把末尾那两行认出来（日期 / 靠右的署名）：它们也是缩进的，不先认出来就会被当成正文
   const tail = rows.slice(-4);
   const dHit = tail.find(x=> isDate(x.l));
-  if(sp.sign === false) push("sign", false, sp.note, true);
+  const sHit = tail.find(x=> x !== dHit && leadN(x.l) >= 4);
+  const out = [];
+  const push = (id, ok, note, na)=> out.push({ id, ok: !!ok, na: !!na, note });
+  // 标题：法定公文看第一行有没有文种名；应用文只要第一行不是称谓/正文（标题长什么样因文种而异，不硬套）
+  if(sp.title === false) push("title", false, "", true);
   else{
-    const sHit = tail.find(x=> x !== dHit && !isDate(x.l) && leadN(x.l) >= 4);
-    push("sign", sHit, sHit? `第 ${sHit.i+1} 行靠右：${sHit.l.trim()}` : "末尾没找到靠右的署名（至少空四格）");
+    const t0 = rows[0]? rows[0].l.trim() : "";
+    const ok = !!t0 && (legal? t0.indexOf(type) >= 0 : (leadN(t0) === 0 && !/[：:]\s*$/.test(t0)));
+    push("title", ok, t0? (ok? `第 1 行：${t0}` : (legal? `第 1 行里没有「${type}」两个字` : "第 1 行看起来是称谓或正文——标题要在第一行")) : "没有标题行");
   }
-  push("date", dHit, dHit? `第 ${dHit.i+1} 行：${dHit.l.trim()}` : "末尾没找到「××××年×月×日」");
+  // 称谓（主送机关 / 称呼）：写在标题下一行、顶格、以冒号结尾。搜索限在前三行，且在正文之前——
+  // 正文里顶格带冒号的行（「一、总体要求：」这种小标题、附件说明）不是主送机关
+  if(sp.to === false) push("to", false, "", true);
+  else{
+    const firstBody = rows.findIndex(x=> leadN(x.l) >= 2);
+    const isHead = s=> /^([一二三四五六七八九十]+[、.．]|（[一二三四五六七八九十]+）|\d+[、.．])/.test(String(s).trim());
+    const hit = rows.slice(1, 3).find(x=> (firstBody < 0 || x.i < rows[firstBody].i) && leadN(x.l) === 0 && /[：:]\s*$/.test(x.l) && !isHead(x.l) && x.l.indexOf("附件") < 0);
+    push("to", hit, hit? `第 ${hit.i+1} 行：${hit.l.trim()}` : `没找到顶格、以冒号结尾的那一行（${fmtItemName("to", sp)}写在标题下一行）`);
+  }
+  // 正文：首行空两字那一段；名单里规定的（如编者按）按「以什么起头」判
+  if(sp.body === false) push("body", false, "", true);
+  else if(sp.bodyPrefix){
+    const hit = rows.find(x=> x.l.trim().indexOf(sp.bodyPrefix) >= 0);
+    push("body", hit, hit? `第 ${hit.i+1} 行：${hit.l.trim()}` : `没找到以「${sp.bodyPrefix}」起头的那一段`);
+  }
+  else{
+    const hit = rows.find(x=> leadN(x.l) >= 2 && x !== sHit && x !== dHit);
+    push("body", hit, hit? `第 ${hit.i+1} 行：首行空两字` : "没有首行空两字的段落（正文每段开头空两字）");
+  }
+  if(sp.sign === false) push("sign", false, "", true);
+  else push("sign", sHit, sHit? `第 ${sHit.i+1} 行靠右：${sHit.l.trim()}` : "末尾没找到靠右的署名（至少空四格）");
+  if(sp.date === false) push("date", false, "", true);
+  else push("date", dHit, dHit? `第 ${dHit.i+1} 行：${dHit.l.trim()}` : "末尾没找到「××××年×月×日」");
   return out;
 }
 function fmtLastOf(type){ return (state.fmt && state.fmt[type]) || null; }
@@ -2229,17 +2264,19 @@ let _fmtType = null, _fmtRes = null;
 const _fmtDrafts = {};   // 本次会话里各文种写了一半的草稿：换文种不丢字
 function fmtResultHtml(res){
   if(!res) return "";
-  const prev = res.prev;
+  const prev = res.prev, sp = gwFmtSpec(res.type);
   const miss = res.items.filter(x=> !x.ok && !x.na).map(x=> x.id);
+  const anyNa = res.items.some(x=> x.na);
   let html = `<div class="sec-title">要素对照</div><div class="fmtlist">` +
     res.items.map(x=>{
       const cls = x.na? "na" : (x.ok? "ok" : "bad");
       const mk = x.na? "—" : (x.ok? "✓" : "✗");
       const pv = (!x.ok && !x.na && prev && prev.miss.indexOf(x.id) >= 0)? `<span class="fprev">上次也漏了</span>` : "";
-      return `<div class="fmtline ${cls}"><span class="fmk">${mk}</span><span class="fname">${GW_FMT_ITEM_NAME[x.id]}</span><span class="fnote">${esc(x.note)}${pv}</span></div>`;
+      return `<div class="fmtline ${cls}"><span class="fmk">${mk}</span><span class="fname">${fmtItemName(x.id, sp)}</span><span class="fnote">${esc(x.na? "本项不适用" : x.note)}${pv}</span></div>`;
     }).join("") + `</div>`;
+  if(anyNa && sp.note) html += `<div class="hint" style="margin-top:6px">说明：${esc(sp.note)}。</div>`;
   html += miss.length
-    ? `<div class="hint" style="margin-top:8px">漏了 ${miss.length} 项：${miss.map(id=>GW_FMT_ITEM_NAME[id]).join("、")}。</div>`
+    ? `<div class="hint" style="margin-top:8px">漏了 ${miss.length} 项：${miss.map(id=>fmtItemName(id, sp)).join("、")}。</div>`
     : `<div class="hint" style="margin-top:8px">要判的几项都写到了，位置也对。</div>`;
   html += `<div class="sec-title">标准格式（照这个位置排）</div><div class="tpl">${esc(gwSkeletonText(res.type))}</div>`;
   return html;
@@ -2248,12 +2285,12 @@ function fmtDrillHtml(){
   const type = _fmtType || GW_FMT_TYPES[0];
   const prev = fmtLastOf(type);
   let html = `<div class="secrow"><div class="sec-title">公文格式默写</div><button class="linkbtn" id="btnFmtBack">返回「公文写作」</button></div>
-    <div class="hint" style="margin:2px 0 12px">选一个文种，不看提示写出它的格式框架——占位文字就行。写完逐条对照：有没有这一项、位置对不对。</div>
+    <div class="hint" style="margin:2px 0 12px">选一个文种，不看提示写出它的格式框架——占位文字就行。写完逐条对照：有没有这一项、位置对不对。法定公文按《党政机关公文格式》判，应用文按通行写法判；导语、结束语这类内容层面的项不判。</div>
     <div class="subtypechips" style="justify-content:flex-start;max-width:none;margin:0">${GW_FMT_TYPES.map(t=> `<button class="chip${t===type? " sel":""}" data-ftype="${t}">${t}</button>`).join("")}</div>`;
   html += `<div class="sec-title" style="margin-top:22px">默写 · ${type}</div><textarea class="fmtwrite" id="fmtText">${esc(_fmtDrafts[type]||"")}</textarea>`;
   html += `<div class="actions"><button class="primary" id="btnFmtJudge">对照标准格式</button><span class="counter" id="fmtCount">0 字</span><span class="hint">只对照要素与位置，不计分</span></div>`;
   html += fmtResultHtml(_fmtRes && _fmtRes.type === type? _fmtRes : null);
-  if(prev) html += `<div class="hint" style="margin-top:10px">这个文种默过 ${prev.rounds||1} 次，上一次（${mmdd(prev.at)}）${prev.miss.length? `漏了 ${prev.miss.map(id=>GW_FMT_ITEM_NAME[id]).join("、")}` : "没漏项"}。</div>`;
+  if(prev) html += `<div class="hint" style="margin-top:10px">这个文种默过 ${prev.rounds||1} 次，上一次（${mmdd(prev.at)}）${prev.miss.length? `漏了 ${prev.miss.map(id=>fmtItemName(id, gwFmtSpec(type))).join("、")}` : "没漏项"}。</div>`;
   return html;
 }
 function renderFmtDrill(){
@@ -3327,7 +3364,9 @@ function renderFlowStep(){
   }
   const step = f? f.step : (lastGrade? "review" : "draft");
   const {question} = current;
-  let html = `<div class="secrow"><div class="sec-title">题目</div><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
+  // 读材料 / 归类这两步也把限时摆出来：时钟从「开始作答」就起算，不摆出来用户不知道它在跑
+  const showTl = step === "read" || step === "organize";
+  let html = `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
   html += requireBlockHtml(question);
   if(f) html += railHtml(f);
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
@@ -3370,10 +3409,12 @@ function stepPanelHtml(step, f){
   return "";
 }
 /* ============ 作答限时 ============ */
-/* 只管「写」这一段：从进作答区（一稿 / 回改）开始算，读材料与归类不计入。
-   剩余时间就在作答区标题行右侧，剩最后 5 分钟转焦橙，第一次超时时报一声（不自动交卷：写到一半被截断是不可逆的）。 */
+/* 从「开始作答」那一刻起算：申论从读材料步、综应A 从作答区（综应A 的学习卡是预习，不算作答）。
+   读了多久、归了多久、写了多久都算在里，切步与刷新不重置；交卷停表（再进一稿是下一次尝试）。
+   剩余时间在题目行与作答区标题行右侧，剩最后 5 分钟转焦橙，第一次超时时报一声
+   （不自动交卷：写到一半被截断是不可逆的）。 */
 const LIMIT_OPTS = [0, 15, 20, 30, 45, 60, 90];
-let _timeUpSaid = false;
+let _timeUpSaid = false, _timeTick = null;
 function curLimitMin(){
   const f = activeFlow();
   if(f && current && f.sig === qSig(current.question)) return (f.limitMin != null)? f.limitMin : (state.settings.timeLimit || 0);
@@ -3389,7 +3430,7 @@ function setLimitState(min, from){   // 申论跨步要持久（挂在链上）�
   if(f && current && f.sig === qSig(current.question)){ f.limitMin = min; f.limitFrom = from; save(); }
   else if(current){ current.limitMin = min; current.limitFrom = from; }
 }
-function ensureLimitStart(){   // 进作答区就起算（一稿、回改都是一次新的计时）
+function ensureLimitStart(){   // 开始作答就起算：整一道题只起算一次，切步与刷新都不重置
   if(!curLimitMin() || curLimitFrom()) return;
   _timeUpSaid = false;
   setLimitState(curLimitMin(), Date.now());
@@ -3417,15 +3458,16 @@ function paintTimeLeft(el){
   }
 }
 function startTimeLeft(){
+  if(_timeTick){ clearInterval(_timeTick); _timeTick = null; }   // 切步会重渲一行，旧表要停掉：不然两个表同时画同一格
   const el = $("#timeLeft");
   if(!el) return null;
   paintTimeLeft(el);
-  const tick = setInterval(()=>{
+  _timeTick = setInterval(()=>{
     const e = $("#timeLeft");
-    if(!e){ clearInterval(tick); return; }
+    if(!e){ clearInterval(_timeTick); _timeTick = null; return; }
     paintTimeLeft(e);
   }, 1000);
-  return tick;
+  return _timeTick;
 }
 function setTimeLimit(m){
   m = Number(m) || 0;
@@ -3615,6 +3657,12 @@ function wireOrganize(f){
 }
 function wireStep(step, f){
   wireSwitch();
+  // 读材料 / 归类这两步：时钟已经在跑（从开始作答起算），把控件与剩余时间接上
+  if(step === "read" || step === "organize"){
+    ensureLimitStart();
+    const sel = $("#selLimit"); if(sel) sel.onchange = ()=> setTimeLimit(sel.value);
+    if($("#timeLeft")) startTimeLeft();
+  }
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
   if(step === "read"){
