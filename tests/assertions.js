@@ -1788,6 +1788,79 @@ callLLM = realCall20;
 _appealIdx = null; _selfIdx = null;
 current = null;
 
+/* ============ 21. 漏点本（跨题累计 → 出题重点覆盖） ============ */
+const realCall21 = callLLM;
+
+/* 21.1 同一条要点换个说法要并成一条；不相干的不许并 */
+ok(pointSim(normPoint("漏写发文机关与日期"), normPoint("结尾未写发文机关和日期")) >= POINT_SAME
+   && pointSim(normPoint("跨部门数据共享（问题类信息）"), normPoint("跨部门数据共享")) >= POINT_SAME,
+   "漏点本: 同一条要点换个说法（「结尾没写发文机关和日期」）并成一条，才数得出「反复漏」");
+ok(pointSim(normPoint("漏写发文机关与日期"), normPoint("正文未分条列明事项")) < POINT_SAME
+   && pointSim(normPoint("把分散审批事项集中到一窗受理"), normPoint("推动材料线上共享，减少重复提交")) < POINT_SAME,
+   "漏点本: 不相干的要点不会被并到一起");
+
+/* 21.2 累计与排序；老记录没分值不硬塞；快判不进漏点本 */
+state.history = [
+  { ts: 5000, module:"zy.gongwen", subtype:"通知", hits:[{ point:"漏写发文机关与日期", score:4, awarded:0, kind:"格式", where:"落款：XX 市人民政府" }] },
+  { ts: 4000, module:"zy.gongwen", subtype:"函", hits:[{ point:"结尾未写发文机关和日期", score:4, awarded:2, kind:"格式" }] },
+  { ts: 3000, track:"pd", form:"fact-select", items:[] },
+  { ts: 2000, module:"zy.guina", subtype:"概括做法", hits:[{ point:"把分散审批事项集中到一窗受理", score:4, awarded:4, kind:"-" }] },
+  { ts: 1000, module:"zy.gongwen", subtype:"通知", hits:[{ point:"老记录没分值", status:"零分" }] },
+];
+const mp21 = missedPoints(null);
+ok(mp21.length === 1 && mp21[0].count === 2 && mp21[0].point === "漏写发文机关与日期" && mp21[0].lastLost === 4 && mp21[0].subtype === "通知",
+   "漏点本: 跨题累计（同一条漏了 2 次），留最近一次的说法与失分");
+ok(mp21[0].lastWhere === "落款：XX 市人民政府" && mp21[0].kind === "格式",
+   "漏点本: 留着材料出处与错因类型，点开能回材料核对");
+ok(missedPoints("zy.guina").length === 0 && missedPoints("zy.gongwen").length === 1,
+   "漏点本: 拿满分的子项不算漏点，按模块取也分得开");
+
+/* 21.3 窗口：只数最近 MISS_WINDOW 题的批改（互不相干的六个字造要点，避开归并干扰） */
+const manyBook = [];
+for(let i=0;i<MISS_WINDOW+5;i++){
+  let p = "";
+  for(let j=0;j<6;j++) p += String.fromCharCode(0x4e00 + i*11 + j);
+  manyBook.push({ ts: 10000 - i, module:"zy.guina", subtype:"概括做法", hits:[{ point:p, score:4, awarded:0, kind:"漏点" }] });
+}
+state.history = manyBook;
+const win21 = missedPoints(null);
+ok(win21.length === MISS_WINDOW && Math.min.apply(null, win21.map(x=>x.lastAt)) === 10000 - (MISS_WINDOW - 1),
+   "漏点本: 只统计最近 " + MISS_WINDOW + " 题，更早的旧账不再翻出来");
+
+/* 21.4 画像里那一段：行上就能看到「漏过 N 次」，点开看最近一次；没漏点给空态 */
+state.history = [
+  { ts: 5000, module:"zy.gongwen", subtype:"通知", hits:[{ point:"漏写发文机关与日期", score:4, awarded:0, kind:"格式", where:"落款：XX 市人民政府", selfCheck:{ verdict:"miss" } }, { point:"正文未分条列明事项", score:4, awarded:2, kind:"结构" }] },
+  { ts: 4000, module:"zy.gongwen", subtype:"函", hits:[{ point:"结尾未写发文机关和日期", score:4, awarded:0, kind:"格式", appeal:{ verdict:"维持", before:0, note:"确实没写" } }] },
+];
+current = null; lastGrade = null;
+openModal("modalProfile"); renderProfile();
+const ph21 = el("#profileBody").innerHTML;
+ok(ph21.indexOf("漏点本") >= 0 && ph21.indexOf('class="etag">2 次') >= 0 && ph21.indexOf('class="etag">—') >= 0 && ph21.indexOf("你已认下") >= 0 && ph21.indexOf("申诉过") >= 0,
+   "漏点本: 画像里按模块分组、一行一条（漏过几次 / 已认下 / 申诉过都写在行上）");
+ok(ph21.indexOf("材料出处：落款：XX 市人民政府") >= 0, "漏点本: 展开里能把最近一次的失分与材料出处调出来");
+state.history = []; renderProfile();
+ok(el("#profileBody").innerHTML.indexOf("还没有漏点") >= 0, "漏点本: 没漏点就说清什么时候会有（不摆空表）");
+
+/* 21.5 出口：出题带上反复漏的要点（当作方向，不照搬场景）；没漏点就不带这个字段 */
+let capGen21 = null;
+callLLM = async (sys, user)=>{ capGen21 = user; return { question:{ background:"材".repeat(200), requirements:"r", score:20, suggestedFormat:"s" }, keyPoints:[{ point:"p", score:20 }] }; };
+state.history = [
+  { ts: 5000, module:"zy.gongwen", subtype:"通知", hits:[{ point:"漏写发文机关与日期", score:4, awarded:0, kind:"格式" }] },
+  { ts: 4000, module:"zy.gongwen", subtype:"函", hits:[{ point:"结尾未写发文机关和日期", score:4, awarded:1, kind:"格式" }] },
+  { ts: 3000, module:"zy.guina", subtype:"概括做法", hits:[{ point:"与模块无关的漏点", score:4, awarded:0, kind:"漏点" }] },
+];
+await gen("zy.gongwen", "通知", null, false);
+ok(capGen21.indexOf('"missedPoints"') >= 0 && capGen21.indexOf("反复漏过这些采分点") >= 0 && capGen21.indexOf("不是把原句和旧场景搬过来") >= 0,
+   "漏点本: 出题带上反复漏的要点，并明写当作方向、不照搬旧场景");
+ok(capGen21.indexOf("与模块无关的漏点") < 0, "漏点本: 只带本模块的漏点（其它模块的要点考不出来）");
+state.history = [];
+await gen("zy.gongwen", "通知", null, false);
+ok(capGen21.indexOf("missedPoints") < 0 && capGen21.indexOf("反复漏过这些采分点") < 0,
+   "漏点本: 没有漏点时不带这个字段（不给模型塞空话）");
+
+callLLM = realCall21;
+state.history = [];
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
