@@ -1863,6 +1863,135 @@ ok(capGen21.indexOf("missedPoints") < 0 && capGen21.indexOf("反复漏过这些�
 callLLM = realCall21;
 state.history = [];
 
+/* ============ 22. 作答限时（只管「写」这一段：剩余 / 超时 / 用时进记录） ============ */
+const dtHtml = ()=> el("#docBody").innerHTML;
+state.history = [];
+state.settings.timeLimit = 0;
+localStorage.clear();
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"材".repeat(120), requirements:"不超过250字。" }, keyPoints:[], cardPeeks:0 };
+renderQuestion();
+flowGoStep("draft");
+ok(dtHtml().indexOf('id="selLimit"') >= 0 && dtHtml().indexOf('value="0" selected') >= 0,
+   "限时: 作答区标题行有控件，默认「不限时」");
+ok(el("#timeLeft").textContent === "", "限时: 不限时不显示任何时间");
+
+/* 22.2 选了时长就起算：锚点落在链上（申论跳步不丢），选择被记住 */
+el("#selLimit").value = "30"; el("#selLimit").onchange();
+ok(curLimitMin() === 30 && curLimitFrom() > 0, "限时: 选 30 分钟后起算");
+ok(activeFlow().limitMin === 30 && activeFlow().limitFrom === curLimitFrom(), "限时: 锚点存在链上（跨步与刷新都不丢）");
+ok(state.settings.timeLimit === 30, "限时: 选择被记住，下一题按同样时长起");
+ok(el("#timeLeft").textContent.indexOf("剩余 30:0") === 0, "限时: 立刻显示剩余 -> " + el("#timeLeft").textContent);
+
+/* 22.3 最后 5 分钟转焦橙；超时只报一声，不自动交卷 */
+setLimitState(30, Date.now() - 25*60*1000);
+paintTimeLeft(el("#timeLeft"));
+ok(el("#timeLeft").className.indexOf("warn") >= 0 && el("#timeLeft").textContent.indexOf("剩余 5:0") === 0,
+   "限时: 剩最后 5 分钟转焦橙 -> " + el("#timeLeft").textContent);
+el("#answer").value = "写到一半的内容，超时也不该被动。";
+el("#bannerSlot").innerHTML = "";
+setLimitState(30, Date.now() - 31*60*1000);
+paintTimeLeft(el("#timeLeft"));
+ok(el("#timeLeft").textContent.indexOf("已超时 1:0") === 0 && el("#bannerSlot").innerHTML.indexOf("时间到") >= 0,
+   "限时: 超时后报「已超时」并提示一声（不自动交卷）");
+ok(el("#answer").value.indexOf("写到一半") >= 0, "限时: 超时不打断作答（已写的内容不动）");
+
+/* 22.4 交卷：用时进记录，批改页报用时与超时 */
+el("#answer").value = "这是一段超过二十个字的作答内容，用来验证限时记录的用时与超时口径。";
+el("#btnSubmit").disabled = false;   // 桩不会重渲按钮，前面用例交过卷后这个标志会留着
+const realCallTL = callLLM;
+callLLM = async ()=>({ hits:[{ point:"p", score:20, awarded:16, status:"满分", evidence:"e" }], scores:{}, strengths:[], weaknesses:[], comment:"x" });
+await submitAnswer();
+callLLM = realCallTL;
+const recTL = state.history[0];
+ok(recTL.timeLimit === 30 && recTL.usedSec >= 31*60 && recTL.usedSec <= 31*60 + 5,
+   "限时: 记录存下限时与用时 -> " + JSON.stringify({ limit: recTL.timeLimit, used: recTL.usedSec }));
+ok(curLimitFrom() === 0, "限时: 交卷即停表（回改是新的一稿，重新起算）");
+ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().indexOf("（超时 1 分") >= 0,
+   "限时: 批改页报出用时与超时");
+
+/* 22.5 不限时：记录不带字段，批改页不报用时；综应A 与申论共用同一处控件 */
+state.settings.timeLimit = 0;
+current = { module:"zy.guina", subtype:"概括做法", question:{ background:"材".repeat(120), requirements:"不超过300字。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
+renderZyPage();
+ok(dtHtml().indexOf('id="selLimit"') >= 0 && dtHtml().indexOf('value="0" selected') >= 0,
+   "限时: 综应A 作答页也有控件（与申论共用同一处渲染）");
+el("#answer").value = "综应A 的一段作答内容，用来验证不限时的时候什么也不报。";
+el("#btnSubmit").disabled = false;
+callLLM = async ()=>({ hits:[{ point:"p", score:20, awarded:20, status:"满分", evidence:"e" }], scores:{}, strengths:[], weaknesses:[], comment:"x" });
+await submitAnswer();
+callLLM = realCallTL;
+ok(state.history[0].timeLimit === undefined && state.history[0].usedSec === undefined, "限时: 不限时不写限时字段");
+ok(dtHtml().indexOf("本题限时") < 0, "限时: 不限时批改页不报用时");
+state.history = [];
+state.settings.timeLimit = 0;
+
+/* ============ 23. 公文格式默写（本地判要素与位置，不调模型） ============ */
+/* 23.1 入口只在公文写作；页面件齐备 */
+state.fmt = {};
+renderModuleLanding(GONGWEN_KEY);
+ok(el("#docBody").innerHTML.indexOf('id="btnFmtDrill"') >= 0, "公文默写: 公文写作落地页有入口");
+renderModuleLanding("zy.guina");
+ok(el("#docBody").innerHTML.indexOf('id="btnFmtDrill"') < 0, "公文默写: 别的模块不给这个入口");
+renderFmtDrill();
+ok(dtHtml().indexOf('id="fmtText"') >= 0 && dtHtml().indexOf('id="btnFmtJudge"') >= 0, "公文默写: 默写框与对照按钮都在");
+ok(GW_FMT_TYPES.length === 11 && GW_FMT_TYPES.indexOf("通知") >= 0 && GW_FMT_TYPES.indexOf("讲话稿") < 0,
+   "公文默写: 只列 11 个法定公文（应用文格式不统一，不进来）");
+ok(dtHtml().indexOf(">通知<") >= 0 && dtHtml().indexOf("默写 · 通知") >= 0, "公文默写: 默认选第一个文种");
+
+/* 23.2 规范的一份：五项全过 */
+const fmtText = t=> `关于……的${t}\n\n各有关单位：\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日`;
+let jd = judgeGwFormat(fmtText("通知"), "通知");
+ok(jd.length === 5 && jd.every(x=> x.ok), "公文默写: 要素齐、位置对的一份全判过 -> " + JSON.stringify(jd.filter(x=>!x.ok)));
+ok(jd[1].note.indexOf("各有关单位") >= 0 && jd[3].note.indexOf("模拟练习专用") >= 0, "公文默写: 每条给出依据（匹配到的那一行）");
+
+/* 23.3 缺项与位置不对：各判各的，不连坐 */
+jd = judgeGwFormat("关于……的通知\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日", "通知");
+ok(jd[1].ok === false && jd[1].note.indexOf("顶格") >= 0, "公文默写: 没写主送机关单独判错");
+ok(jd[0].ok && jd[2].ok && jd[3].ok && jd[4].ok, "公文默写: 一项错不连坐别项");
+jd = judgeGwFormat("关于……的通知\n\n各有关单位：\n\n　　正文内容。\n\n模拟练习专用\n2026.9.29", "通知");
+ok(jd[3].ok === false && jd[3].note.indexOf("靠右") >= 0, "公文默写: 署名没靠右判出来");
+ok(jd[4].ok === false && jd[4].note.indexOf("年") >= 0, "公文默写: 日期没写全年月日判出来");
+jd = judgeGwFormat("关于……的通知\n\n　　正文内容。", "通知");
+ok(jd[0].ok && jd[4].ok === false, "公文默写: 只有三行时该过的过、该错的错");
+jd = judgeGwFormat(fmtText("公告"), "公告");
+ok(jd[1].na && !jd[3].na && jd[1].note.indexOf("不写主送机关") >= 0,
+   "公文默写: 公告不写主送机关（标为不判）；但它仍有发文机关署名");
+ok(jd[0].ok && jd[2].ok && jd[3].ok && jd[4].ok, "公文默写: 不判的项不影响其他项");
+ok(judgeGwFormat(fmtText("纪要"), "纪要").filter(x=> x.na).length === 2, "公文默写: 纪要两项不判（无主送机关、无署名）");
+
+/* 23.4 骨架：三个特殊文种各有写法；作答页的「插入公文骨架」用的就是这一份 */
+ok(gwSkeletonText("通知").indexOf("主送机关：") >= 0, "公文默写: 通知的骨架有主送机关");
+ok(gwSkeletonText("公告").indexOf("主送机关") < 0, "公文默写: 公告的骨架没有主送机关");
+ok(gwSkeletonText("纪要").indexOf("出席人员") >= 0 && gwSkeletonText("纪要").indexOf("模拟练习专用") < 0,
+   "公文默写: 纪要的骨架有出席人员、没有发文机关署名");
+current = { module:GONGWEN_KEY, subtype:"通知", question:{ background:"材".repeat(60), requirements:"写一份通知。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
+renderZyPage();
+el("#answer").value = "";
+insertSkeleton();
+ok(el("#answer").value === gwSkeletonText("通知"), "公文默写: 作答页的骨架与标准格式是同一份");
+
+/* 23.5 判定不调模型；结果落表、再默一次会说「上次也漏了」 */
+let callsFmt = 0;
+callLLM = async ()=>{ callsFmt++; return {}; };
+renderFmtDrill();
+el("#fmtText").value = "太短";
+el("#btnFmtJudge").onclick();
+ok(callsFmt === 0 && el("#bannerSlot").innerHTML.indexOf("太短了") >= 0 && !state.fmt["通知"],
+   "公文默写: 写得太短先拦下，不发请求也不落记录");
+el("#fmtText").value = "关于……的通知\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日";
+el("#btnFmtJudge").onclick();
+ok(state.fmt["通知"] && state.fmt["通知"].rounds === 1 && state.fmt["通知"].miss.join(",") === "to",
+   "公文默写: 这次漏的两项落表 -> " + JSON.stringify(state.fmt["通知"]));
+ok(callsFmt === 0, "公文默写: 全程不调模型（本地判）");
+ok(dtHtml().indexOf("要素对照") >= 0 && dtHtml().indexOf("漏了 1 项：主送机关") >= 0 && dtHtml().indexOf("标准格式（照这个位置排）") >= 0,
+   "公文默写: 结果页报漏项并给出标准格式");
+el("#fmtText").value = "关于……的通知\n\n　　正文内容。\n\n　　　　　　　　　　　　模拟练习专用\n　　　　　　　　　　　　2026年9月29日";
+el("#btnFmtJudge").onclick();
+ok(dtHtml().indexOf("上次也漏了") >= 0, "公文默写: 同一个漏点再漏一次会标「上次也漏了」");
+ok(state.fmt["通知"].rounds === 2, "公文默写: 默写次数累计");
+callLLM = realCallTL;
+state.fmt = {};
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
