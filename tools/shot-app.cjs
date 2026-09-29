@@ -161,7 +161,7 @@ app.whenReady().then(async () => {
   for (const sc of scenes) {
     // 原始态 + 全展开态各跑一遍：折叠块里的东西也得进保护范围，不为它再写一套场景
     const variants = EXPAND
-      ? [{ suf: "", pre: "" }, { suf: "__展开", pre: 'document.querySelectorAll("details:not([open])").forEach(function(d){ d.open = true; });' }]
+      ? [{ suf: "", pre: "" }, { suf: "__展开", pre: 'document.querySelectorAll("details:not([open])").forEach(function(d){ d.open = true; d.setAttribute("data-shot-expanded", "1"); });' }]
       : [{ suf: "", pre: "" }];
     for (const v of variants) {
       const name = sc.name + v.suf;
@@ -215,6 +215,11 @@ app.whenReady().then(async () => {
           if (a.indexOf("FAIL") === 0) failCnt++; else warnCnt++;
         }
         if (sc.full) { win.setContentSize(w, h); await wait(300); }
+        // 展开态是给这一屏看的，不能留给下一屏：页面在场景之间不重载，静态 HTML 里那几个
+        // 隐藏弹层的 <details>（`#keyHelp`、`.more`、练自己的题里的「官方参考答案」）一旦被展开
+        // 就留在文档上，下一屏的「原始态」就不是原始态了。
+        // （2026-09-29 发现：`20-练自己的题-弹层` 的原始态与展开态逐字节相同，图里参考答案是开的。）
+        if (v.pre) { try { await win.webContents.executeJavaScript('document.querySelectorAll("details[data-shot-expanded]").forEach(function(d){ d.open = false; d.removeAttribute("data-shot-expanded"); });', true); } catch (e) {} }
       } catch (e) {
         say("!!! " + name + " 失败: " + (e && e.message ? e.message : e));
         failCnt++;
