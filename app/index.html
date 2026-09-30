@@ -177,11 +177,18 @@ html,body{margin:0;padding:0;}
      ② 要点与失分点不再是一条条「•＋长句」，改成顶线清单：一条一格，能数得清；
      ③ 框架与示例收成引文块（左缘细线），不再和清单长一个样。 */
   .card-body{padding:14px 16px 16px;font-size:14px;line-height:1.75;}
+  /* 节标题带记号：左缘 3px 短竖条——「有哪几节」先跳出来，不用读完标题才知道换节了 */
   .card-body h4{font-family:var(--hei);font-size:13px;letter-spacing:.3px;margin:20px 0 8px;color:var(--ink);}
-  /* 顶线清单：线只画在条与条之间（第一条不出线，它头顶就是节标题） */
-  .clist{list-style:none;margin:0;padding:0;}
-  .card-body .clist li{padding:8px 0;border-top:1px solid var(--line-soft);}
+  .csec>h4{display:flex;align-items:center;gap:8px;}
+  .csec>h4::before{content:"";width:3px;height:13px;background:var(--bar);border-radius:1px;flex:0 0 auto;}
+  /* 两栏靠「记号颜色」分义：要点是中性灰 + 序号，失分点是焦橙 + 序号（同一个清单语言，一眼分得清左右） */
+  .clist{list-style:none;margin:0;padding:0;counter-reset:ci;}
+  .card-body .clist li{display:grid;grid-template-columns:18px 1fr;gap:9px;padding:8px 0;border-top:1px solid var(--line-soft);}
   .card-body .clist li:first-child{border-top:0;padding-top:0;}
+  .card-body .clist li:first-child::before{padding-top:0;}
+  .clist>li::before{counter-increment:ci;content:counter(ci);font-family:var(--hei);font-size:12px;line-height:1.9;color:var(--muted-2);text-align:right;font-variant-numeric:tabular-nums;}
+  .csec.pit>h4::before{background:var(--warn);}
+  .clist-pit>li::before{color:var(--warn);}
   /* 「我的笔记」是卡的脚：与上面内容隔开（顶线 + 更大间距），不参与卡的正文节奏 */
   .card-body h4.noteh{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);}
   /* 样例 / 框架 / 提纲一类文本块：只留一道左缘细线，不再自成一框——框留给它所在的学习卡，
@@ -2262,7 +2269,7 @@ function cardHtml(studyCard){
     : "";
   return `<div class="cardcols">
       <section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>
-      <section class="csec"><h4>常见失分点</h4><ul class="clist">${pits}</ul></section>
+      <section class="csec pit"><h4>常见失分点</h4><ul class="clist clist-pit">${pits}</ul></section>
     </div>
     <section class="csec"><h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div></section>${exHtml}`;
 }
