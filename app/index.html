@@ -196,10 +196,13 @@ html,body{margin:0;padding:0;}
   .tpl{background:transparent;border:0;border-left:2px solid var(--bar);padding:2px 0 2px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
   .card-body .tpl{border-left-width:3px;padding:1px 0 1px 13px;line-height:1.75;}   /* 卡内引文块：线粗一档、与正文对齐，一眼认得出不是清单 */
   .card-body .tpl b{font-family:var(--hei);}
-  /* 卡片从上到下就是一条阅读流。要点与失分点早先是并排两栏，但两边内容不等量时，
-     短的那一栏底下会空出一大片（阿楠 2026-09-30「右边就一大片空白了呀」）——不再分栏 */
-  .card-body>.csec:first-child>h4{margin-top:0;}   /* 卡内第一节紧贴卡头，不再多让 20px */
-  .card-body>.csec+.csec{margin-top:26px;}   /* 节与节之间拉开一档，和下一条清单的顶线区分开 */
+  /* 卡片整块分两栏，两栏各自累加内容——内容总量守恒，两栏高度就接近，不会出现一边空一大片。
+     分法是按意思分的：左栏「怎么答」（解题要点 + 答题框架），右栏「注意什么」（常见失分点 + 示例）。
+     条目在 342px 宽的栏里占宽约八成，比单栏全宽下一行只占四成看着满。 */
+  .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:30px 28px;align-items:start;}
+  .cardcol>.csec+.csec{margin-top:30px;}
+  .cardcols .csec:first-child>h4{margin-top:0;}   /* 每栏第一节紧贴卡头，不再多让 20px */
+  .drawer .cardcols{grid-template-columns:1fr;}   /* 抽屉只有 430px，两栏会挤 */
 
   .answer-wrap{margin-top:18px;}
   .markrun{border-left:2px solid var(--mark,#a7f3d0);padding-left:8px;margin:0 0 8px;font-size:13px;line-height:1.7;}   /* 划线色是用户在设置里选的，不能写死成默认那张绿 */
@@ -2264,12 +2267,32 @@ function cardHtml(studyCard){
   const pits=(studyCard.pitfalls||[]).map(p=>`<li>${esc(p)}</li>`).join("");
   const ex = studyCard.example;
   // 每一节都是「节标题 + 内容」：卡上先看清有哪几节，再看每节有哪几条
-  const exHtml = (ex && (ex.scene||ex.ask))
-    ? `<section class="csec"><h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div></section>`
-    : "";
-  return `<section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>
-    <section class="csec pit"><h4>常见失分点</h4><ul class="clist clist-pit">${pits}</ul></section>
-    <section class="csec"><h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div></section>${exHtml}`;
+  const hasEx = !!(ex && (ex.scene||ex.ask));
+  const exText = hasEx ? (ex.scene||"") + (ex.ask||"") : "";
+  const secs = [
+    { html: `<section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>`,
+      h: 44 + (studyCard.points||[]).reduce((a,t)=>a + Math.ceil((t.length+2)/22)*24.5 + 17, 0) },
+    { html: `<section class="csec pit"><h4>常见失分点</h4><ul class="clist clist-pit">${pits}</ul></section>`,
+      h: 44 + (studyCard.pitfalls||[]).reduce((a,t)=>a + Math.ceil((t.length+2)/22)*24.5 + 17, 0) },
+    { html: `<section class="csec"><h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div></section>`,
+      h: 44 + Math.ceil(String(studyCard.templates||"").length/22)*24.5 },
+  ];
+  if(hasEx) secs.push({
+    html: `<section class="csec"><h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div></section>`,
+    h: 44 + Math.ceil(exText.length/22)*24.5 });
+  /* 四节分成两栏。默认按意思分：左栏「怎么答」（要点 + 框架），右栏「注意什么」（失分点 + 示例）。
+     要点比失分点多好几条时，这么分右栏底下会空出一大片——那就改成按前后切一刀，
+     两种分法的底部落差谁小用谁。（栏宽 341px，一行约 22 字，下面只是估算，用来选分法） */
+  const byMeaning = Math.abs((secs[0].h + secs[2].h) - (secs[1].h + (secs[3]? secs[3].h : 0)));
+  let cut = 1, byOrder = Infinity;
+  for(let k=1; k<secs.length; k++){
+    const left = secs.slice(0,k).reduce((a,s)=>a+s.h,0), right = secs.slice(k).reduce((a,s)=>a+s.h,0);
+    if(Math.abs(left-right) < byOrder){ byOrder = Math.abs(left-right); cut = k; }
+  }
+  const idx = secs.map((s,i)=>i);
+  const cols = (byMeaning <= byOrder) ? [[0,2],[1,3]] : [idx.slice(0,cut), idx.slice(cut)];
+  const colsHtml = cols.map(c => `<div class="cardcol">${c.filter(i=>secs[i]).map(i=>secs[i].html).join("")}</div>`).join("");
+  return `<div class="cardcols">${colsHtml}</div>`;
 }
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){

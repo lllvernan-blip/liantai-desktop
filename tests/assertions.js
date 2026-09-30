@@ -536,6 +536,9 @@ ok((cHtml.match(/class="clist/g)||[]).length === 2 && cHtml.indexOf("<ul>") < 0,
    "学习卡: 要点与失分点改成顶线清单（一条一格），不再是无分隔的 bullet 长句堆");
 ok(cHtml.indexOf('class="csec pit"') >= 0 && cHtml.indexOf("clist clist-pit") >= 0,
    "学习卡: 失分点那一节带 pit 语义标记（焦橙竖条 + 焦橙序号），和要点一眼分得开");
+const fatHtml = cardHtml({points:["一","二","三","四","五","六"],pitfalls:["只有一条失分点"],templates:"一、优化办事流程。……",example:{scene:"某县推行「一网通办」。",ask:"概括该县的主要做法。"}});
+ok(cHtml.indexOf("答题框架") < cHtml.indexOf("常见失分点") && fatHtml.indexOf("答题框架") > fatHtml.indexOf("常见失分点"),
+   "学习卡: 内容量均衡时按意思分栏（左要点+框架 / 右失分点+示例），要点远多于失分点时改成按前后切一刀，两栏底部落差小");
 ok(cardHtml({points:[],pitfalls:[],templates:""}).indexOf("这类题长什么样") < 0,
    "学习卡: 旧卡没有 example 也不渲染空栏目");
 el("#btnZyAnswer").onclick();
