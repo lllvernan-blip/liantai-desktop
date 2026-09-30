@@ -172,16 +172,26 @@ html,body{margin:0;padding:0;}
   details.card>summary{cursor:pointer;font-family:var(--hei);font-weight:700;font-size:15px;padding:11px 14px;list-style:none;display:flex;align-items:center;gap:8px;}
   details.card>summary::-webkit-details-marker{display:none;}
   details.card>summary .tag{font-family:var(--fangsong);font-weight:400;font-size:13px;color:var(--muted);}
-  .card-body{padding:4px 16px 16px;font-size:15px;line-height:1.85;}
-  .card-body h4{font-family:var(--hei);font-size:13px;margin:16px 0 8px;color:var(--ink);}
-  .card-body ul{margin:4px 0;padding-left:20px;}
-  .card-body li{margin:3px 0;}
+  /* 学习卡：原来是一整坨字（2026-09-30「一大堆文字糊在一起」）。三件事治好它
+     ① 每节都有节标题、节与节之间拉开——先看清「有哪几节」；
+     ② 要点与失分点不再是一条条「•＋长句」，改成顶线清单：一条一格，能数得清；
+     ③ 框架与示例收成引文块（左缘细线），不再和清单长一个样。 */
+  .card-body{padding:14px 16px 16px;font-size:14px;line-height:1.75;}
+  .card-body h4{font-family:var(--hei);font-size:13px;letter-spacing:.3px;margin:20px 0 8px;color:var(--ink);}
+  /* 顶线清单：线只画在条与条之间（第一条不出线，它头顶就是节标题） */
+  .clist{list-style:none;margin:0;padding:0;}
+  .card-body .clist li{padding:8px 0;border-top:1px solid var(--line-soft);}
+  .card-body .clist li:first-child{border-top:0;padding-top:0;}
+  /* 「我的笔记」是卡的脚：与上面内容隔开（顶线 + 更大间距），不参与卡的正文节奏 */
+  .card-body h4.noteh{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);}
   /* 样例 / 框架 / 提纲一类文本块：只留一道左缘细线，不再自成一框——框留给它所在的学习卡，
      否则卡里套盒（2026-09-23）。白底也去掉：卡里的洗底色上再铺一层近白块，等于又画一遍边界 */
   .tpl{background:transparent;border:0;border-left:2px solid var(--bar);padding:2px 0 2px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
+  .card-body .tpl{border-left-width:3px;padding:1px 0 1px 13px;line-height:1.75;}   /* 卡内引文块：线粗一档、与正文对齐，一眼认得出不是清单 */
+  .card-body .tpl b{font-family:var(--hei);}
   /* 学习卡：要点与失分点并成左右两栏（都是短句清单，上下摆会把卡拉长一倍） */
-  .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;}
-  .cardcols h4{margin-top:12px;}
+  .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;align-items:start;}
+  .cardcols .csec>h4{margin-top:0;}   /* 两栏之后的第一行：紧贴卡头，不再多让 20px */
   .drawer .cardcols{grid-template-columns:1fr;}   /* 抽屉只有 430px，两栏会挤 */
 
   .answer-wrap{margin-top:18px;}
@@ -2246,14 +2256,15 @@ function cardHtml(studyCard){
   const pts=(studyCard.points||[]).map(p=>`<li>${esc(p)}</li>`).join("");
   const pits=(studyCard.pitfalls||[]).map(p=>`<li>${esc(p)}</li>`).join("");
   const ex = studyCard.example;
+  // 每一节都是「节标题 + 内容」：卡上先看清有哪几节，再看每节有哪几条
   const exHtml = (ex && (ex.scene||ex.ask))
-    ? `<h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div>`
+    ? `<section class="csec"><h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div></section>`
     : "";
   return `<div class="cardcols">
-      <div><h4>解题要点</h4><ul>${pts}</ul></div>
-      <div><h4>常见失分点</h4><ul>${pits}</ul></div>
+      <section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>
+      <section class="csec"><h4>常见失分点</h4><ul class="clist">${pits}</ul></section>
     </div>
-    <h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div>${exHtml}`;
+    <section class="csec"><h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div></section>${exHtml}`;
 }
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 function renderQuestion(){
@@ -2289,7 +2300,7 @@ function zyCardHtml(){
   if(current.studyCard){
     const lp = lastPeeks(module, subtype);
     html += `<div class="card"><div class="card-body">${cardHtml(current.studyCard)}
-      <h4>我的笔记</h4>
+      <h4 class="noteh">我的笔记</h4>
       <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
       <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
       ${lp != null? `<div class="hint" style="margin-top:8px">上次作答中你翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
@@ -3134,7 +3145,7 @@ function stepPanelHtml(step, f){
       html += `<details class="card">
         <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">先看卡再看材料，可折叠</span></summary>
         <div class="card-body">${cardHtml(current.studyCard)}
-          <h4>我的笔记</h4>
+          <h4 class="noteh">我的笔记</h4>
           <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
           <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
           ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
@@ -3371,7 +3382,7 @@ function wireDraft(f){
     $("#peekBadge").textContent = `本次已翻 ${current.cardPeeks} 次（越少越熟）`;
     const fb = $("#btnCard").querySelector("b"); if(fb) fb.textContent = current.cardPeeks;
     $("#drawerBody").innerHTML = (current.studyCard? cardHtml(current.studyCard) : '<span class="hint">本题没有学习卡。</span>') +
-      `<h4>我的笔记</h4><textarea class="noteedit" id="drawerNote" placeholder="在这里也可以补记。">${esc(getNote(module,subtype))}</textarea>`;
+      `<h4 class="noteh">我的笔记</h4><textarea class="noteedit" id="drawerNote" placeholder="在这里也可以补记。">${esc(getNote(module,subtype))}</textarea>`;
     $("#btnDrawerClose").onclick = ()=>{ $("#cardDrawer").hidden = true; };
     $("#drawerNote").addEventListener("input", ()=>{
       saveNote(module, subtype, $("#drawerNote").value);
