@@ -181,7 +181,7 @@ html,body{margin:0;padding:0;}
   .card-body h4{font-family:var(--hei);font-size:13px;letter-spacing:.3px;margin:20px 0 8px;color:var(--ink);}
   .csec>h4{display:flex;align-items:center;gap:8px;}
   .csec>h4::before{content:"";width:3px;height:13px;background:var(--bar);border-radius:1px;flex:0 0 auto;}
-  /* 两栏靠「记号颜色」分义：要点是中性灰 + 序号，失分点是焦橙 + 序号（同一个清单语言，一眼分得清左右） */
+  /* 两节靠「记号颜色」分义：要点是中性灰 + 序号，失分点是焦橙 + 序号（同一个清单语言，一眼分得清） */
   .clist{list-style:none;margin:0;padding:0;counter-reset:ci;}
   .card-body .clist li{display:grid;grid-template-columns:18px 1fr;gap:9px;padding:8px 0;border-top:1px solid var(--line-soft);}
   .card-body .clist li:first-child{border-top:0;padding-top:0;}
@@ -196,10 +196,10 @@ html,body{margin:0;padding:0;}
   .tpl{background:transparent;border:0;border-left:2px solid var(--bar);padding:2px 0 2px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
   .card-body .tpl{border-left-width:3px;padding:1px 0 1px 13px;line-height:1.75;}   /* 卡内引文块：线粗一档、与正文对齐，一眼认得出不是清单 */
   .card-body .tpl b{font-family:var(--hei);}
-  /* 学习卡：要点与失分点并成左右两栏（都是短句清单，上下摆会把卡拉长一倍） */
-  .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;align-items:start;}
-  .cardcols .csec>h4{margin-top:0;}   /* 两栏之后的第一行：紧贴卡头，不再多让 20px */
-  .drawer .cardcols{grid-template-columns:1fr;}   /* 抽屉只有 430px，两栏会挤 */
+  /* 卡片从上到下就是一条阅读流。要点与失分点早先是并排两栏，但两边内容不等量时，
+     短的那一栏底下会空出一大片（2026-09-30「右边就一大片空白了呀」）——不再分栏 */
+  .card-body>.csec:first-child>h4{margin-top:0;}   /* 卡内第一节紧贴卡头，不再多让 20px */
+  .card-body>.csec+.csec{margin-top:26px;}   /* 节与节之间拉开一档，和下一条清单的顶线区分开 */
 
   .answer-wrap{margin-top:18px;}
   .markrun{border-left:2px solid var(--mark,#a7f3d0);padding-left:8px;margin:0 0 8px;font-size:13px;line-height:1.7;}   /* 划线色是用户在设置里选的，不能写死成默认那张绿 */
@@ -2267,10 +2267,8 @@ function cardHtml(studyCard){
   const exHtml = (ex && (ex.scene||ex.ask))
     ? `<section class="csec"><h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div></section>`
     : "";
-  return `<div class="cardcols">
-      <section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>
-      <section class="csec pit"><h4>常见失分点</h4><ul class="clist clist-pit">${pits}</ul></section>
-    </div>
+  return `<section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>
+    <section class="csec pit"><h4>常见失分点</h4><ul class="clist clist-pit">${pits}</ul></section>
     <section class="csec"><h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div></section>${exHtml}`;
 }
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
