@@ -529,6 +529,11 @@ ok(el("#docBody").innerHTML.indexOf("展开可看") < 0 && el("#docBody").innerH
    "综应A: 卡阶段整页平铺不再折叠（页面就是给卡的）");
 ok(cardHtml({points:["要点"],pitfalls:["失分"],templates:"框架",example:{scene:"燃气泄漏的示例场景。",ask:"你会怎么处置？"}}).indexOf("这类题长什么样") >= 0,
    "学习卡: example 栏目渲染（示例案例+典型问法）");
+const cHtml = cardHtml({points:["要点一","要点二"],pitfalls:["失分"],templates:"框架",example:{scene:"场景",ask:"问法"}});
+ok((cHtml.match(/<section class="csec">/g)||[]).length === 4 && (cHtml.match(/<h4>/g)||[]).length === 4,
+   "学习卡: 四节各自带节标题（要点 / 失分点 / 框架 / 示例）——阿楠 2026-09-30「一大堆文字糊在一起」的起因就是没分节");
+ok((cHtml.match(/class="clist"/g)||[]).length === 2 && cHtml.indexOf("<ul>") < 0,
+   "学习卡: 要点与失分点改成顶线清单（一条一格），不再是无分隔的 bullet 长句堆");
 ok(cardHtml({points:[],pitfalls:[],templates:""}).indexOf("这类题长什么样") < 0,
    "学习卡: 旧卡没有 example 也不渲染空栏目");
 el("#btnZyAnswer").onclick();
