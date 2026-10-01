@@ -153,8 +153,10 @@ html,body{margin:0;padding:0;}
   .material{background:var(--mat);padding:20px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:13px;margin-bottom:6px;}
   /* 作答页的材料：长材料不再把作答区一路推到屏外——材料在窗内自己滚，作答区跟着上移。
-     限高只用 vh，窗口矮时自动收小，不会把作答区顶到屏幕外 */
-  .material.mat-scroll{max-height:min(42vh,420px);overflow-y:auto;overscroll-behavior:contain;}
+     限高只用 vh，窗口矮时自动收小，不会把作答区顶到屏幕外。
+     40vh 是量出来的：900 高的视口下材料窗与作答框刚好同时进视口，42vh 会差 6px。
+     不加 overscroll-behavior:contain——材料窗滚到底后让滚动接着带动页面，作答框正好被带上来 */
+  .material.mat-scroll{max-height:min(40vh,420px);overflow-y:auto;}
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
   .swatches{display:flex;gap:8px;}
