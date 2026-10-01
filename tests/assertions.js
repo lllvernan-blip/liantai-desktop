@@ -543,6 +543,8 @@ ok(cardHtml({points:[],pitfalls:[],templates:""}).indexOf("这类题长什么样
    "学习卡: 旧卡没有 example 也不渲染空栏目");
 el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("背景材料") >= 0, "综应A: 作答页 = 材料 + 作答区");
+ok(el(".bench-mat .material.mat-scroll") && el(".bench-mat #marksRecap") && el(".bench-ans #answer") && el(".bench-ans .secrow"),
+   "综应A: 作答页并排（材料与划线回顾在左栏，作答区在右栏）");
 ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "综应A: 作答页翻卡浮标在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "综应A: 翻卡计次照旧（照旧参与调度）");
