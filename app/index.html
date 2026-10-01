@@ -155,14 +155,6 @@ html,body{margin:0;padding:0;}
   /* 作答页的材料：长材料不再把作答区一路推到屏外——材料在窗内自己滚，作答区跟着上移。
      限高只用 vh，窗口矮时自动收小，不会把作答区顶到屏幕外 */
   .material.mat-scroll{max-height:min(42vh,420px);overflow-y:auto;overscroll-behavior:contain;}
-  /* 作答页：左材料、右作答并排。材料在窗内自己滚，问题与作答区留在同一屏不动。 */
-  .bench{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 30px;align-items:start;margin-top:16px;}
-  .bench-mat,.bench-ans{min-width:0;}
-  .bench-mat .material{margin:0;}
-  .bench-mat .material.mat-scroll{max-height:min(52vh,520px);}
-  body:has(.bench) .wrap{max-width:1120px;}
-  body:has(.bench) .toolbar,body:has(.bench) .modbar{padding-left:max(14px,calc((100% - 1120px)/2 + 14px));padding-right:max(14px,calc((100% - 1120px)/2 + 14px));}
-  @media (max-width:1160px){ .bench{grid-template-columns:minmax(0,1fr);} }
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
   .swatches{display:flex;gap:8px;}
@@ -2363,9 +2355,8 @@ function renderZyPage(){
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="bench"><div class="bench-mat"><div class="material mat-scroll"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
-    html += marksRecapHtml(current.question);
-    html += `</div><div class="bench-ans">${draftPanelHtml(null, true)}</div></div>`;
+    html += `<div class="material mat-scroll"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
+    html += draftPanelHtml(null);
   } else {
     html += zyCardHtml();
   }
@@ -3314,7 +3305,7 @@ function setTimeLimit(m){
   const el = $("#timeLeft");
   if(el) paintTimeLeft(el);   // 就地更新，不重渲：重渲会重建作答区
 }
-function draftPanelHtml(f, bench){
+function draftPanelHtml(f){
   const {module, subtype} = current;
   const question = current.question;
   const outline = f? buildOrganizeOutline(f.groups, f.selections) : "";
@@ -3325,7 +3316,7 @@ function draftPanelHtml(f, bench){
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
   if(outline) html += `<details class="notebox" style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
-  if(!f && !bench) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
+  if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
     <div class="secrow"><div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>${limitRowHtml()}</div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
