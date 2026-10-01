@@ -260,7 +260,9 @@ html,body{margin:0;padding:0;}
 
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
   .grade{margin-top:32px;border-top:1px solid var(--line-strong);padding-top:16px;}
-  .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;}
+  .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;position:sticky;top:96px;z-index:6;background:var(--paper);}   /* 往下逐条对采分点时，分数和丢分总数一直贴在顶上 */
+  /* 有训练链的页面（申论）：让开吸住的链子（41px），否则两条会叠在一起 */
+  #docBody:has(.flowrail) .grade .ghead{top:138px;}
   .grade .total{font-family:var(--hei);font-size:30px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
   .ghead .gtag{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
@@ -414,7 +416,11 @@ html,body{margin:0;padding:0;}
   /* 申论训练链：步骤条要轻，一行小步骤条，当前步高亮 */
   /* 申论训练链：这是一条进度，不是五个按钮——带序号、段间细线分隔、已过打勾、当前步最重。
      步骤条不可点（没有点击处理），所以不给 cursor/hover：看着能点却点不动，比不给反馈更糙 */
-  .flowrail{display:flex;flex-wrap:wrap;width:fit-content;align-items:center;margin:16px 0 2px;counter-reset:fs;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  /* 链子吸在顶部栏下面。外面套一层是因为链子只有 fit-content 宽：背景得横贯纸面，
+     否则滚动的题目文字会从链子右侧穿出来 */
+  .railwrap{position:sticky;top:96px;z-index:5;background:var(--paper);margin:16px 0 2px;}
+  .railwrap .flowrail{margin:0;}
+  .flowrail{display:flex;flex-wrap:wrap;width:fit-content;align-items:center;counter-reset:fs;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
   .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:6px;font-family:var(--hei);font-size:13px;color:var(--muted);padding:9px 16px 9px 14px;background:transparent;border:none;border-radius:0;}
   .flowrail .fstep+.fstep{border-left:1px solid var(--line-soft);}
   .flowrail .fstep::before{content:counter(fs);display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;font-size:11px;font-variant-numeric:tabular-nums;border-radius:var(--r-pill);background:var(--wash-3);color:var(--muted);}
@@ -3125,8 +3131,8 @@ function diffHtml(prev, cur){
 let lastGrade = null;   // 最近一次批改 { g, total }：批改步的重渲染只读它，不重调 AI
 
 function railHtml(f){
-  return `<div class="flowrail" id="flowRail">` +
-    syncRail(f).map(s=>`<span class="fstep ${s.state}" data-step="${s.step}">${s.label}</span>`).join("") + `</div>`;
+  return `<div class="railwrap"><div class="flowrail" id="flowRail">` +
+    syncRail(f).map(s=>`<span class="fstep ${s.state}" data-step="${s.step}">${s.label}</span>`).join("") + `</div></div>`;
 }
 function navHtml(step, f){
   const i = FLOW_STEPS.indexOf(step);
