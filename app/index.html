@@ -31,7 +31,7 @@
     --line-strong:#8f8b81;   /* 3.3:1 —— 表单控件的可辨识边界（分隔线不受 3:1 约束，控件边界受） */
     --text-disabled:#9a968d; /* 2.9:1 —— placeholder 与禁用文字（门槛 2:1） */
     --focus-ring:rgba(192,21,26,.9);   /* 5.4:1；原来的 .45 合成后只有 2.3:1，低于焦点环 3:1 门槛 */
-    --success:#2f7d32; --success-bg:#f2f8f2; --success-line:#cfe6cf;
+    --success:#2f7d32; --success-bg:#f2f8f2;
     --danger:#b3261e;  --danger-bg:#fdf1f1;  --danger-line:#f3cccc;
     /* 阴影三级：平面 / 下拉浮标 / 弹层。纸材质要轻，卡片不加重量级投影 */
     --sh-1:0 1px 3px rgba(31,31,31,.06);
@@ -376,7 +376,6 @@ html,body{margin:0;padding:0;}
   .navrow:hover{background:var(--wash);}
   .navrow::after{content:"›";margin-left:auto;flex:0 0 auto;font-size:14px;color:var(--line-strong);}
   .profback{margin:0 0 8px;}
-  .mdetail{padding:2px 12px 12px;}
   /* 经验：一行一条（类型 · 标题 · 正文摘要），点开才看全文与操作 */
   .explist{border-top:1px solid var(--line);}
   .expline{border-bottom:1px solid var(--line);}
