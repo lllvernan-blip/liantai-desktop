@@ -152,6 +152,9 @@ html,body{margin:0;padding:0;}
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
   .material{background:var(--mat);padding:20px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:13px;margin-bottom:6px;}
+  /* 作答页的材料：长材料不再把作答区一路推到屏外——材料在窗内自己滚，作答区跟着上移。
+     限高只用 vh，窗口矮时自动收小，不会把作答区顶到屏幕外 */
+  .material.mat-scroll{max-height:min(42vh,420px);overflow-y:auto;overscroll-behavior:contain;}
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
   .swatches{display:flex;gap:8px;}
@@ -2346,7 +2349,7 @@ function renderZyPage(){
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="material"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
+    html += `<div class="material mat-scroll"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
     html += draftPanelHtml(null);
   } else {
     html += zyCardHtml();
@@ -3307,7 +3310,6 @@ function draftPanelHtml(f){
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
   if(outline) html += `<details class="notebox" style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
-  html += cardNoteHtml(module, subtype);   // 材料之后：这一类题通用的笔记
   if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
     <div class="secrow"><div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>${limitRowHtml()}</div>
@@ -3321,6 +3323,7 @@ function draftPanelHtml(f){
       <span class="hint" id="gradeLive" aria-live="polite"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
+  html += cardNoteHtml(module, subtype);   // 放在作答区之后：作答时用不上它，写完/补记时顺手（在材料与作答区之间会白占一节）
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
   html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
   html += `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
