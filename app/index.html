@@ -3704,7 +3704,7 @@ function gradeHtml(g, total, inFlow){
   const lost = hits.filter(h=> hitClass(h)!=="hit" && isFinite(Number(h.score)) && isFinite(Number(h.awarded)));
   if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
-  const sumNote = (pts? "总分 = 各采分点实得分之和。" : "") + (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
+  const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
   if(sumNote) html += `<div class="hint" style="margin:2px 0 4px">${sumNote}</div>`;
   // 限时：只在这次真的计了时才报——用时多少、超没超，都说清
   const tm = lastGrade && lastGrade.time;
@@ -3738,7 +3738,7 @@ function gradeHtml(g, total, inFlow){
   // 没有分值信息的老记录排不出丢分清单，退回「待改进」的原话
   if(!lost.length && bads) html += `<div class="pills"><span class="plabel">待改进</span>${bads}</div>`;
   if(hits.length){
-    html += `<details class="notebox" open style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）</summary><div class="notebody">`;
+    html += `<details class="notebox" style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）</summary><div class="notebody">`;
     for(const h of hits){
       const cls = hitClass(h);
       const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
