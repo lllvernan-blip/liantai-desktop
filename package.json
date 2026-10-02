@@ -1,6 +1,6 @@
 {
   "name": "liantai-desktop",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "private": true,
   "description": "练习台桌面版（Electron 壳）",
   "main": "main.js",
@@ -8,7 +8,10 @@
   "scripts": {
     "start": "electron .",
     "dist": "node tools/stamp-build.mjs && electron-builder --win nsis --publish never",
-    "release": "node tools/release.mjs"
+    "dist:mac": "node tools/stamp-build.mjs && ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder --mac --publish never",
+    "icon:mac": "python3 tools/make-mac-icon.py",
+    "release": "node tools/release.mjs",
+    "release:mac": "node tools/release-mac.mjs"
   },
   "build": {
     "appId": "com.lllvernan.liantai",
@@ -43,6 +46,19 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.education",
+      "identity": null,
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] },
+        { "target": "zip", "arch": ["arm64"] }
+      ],
+      "artifactName": "liantai-desktop-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "练习台 ${version}"
     },
     "publish": [
       {

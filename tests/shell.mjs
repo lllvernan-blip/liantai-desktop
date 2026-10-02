@@ -55,12 +55,17 @@ const UPDATE_PATH = require.resolve(join(here, "..", "update.js"));
    壳侧这份跑在它之前，但两边都不该依赖执行顺序。 */
 const wait = (ms) => new Promise((r) => realSetTimeout(r, ms));
 
-/* 每轮都拿一份全新的 update.js：模块里带着 status / stopped / 定时器等状态，复用会串味 */
+/* 每轮都拿一份全新的 update.js：模块里带着 status / stopped / 定时器等状态，复用会串味。
+   顺便把平台钉死在 Windows：第 2~5 组量的是「安装版全流程」——那是 Win 的行为。
+   不给 platform 就按真实平台走的话，同一份自检在 mac 上会整片失败（mac 现在不支持自动更新），
+   而这套状态机本身并没有错。mac 那一条分支在第 1b 组里单独量。 */
 function loadUpdate(exports) {
   const prev = require.cache[UPDATER_KEY];
   require.cache[UPDATER_KEY] = { id: UPDATER_KEY, filename: UPDATER_KEY, loaded: true, exports };
   delete require.cache[UPDATE_PATH];
   const mod = require(UPDATE_PATH);
+  const rawInit = mod.initUpdate;
+  mod.initUpdate = (options) => rawInit(Object.assign({ platform: "win32" }, options || {}));
   return {
     mod,
     restore() {
@@ -92,6 +97,18 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   } finally {
     delete process.env.PORTABLE_EXECUTABLE_FILE;
   }
+  restore();
+}
+
+/* ---- 1b. macOS：未签名，不走自动更新（改手动下载，否则会报签名校验失败） ---- */
+{
+  const { mod, restore } = loadUpdate({ autoUpdater: new FakeUpdater() });
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "1.0.0", platform: "darwin", releasesUrl: "https://example.invalid/releases" });
+  const st = mod.getStatus();
+  ok(st.phase === "disabled" && st.reason === "mac-manual" && st.supported === false,
+     "壳: macOS 未签名构建不自动更新（不把签名校验失败端给用户）");
+  ok(st.releasesUrl === "https://example.invalid/releases", "壳: macOS 禁用态带着发布页地址（页面据此给「打开发布页」）");
+  ok(mod.installUpdate() === false, "壳: macOS 禁用态下 install 必须拒绝");
   restore();
 }
 {
