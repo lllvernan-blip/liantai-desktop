@@ -19,8 +19,8 @@ const update = require('./update.js');
 
 const APP_DIR = path.join(__dirname, 'app');
 /* 开发版：日志跟着项目走（__dirname 可写）；
-   打包版：asar 包内只读，日志必须写进 userData（%APPDATA%\liantai-desktop\logs），
-   否则写入被静默吞掉——打包版出问题将没有任何排查抓手。
+   打包版：asar 包内只读，日志必须写进 userData，否则写入被静默吞掉——打包版出问题将没有任何排查抓手。
+   userData 各平台不同：Windows 是 %APPDATA%\liantai-desktop，macOS 是 ~/Library/Application Support/liantai-desktop。
    注意：这个目录名来自 package.json 的 name（不是 build.productName）——
    给 package.json 加顶层 productName、或改 name，都会让用户数据搬去新目录（用户会以为记录全丢了）。 */
 const LOG_DIR = app.isPackaged
@@ -281,6 +281,23 @@ function stopServer() {
 /* 窗口                                                                */
 /* ------------------------------------------------------------------ */
 
+/* 菜单。
+   Windows / Linux：本来就没有系统级菜单栏这回事，直接清掉（autoHideMenuBar 也配合）。
+   macOS 不能清：Cmd+C / Cmd+V / Cmd+A / Cmd+Z 这些编辑快捷键是菜单项的 role 提供的，
+   菜单一空，作答框里连复制粘贴都不响应——这工具整个是靠打字练的，不能少这几项。
+   只留最小三组：应用菜单（关于/隐藏/退出）、编辑菜单、窗口菜单。 */
+function applyMenu() {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    { role: 'windowMenu' },
+  ]));
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -297,9 +314,9 @@ function createWindow() {
     },
   });
 
-  // 隐藏默认菜单栏
-  Menu.setApplicationMenu(null);
-  mainWindow.setMenuBarVisibility(false);
+  // 隐藏默认菜单栏（macOS 例外，见 applyMenu 的注释）
+  applyMenu();
+  if (process.platform !== 'darwin') mainWindow.setMenuBarVisibility(false);
 
   const wc = mainWindow.webContents;
 

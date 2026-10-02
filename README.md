@@ -1,12 +1,14 @@
 # 备考练习台（桌面版）
 
-AI 原生综应 A 练习工具，打包成可双击运行的 Windows 桌面应用。覆盖公文写作、归纳概括、综合分析、提出对策和案例实务五类训练，提供学习卡、作答、AI 阅卷、采分点对照、画像和自适应推送。
+AI 原生综应 A 练习工具，打包成可双击运行的桌面应用（Windows / macOS 两版）。覆盖公文写作、归纳概括、综合分析、提出对策和案例实务五类训练，提供学习卡、作答、AI 阅卷、采分点对照、画像和自适应推送。
 
 三个入口：综应 A（学习卡 → 作答 → 批改）、申论（读材料含找点 → 归类 → 一稿 → 批改 → 沉淀）、快判（逐题点选即判，练信息取舍与表达规范的眼力）。快判一轮 5 题，「综合快判」把事实选择 / 分组概括 / 表达比较三种形式混着出（不给提示，更像真考），也可以单练某一类；它只记正确率，不计入综应A/申论的维度画像。
 
 作答可以设限时（时长不分档，框里写多少分钟就是多少，留空就是不限）：**从开始作答那一刻起算**——读材料、归类、写都算在里，切步与刷新不重置，交卷停表；剩最后 5 分钟转橙，到点提示一声但不自动交卷；批改页与练习记录表都会报「限时多少、用了多久、超时多少」。
 
-## 下载与安装（Windows 10/11 x64）
+## 下载与安装
+
+### Windows 10/11 x64
 
 从 [Releases](https://github.com/lllvernan-blip/liantai-desktop/releases) 下最新一版的安装包 `liantai-desktop-setup-x.y.z.exe`，双击装上：
 
@@ -16,7 +18,20 @@ AI 原生综应 A 练习工具，打包成可双击运行的 Windows 桌面应�
 
 > **更新不会动你的数据。** 练习记录、画像、草稿、划线、API Key 都在 `%APPDATA%\liantai-desktop` 的用户数据目录里，更新只替换安装目录里的程序文件——不是「删了重装」，所以没有任何东西需要重新填、重新下载。
 
-应用本身不含 API Key：首次运行要在「设置」里填自己的 Key（推荐 DeepSeek，OpenAI 兼容接口均可）。
+### macOS（Apple 芯片）
+
+mac 版**目前在本机自己出包**（没有 Apple 开发者证书，所以不签名、不公证、也自动更新不了）：
+
+```bash
+npm run dist:mac        # 出 dist/liantai-desktop-<版本>-arm64.dmg（另有同内容的 .zip）
+```
+
+或者在访达里双击 `打包-mac.command`（等同于 Windows 那边的 `打包.bat`）。装上：双击 dmg，把「练习台.app」拖进「应用程序」。
+
+- **首次打开会被 Gatekeeper 拦**（未签名，显示「无法验证开发者」或「已损坏」）。放行一次即可：右键点「练习台.app」→「打开」→ 再点「打开」；右键打开也不行的话，在终端里跑一次 `xattr -dr com.apple.quarantine "/Applications/练习台.app"`。
+- intel 机器（x64）现在打不了：`package.json` 的 `build.mac.target` 只写了 `arm64`。要在老机器上用，把 `arch` 改成 `["x64"]`（或 `["universal"]`，体积会翻倍）。
+
+应用本身不含 API Key：首次运行要在「设置」里填自己的 Key（推荐 DeepSeek，OpenAI 兼容接口均可）；换平台不会同步数据：mac 版是全新的一套记录，把 Windows 那边「设置 → 导出备份」（不含 Key）拿到 mac 版导入即可。
 
 ## 结构
 
@@ -27,8 +42,10 @@ AI 原生综应 A 练习工具，打包成可双击运行的 Windows 桌面应�
 | `app/index.html` | **应用本体**（单文件 HTML + CSS + JS，零依赖）；业务代码改这里 |
 | `tests/` | 零依赖自检：从 `app/index.html` 抽取唯一 `<script>`，配合 DOM 桩在 Node 里跑 |
 | `题型规范.md` | 各模块子类型与评分维度的数值依据（改 `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 必须同步它） |
-| `打包.bat` | 双击自助出包：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
-| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本 + 构建时间）；`release.mjs` 一键发布到 GitHub Release；`probe.mjs` 跑一次性探针 |
+| `打包.bat` | 双击自助出包（Windows）：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
+| `打包-mac.command` | 双击自助出包（macOS）：重做图标 → 跑 `npm run dist:mac`，完成后自动打开 `dist/` |
+| `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
+| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本 + 构建时间）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版；`probe.mjs` 跑一次性探针 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
@@ -47,11 +64,27 @@ npm run dist
 
 或者直接双击 `打包.bat`。打包器要从网上拉组件，网络不顺时会卡在这一步；手动跑 `npm run dist` 遇到下载失败，先把组件下载地址换成国内源（`ELECTRON_MIRROR` 与 `ELECTRON_BUILDER_BINARIES_MIRROR` 两个环境变量）再试。
 
+macOS 上同理：`npm install && npm start` 可以开发运行；出成品用 `npm run dist:mac`（或双击 `打包-mac.command`）。**mac 版只能在 mac 上打**（Windows 上跑不了 `--mac`），`dist:mac` 已经内置了 npmmirror 的组件源。
+
 发布新版本（先改 `package.json` 里的 `version`，再一键传上 GitHub Release）：
 
 ```powershell
 npm run release
 ```
+
+macOS 那边是另一半，**同一个 tag、同一个版本号**，谁先谁后都行：
+
+```bash
+npm run release:mac                 # 出包（dmg + zip）→ 传上同一个 Release → 逐个对账
+npm run release:mac -- --dry-run    # 只看会传什么，不打包不联网
+```
+
+一条硬规矩：**每个 Release 要么两边都齐，要么 mac 那份标成 prerelease**。Windows 的自动更新读的是
+`/releases/latest/download/latest.yml`，而 GitHub 的 “latest” 指的是「最新的非 prerelease Release」——
+一个只带 mac 资产的新 Release 把它占住，Windows 用户的检查更新就会 404。只发 mac 时用
+`npm run release:mac -- --create --prerelease`（脚本自己也会在发现这种组合时告警）。
+
+自动更新：Windows 安装版用 GitHub Release 差量更新；macOS 版不自动更新（未签名），到发布页下 dmg 覆盖安装。
 
 首次运行要在应用内「设置」里填一次 API Key —— 桌面应用的存储与浏览器那份是分开的，不会自动继承。
 
@@ -62,6 +95,7 @@ npm run release
 - **不做免安装版**：只发 NSIS 安装版。免安装版对 quitAndInstall 只会「装出一个新副本」，得单独禁用它（代码里那道防线还留着，免得哪天又有人拿 portable 包去跑）。
 - **失败不阻断**：任何更新错误只写日志与设置页一行提示，30 分钟后自动重试；排查看 `logs/startup.log` 里的 `update-*` 行。
 - **连不上 GitHub 也能更新**：主源是 GitHub 官方，直连不通时自动换备选线路继续，差量照旧，不用手动做什么；想指定自己的源就设 `LIANTAI_UPDATE_FEED`，设了就不再兜底。
+- **macOS 版不走自动更新**：Squirrel.Mac 要求更新包与本体的签名一致，而 mac 版还没上 Apple 开发者证书（未签名），硬走只会在用户机器上报签名校验失败。所以 mac 版在设置页只给「打开发布页」，自己下新版 dmg、拖进「应用程序」覆盖即可（用户数据在 `~/Library/Application Support/liantai-desktop`，不受影响）。以后买了证书、做过签名 + 公证，把 `update.js` 里那段 `darwin` 分支删掉就能恢复。
 
 ## 自检
 
@@ -84,7 +118,7 @@ node tests/run.mjs
 - 窗口通过 `http://127.0.0.1:18743` 加载。**端口固定是刻意的，不是随手写的**：`localStorage` 按 origin（含端口）分区，端口一变就是另一套存储空间，用户的设置、练习记录、草稿、划线会「凭空消失」（数据还在磁盘上，只是换了 key 空间）。
 - 端口被占用时依次退让到邻近端口，并在 `logs/startup.log` 里写 `port-fallback-warning`。**看到这条告警，就意味着这次启动读不到旧数据。**
 - 存储键：`gw_state`（设置 / 画像 / 学习卡 / 笔记）、`gw_history`（练习记录，写满裁最旧）、`gw_draft`（草稿，最多 8 份）、`gw_marks`（划线，最多 8 份）。
-- 应用数据目录：`%APPDATA%\liantai-desktop`（打包版与开发版共用同一目录，Key 和记录只填一次）。Chromium 的存储是异步落盘的，**强杀进程（任务管理器、`Stop-Process -Force`）可能丢掉最近几次写入**；正常关窗口不受影响。
+- 应用数据目录：Windows 是 `%APPDATA%\liantai-desktop`，macOS 是 `~/Library/Application Support/liantai-desktop`（打包版与开发版共用同一目录，Key 和记录只填一次；两个平台各算各的，不互通）。Chromium 的存储是异步落盘的，**强杀进程（任务管理器、`Stop-Process -Force`）可能丢掉最近几次写入**；正常关窗口不受影响。
 - 导出 / 导入：备份 JSON **不含 API Key**（所以备份可以放心分享、传网盘）；导入时文件里的 Key 也不会被采用，本机已填的 Key 保持不变——换机迁移要在新机器上重填一次 Key。
 
 ## 维护提示

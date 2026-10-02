@@ -131,6 +131,19 @@ function initUpdate(options) {
     return status;
   }
 
+  /* macOS：不走 electron-updater。Squirrel.Mac 要求更新包与本体的签名一致，
+     而 mac 版现在没有 Apple 开发者证书（package.json 里 build.mac.identity = null，未签名），
+     硬走自动更新只会在用户机器上报签名校验失败。所以改成界面上给「打开发布页」，
+     用户自己下新版 dmg 拖进「应用程序」覆盖安装——用户数据在 userData 目录，一个字节不动。
+     以后买了开发者账号、做过签名 + 公证，把这一段删掉就能恢复自动更新。
+     平台可注入（options.platform）：自检要在一台机器上把各平台分支都量一遗。 */
+  if ((options.platform || process.platform) === 'darwin') {
+    status.supported = false;
+    status.reason = 'mac-manual';
+    setPhase(PHASE.DISABLED, 'macOS 版未签名，不自动更新：到发布页下载新版 dmg 覆盖安装即可（用户数据在 ~/Library/Application Support/liantai-desktop，不受影响）');
+    return status;
+  }
+
   if (detectPortable()) {
     status.supported = false;
     status.reason = 'portable';
