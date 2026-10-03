@@ -45,7 +45,7 @@ npm run dist:mac        # 出 dist/liantai-desktop-<版本>-arm64.dmg（另有�
 | `打包.bat` | 双击自助出包（Windows）：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
 | `打包-mac.command` | 双击自助出包（macOS）：重做图标 → 跑 `npm run dist:mac`，完成后自动打开 `dist/` |
 | `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
-| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本 + 构建时间）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版；`probe.mjs` 跑一次性探针 |
+| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`probe.mjs` 跑一次性探针 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
@@ -77,6 +77,13 @@ macOS 那边是另一半，**同一个 tag、同一个版本号**，谁先谁后
 ```bash
 npm run release:mac                 # 出包（dmg + zip）→ 传上同一个 Release → 逐个对账
 npm run release:mac -- --dry-run    # 只看会传什么，不打包不联网
+```
+
+两边都传完之后，站在外面看一次整个 Release（只读，不传任何东西）：资产齐不齐、两个 yml 里的版本号是不是这一版、有没有占住 latest 却没带 `latest.yml`。缺谁报谁，退出码非 0——两条链路各自只对自己的半边对账，「Windows 传完了、mac 忘了传」在它们眼里都是绿的，只有这一步看得见。
+
+```bash
+npm run release:check                  # 查 package.json 里的当前版本
+npm run release:check -- v0.0.15       # 或者指定某个版本
 ```
 
 一条硬规矩：**每个 Release 要么两边都齐，要么 mac 那份标成 prerelease**。Windows 的自动更新读的是
