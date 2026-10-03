@@ -110,6 +110,7 @@ if (missing.length) {
 step("发布完成");
 console.log(tag + "  ->  https://github.com/lllvernan-blip/liantai-desktop/releases/tag/" + tag);
 console.log("装的用户下次启动就会在后台收到它（差量更新，只下载变化的部分）。");
+console.log("这一版还有 mac 那一半（在 mac 上 npm run release:mac）；两边都传完用 npm run release:check 看整个 Release 齐不齐。");
 
 function sha512Base64(file) {
   return createHash("sha512").update(readFileSync(file)).digest("base64");
