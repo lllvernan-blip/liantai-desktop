@@ -263,6 +263,7 @@ function main() {
   step("发布完成");
   console.log(tag + "  ->  https://github.com/" + REPO + "/releases/tag/" + tag);
   console.log("mac 版不自动更新（未签名）：让用户到发布页下 dmg、拖进「应用程序」覆盖即可。");
+  console.log("这一版还有 Windows 那一半（在 Windows 上 npm run release）；两边都传完用 npm run release:check 看整个 Release 齐不齐。");
 }
 
 main();

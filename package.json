@@ -11,7 +11,8 @@
     "dist:mac": "node tools/stamp-build.mjs && ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder --mac --publish never",
     "icon:mac": "python3 tools/make-mac-icon.py",
     "release": "node tools/release.mjs",
-    "release:mac": "node tools/release-mac.mjs"
+    "release:mac": "node tools/release-mac.mjs",
+    "release:check": "node tools/release-check.mjs"
   },
   "build": {
     "appId": "com.lllvernan.liantai",
