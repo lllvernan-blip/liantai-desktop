@@ -92,7 +92,8 @@ function notes() {
     "首次打开可能被 Gatekeeper 拦（这一版未做签名）：右键点「练习台」→「打开」→ 再点「打开」；还不行就在终端跑一次",
     "`xattr -dr com.apple.quarantine \"/Applications/练习台.app\"`。",
     "",
-    "mac 版不自动更新：出新版回到这个页面下 dmg 覆盖安装即可。练习记录、画像、草稿、划线、API Key 都在用户数据目录（~/Library/Application Support/liantai-desktop）里，覆盖安装不碰它们。",
+    "装上这一版之后就不用再回来下载了：应用启动会自己问有没有新版，查到在首页出一条小提示，点「更新到 vX」它自己下（带 sha256 校验）、再点「重启并更新」换包重启。",
+    "（比这更早的版本还没接上这条链，得手动装一次这一版。）练习记录、画像、草稿、划线、API Key 都在用户数据目录（~/Library/Application Support/liantai-desktop）里，更新不碰它们。",
   ].join("\n");
 }
 
@@ -126,13 +127,16 @@ function sha512Base64(file) {
   return createHash("sha512").update(readFileSync(file)).digest("base64");
 }
 
-/* 要传的东西：dmg + zip + zip 的 blockmap（将来做差量更新用）+ latest-mac.yml（指针） */
+/* 要传的东西：dmg + zip + 各自 blockmap（将来做差量更新用）+ latest-mac.yml（指针）= 五件。
+   踩过的坑（2026-10-05）：这里原先只补 zip 的 blockmap，漏了 dmg 的——dmg.blockmap 是上一版手工传上去的，
+   于是脚本自己跑一遍反而会把一个「少一件」的 Release 说成发布完成，而 release-check 那边要求 dmg.blockmap 齐全，
+   两边对不上。现在按「本地产物有什么 blockmap 就传什么」，不再按 target 挑。 */
 function wantedAssets() {
   const list = [];
   for (const a of macArtifacts()) list.push({ path: join(DIST, a.file), name: a.file, pointer: false });
   for (const a of macArtifacts()) {
-    if (a.target !== "zip") continue;
-    list.push({ path: join(DIST, a.file + ".blockmap"), name: a.file + ".blockmap", pointer: false });
+    const bm = join(DIST, a.file + ".blockmap");
+    if (existsSync(bm)) list.push({ path: bm, name: a.file + ".blockmap", pointer: false });
   }
   list.push({ path: YML, name: "latest-mac.yml", pointer: true });
   return list;
@@ -262,7 +266,7 @@ function main() {
 
   step("发布完成");
   console.log(tag + "  ->  https://github.com/" + REPO + "/releases/tag/" + tag);
-  console.log("mac 版不自动更新（未签名）：让用户到发布页下 dmg、拖进「应用程序」覆盖即可。");
+  console.log("mac 版更新由应用自己实现（未签名，走不了系统那套）：装过这一版之后就能在应用里一键更新，不必再回来下 dmg。");
   console.log("这一版还有 Windows 那一半（在 Windows 上 npm run release）；两边都传完用 npm run release:check 看整个 Release 齐不齐。");
 }
 
