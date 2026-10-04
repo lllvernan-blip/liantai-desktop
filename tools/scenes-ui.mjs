@@ -182,6 +182,37 @@ function s14_pd_summary() {
 }
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
+function s15b_settings_mac_update() {
+  // mac：壳自己查、自己下，但**下与换都要他点**——这一屏量的是「查到新版、还没下」的样子
+  // （按钮得在视口里、文案得说清下一步；弹层里多一行就顶出窗口是踩过的坑）
+  __reset({ history: true });
+  __updatePush({ supported:true, autoDownload:false, phase:"available", currentVersion:"0.0.15", latestVersion:"0.0.16", releasesUrl:"https://github.com/lllvernan-blip/liantai-desktop/releases" });
+  openModal("modalSettings"); fillSettings(); setReasonUI();
+  renderUpdateNote();
+  var pb = document.querySelector("#modalSettings .panel-body"); if (pb) pb.scrollTop = pb.scrollHeight;   // 「版本与更新」在面板最底：不滚下去就拍不到，白测一轮
+}
+function s15c_settings_mac_downloaded() {
+  // 同一屏的另一个结局：已经下好、等他点重启（量 15b 时对照着看，免得只看一种状态就以为好了）
+  __reset({ history: true });
+  __updatePush({ supported:true, autoDownload:false, phase:"downloaded", currentVersion:"0.0.15", latestVersion:"0.0.16", releasesUrl:"https://github.com/lllvernan-blip/liantai-desktop/releases" });
+  openModal("modalSettings"); fillSettings(); setReasonUI();
+  renderUpdateNote();
+  var pb = document.querySelector("#modalSettings .panel-body"); if (pb) pb.scrollTop = pb.scrollHeight;
+}
+function s15d_settings_win_downloading() {
+  // Windows 那边是壳自己下（autoDownload），文案与按钮跟 mac 那条链不一样，也得看一眼
+  __reset({ history: true });
+  __updatePush({ supported:true, autoDownload:true, phase:"downloading", currentVersion:"0.0.15", latestVersion:"0.0.16", progress:{ percent:42, transferred:1048576*31, total:1048576*74 }, releasesUrl:"https://github.com/lllvernan-blip/liantai-desktop/releases" });
+  openModal("modalSettings"); fillSettings(); setReasonUI();
+  renderUpdateNote();
+  var pb = document.querySelector("#modalSettings .panel-body"); if (pb) pb.scrollTop = pb.scrollHeight;
+}
+function s15e_start_update_notice() {
+  // 首页那条小提示：查到新版后，不用先找到设置页也该看得见、点得到
+  __reset({ history: true });
+  __updatePush({ supported:true, autoDownload:false, phase:"available", currentVersion:"0.0.15", latestVersion:"0.0.16", releasesUrl:"https://github.com/lllvernan-blip/liantai-desktop/releases" });
+  renderStartNotices();
+}
 function s17_landing_tut() { __reset({ history: true }); state.tut.zy = false; renderStart(); }
 function s18_pd_tut() { __reset({ history: true }); state.tut.pd = false; enterPD(); }
 function s19_tut_reset_replay() { __reset({ history: true }); state.settings.subject = "zy"; openModal("modalSettings"); fillSettings(); const b = $("#btnTutReset"); if (b && typeof b.onclick === "function") b.onclick(); }
@@ -259,6 +290,10 @@ const SCENES = [
   ["13-快判-作答", s13_pd_round, true],
   ["14-快判-小结", s14_pd_summary, true],
   ["15-设置", s15_settings, false],
+  ["15b-设置-mac查到新版", s15b_settings_mac_update, false],
+  ["15c-设置-mac已下好", s15c_settings_mac_downloaded, false],
+  ["15d-设置-win后台下载中", s15d_settings_win_downloading, false],
+  ["15e-首页-有新版本小提示", s15e_start_update_notice, false],
   ["16-设置-无Key", s16_settings_nokey, false],
   ["17-综应起始-首次引导", s17_landing_tut, true],
   ["18-快判-首次引导", s18_pd_tut, true],

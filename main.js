@@ -39,11 +39,22 @@ const PORT_FALLBACK_STEPS = 5;  // 仍被占用时退到邻近端口，并显式
 /* 更新源：默认读包内 app-update.yml（由 package.json 的 build.publish 生成，指向 GitHub Release）。
    LIANTAI_UPDATE_FEED 只是「不改包也能换源」的开关：本地验证差量更新、或 GitHub 连不上时指到备用源/自建源。 */
 const UPDATE_FEED_ENV = 'LIANTAI_UPDATE_FEED';
+/* mac 那条链（update.js 里的 initMacUpdater）查的是 GitHub Releases API。同一个思路：
+   不改包也能换一个「谁说有新版」的地方——验收要拿假源把查→下→换→重启走一轮。 */
+const RELEASE_API_ENV = 'LIANTAI_RELEASE_API';
 const RELEASES_URL = 'https://github.com/lllvernan-blip/liantai-desktop/releases';
 
 let mainWindow = null;
 let server = null;
 let serverPort = 0;
+/* 壳要说给用户听的话（首页提示区）。did-finish-load 时灌给页面，页面用自己的提示区渲染，
+   而不是壳直接替它写 HTML——两类提示可以并列，不会互相盖掉。 */
+let startupNotices = [];
+
+function escHtml(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 /* ------------------------------------------------------------------ */
 /* 日志                                                                */
@@ -202,6 +213,15 @@ function handleUpdateRoute(req, res, pathname) {
     return;
   }
 
+  /* 只查不下不够用：出结果后得能把新版拉下来（mac 自实现那条链的下载入口）。
+     Windows 那边下载是 electron-updater 自己干的（autoDownload），这个路由对它恒返回 409。 */
+  if (req.method === 'POST' && action === '/download') {
+    const ok = update.downloadUpdate();
+    log('update-download-request', ok ? 'accepted' : 'rejected :: phase=' + update.getStatus().phase);
+    json(ok ? 200 : 409, { ok, status: update.getStatus() });
+    return;
+  }
+
   if (req.method === 'POST' && action === '/install') {
     const ok = update.installUpdate();
     log('update-install-request', ok ? 'accepted' : 'rejected :: phase=' + update.getStatus().phase);
@@ -330,15 +350,16 @@ function createWindow() {
     } catch (err) {
       log('update-push-failed', (err && err.message) || String(err));
     }
-    // 端口退让 = origin 变了 = 用户会看到一套空存储。必须打在界面上：只写日志不行（打包版日志还写不进包内）。
-    if (serverPort !== PREFERRED_PORT) {
-      const msg = '<b>注意：</b>本次启动端口 ' + serverPort +
-        ' 被占用（默认 18743），你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
-        '关掉占用端口的程序后重新打开本应用即可恢复。';
-      wc.executeJavaScript(
-        'try { typeof banner === "function" && banner(' + JSON.stringify(msg) + '); ' +
-        'console.warn("[port-fallback-ui] banner shown"); } catch (e) {}'
-      ).catch(() => {});
+    // 壳要说的话（端口退让 / 上次换包失败）：灌进页面，由页面自己的提示区并列渲染
+    if (startupNotices.length) {
+      try {
+        wc.executeJavaScript(
+          'try { window.__otaStartupNotices = ' + JSON.stringify(startupNotices) +
+          '; typeof renderStartNotices === "function" && renderStartNotices(); } catch (e) {}'
+        ).catch(() => {});
+      } catch (err) {
+        log('startup-notice-failed', (err && err.message) || String(err));
+      }
     }
   });
 
@@ -401,6 +422,12 @@ function setupUpdate() {
       currentVersion: app.getVersion(),
       releasesUrl: RELEASES_URL,
       feed: process.env[UPDATE_FEED_ENV] || '',
+      /* mac 链要的四样：往哪下、往哪放、退出时找谁、显示位置时找谁 */
+      macApi: process.env[RELEASE_API_ENV] || '',
+      userDataDir: app.getPath('userData'),
+      exePath: process.execPath,
+      quit: () => app.quit(),
+      reveal: (p) => { try { shell.showItemInFolder(p); } catch (err) { /* 没打开也不影响把话说清 */ } },
       // 状态变了就推给页面（页面自己决定怎么显示：顶栏提示 / 设置面板里的行）
       onStatusChange: (s) => {
         if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -411,6 +438,25 @@ function setupUpdate() {
     });
   } catch (err) {
     log('update-setup-failed', (err && err.stack) || String(err));
+  }
+}
+
+/* 启动时要把话说给用户听的几件事（首页提示区，不是日志）。
+   端口退让 = origin 变了 = 他会看到一套空存储：只写日志不行（打包版日志写进 userData，他不会去看）。
+   上次换包失败 = 「点了更新，应用关掉又打开，还是老版本」——不说一句就没有任何解释。 */
+function collectStartupNotices() {
+  if (serverPort !== PREFERRED_PORT) {
+    startupNotices.push('<b>注意：</b>本次启动端口 ' + serverPort +
+      ' 被占用（默认 18743），你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
+      '关掉占用端口的程序后重新打开本应用即可恢复。');
+    log('port-fallback-notice', '已把端口退让的事写进首页提示');
+  }
+  const fail = update.macLastFailure();
+  if (fail) {
+    startupNotices.push('<b>上次自动更新没成功：</b>' + escHtml(fail) +
+      '。现在用的还是 v' + escHtml(app.getVersion()) +
+      '，可以到「设置 → 版本与更新」再试一次，或点那里的「打开发布页」手动装。');
+    log('update-install-failed-notice', fail);
   }
 }
 
@@ -461,6 +507,7 @@ if (!gotLock) {
   }).then(() => {
     createWindow();
     setupUpdate();
+    collectStartupNotices();
   }).catch((err) => {
     log('startup-failed', (err && err.stack) || String(err));
     app.quit();

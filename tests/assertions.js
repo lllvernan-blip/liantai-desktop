@@ -1345,6 +1345,67 @@ ok(updateInfo && updateInfo.phase === "downloaded", "更新: 壳推来的状态�
 __updatePush(null);
 ok(updateInfo && updateInfo.phase === "downloaded", "更新: 非法推送不抛错也不清状态");
 
+/* 15.6 更新：mac 那条链（查/下/换都在壳里）——页面只管把状态说成人话、把入口给对。
+   status.autoDownload === false 是分界线：那种构建「点更新它才拉、点重启它才换」。 */
+const __macBase = { supported:true, autoDownload:false, currentVersion:"0.0.15", releasesUrl:"https://example.invalid/releases" };
+__updatePush(Object.assign({}, __macBase, { phase:"available", latestVersion:"0.0.16" }));
+ok(updateNoteText(updateInfo).indexOf("发现新版本 v0.0.16") >= 0 && updateNoteText(updateInfo).indexOf("更新到 v0.0.16") >= 0,
+   "更新: 查到新版时说清「点哪个按钮、它自己下」，不是让他自己去网页找");
+ok(el("#btnPullUpdate").hidden === false && el("#btnPullUpdate").textContent === "更新到 v0.0.16",
+   "更新: 有新版就给「更新到 v0.0.16」按钮（点了壳才开始拉）");
+ok(el("#btnCheckUpdate").hidden === true, "更新: 待下载时不再并排一个「检查更新」");
+ok(el("#bannerSlot").innerHTML.indexOf("发现新版本 v0.0.16") >= 0 && el("#bannerSlot").innerHTML.indexOf("bnrUpdate") >= 0,
+   "更新: 首页同时出一条小提示，里面直接带「更新」按钮");
+
+__updatePush(Object.assign({}, __macBase, { phase:"downloading", latestVersion:"0.0.16", progress:{ percent:42, transferred:1048576*3, total:1048576*8 } }));
+ok(el("#updateNote").textContent.indexOf("42%") >= 0 && el("#updateNote").textContent.indexOf("3MB") >= 0,
+   "更新: 下载中报百分比与已下/总量");
+
+__updatePush(Object.assign({}, __macBase, { phase:"downloaded", latestVersion:"0.0.16" }));
+ok(el("#updateNote").textContent.indexOf("重启并更新") >= 0 && el("#updateNote").textContent.indexOf("不点它就不会自己换") >= 0,
+   "更新: 下好后明确「不点就不会自己换」（不把「已下好」说成「已更新」）");
+ok(el("#btnInstallUpdate").hidden === false, "更新: 下好了才有「重启并更新」");
+ok(el("#bannerSlot").innerHTML.indexOf("bnrInstall") >= 0, "更新: 首页小提示里也给重启入口");
+
+__updatePush(Object.assign({}, __macBase, { phase:"error", errorStage:"download", latestVersion:"0.0.16", error:"HTTP 404" }));
+ok(updateNoteText(updateInfo).indexOf("下载失败：HTTP 404") >= 0 && updateNoteText(updateInfo).indexOf("检查更新失败") < 0,
+   "更新: 下载失败与检查失败分开说（走错一步也别让他以为全都坏了）");
+
+__updatePush(Object.assign({}, __macBase, { phase:"error", errorStage:"install", latestVersion:"0.0.16", error:"没有权限替换 /Applications/练习台.app" }));
+ok(updateNoteText(updateInfo).indexOf("换包没成") >= 0 && updateNoteText(updateInfo).indexOf("v0.0.15") >= 0,
+   "更新: 换包没成时说清「现在用的还是哪一版」");
+
+__updatePush(Object.assign({}, __macBase, { phase:"error", error:"HTTP 403" }));
+ok(updateNoteText(updateInfo).indexOf("检查更新失败：HTTP 403") >= 0 && updateNoteText(updateInfo).indexOf("不影响使用") >= 0,
+   "更新: 检查失败照实说并说明会重试，不谎报已最新");
+ok(updateNoteText(updateInfo).indexOf("已是最新") < 0, "更新: 失败时绝不显示「已是最新」（那会让他以为没事）");
+
+__updatePush(Object.assign({}, __macBase, { phase:"up-to-date" }));
+ok(updateNoteText(updateInfo).indexOf("已是最新版本 v0.0.15") >= 0, "更新: 真没有新版才说已最新");
+ok(el("#btnPullUpdate").hidden === true && el("#btnCheckUpdate").hidden === false, "更新: 已最新时回到「检查更新」");
+
+/* 壳灌进来的启动提示（端口退让 / 上次换包失败）要能并列渲染出来，而不是只躺在日志里 */
+globalThis.window = { __otaStartupNotices: ["<b>上次自动更新没成功：</b>包内版本不符。"], open(){}, addEventListener(){} };
+state.settings.apiKey = "sk-test-key";
+renderStartNotices();
+ok(el("#bannerSlot").innerHTML.indexOf("上次自动更新没成功") >= 0,
+   "提示: 壳说的话会出现在首页提示区（换包失败不再只是一行日志）");
+delete globalThis.window;
+
+/* 15.7 设置：填完 Key 保存，首页那条「还没填 Key」当场收掉（以前要重启才消失） */
+const __baseBefore = state.settings.baseUrl;
+const __realFetch = globalThis.fetch;   // 15.7 要让 saveSettings 里的拉模型请求注定失败：先留一份真的，事后还回去
+state.settings.apiKey = "";
+renderStartNotices();
+ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能开始练") >= 0, "提示: 没填 Key 时，首页有欢迎提示");
+globalThis.fetch = () => Promise.reject(new Error("net down"));
+el("#setKey").value = "sk-test-key";
+saveSettings();
+ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能开始练") < 0, "提示: 填完 Key 保存后当场收掉，不用重启");
+ok(state.settings.apiKey === "sk-test-key", "提示: 保存真的写进了 settings（提示不是靠碰巧消失的）");
+globalThis.fetch = __realFetch;
+state.settings.baseUrl = __baseBefore;
+
 /* ---- 静态 HTML：设置页的 API Key 申请教程（新用户的第一道坎）---- */
 ok(PAGE_HTML.includes("还没有 API Key？四步拿到"), "设置页: 无 Key 用户的 API Key 申请教程入口存在");
 ok(PAGE_HTML.includes("platform.deepseek.com") && PAGE_HTML.includes("「API keys」"), "设置页: 教程含 DeepSeek 平台地址与创建入口");

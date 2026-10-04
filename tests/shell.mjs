@@ -13,6 +13,11 @@ import { EventEmitter } from "node:events";
 import { setTimeout as realSetTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, chmodSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { createServer } from "node:http";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -54,6 +59,16 @@ const UPDATE_PATH = require.resolve(join(here, "..", "update.js"));
    run.mjs 随后会把全局定时器换成 DOM 桩的空实现（页面脚本在 node 里不需要真定时器）。
    壳侧这份跑在它之前，但两边都不该依赖执行顺序。 */
 const wait = (ms) => new Promise((r) => realSetTimeout(r, ms));
+
+/* 等一件事发生（换包是另一个进程在干，只能轮询）。超时返回最后一次的结果，交给断言去说。 */
+const waitFor = async (fn, ms) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (fn()) return true;
+    await wait(100);
+  }
+  return !!fn();
+};
 
 /* 每轮都拿一份全新的 update.js：模块里带着 status / stopped / 定时器等状态，复用会串味。
    顺便把平台钉死在 Windows：第 2~5 组量的是「安装版全流程」——那是 Win 的行为。
@@ -100,15 +115,20 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   restore();
 }
 
-/* ---- 1b. macOS：未签名，不走自动更新（改手动下载，否则会报签名校验失败） ---- */
+/* ---- 1b. macOS：不走 electron-updater（未签名，Squirrel.Mac 会报签名校验失败），改成自实现换包链；
+        完整流程（查 -> 下 -> 换 -> 重启）在第 6 组用本地假源 + 临时目录真跑 ---- */
 {
-  const { mod, restore } = loadUpdate({ autoUpdater: new FakeUpdater() });
-  mod.initUpdate({ log, isPackaged: true, currentVersion: "1.0.0", platform: "darwin", releasesUrl: "https://example.invalid/releases" });
+  const { mod, restore } = loadUpdate({});   // 不给 electron-updater：mac 这条链不该依赖它
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "1.0.0", platform: "darwin",
+                   releasesUrl: "https://example.invalid/releases", userDataDir: "/tmp/liantai-none",
+                   exePath: "/Applications/练习台.app/Contents/MacOS/练习台" });
   const st = mod.getStatus();
-  ok(st.phase === "disabled" && st.reason === "mac-manual" && st.supported === false,
-     "壳: macOS 未签名构建不自动更新（不把签名校验失败端给用户）");
-  ok(st.releasesUrl === "https://example.invalid/releases", "壳: macOS 禁用态带着发布页地址（页面据此给「打开发布页」）");
-  ok(mod.installUpdate() === false, "壳: macOS 禁用态下 install 必须拒绝");
+  ok(st.supported === true && st.phase === "idle", "壳: macOS 上更新可用（自实现换包，不靠 Squirrel）");
+  ok(st.autoDownload === false, "壳: macOS 不后台静默下（一次一百来 MB，得他点）");
+  ok(st.releasesUrl === "https://example.invalid/releases", "壳: macOS 状态里带着发布页地址（下不成/换不成时的退路）");
+  ok(mod.installUpdate() === false, "壳: 没查也没下就 install，必须拒绝");
+  ok(mod.downloadUpdate() === false, "壳: 还没查到新版就 download，必须拒绝");
+  mod.stopUpdate();
   restore();
 }
 {
@@ -322,6 +342,173 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
 
   mod.stopUpdate();
   restore();
+}
+
+/* ---- 6. macOS 换包链全程（假源 + 临时目录，换包脚本真的跑） ----
+   为什么值得写这么重：这条链的最后一步是「把自己换掉再重启」，写错了用户手上就没有应用了。
+   所以这里量的是真脚本：真 ditto 解压、真 PlistBuddy 读版本、真两次 mv、真回滚；
+   只有两处是假的——pid 换成一个不存在的号（真 pid 会让脚本白等 60 秒），
+   open 换成 /bin/echo（真去开一个假 .app 没意义，echo 能证明它被调了、调的是谁）。
+   这一组只在 macOS 上跑：它真的调 /usr/bin/ditto 与 /usr/libexec/PlistBuddy，Windows 上没这两个东西。
+   漏测吗？不漏——「状态机本身对不对」在第 1b 组已经量过，第 6 组量的是「脚本真跑起来会怎样」。 */
+if (process.platform !== "darwin") {
+  console.log("  · 跳过第 6 组（mac 换包链真跑）：它要 macOS 的 ditto / PlistBuddy，这个平台没有");
+} else {
+  const macCase = async (o) => {
+    const base = mkdtempSync(join(tmpdir(), "liantai-mac-"));
+    const appsDir = join(base, "Applications");
+    const target = join(appsDir, "练习台.app");
+    const userData = join(base, "userdata");
+    mkdirSync(appsDir, { recursive: true });
+    const mkApp = (dir, version, marker) => {
+      mkdirSync(join(dir, "Contents", "MacOS"), { recursive: true });
+      mkdirSync(join(dir, "Contents", "Resources"), { recursive: true });
+      writeFileSync(join(dir, "Contents", "Info.plist"),
+        '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+        '<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.lllvernan.liantai</string>' +
+        '<key>CFBundleShortVersionString</key><string>' + version + '</string></dict></plist>\n');
+      writeFileSync(join(dir, "Contents", "MacOS", "练习台"), "#!/bin/bash\nexit 0\n");
+      writeFileSync(join(dir, "Contents", "Resources", "marker.txt"), marker);
+    };
+    mkApp(target, o.currentVersion, "old");
+    const staging = join(base, "staging", "练习台.app");
+    mkApp(staging, o.zipVersion, "new");
+    const zipName = "liantai-desktop-" + o.apiVersion + "-" + process.arch + ".zip";
+    const zipPath = join(base, "src.zip");
+    execFileSync("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", staging, zipPath]);
+    const zipBytes = readFileSync(zipPath);
+    const files = { api: null, body: zipPath, bodyPath: "/dl/" + zipName };
+    const srv = createServer((req, res) => {
+      const u = String(req.url || "").split("?")[0];
+      if (u === "/api") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(files.api));
+        return;
+      }
+      if (u === files.bodyPath) {
+        const b = readFileSync(files.body);
+        res.writeHead(200, { "Content-Type": "application/zip", "Content-Length": b.length });
+        res.end(b);
+        return;
+      }
+      res.writeHead(404);
+      res.end("nope");
+    });
+    await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+    const port = srv.address().port;
+    files.api = {
+      tag_name: "v" + o.apiVersion,
+      assets: [{
+        name: zipName,
+        size: zipBytes.length,
+        digest: "sha256:" + createHash("sha256").update(zipBytes).digest("hex"),
+        browser_download_url: (o.evil ? "https://evil.example/payload.zip"
+                                     : "http://127.0.0.1:" + port + files.bodyPath),
+      }],
+    };
+    let quitCalled = 0;
+    const { mod, restore } = loadUpdate({});
+    mod.initUpdate({ log, isPackaged: true, currentVersion: o.currentVersion, platform: "darwin",
+                     releasesUrl: "https://example.invalid/releases",
+                     userDataDir: userData, exePath: join(target, "Contents", "MacOS", "练习台"),
+                     macApi: "http://127.0.0.1:" + port + "/api",
+                     macOpenCommand: "/bin/echo", pid: 999999,
+                     quit: () => { quitCalled++; } });
+    const versionOf = () => {
+      try {
+        return execFileSync("/usr/libexec/PlistBuddy",
+          ["-c", "Print :CFBundleShortVersionString", join(target, "Contents", "Info.plist")],
+          { encoding: "utf8" }).trim();
+      } catch (err) { return "读不到"; }
+    };
+    const markerOf = () => {
+      try { return readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8").trim(); }
+      catch (err) { return "读不到"; }
+    };
+    const clean = () => {
+      try { mod.stopUpdate(); } catch (err) { /* 已经停了 */ }
+      restore();
+      srv.close();
+      rmSync(base, { recursive: true, force: true });
+    };
+    return { base, appsDir, target, userData, zipName, zipPath, zipBytes, mod, clean,
+             versionOf, markerOf, quitCount: () => quitCalled };
+  };
+
+  /* 6a. 查 -> 下 -> 换 -> 重启，一路正常 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16" });
+    await c.mod.checkUpdate();
+    ok(c.mod.getStatus().phase === "available" && c.mod.getStatus().latestVersion === "0.0.16",
+       "壳/mac: 查到新版 -> available（查完先不下）");
+    ok(c.mod.getStatus().autoDownload === false, "壳/mac: 状态里写明「不自动下」，页面才敢把「更新到 vX」当主按钮");
+    ok(!existsSync(join(c.userData, "updates", c.zipName)), "壳/mac: 只查不下（要的就是「点一下再拉」）");
+
+    ok(c.mod.downloadUpdate() === true, "壳/mac: 点「更新」才开下");
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    const dlPath = join(c.userData, "updates", c.zipName);
+    ok(existsSync(dlPath), "壳/mac: 下进 userData/updates（不碰应用本体）");
+    ok(existsSync(dlPath) && createHash("sha256").update(readFileSync(dlPath)).digest("hex") ===
+       createHash("sha256").update(c.zipBytes).digest("hex"), "壳/mac: 落盘内容与源上逐字节一致");
+    ok(c.mod.getStatus().progress && c.mod.getStatus().progress.percent === 100, "壳/mac: 下完进度到 100");
+
+    ok(c.mod.installUpdate() === true, "壳/mac: 下好了才放行换包");
+    const logPath = join(c.userData, "updates", "install.log");
+    await waitFor(() => existsSync(logPath) && /更新完成/.test(readFileSync(logPath, "utf8")), 30000);
+    ok(c.versionOf() === "0.0.16" && c.markerOf() === "new",
+       "壳/mac: 换包真的换成了（真解压、真两次 mv，不是「看起来像」）");
+    ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 目录里没留下 old.app / 临时目录");
+    ok(!existsSync(dlPath), "壳/mac: 换成功就把下好的包删掉（不留垃圾）");
+    ok(c.quitCount() === 1, "壳/mac: 脚本交出去之后才请应用退出（顺序反了就是把应用白关一次）");
+    const ilog = existsSync(logPath) ? readFileSync(logPath, "utf8") : "";
+    ok(ilog.indexOf(c.target) >= 0, "壳/mac: 换完会重新打开（用 echo 冒充 open，验的是它真被调了、调的是谁）");
+    c.clean();
+  }
+
+  /* 6b. 包内版本与元数据不符：必须掉头，旧版一个字节都不能动 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.99" });
+    await c.mod.checkUpdate();
+    ok(c.mod.getStatus().phase === "available", "壳/mac: 元数据说 0.0.16 就算查到");
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    c.mod.installUpdate();
+    const logPath = join(c.userData, "updates", "install.log");
+    await waitFor(() => existsSync(logPath) && /版本不符/.test(readFileSync(logPath, "utf8")), 30000);
+    ok(c.versionOf() === "0.0.15" && c.markerOf() === "old",
+       "壳/mac: 包内版本不符 -> 放弃并保留旧版（不拿一个来路不明的包装上去）");
+    ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 放弃时也不留残骸");
+    ok(!existsSync(join(c.userData, "updates", c.zipName)) && existsSync(join(c.userData, "updates", c.zipName + ".bad")),
+       "壳/mac: 放弃时把坏包改名成 .bad（留着看，但下次启动不能再被当成「已下好」端给他）");
+    ok(readFileSync(logPath, "utf8").indexOf(c.target) >= 0, "壳/mac: 放弃时把旧版重新打开（不能让他手上空着）");
+    c.clean();
+  }
+
+  /* 6c. 元数据给的地址不在 GitHub 域上：连下都不下，直接在「检查」这步说清 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", evil: true });
+    await c.mod.checkUpdate();
+    const st = c.mod.getStatus();
+    ok(st.phase === "error" && st.errorStage === "check" && /非 GitHub 主机/.test(st.error),
+       "壳/mac: 元数据把下载地址指到别处 -> 拒绝，并说清为什么（不留到下载时才炸）");
+    c.clean();
+  }
+
+  /* 6d. 应用放在没写权限的目录（比如只读卷）：不许先把应用关掉再失败 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16" });
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    chmodSync(c.appsDir, 0o500);
+    let refused = false;
+    try { refused = c.mod.installUpdate() === false; } finally { chmodSync(c.appsDir, 0o755); }
+    ok(refused && /没有权限/.test(c.mod.getStatus().error),
+       "壳/mac: 目录不可写就当场拒绝换包（并说清下好的包在哪），不把应用白关一次");
+    ok(c.quitCount() === 0, "壳/mac: 拒绝时不许动退出流程");
+    c.clean();
+  }
 }
 
 console.log(T.join("\n"));

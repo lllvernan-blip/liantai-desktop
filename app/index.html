@@ -648,6 +648,7 @@ html,body{margin:0;padding:0;}
         <div class="note" id="updateNote" aria-live="polite">正在读取更新状态…</div>
         <div class="actions" style="margin-top:8px">
           <button type="button" id="btnCheckUpdate" hidden>检查更新</button>
+          <button type="button" id="btnPullUpdate" hidden>更新</button>
           <button type="button" id="btnInstallUpdate" hidden>重启并更新</button>
           <button type="button" id="btnOpenReleases" hidden>打开发布页</button>
         </div>
@@ -2032,6 +2033,11 @@ function banner(html, kind){
   // 提示里得能直接点到设置：只说右上角有个设置，等于让用户自己找路
   const bo = $("#bnrOpenSettings");
   if(bo) bo.onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
+  // 首页的小更新提示也直接带动作：看得到版本号就点得到「更新」，不用先去找设置页
+  const bu = $("#bnrUpdate");
+  if(bu) bu.onclick = ()=>{ bu.disabled = true; pullUpdate(); };
+  const bi = $("#bnrInstall");
+  if(bi) bi.onclick = ()=>{ bi.disabled = true; runInstall(); };
 }
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">长文阅卷通常 10-60 秒。</span><div class="peek" id="streamPeek"></div></p>`; }
 
@@ -4079,11 +4085,17 @@ async function fetchModels(silent){
   }
 }
 function saveSettings(){
+  const hadKey = !!state.settings.apiKey;   // 存之前有没有 Key：用来分清「刚填上」和「本来就有」
   applyForm(); save(); renderHeader();
   $("#setMsg").textContent = "已保存 ✓";
   setTimeout(()=>{ if($("#setMsg").textContent==="已保存 ✓") $("#setMsg").textContent=""; }, 1800);
   if(!state.settings.apiKey) banner("还没填 API Key，出题/阅卷功能暂不可用。填入后即可使用。");
-  else if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
+  else {
+    // 刚填上 Key：首页那条「填上 API Key 就能开始练」当场收掉。以前它要重启才消失——
+    // 人都填完了还挂在顶上说「还没填」，等于系统没听见他刚才干了什么。
+    if(!hadKey) renderStartNotices();
+    if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
+  }
 }
 async function testConnection(){
   applyForm();
@@ -4453,9 +4465,11 @@ function loadBuildNote(){
 }
 
 /* ============ 版本与更新（桌面壳接口） ============
-   壳在同一个 127.0.0.1 源上另开了 /__update/*：GET /status 读状态，POST /check、/install 触发动作。
+   壳在同一个 127.0.0.1 源上另开了 /__update/*：GET /status 读状态，POST /check、/download、/install 触发动作。
    源码直跑（node 自检、浏览器直开）没有这个接口，一切降级成文案——绝不能因为读不到状态就报错。
-   状态以壳主动推的 __updatePush 为准，页面再兜底轮询：壳重启过、或推送丢了也能自愈。 */
+   状态以壳主动推的 __updatePush 为准，页面再兜底轮询：壳重启过、或推送丢了也能自愈。
+   两边的分工：壳管「网关上的事」（查源、下载、校验、换包），页面只管把状态说成人话；
+   下载与换包在 mac 上都要用户点（status.autoDownload === false），Windows 那边是壳自己下好了再问他。 */
 const UPDATE_API = "/__update";
 let updateInfo = null;
 let updateAnnounced = "";
@@ -4480,26 +4494,38 @@ function fmtMB(n){ return n? Math.round(n/1048576*10)/10 + "MB" : ""; }
 /* 纯函数：状态 -> 一句话。**返回纯文本、不做 HTML 转义**——调用方用 textContent 上屏，
    转了反而让用户看到 `&amp;` 这种实体（错误报文里带引号和 & 是常事，那行字恰恰最需要读懂）。
    若改成 innerHTML 上屏，必须在这里补 esc()。测试直接核这里，不需要真壳。 */
-function updateNoteText(s){
+function updateNoteText(s, mac){
   if(!s) return "正在读取更新状态…";
+  const manualDown = s.autoDownload === false;   // mac 自实现那条链：下一与装都要他点
   if(!s.supported){
     if(s.reason === "dev") return "开发版（源码直跑），不检查更新。";
     if(s.reason === "portable") return "免安装版不自动更新：下载新版 exe 覆盖原文件即可。练习记录与 Key 都在用户数据目录里，不受影响。";
-    if(s.reason === "mac-manual") return "macOS 版不自动更新（未做签名）：点下面的「打开发布页」，下载新版 dmg，把「练习台.app」拖进「应用程序」覆盖即可。练习记录与 Key 都在用户数据目录里，不受影响。";
     if(s.reason === "missing-module") return "更新组件缺失，无法自动更新（" + (s.error||"未知") + "）。";
-    return "当前构建不支持自动更新。";
+    return "当前构建不支持自动更新。可以点「打开发布页」自己下新版。";
   }
+  const tail = "练习记录与 Key 都在用户数据目录里，不受影响。";
   if(s.phase === "checking") return "正在检查更新…";
   if(s.phase === "up-to-date") return "已是最新版本 v" + (s.currentVersion||"") + "。";
-  if(s.phase === "available") return "发现新版本 v" + (s.latestVersion||"") + "，正在后台下载…";
+  if(s.phase === "available"){
+    if(manualDown) return "发现新版本 v" + (s.latestVersion||"") + "（你当前 v" + (s.currentVersion||"") + "）：点「更新到 v" + (s.latestVersion||"") + "」让应用自己把它拉下来，拉完再点一次「重启并更新」就生效。" + tail;
+    return "发现新版本 v" + (s.latestVersion||"") + "，正在后台下载…";
+  }
   if(s.phase === "downloading"){
     const p = s.progress || {};
-    return "正在后台下载 v" + (s.latestVersion||"") + " … " + (p.percent||0) + "%"
+    return (manualDown? "正在下载 v" : "正在后台下载 v") + (s.latestVersion||"") + " … " + (p.percent||0) + "%"
       + (p.total? "（" + fmtMB(p.transferred) + " / " + fmtMB(p.total) + "）" : "")
       + "，期间可以照常练题。";
   }
-  if(s.phase === "downloaded") return "v" + (s.latestVersion||"") + " 已下载完成。点「重启并更新」立即生效；直接关掉应用也行，下次打开就是新版。";
-  if(s.phase === "error") return "检查更新失败：" + (s.error||"未知错误") + "（不影响使用，稍后会自动重试）。";
+  if(s.phase === "downloaded"){
+    if(manualDown) return "v" + (s.latestVersion||"") + " 已下载完成。点「重启并更新」会关掉应用、换上新版再打开——不点它就不会自己换。" + tail;
+    return "v" + (s.latestVersion||"") + " 已下载完成。点「重启并更新」立即生效；直接关掉应用也行，下次打开就是新版。";
+  }
+  if(s.phase === "error"){
+    const why = s.error || "未知错误";
+    if(s.errorStage === "download") return "下载失败：" + why + "。可以再点一次「更新到 v" + (s.latestVersion||"") + "」重试，或点「打开发布页」自己下。" + tail;
+    if(s.errorStage === "install") return "换包没成：" + why + "。现在用的还是 v" + (s.currentVersion||"") + "。" + tail;
+    return "检查更新失败：" + why + "（不影响使用，稍后会自动重试）。";
+  }
   return "当前 v" + (s.currentVersion||"") + "，启动后会自动检查更新。";
 }
 
@@ -4508,26 +4534,77 @@ function renderUpdateNote(){
   if(el) el.textContent = updateNoteText(updateInfo);
   const s = updateInfo || {};
   const canCheck = !!s.supported && (s.phase === "idle" || s.phase === "up-to-date" || s.phase === "error");
+  const canPull = s.autoDownload === false && s.phase === "available";   // 「点更新它就自己拉」＝ 只有这条链需要手动触发下载
   const canInstall = s.phase === "downloaded";
-  const showLink = !s.supported && s.reason !== "dev";
-  const bc = $("#btnCheckUpdate"); if(bc){ bc.hidden = !canCheck; bc.disabled = (s.phase === "checking"); }
+  const showLink = !!s.releasesUrl;
+  const bc = $("#btnCheckUpdate"); if(bc){ bc.hidden = !canCheck; bc.disabled = s.phase === "checking"; }
+  const bp = $("#btnPullUpdate"); if(bp){ bp.hidden = !canPull; bp.disabled = false; bp.textContent = "更新到 v" + (s.latestVersion||""); }
   const bi = $("#btnInstallUpdate"); if(bi) bi.hidden = !canInstall;
   const bl = $("#btnOpenReleases"); if(bl) bl.hidden = !showLink;
 }
 
-/* 壳推来的状态。下载完成只提示一次，不反复打扰。 */
+/* 首页那条小提示（不是设置页那一行）：只用一句话 + 一个按钮，说清「有新版本、点这里」。
+   设置页那行才写完整解释。 */
+function updateNoticeHtml(s){
+  if(!s || !s.supported) return "";
+  if(s.autoDownload === false && s.phase === "available"){
+    return "发现新版本 v" + esc(s.latestVersion||"") + "。" +
+      '<button class="linkbtn" id="bnrUpdate">更新到 v' + esc(s.latestVersion||"") + '</button>';
+  }
+  if(s.autoDownload === false && s.phase === "downloaded"){
+    return "新版本 v" + esc(s.latestVersion||"") + " 已下载好。" + '<button class="linkbtn" id="bnrInstall">重启并更新</button>';
+  }
+  return "";
+}
+
+/* 壳推来的状态。有新版本 / 下载完成只提示一次，不反复打扰。 */
 function __updatePush(s){
   if(!s || typeof s !== "object") return;
   updateInfo = s;
   renderUpdateNote();
-  if(s.phase === "downloaded" && updateAnnounced !== s.latestVersion){
-    updateAnnounced = s.latestVersion;
-    banner("新版本 v" + esc(s.latestVersion||"") + " 已下载完成——到「设置 → 版本与更新」点「重启并更新」即可生效（下次打开也会自动生效）。");
+  const key = s.phase + ":" + (s.latestVersion || "");
+  if(updateAnnounced === key) return;
+  if(s.phase === "downloaded"){
+    updateAnnounced = key;
+    banner("新版本 v" + esc(s.latestVersion||"") + " 已下载完成。" + (s.autoDownload === false
+      ? '<button class="linkbtn" id="bnrInstall">重启并更新</button>'
+      : "到「设置 → 版本与更新」点「重启并更新」即可生效（下次打开也会自动生效）。"));
+    return;
+  }
+  if(s.phase === "available" && s.autoDownload === false){
+    updateAnnounced = key;
+    banner(updateNoticeHtml(s));
   }
 }
 
 function pollUpdateStatus(){
   fetchUpdateStatus().then(s => { if(s) __updatePush(s); });
+}
+
+/* 「下载新版」和「重启并更新」两个动作都要能在两处点：设置页按钮 + 首页小提示里的按钮。
+   动作就这两份，两处按钮都调它们；失败了要说清当前壳侧状态（否则就是“点了没反应”）。 */
+function pullUpdate(){
+  const el = $("#updateNote");
+  if(el) el.textContent = "正在让应用把新版拉下来…";
+  postUpdateAction("download").then(r =>{
+    if(r && r.ok) return;   // 进度由壳推回来
+    const st = (r && r.status) || updateInfo || {};
+    if(st && typeof st === "object") __updatePush(st);
+    if(el) el.textContent = "没能开始下载（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或点「打开发布页」自己下。";
+    renderUpdateNote();
+  });
+}
+
+function runInstall(){
+  const el = $("#updateNote");
+  if(el) el.textContent = "正在重启并安装…（应用会自动关掉再重新打开）";
+  postUpdateAction("install").then(r =>{
+    if(r && r.ok) return;
+    const st = (r && r.status) || updateInfo || {};
+    if(st && typeof st === "object") __updatePush(st);
+    if(el) el.textContent = "没能开始换包（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或点「打开发布页」手动装。";
+    renderUpdateNote();
+  });
 }
 
 function initUpdateUi(){
@@ -4542,19 +4619,10 @@ function initUpdateUi(){
       renderUpdateNote();
     });
   };
+  const bp = $("#btnPullUpdate");
+  if(bp) bp.onclick = ()=>{ bp.disabled = true; pullUpdate(); };
   const bi = $("#btnInstallUpdate");
-  if(bi) bi.onclick = ()=>{
-    bi.disabled = true;
-    const el = $("#updateNote"); if(el) el.textContent = "正在重启并安装…（应用会自动关掉再重新打开）";
-    postUpdateAction("install").then(r =>{
-      // 无论成不成都要把按钮放回去：否则一次失败就整场会话点不动，只能重启应用
-      bi.disabled = false;
-      if(r && r.ok) return;
-      const st = (r && r.status) || updateInfo || {};
-      if(el) el.textContent = "没能开始安装（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或直接关掉应用——下次打开就是新版。";
-      renderUpdateNote();
-    });
-  };
+  if(bi) bi.onclick = ()=>{ bi.disabled = true; runInstall(); };
   const bl = $("#btnOpenReleases");
   if(bl) bl.onclick = ()=>{
     const url = (updateInfo && updateInfo.releasesUrl) || "";
@@ -4563,6 +4631,21 @@ function initUpdateUi(){
   // 启动后 4 秒对一次表（壳开机 12 秒才查，那时会主动推），之后每分钟兜底轮询
   setTimeout(pollUpdateStatus, 4000);
   setInterval(pollUpdateStatus, 60000);
+}
+
+/* 首页顶部那几条并列提示（壳要说的话 + 小更新提示 + 预览窗警告 + 还没填 Key）。启动时铺一次；
+   填完 Key 保存后要能当场收掉——以前它挂在顶上说「还没填」，要重启才消失。
+   提示可以并列，不能互相覆盖。壳灌进来的那几条（端口退让 / 上次换包失败）由壳自己保证已是 HTML，
+   页面只补 own 这几条（自己拼的串）。 */
+function renderStartNotices(){
+  const notices = [];
+  const fromShell = (typeof window !== "undefined" && window.__otaStartupNotices) || [];
+  for(let i=0;i<fromShell.length;i++) notices.push(fromShell[i]);
+  const un = updateNoticeHtml(updateInfo);
+  if(un) notices.push(un);
+  if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
+  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
+  banner(notices.length? notices.join("<br>") : "");
 }
 
 /* ============ 初始化 ============ */
@@ -4575,11 +4658,7 @@ renderChangelog();
   fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderStart();
   // 模型候选只有一个来源：这次启动就从接口实拉一遍（拉到什么就是什么）
   if(state.settings.apiKey) fetchModels(true);
-  // 提示可以并列，不能互相覆盖
-  const notices = [];
-  if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
-  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
-  if(notices.length) banner(notices.join("<br>"));
+  renderStartNotices();
   $("#setProvider").onchange = onProviderChange;
   $("#btnTutReset").onclick = ()=>{
     state.tut = { zy:false, sl:false, pd:false };

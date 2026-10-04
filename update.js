@@ -15,6 +15,13 @@
  *   3. 更新失败绝不能影响使用。所有异常只进日志和状态，不弹阻断式对话框。
  */
 
+const http = require('http');
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
+
 const PHASE = {
   DISABLED: 'disabled',
   IDLE: 'idle',
@@ -86,6 +93,8 @@ const status = {
   releasesUrl: '',       // 给免安装版/手动兜底用的发布页
   feedHost: '',          // 备用源时给页面一个短名字（ghproxy.net 这种）：这一条负责取 sha512
   downloadHost: '',      // 安装包实际从那台主机下载（与 feedHost 不同，才叫校验与下载分离）
+  autoDownload: true,    // 后台静默下载（Windows 的 electron-updater 只做这个）；mac 自实现那条链是 false
+  errorStage: '',        // 哪一步坏的：check / download / install（页面据此说「检查失败」还是「下载失败」）
 };
 
 function snapshot() {
@@ -101,6 +110,8 @@ function snapshot() {
     feed: status.feed,
     feedHost: status.feedHost,
     downloadHost: status.downloadHost,
+    autoDownload: status.autoDownload,
+    errorStage: status.errorStage,
     releasesUrl: status.releasesUrl,
   };
 }
@@ -131,17 +142,13 @@ function initUpdate(options) {
     return status;
   }
 
-  /* macOS：不走 electron-updater。Squirrel.Mac 要求更新包与本体的签名一致，
-     而 mac 版现在没有 Apple 开发者证书（package.json 里 build.mac.identity = null，未签名），
-     硬走自动更新只会在用户机器上报签名校验失败。所以改成界面上给「打开发布页」，
-     用户自己下新版 dmg 拖进「应用程序」覆盖安装——用户数据在 userData 目录，一个字节不动。
-     以后买了开发者账号、做过签名 + 公证，把这一段删掉就能恢复自动更新。
-     平台可注入（options.platform）：自检要在一台机器上把各平台分支都量一遗。 */
+  /* macOS：不过 electron-updater（它走 Squirrel.Mac，要求更新包与本体的签名一致，
+     而 mac 版没买开发者证书，硬走只会在用户机器上报签名校验失败），改用本模块自实现的换包链：
+     查 GitHub 最新 Release -> 下 zip（带 sha256 校验）-> 解压换包 -> 重新打开。
+     与 Windows 的关键区别：**下与装都要用户点两下**（autoDownload = false）。
+     平台可注入（options.platform）：自检要在一台机器上把各平台分支都量一遍。 */
   if ((options.platform || process.platform) === 'darwin') {
-    status.supported = false;
-    status.reason = 'mac-manual';
-    setPhase(PHASE.DISABLED, 'macOS 版未签名，不自动更新：到发布页下载新版 dmg 覆盖安装即可（用户数据在 ~/Library/Application Support/liantai-desktop，不受影响）');
-    return status;
+    return initMacUpdater(options);
   }
 
   if (detectPortable()) {
@@ -287,6 +294,10 @@ function stopUpdate() {
     clearTimeout(timer);
     timer = null;
   }
+  if (mac && mac.timer) {
+    clearTimeout(mac.timer);
+    mac.timer = null;
+  }
 }
 
 function hostOf(url) {
@@ -397,7 +408,9 @@ function handleFailure(id, msg) {
 }
 
 async function checkUpdate() {
-  if (stopped || !status.supported || !autoUpdater) return snapshot();
+  if (stopped) return snapshot();
+  if (macReady()) return macCheckOnce();
+  if (!status.supported || !autoUpdater) return snapshot();
   if (status.phase === PHASE.CHECKING || status.phase === PHASE.DOWNLOADING) return snapshot();
   if (backupRetry) {
     backupRetry = false;   // 备用源链重试：沿用当前备用源继续往下试，不能拨回官方源（拨回去备用源就永远轮不到）
@@ -422,6 +435,7 @@ async function checkUpdate() {
 
 /* isSilent=false：让用户看见安装进度，别在"什么都没发生"里静默重启 */
 function installUpdate() {
+  if (macReady()) return macInstall();
   if (!status.supported || !autoUpdater) return false;
   if (status.phase !== PHASE.DOWNLOADED) return false;
   log('update-install', 'quitAndInstall');
@@ -436,6 +450,442 @@ function installUpdate() {
   return true;
 }
 
+/* ------------------------------------------------------------------ */
+/* macOS：自实现换包（未签名，Squirrel.Mac 用不了）                      */
+/* ------------------------------------------------------------------ */
+
+/* 为什么自己写：electron-updater 在 mac 上走 Squirrel.Mac，它要求更新包与本体的签名一致；
+   本项目的 mac 版没买开发者证书（package.json 里 build.mac.identity = null），硬走只会在
+   用户机器上报签名校验失败。Windows 那边照旧走 electron-updater（差量更新、备用源那套一个字不动），
+   mac 这边是另一条独立链：查 GitHub 最新 Release → 下 zip（校验 sha256）→ 解压换包 → 重新打开。
+
+   四条不许动的边界：
+   1. 只查不动手：开机自查（12 秒后）只把「有新版本」推给界面，**下载要用户点**「更新到 vX」，
+      **换包要用户再点**「重启并更新」。mac 上不存在「自己把应用换掉」这件事。
+   2. 只从 GitHub 官方域取包：github.com / *.githubusercontent.com（资产会 302 到
+      release-assets.githubusercontent.com）；明文 http 只放本机回环（自检要起假源）。
+      地址来自 API 响应，所以响应就算被拐走，也只能拐到这几个域。
+   3. 换包前后都留退路：先把旧包挪走再放新的，放失败原地搬回并重新打开旧版；
+      任何一次失败都写进 <userData>/updates/install.log 的最后一行——脚本阶段没有界面可说话，
+      下次启动 main.js 会读它并在首页说出来（见 macLastFailure）。
+   4. 用户数据不动：只替换 .app 本体，练习记录 / Key / 草稿都在 userData 里，一个字节不碰。 */
+const MAC_API_DEFAULT = 'https://api.github.com/repos/lllvernan-blip/liantai-desktop/releases/latest';
+const MAC_UA = 'liantai-desktop-updater';
+const MAC_HOST_OK = /^(github\.com|api\.github\.com|[a-z0-9-]+\.githubusercontent\.com)$/i;   // 官方域（api 与资产）
+const MAC_LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/i;                    // 自检用的假源
+const MAC_API_TIMEOUT_MS = 30 * 1000;
+const MAC_IDLE_TIMEOUT_MS = 60 * 1000;   // 下载 60 秒没有任何字节就算断（有字节流动会自动重置）
+const MAC_REDIRECT_MAX = 5;
+const UPDATE_DIR = 'updates';
+const ZIP_NAME_RE = /^liantai-desktop-(\d+\.\d+\.\d+)-(arm64|x64)\.zip$/;
+
+/* 换包脚本。写成文件、用 /bin/bash 起一个独立进程，因为它必须在应用退出**之后**才能动 .app。
+   参数全部走位置参数（$1..$6），不做字符串拼接——路径里有空格（“/Applications/练习台.app”）
+   或中文都不会被拆坏。
+   注：这段是 bash，${...} 在 JS 模板串里要写成 \${ 转义。 */
+const MAC_INSTALL_SCRIPT = `#!/bin/bash
+# 练习台换包脚本：由应用在退出前写出并交出去，独立于应用活着
+# $1=旧进程 pid  $2=新包 zip  $3=要替换的 .app  $4=期望版本  $5=日志文件  $6=重新打开的命令
+set -u
+PID="$1"; ZIP="$2"; TARGET="$3"; EXPECT="$4"; LOG="$5"; OPENCMD="$6"
+note(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG" 2>/dev/null; }
+reopen(){ "$OPENCMD" "$TARGET" >>"$LOG" 2>&1; }
+
+# 1) 等旧进程退出（最多 60 秒）：它不退，换包会把它脚下的目录搬走
+n=0
+while kill -0 "$PID" 2>/dev/null; do
+  n=$((n+1))
+  if [ "$n" -gt 300 ]; then note "更新放弃：旧进程 60 秒还没退出"; exit 1; fi
+  sleep 0.2
+done
+
+# 2) 解压到临时目录，先不动原包
+WORK="$(mktemp -d "\${TMPDIR:-/tmp}/liantai-update.XXXXXX")" || { note "更新放弃：建不了临时目录"; reopen; exit 1; }
+if ! ditto -x -k "$ZIP" "$WORK" >>"$LOG" 2>&1; then
+  mv "$ZIP" "$ZIP.bad" 2>/dev/null   # 坏包改名：别让它下次启动又被当成「已下好」端上去
+  note "更新放弃：新包解压失败（下载不完整，或者包被改坏）——这份包已改名为 .bad，不会再用"
+  rm -rf "$WORK"; reopen; exit 1
+fi
+NEW="$(/bin/ls -d "$WORK"/*.app 2>/dev/null | /usr/bin/head -n 1)"
+if [ ! -d "$NEW" ]; then mv "$ZIP" "$ZIP.bad" 2>/dev/null; note "更新放弃：新包里没有 .app"; rm -rf "$WORK"; reopen; exit 1; fi
+GOT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$NEW/Contents/Info.plist" 2>/dev/null)"
+if [ "$GOT" != "$EXPECT" ]; then
+  mv "$ZIP" "$ZIP.bad" 2>/dev/null
+  note "更新放弃：包内版本不符（期望 $EXPECT，包内是 \${GOT:-读不到}）——这份包已改名为 .bad，不会再用"
+  rm -rf "$WORK"; reopen; exit 1
+fi
+
+# 3) 换包：两次 rename，中间没有“应用不在”的窗口
+BAK="$WORK/old.app"
+if ! mv "$TARGET" "$BAK" 2>>"$LOG"; then
+  note "更新放弃：没法挪走旧版（多半是权限）"; rm -rf "$WORK"; reopen; exit 1
+fi
+if ! mv "$NEW" "$TARGET" 2>>"$LOG"; then
+  mv "$BAK" "$TARGET" 2>>"$LOG"
+  note "更新失败：换入新版没成功，已恢复旧版"
+  rm -rf "$WORK"; reopen; exit 1
+fi
+xattr -dr com.apple.quarantine "$TARGET" >>"$LOG" 2>&1
+rm -rf "$BAK" "$WORK"
+rm -f "$ZIP"
+note "更新完成：$EXPECT"
+reopen
+exit 0
+`;
+
+let mac = null;        // null = 没走 mac 这条链；{ok:true,...} = 可用
+let macAttempt = 0;    // 同一次失败的重复回调靠它去重
+
+function macReady() { return !!(mac && mac.ok); }
+
+function macDir() { return mac && mac.userDataDir ? path.join(mac.userDataDir, UPDATE_DIR) : ''; }
+
+function initMacUpdater(options) {
+  mac = {
+    ok: false,
+    api: options.macApi || MAC_API_DEFAULT,
+    apiHost: (() => { try { return new URL(options.macApi || MAC_API_DEFAULT).hostname; } catch (err) { return ''; } })(),
+    userDataDir: options.userDataDir || '',
+    exePath: options.exePath || '',
+    quit: options.quit || (() => {}),
+    reveal: options.reveal || (() => {}),
+    openCmd: options.macOpenCommand || 'open',
+    /* 自检里换成一个不存在的 pid：脚本一上来就等「旧进程退出」，拿真 pid 会白等 60 秒才放弃。
+       换 X：换包脚本还得把「开应用」换掉（真开一个假包没意义）。 */
+    pid: options.pid || process.pid,
+    pending: null,     // 查到的待下载（还没下）
+    ready: null,       // 已下好、可直接换包的 zip
+    running: false,    // 下载中：重复点不叠加请求
+    timer: null,
+  };
+  status.autoDownload = false;   // mac 上不存在“后台静默下”：一次一百来 MB，得让他点
+  status.errorStage = '';
+
+  if (!mac.userDataDir) {
+    status.supported = false;
+    status.reason = 'mac-no-dir';
+    setPhase(PHASE.DISABLED, '拿不到用户数据目录，这次不检查更新');
+    return status;
+  }
+
+  /* 上次下好了却没换（他点了稍后，或者干脆关掉了）：开机就把「重启并更新」摆出来，
+     不让他为了一个已经躺在硬盘上的包再下一遍。 */
+  const found = macScanDownloaded();
+  if (found) {
+    mac.ok = true;
+    status.supported = true;
+    mac.ready = found;
+    status.latestVersion = found.version;
+    setPhase(PHASE.DOWNLOADED, '上次已下好 v' + found.version + '（' + found.path + '），点「重启并更新」即可');
+    return status;
+  }
+
+  mac.ok = true;
+  status.supported = true;
+  setPhase(PHASE.IDLE, 'mac 自实现更新：查 GitHub 最新 Release；下载与换包都要他点（源=' + mac.api + '）');
+  schedule(BOOT_CHECK_DELAY_MS);
+  return status;
+}
+
+/* 已经下好的包：只看我们自己下的文件名（liantai-desktop-<版本>-<架构>.zip），
+   比当前版本旧或相同的算上一轮没清干净的，不当数 */
+function macScanDownloaded() {
+  if (!mac || !mac.userDataDir) return null;
+  let names = [];
+  try { names = fs.readdirSync(macDir()); } catch (err) { return null; }
+  let best = null;
+  for (const n of names) {
+    const m = ZIP_NAME_RE.exec(n);
+    if (!m) continue;
+    if (m[2] !== process.arch) continue;
+    if (cmpVersion(m[1], status.currentVersion) <= 0) continue;
+    if (best && cmpVersion(m[1], best.version) <= 0) continue;
+    best = { version: m[1], path: path.join(macDir(), n) };
+  }
+  return best;
+}
+
+/* 版本号按段比：字符串比会把 0.0.10 判成比 0.0.9 旧 */
+function cmpVersion(a, b) {
+  const pa = String(a || '').split('.'), pb = String(b || '').split('.');
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = parseInt(pa[i], 10) || 0, y = parseInt(pb[i], 10) || 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  return 0;
+}
+
+/* 只允许从官方域（或自检用的回环）取东西。
+   另外认「显式配的那个 API 主机」：LIANTAI_RELEASE_API 指到自建转发站时，
+   元数据与包就在那台机器上——不认它，这个开关等于废的（但默认的官方 API 主机会写死在白名单里，
+   不靠「懒得写」过关：曾经这里漏了 api.github.com，真机上第一步就被自己拦下）。 */
+function macHostAllowed(host) {
+  return MAC_HOST_OK.test(host) || MAC_LOOPBACK.test(host) || !!(mac && mac.apiHost && host === mac.apiHost);
+}
+
+function macAssertUrl(raw) {
+  let u = null;
+  try { u = new URL(String(raw || '')); } catch (err) { throw new Error('下载地址读不出来'); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('不支持的下载协议：' + u.protocol);
+  if (MAC_LOOPBACK.test(u.hostname)) return u;
+  if (u.protocol !== 'https:') throw new Error('拒绝从明文 http 下载：' + u.hostname);
+  if (!macHostAllowed(u.hostname)) throw new Error('拒绝从非 GitHub 主机下载：' + u.hostname);
+  return u;
+}
+
+/* 一次请求（不跟重定向）。setTimeout 是**空闲**超时：连接不上、或连上后一直不吐字节，都会触发。 */
+function macRequestOnce(u, headers, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const mod = u.protocol === 'http:' ? http : https;
+    const req = mod.get(u, { headers: Object.assign({ 'User-Agent': MAC_UA }, headers || {}) }, (res) => resolve(res));
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('网络没反应（' + Math.round(timeoutMs / 1000) + ' 秒没有任何数据）')));
+    req.on('error', reject);
+  });
+}
+
+/* 跟重定向，但每一步都重新过一遍域名白名单：
+   GitHub 的资产会 302 到 *.githubusercontent.com，白名单里本来就有它 */
+async function macOpen(url, headers, timeoutMs) {
+  let u = macAssertUrl(url);
+  for (let hop = 0; hop <= MAC_REDIRECT_MAX; hop++) {
+    const res = await macRequestOnce(u, headers, timeoutMs);
+    const code = res.statusCode || 0;
+    if (code >= 300 && code < 400 && res.headers.location) {
+      res.resume();   // 丢掉这一段 body，否则连接不复用
+      u = macAssertUrl(new URL(res.headers.location, u).toString());
+      continue;
+    }
+    return res;
+  }
+  throw new Error('重定向次数过多（' + MAC_REDIRECT_MAX + ' 次）');
+}
+
+async function macGetJson(url) {
+  const res = await macOpen(url, { Accept: 'application/vnd.github+json' }, MAC_API_TIMEOUT_MS);
+  const code = res.statusCode || 0;
+  if (code !== 200) { res.resume(); throw new Error('GitHub 回了 HTTP ' + code); }
+  const chunks = [];
+  let n = 0;
+  for await (const c of res) {
+    n += c.length;
+    if (n > 2 * 1024 * 1024) { res.destroy(); throw new Error('接口响应体过大，不像一份 Release 元数据'); }
+    chunks.push(c);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch (err) {
+    throw new Error('接口返回的不是 JSON');
+  }
+}
+
+/* 从 assets 里挑本机要用的包：只认我们自己发的 zip，优先架构对得上的那个 */
+function macPickAsset(assets, version) {
+  const list = Array.isArray(assets) ? assets : [];
+  const nameOf = (a) => String((a && a.name) || '');
+  const urlOf = (a) => String((a && (a.browser_download_url || a.url)) || '');
+  const archOk = (a) => {
+    const m = /-(arm64|x64)\.zip$/i.exec(nameOf(a));
+    return !m || m[1].toLowerCase() === String(process.arch).toLowerCase();
+  };
+  const zips = list.filter((a) => /\.zip$/i.test(nameOf(a)) && !/\.blockmap$/i.test(nameOf(a)) && urlOf(a));
+  const mine = zips.filter((a) => nameOf(a).indexOf('liantai-desktop-') === 0);
+  const pool = mine.length ? mine : zips;
+  const exact = pool.filter((a) => new RegExp('-' + process.arch + '\\.zip$', 'i').test(nameOf(a)));
+  const fine = (exact.length ? exact : pool.filter(archOk));
+  return fine.length ? fine[0] : null;
+}
+
+async function macCheckOnce() {
+  if (status.phase === PHASE.CHECKING || status.phase === PHASE.DOWNLOADING) return snapshot();
+  if (stopped) return snapshot();
+  const id = ++macAttempt;
+  status.error = '';
+  status.errorStage = '';
+  setPhase(PHASE.CHECKING);
+  try {
+    const data = await macGetJson(mac.api);
+    const tag = String((data && (data.tag_name || data.name)) || '').replace(/^v/i, '').trim();
+    if (!/^\d+\.\d+\.\d+/.test(tag)) throw new Error('发布页没有可读的版本号');
+    if (cmpVersion(tag, status.currentVersion) <= 0) {
+      mac.pending = null;
+      status.latestVersion = status.currentVersion;
+      setPhase(PHASE.UP_TO_DATE, '已是最新（' + status.currentVersion + '）');
+      schedule(PERIODIC_CHECK_MS);
+      return snapshot();
+    }
+    const asset = macPickAsset(data.assets, tag);
+    if (!asset) throw new Error('v' + tag + ' 没带适合本机的 mac 包');
+    const url = String(asset.browser_download_url || asset.url || '');
+    macAssertUrl(url);   // 地址不合规就在“检查”这一步就说清，不留到下载时才炸
+    mac.pending = { version: tag, url: url, size: Number(asset.size) || 0, digest: String(asset.digest || '') };
+    status.latestVersion = tag;
+    setPhase(PHASE.AVAILABLE, 'v' + tag + ' 可用（等他点「更新到 v' + tag + '」再下）');
+  } catch (err) {
+    if (id === macAttempt) macFail('check', (err && err.message) || String(err));
+  }
+  return snapshot();
+}
+
+/* 下载：由页面点「更新到 vX」触发（POST /__update/download）。同步返回 true = 已开始。 */
+function downloadUpdate() {
+  if (!macReady() || mac.running) return false;
+  if (status.phase !== PHASE.AVAILABLE || !mac.pending) return false;
+  mac.running = true;
+  macPull(mac.pending)
+    .catch((err) => macFail('download', (err && err.message) || String(err)))
+    .then(() => { mac.running = false; });
+  return true;
+}
+
+async function macPull(p) {
+  macAssertUrl(p.url);
+  const dir = macDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const name = macAssetName(p);
+  const file = path.join(dir, name);
+  const part = file + '.part';
+  const id = ++macAttempt;
+  status.error = '';
+  status.errorStage = '';
+  status.progress = { percent: 0, transferred: 0, total: p.size || 0, bytesPerSecond: 0 };
+  setPhase(PHASE.DOWNLOADING, '开始下载 ' + name);
+
+  let got = 0;
+  let fail = null;
+  try {
+    const res = await macOpen(p.url, {}, MAC_IDLE_TIMEOUT_MS);
+    const code = res.statusCode || 0;
+    if (code !== 200) { res.resume(); throw new Error('下载地址回了 HTTP ' + code); }
+    const total = Number(res.headers['content-length'] || p.size || 0);
+    const hash = crypto.createHash('sha256');
+    const out = fs.createWriteStream(part);
+    const t0 = Date.now();
+    status.progress.total = total;
+    let lastPercent = -1;
+    await new Promise((resolve, reject) => {
+      res.on('data', (c) => {
+        got += c.length;
+        hash.update(c);
+        const percent = total ? Math.max(0, Math.min(100, Math.round(got / total * 100))) : 0;
+        if (percent === lastPercent) return;   // 每变一个百分点才推一次，别把状态通道刷爆
+        lastPercent = percent;
+        status.progress = {
+          percent: percent,
+          transferred: got,
+          total: total,
+          bytesPerSecond: Math.round(got / Math.max(0.5, (Date.now() - t0) / 1000)),
+        };
+        setPhase(PHASE.DOWNLOADING, '下载中 ' + percent + '%');
+      });
+      res.on('error', reject);
+      out.on('error', reject);
+      out.on('finish', resolve);
+      res.pipe(out);
+    });
+    if (p.size && got !== p.size) throw new Error('下载不完整（收到 ' + got + ' 字节，应为 ' + p.size + '）');
+    if (p.digest) {
+      const want = String(p.digest).replace(/^sha256:/i, '').toLowerCase();
+      const gotHex = hash.digest('hex');
+      if (want && want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
+    }
+    fs.renameSync(part, file);   // 校验过了才改回正名：半截文件不许看起来像“下好了”
+  } catch (err) {
+    fail = err;
+  }
+  try { fs.unlinkSync(part); } catch (err) { /* 没留下就算了 */ }
+  if (fail) {
+    if (id === macAttempt) macFail('download', (fail && fail.message) || String(fail));
+    return;
+  }
+
+  mac.ready = { version: p.version, path: file };
+  mac.pending = null;
+  status.progress = { percent: 100, transferred: got, total: got, bytesPerSecond: 0 };
+  setPhase(PHASE.DOWNLOADED, 'v' + p.version + ' 已下好（' + file + '），等他点「重启并更新」');
+}
+
+function macAssetName(p) {
+  const fromUrl = String(p.url).split('?')[0].split('/').pop() || '';
+  const clean = fromUrl.replace(/[^A-Za-z0-9._-]/g, '');
+  if (ZIP_NAME_RE.test(clean)) return clean;
+  return 'liantai-desktop-' + String(p.version).replace(/[^0-9A-Za-z.]/g, '') + '-' + process.arch + '.zip';
+}
+
+/* 从可执行文件往上找 .app（/Applications/练习台.app/Contents/MacOS/练习台） */
+function macBundlePath() {
+  const from = String((mac && mac.exePath) || process.execPath || '');
+  const parts = from.split('/');
+  for (let i = parts.length - 1; i >= 1; i--) {
+    if (/\.app$/.test(parts[i])) return parts.slice(0, i + 1).join('/');
+  }
+  return '';
+}
+
+/* 换包：把脚本交出去，然后请他退出（脚本会等这个进程真的没了才动手）。
+   同步返回 true = 已经交出去了（页面侧收到 200，随后应用会自己关掉再打开）。 */
+function macInstall() {
+  if (!macReady() || !mac.ready) return false;
+  if (status.phase !== PHASE.DOWNLOADED) return false;
+  const zip = mac.ready.path;
+  const target = macBundlePath();
+  if (!target) { macFail('install', '找不到应用本体（.app），这次更新只能手动装'); return false; }
+  if (!fs.existsSync(zip)) { macFail('install', '已下好的包不见了（' + zip + '），请重新下载'); return false; }
+  try {
+    fs.accessSync(path.dirname(target), fs.constants.W_OK);
+  } catch (err) {
+    try { mac.reveal(zip); } catch (e) { /* 打不开“显示位置”也不影响这件事说清楚 */ }
+    macFail('install', '没有权限替换 ' + target + '（它所在的目录不许写入）。已下好的包在 ' + zip + '，可以点「打开发布页」手动装');
+    return false;
+  }
+  const logPath = path.join(macDir(), 'install.log');
+  const scriptPath = path.join(macDir(), 'install-' + mac.pid + '.sh');
+  try {
+    fs.writeFileSync(scriptPath, MAC_INSTALL_SCRIPT, { mode: 0o755 });
+  } catch (err) {
+    macFail('install', '换包脚本写不出来（' + ((err && err.message) || String(err)) + '）');
+    return false;
+  }
+  try {
+    const child = spawn('/bin/bash', [scriptPath, String(mac.pid), zip, target, mac.ready.version, logPath, mac.openCmd], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+  } catch (err) {
+    macFail('install', '换包脚本起不来（' + ((err && err.message) || String(err)) + '）');
+    return false;
+  }
+  log('update-install', '换包脚本已交出去：' + target + ' <- ' + zip + '（日志 ' + logPath + '）');
+  mac.ready = null;   // 脚本接管了：不让页面再点第二次
+  setPhase(PHASE.DOWNLOADED, '正在退出并换包…（换完会自己重新打开）');
+  setImmediate(() => {
+    try { mac.quit(); } catch (err) { log('update-install-error', (err && err.message) || String(err)); }
+  });
+  return true;
+}
+
+function macFail(stage, msg) {
+  status.errorStage = stage;
+  status.error = msg;
+  const where = stage === 'download' ? '下载失败' : stage === 'install' ? '换包失败' : '检查更新失败';
+  setPhase(PHASE.ERROR, where + '：' + msg);
+  schedule(ERROR_RETRY_MS);   // 网络抖一下就永久放弃是不行的
+}
+
+/* 上一次换包留下的最后一行日志。main.js 在启动时读它：失败过就得在首页说一句，
+   不然“点了更新，应用关掉又打开，还是老版本”这件事没有任何解释。读完把日志改名，免得反复报。 */
+function macLastFailure() {
+  if (!mac || !mac.userDataDir) return '';
+  const logPath = path.join(macDir(), 'install.log');
+  let text = '';
+  try { text = fs.readFileSync(logPath, 'utf8'); } catch (err) { return ''; }
+  try { fs.renameSync(logPath, logPath + '.old'); } catch (err) { /* 改不动就算了，下次再说 */ }
+  const lines = String(text).split('\n').filter((l) => l.trim());
+  const last = lines.length ? lines[lines.length - 1] : '';
+  if (!last || last.indexOf('更新完成') >= 0) return '';
+  return last.replace(/^\S+ \S+ /, '').trim();   // 去掉时间戳
+}
+
 function stringify(m) {
   if (typeof m === 'string') return m;
   try {
@@ -445,4 +895,4 @@ function stringify(m) {
   }
 }
 
-module.exports = { initUpdate, checkUpdate, installUpdate, stopUpdate, getStatus: snapshot, PHASE, BACKUP_FEEDS };
+module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, PHASE, BACKUP_FEEDS };
