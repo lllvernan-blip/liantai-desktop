@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import { existsSync, linkSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { releaseNotes } from "./release-notes.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -256,7 +257,7 @@ function ensureRelease() {
     console.log("  Release " + tag + " 已存在，直接补资产");
     return true;
   }
-  const notes = "自动更新已就绪：安装版在后台只下载变化的部分（差量），练习记录、画像、草稿、划线、Key 都不动。";
+  const notes = releaseNotes();
   const created = spawnSync(
     "gh",
     ["release", "create", tag, "--repo", REPO, "--title", pkg.version, "--notes", notes],

@@ -28,6 +28,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { releaseNotes } from "./release-notes.mjs";
 import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -82,20 +83,8 @@ function die(msg) {
   process.exit(1);
 }
 
-/* 发布说明：给下载的人看的，先说下哪个文件、再说首次打开会被拦怎么办。
-   备份文件不含 Key、练习记录在用户数据目录这两件事也写上一句，免得人家以为换版本要重填。 */
-function notes() {
-  const names = macArtifacts().filter((a) => a.target === "dmg").map((a) => a.file);
-  return [
-    "macOS 版（Apple 芯片 arm64）：下载 " + (names[0] || "dmg") + "，双击打开，把「练习台」拖进「应用程序」。",
-    "",
-    "首次打开可能被 Gatekeeper 拦（这一版未做签名）：右键点「练习台」→「打开」→ 再点「打开」；还不行就在终端跑一次",
-    "`xattr -dr com.apple.quarantine \"/Applications/练习台.app\"`。",
-    "",
-    "装上这一版之后就不用再回来下载了：应用启动会自己问有没有新版，查到在首页出一条小提示，点「更新到 vX」它自己下（带 sha256 校验）、再点「重启并更新」换包重启。",
-    "（比这更早的版本还没接上这条链，得手动装一次这一版。）练习记录、画像、草稿、划线、API Key 都在用户数据目录（~/Library/Application Support/liantai-desktop）里，更新不碰它们。",
-  ].join("\n");
-}
+/* 发布说明（与 Windows 侧同一份，见 release-notes.mjs）：
+   两个平台共用一个 Release，说明也只有一份，所以两份一起写。 */
 
 /* 产物名从 package.json 的 artifactName 模板推出来（改模板/改 arch 都不用改这里） */
 function macArtifacts() {
@@ -226,7 +215,7 @@ function main() {
           "  npm run release:mac -- --create --prerelease");
     }
     const created = gh(["release", "create", tag, "--repo", REPO, "--title", pkg.version,
-      "--notes", notes(),
+      "--notes", releaseNotes(),
       prerelease ? "--prerelease" : "--latest"]);
     if (created.status !== 0) die("创建 Release 失败（重试；先确认 gh 已登录、tag 没被别的 Release 占用）。");
     console.log("  已创建 Release " + tag + (prerelease ? "（prerelease：不会占用 /releases/latest）" : ""));
