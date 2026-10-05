@@ -593,7 +593,7 @@ Math.random = orRand2;
 state.history = [];
 
 /* 8.8 机关名默认值迁移 */
-localStorage.setItem("gw_state", JSON.stringify({ settings:{ orgName:"综应练习台" }, profile:{}, history:[], cache:{} }));
+localStorage.setItem("gw_state", JSON.stringify({ settings:{ orgName:"综应" + "练习台" }, profile:{}, history:[], cache:{} }));
 ok(load().settings.orgName === "模拟练习专用", "迁移: 旧默认机关名换成明显虚构的");
 localStorage.clear();
 

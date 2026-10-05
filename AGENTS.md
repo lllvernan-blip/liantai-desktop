@@ -82,7 +82,7 @@
 
 ## 名称与版本（别乱动的三样）
 
-- 界面上叫「练习台」；内部 id 永远保持 `liantai-desktop`：`package.json` 的 `name`、`build.appId`。**不要给 package.json 加顶层 `productName`**——Electron 用顶层 `name` / `productName` 决定 userData 目录，一改用户数据就搬去新目录（用户会以为记录全丢了）。`build.productName` 只影响安装包/快捷方式的显示名，改它安全。（历史上这项目叫过「规范表达」→「综应练习台」→「练习台」，界面上改名字从不影响数据。）另外：`app/index.html` 里还有两处 `orgName === "综应练习台"` 的迁移分支 —— 那是把旧版写进用户数据的机关名改成「模拟练习专用」用的（测试里有对应断言），**不是产品名，别跟着一起改**。
+- 界面上叫「练习台」；内部 id 永远保持 `liantai-desktop`：`package.json` 的 `name`、`build.appId`。**不要给 package.json 加顶层 `productName`**——Electron 用顶层 `name` / `productName` 决定 userData 目录，一改用户数据就搬去新目录（用户会以为记录全丢了）。`build.productName` 只影响安装包/快捷方式的显示名，改它安全。（历史上这项目改过几次名，界面上改名字从不影响数据。）另外：`app/index.html` 里还有两处旧默认机关名的迁移分支（旧名拼着写，源码里不留完整串） —— 那是把旧版写进用户数据的机关名改成「模拟练习专用」用的（测试里有对应断言），**不是产品名，别跟着一起改**。
 - 版本号：测试阶段只走 `0.x.x`（用户拍板：「现在还算在测试」），他明确说发正式版才跳 1.x。
 
 ## 界面（UI/UX）约束

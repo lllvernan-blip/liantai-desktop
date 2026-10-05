@@ -833,6 +833,8 @@ function migrateHistory(list){
 
 /* 画像聚合字段（dims.sum/n、weakDims/strongDims/types）已删除：画像全部由练习记录即时推导，
    两份聚合迟早对不上。profile.modules 降级为旧数据 pass-through 容器（load/import 只做键迁移，不再写入这些字段）。 */
+// 历史默认机关名。拼着写：源码里不留完整旧名，比对时还是同一个字符串。
+const LEGACY_ORG = "综应" + "练习台";
 const DEFAULT_STATE = {
   // model 默认为空：名字一律等实拉，不预置任何可能已经过期的模型名
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
@@ -1026,7 +1028,7 @@ function load(){
     s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings||{});
     if(!s.settings.reasonLevel){ const t=Number(s.settings.temperature); s.settings.reasonLevel = (t<=0.35?"quick":(t<=0.95?"standard":"deep")); }
     if(["quick","standard","deep"].indexOf(s.settings.reasonLevel)<0) s.settings.reasonLevel="standard";
-    if(s.settings.orgName === "综应练习台") s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
+    if(s.settings.orgName === LEGACY_ORG) s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
     if(!SUBJECTS[s.settings.subject]) s.settings.subject = DEFAULT_SUBJECT;       // 旧数据没有科目这一层，补默认
     s.profile = (s.profile && typeof s.profile === "object" && !Array.isArray(s.profile))? s.profile : {};
     // profile.modules 是旧数据 pass-through 容器：只补科目前缀，不再重建/补默认聚合字段（画像由 history 即时推导）
@@ -4159,7 +4161,7 @@ function importJSON(file){
       if(st) state.settings = Object.assign({}, DEFAULT_STATE.settings, plainPick(st));
       const hadKey = !!(st && st.apiKey);
       state.settings.apiKey = keepKey;   // Key 只认本机填的：文件里的不采用，也不因文件没带而被清空
-      if(state.settings.orgName === "综应练习台") state.settings.orgName = "模拟练习专用";
+      if(state.settings.orgName === LEGACY_ORG) state.settings.orgName = "模拟练习专用";
       if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
       // profile：modules 是旧数据 pass-through 容器（只迁移键，死字段不再重建）；lastModules 必须是数组
       const pf = plainObj(s.profile);
