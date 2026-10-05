@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { gzipSync } from "node:zlib";
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -540,6 +541,37 @@ if (process.platform !== "darwin") {
     ok(c.quitCount() === 0, "壳/mac: 拒绝时不许动退出流程");
     c.clean();
   }
+}
+
+/* ---- 7. 差量对照数据自检：blockmap 与当前安装包不是同一版时重置 ----
+      两个缓存文件由两个程序写（installer.exe 是 NSIS 写的当前版本安装包，current.blockmap
+      是 electron-updater 写的那次下载的对照数据），手动装过一次就会错位。错位时差量会
+      拿旧版的对照数据去量新版安装包，拼出来的文件校验不过，白下一趟再从头全量下。 */
+{
+  const dir = mkdtempSync(join(tmpdir(), "liantai-bm-"));
+  const bmPath = join(dir, "current.blockmap");
+  const insPath = join(dir, "installer.exe");
+  const writeBm = (sizes) => writeFileSync(bmPath, gzipSync(JSON.stringify({
+    version: "2", files: [{ name: "file", offset: 0, sizes, checksums: sizes.map(() => "x") }],
+  })));
+  const { mod, restore } = loadUpdate({ autoUpdater: new FakeUpdater() });
+
+  writeFileSync(insPath, Buffer.alloc(30));
+  writeBm([10, 20]);
+  ok(mod.alignDifferentialCache(dir) === false && existsSync(bmPath),
+     "壳: 对照数据与安装包同一版 -> 不动它（差量照走）");
+  writeBm([10, 15]);
+  ok(mod.alignDifferentialCache(dir) === true && !existsSync(bmPath),
+     "壳: 对照数据停在上一个版本 -> 重置，不拿错尺子去量安装包");
+  writeBm([10, 20]);
+  rmSync(insPath);
+  ok(mod.alignDifferentialCache(dir) === false && existsSync(bmPath),
+     "壳: 没有安装包可比 -> 不硬删（缺了对照数据差量本来也走不了）");
+  writeFileSync(bmPath, "not a gzip");
+  ok(mod.alignDifferentialCache(dir) === false && existsSync(bmPath),
+     "壳: 对照数据读不懂 -> 当没事发生，不删");
+  rmSync(dir, { recursive: true, force: true });
+  restore();
 }
 
 console.log(T.join("\n"));

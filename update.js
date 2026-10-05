@@ -19,6 +19,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 
@@ -417,11 +418,60 @@ function handleFailure(id, msg) {
   schedule(ERROR_RETRY_MS);   // 网络抖一下就永久放弃是不行的
 }
 
+/* 差量下载靠两个缓存文件配对，可它们由两个程序分别写，会指到不同的版本：
+     installer.exe     ← NSIS 安装器写。内容是「当前装着的这一版」的安装包。
+     current.blockmap  ← electron-updater 写。内容是「上一次成功下载那一版」的 blockmap。
+   手动装过一次、或者装完没走它自己的下载，两者就分属两个版本。那时差量会拿旧版本的对照
+   数据去量新版本的安装包，拼出来的文件校验不过，白下一趟再从头全量下载（实测 84MB、二十多
+   分钟）。对不上就把 blockmap 删掉：少了它，electron-updater 会去取「当前版本」那一份，
+   与 installer.exe 天然对齐。
+   判据用「块大小之和 == 安装包大小」：blockmap 里 sizes 逐块相加精确等于文件大小，两个版本
+   差 2.5KB 就能分辨。传 cacheDir 可直接受测。 */
+function alignDifferentialCache(cacheDir) {
+  if (!cacheDir) {
+    if (process.platform !== 'win32') return false;
+    cacheDir = resolveUpdaterCacheDir();
+    if (!cacheDir) return false;
+  }
+  try {
+    const bmFile = path.join(cacheDir, 'current.blockmap');
+    const insFile = path.join(cacheDir, 'installer.exe');
+    if (!fs.existsSync(bmFile) || !fs.existsSync(insFile)) return false;
+    const bm = JSON.parse(zlib.gunzipSync(fs.readFileSync(bmFile)).toString());
+    const first = bm && bm.files && bm.files[0];
+    if (!first || !Array.isArray(first.sizes)) return false;
+    let sum = 0;
+    for (const n of first.sizes) sum += n;
+    if (sum === fs.statSync(insFile).size) return false;
+    fs.unlinkSync(bmFile);
+    log('update-info', '差量对照数据与当前安装包不是同一版，已重置');
+    return true;
+  } catch (err) {
+    log('update-warn', '差量对照数据自检跳过：' + ((err && err.message) || String(err)));
+    return false;
+  }
+}
+
+/* 缓存目录名写在包内 app-update.yml 里（electron-updater 按它算路径）；
+   位置在 %LOCALAPPDATA%，不是 userData 那个 %APPDATA%。 */
+function resolveUpdaterCacheDir() {
+  try {
+    const yml = path.join(process.resourcesPath || '', 'app-update.yml');
+    if (!fs.existsSync(yml)) return '';
+    const m = /updaterCacheDirName:\s*(\S+)/.exec(fs.readFileSync(yml, 'utf8'));
+    if (!m) return '';
+    return path.join(process.env.LOCALAPPDATA || '', m[1]);
+  } catch (err) {
+    return '';
+  }
+}
+
 async function checkUpdate() {
   if (stopped) return snapshot();
   if (macReady()) return macCheckOnce();
   if (!status.supported || !autoUpdater) return snapshot();
   if (status.phase === PHASE.CHECKING || status.phase === PHASE.DOWNLOADING) return snapshot();
+  alignDifferentialCache();
   if (backupRetry) {
     backupRetry = false;   // 备用源链重试：沿用当前备用源继续往下试，不能拨回官方源（拨回去备用源就永远轮不到）
   } else {
@@ -905,4 +955,4 @@ function stringify(m) {
   }
 }
 
-module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, PHASE, BACKUP_FEEDS };
+module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, PHASE, BACKUP_FEEDS };
