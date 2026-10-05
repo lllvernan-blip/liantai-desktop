@@ -4511,11 +4511,11 @@ function updateNoteText(s, mac){
   if(s.phase === "up-to-date") return "已是最新版本 v" + (s.currentVersion||"") + "。";
   if(s.phase === "available"){
     if(manualDown) return "发现新版本 v" + (s.latestVersion||"") + "（你当前 v" + (s.currentVersion||"") + "）：点「更新到 v" + (s.latestVersion||"") + "」让应用自己把它拉下来，拉完再点一次「重启并更新」就生效。" + tail;
-    return "发现新版本 v" + (s.latestVersion||"") + "，正在后台下载…";
+    return "发现新版本 v" + (s.latestVersion||"") + "，正在下载…";
   }
   if(s.phase === "downloading"){
     const p = s.progress || {};
-    return (manualDown? "正在下载 v" : "正在后台下载 v") + (s.latestVersion||"") + " … " + (p.percent||0) + "%"
+    return "正在下载 v" + (s.latestVersion||"") + " … " + (p.percent||0) + "%"
       + (p.total? "（" + fmtMB(p.transferred) + " / " + fmtMB(p.total) + "）" : "")
       + "，期间可以照常练题。";
   }
