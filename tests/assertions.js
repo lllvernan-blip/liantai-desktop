@@ -414,14 +414,14 @@ state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
 await callLLM("s","u",false);
 ok(capBodies.filter(b=>b.reasoning_effort).length === 1 && state.modelCaps["deepseek-v4-pro"] === "rejected",
    "实测记忆: 参数被拒自动降级成功，并记住此模型拒收思考参数");
-ok(el("#bannerSlot").innerHTML.indexOf("不收思考强度参数") >= 0,
+ok(el("#bannerSlot").innerHTML.indexOf("不接受「推理程度」") >= 0,
    "实测记忆: 探针被拒有界面提示（不再是静默降级）");
 const nB84 = capBodies.length;
 await callLLM("s","u",false);
 ok(capBodies.length === nB84 + 1 && !("reasoning_effort" in capBodies.at(-1)),
    "实测记忆: 之后直接按温度发，不再白发一次被拒请求");
 el("#setModel").value = "deepseek-v4-pro"; setReasonUI();
-ok(el("#segReason").style.display === "none" && el("#reasonNote").textContent.indexOf("拒收") >= 0,
+ok(el("#segReason").style.display === "none" && el("#reasonNote").textContent.indexOf("不接受") >= 0,
    "实测记忆: 界面收起三档并说明原因");
 globalThis.fetch = (url, opt) => { const b = JSON.parse(opt.body); capBodies.push(b);
   return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" }); };
@@ -435,10 +435,10 @@ globalThis.fetch = realFetch84;
 state.modelProbe = {};
 recordProbe("m-x","quick",100,10); recordProbe("m-x","quick",100,10); recordProbe("m-x","deep",2000,80);
 let pn85 = probeNote("m-x");
-ok(pn85.indexOf("快速≈思考100字/10s") >= 0 && pn85.indexOf("深入≈思考2000字/80s") >= 0 && pn85.indexOf("切换有效") >= 0,
+ok(pn85.indexOf("快速≈10s") >= 0 && pn85.indexOf("深入≈80s") >= 0 && pn85.indexOf("切换有效") >= 0,
    "档位观测: 两档思考量差距大 → 明确告知切换有效");
 recordProbe("m-y","quick",500,10); recordProbe("m-y","deep",520,11);
-ok(probeNote("m-y").indexOf("可能没真把档位当回事") >= 0,
+ok(probeNote("m-y").indexOf("可能不区分推理程度") >= 0,
    "档位观测: 两档几乎无差 → 如实提示存疑，不假装生效");
 ok(probeNote("m-none") === "", "档位观测: 没有实测数据不下结论");
 ok(sseReasonDelta('data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}') === "思考中"

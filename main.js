@@ -447,7 +447,7 @@ function setupUpdate() {
 function collectStartupNotices() {
   if (serverPort !== PREFERRED_PORT) {
     startupNotices.push('<b>注意：</b>本次启动端口 ' + serverPort +
-      ' 被占用（默认 18743），你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
+      ' 被占用，你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
       '关掉占用端口的程序后重新打开本应用即可恢复。');
     log('port-fallback-notice', '已把端口退让的事写进首页提示');
   }

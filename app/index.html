@@ -1144,9 +1144,9 @@ function probeNote(model){
   const qs = Math.round(q.secs/q.n), ds = Math.round(d.secs/d.n);
   const ratio = qr>0 ? dr/qr : (dr>0? Infinity : 0);
   const verdict = ratio >= 1.5 ? "档位差异明显，切换有效"
-                : ratio <= 1.1 ? "两档实测思考量接近——此模型可能没真把档位当回事"
+                : ratio <= 1.1 ? "两档实测差别不大——这个模型可能不区分推理程度"
                 : "有一定差异，但不算大";
-  return `实测：快速≈思考${qr}字/${qs}s，深入≈思考${dr}字/${ds}s——${verdict}。`;
+  return `实测：快速≈${qs}s，深入≈${ds}s——${verdict}。`;
 }
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
@@ -1346,7 +1346,7 @@ async function callLLM(system, user, expectJson, onDelta, opts){
       // 不然设置页那个「两档实测差多少」的结论就建在一份对不上号的样本上
       if(!rejected) recordProbe(model, REASON_LEVELS[level]? level : "standard", out.reasonChars||0, (Date.now()-rungT0)/1000);
       save(); setReasonUI();
-      if(rejected) banner(`实测「${esc(model)}」不收思考强度参数，已自动改按标准方式发送（已记住，之后不再尝试）。`);
+      if(rejected) banner(`实测「${esc(model)}」不接受「推理程度」这一项，已自动改按默认方式发送（已记住，之后不再尝试）。`);
     }
     // 输出坏了就重发，两种坏法分开对付（各留 BODY_RETRY_MAX 次）：
     // ① content 为空：finish=length 就是被额度截断了（空的那一次连正文都没轮到）；不是 length 的（服务端抽风）原样重发。
@@ -3925,7 +3925,7 @@ function setReasonUI(){
   $("#segReason").style.display = cap === "rejected" ? "none" : "";   // 只有实测被拒过才收档
   document.querySelectorAll("#segReason button").forEach(b=> b.classList.toggle("active", b.dataset.lv===lv));
   const note = $("#reasonNote"); if(!note) return;
-  const txt = (cap === "rejected"? "此模型拒收思考参数，已改按标准温度发送。" : "") + (cap !== "rejected"? probeNote(model) : "");
+  const txt = (cap === "rejected"? "这个模型不接受「推理程度」，已改按默认方式发送。" : "") + (cap !== "rejected"? probeNote(model) : "");
   note.textContent = txt;
   note.style.display = txt? "" : "none";   // 没话说就不留一行空白
 }
@@ -4044,8 +4044,8 @@ async function fetchModels(silent){
     // 不静默改写当前模型——实测有服务商名单不全（名字不在列表里照样能用），不能拿列表当生死簿。
     if(cur==="" || (!silent && !ids.includes(cur))) $("#setModel").value = pickFast(ids);
     $("#modelNote").textContent = silent
-      ? `已从接口实拉 ${ids.length} 个模型（每次启动自动刷新）；点输入框展开候选，点谁用谁。`
-      : `已从接口实拉 ${ids.length} 个模型；点输入框展开候选，点谁用谁。`;
+      ? `已拉到 ${ids.length} 个模型（每次启动自动刷新）；点输入框展开候选，点谁用谁。`
+      : `已拉到 ${ids.length} 个模型；点输入框展开候选，点谁用谁。`;
     if(!silent) $("#setMsg").textContent = "已拉取 " + ids.length + " 个模型 ✓";
   }catch(e){
     // 拉不到就保持现状：上次拉到过就继续用它，没有就留空等人手动输入。
@@ -4054,8 +4054,8 @@ async function fetchModels(silent){
     const tail = cached? "候选保持上次实拉的名单。" : "还没有候选名单，可手动输入模型名。";
     if(silent){
       $("#modelNote").textContent = cached
-        ? `自动刷新未成功，候选仍是上次实拉的 ${cached.length} 个；可点「拉取模型列表」重试，或手动输入模型名。`
-        : "自动实拉未成功（可能没网或被拦截）；可点「拉取模型列表」重试，或手动输入模型名。";
+        ? `自动刷新未成功，候选仍是上次拉到的 ${cached.length} 个；可点「拉取模型列表」重试，或手动输入模型名。`
+        : "自动刷新未成功（可能没网或被拦截）；可点「拉取模型列表」重试，或手动输入模型名。";
       return;
     }
     if(e && e.code==="API"){
@@ -4067,10 +4067,10 @@ async function fetchModels(silent){
       $("#modelNote").textContent = `拉取失败：${reason}。${tail}` + (body? ("（"+body+"）") : "");
       $("#setMsg").textContent = `拉取失败（${e.status}）：${reason}`;
     } else if(e && e.code==="EMPTY"){
-      $("#modelNote").textContent = "接口返回 200，但没找到模型列表字段（data.data / data.models）。" + tail;
-      $("#setMsg").textContent = "拉取成功但没找到模型字段";
+      $("#modelNote").textContent = "接口返回 200，但没找到模型列表。" + tail;
+      $("#setMsg").textContent = "拉取成功，但没认出模型列表";
     } else if(e && e.code==="BADJSON"){
-      $("#modelNote").textContent = "接口返回内容不是 JSON（可能是 HTML 错误页）。请确认 Base URL 是否正确（需带 /v1）。";
+      $("#modelNote").textContent = "接口返回的不是模型列表（可能拿到了错误页）。请确认 Base URL 是否正确（需带 /v1）。";
       $("#setMsg").textContent = "返回内容非 JSON，检查地址";
     } else if(e && e.code==="TIMEOUT"){
       $("#modelNote").textContent = "拉取模型列表超时（30 秒无响应）。" + tail;
@@ -4414,13 +4414,13 @@ function cardNoteHtml(module, subtype){
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
   if(e && e.code==="NO_KEY") banner("未配置 API Key：出题和阅卷都要用它，选服务商、填 Key 即可开始。" + OPEN_SETTINGS_BTN);
-  else if(e && e.code==="NO_MODEL") banner("还没选定模型。到设置页的模型栏点「拉取模型列表」，从接口拉一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。" + OPEN_SETTINGS_BTN);
-  else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商/模型/Key 是否匹配；若报跨域，可在文件目录运行 <code>python -m http.server</code> 后用 http 打开。`
-      + (e.status===400? " <b>HTTP 400 多半是参数问题，最常见的就是模型名在该服务商不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
+  else if(e && e.code==="NO_MODEL") banner("还没选定模型。到设置页点「拉取模型列表」拿一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。" + OPEN_SETTINGS_BTN);
+  else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商 / 模型 / Key 是否匹配。`
+      + (e.status===400? " <b>多半是模型名在这一家不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")
       + (e.text? `<br><span class="hint">接口原文：${esc(String(e.text).slice(0,200))}</span>` : ""), "error");
   else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。", "error");
-  else if(e && e.code==="EMPTY") banner("AI 连发两次都没返回正文（多半是这次把额度用在思考上了）。答案还在，再点一次「提交批改」即可。", "error");
-  else if(e && e.code==="BADJSON") banner("服务商返回的内容不是 JSON（多半是 Base URL 不对，需带 /v1）。请检查后重试。", "error");
+  else if(e && e.code==="EMPTY") banner("AI 连发两次都没返回正文。答案还在，再点一次「提交批改」即可。", "error");
+  else if(e && e.code==="BADJSON") banner("服务商返回的不是预期内容（多半是 Base URL 不对，需带 /v1）。请检查后重试。", "error");
   else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或把「推理程度」调低。", "error");
   else if(e && e.code==="ABORT") banner("已取消本次请求。");
   else if(e && /Failed to fetch|NetworkError|TypeError|Load failed|Network request failed/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint(), "error");

@@ -4,10 +4,10 @@ cd /d "%~dp0"
 
 echo.
 echo   ==============================================
-echo    综应练习台 - 打包
+echo    练习台 - 打包
 echo   ==============================================
 echo.
-echo   注意：打包前请先关掉正在运行的「综应练习台」程序，
+echo   注意：打包前请先关掉正在运行的「练习台」程序，
 echo         否则新包写不进去。
 echo.
 
@@ -27,12 +27,12 @@ echo.
 call npm run dist
 if errorlevel 1 (
   echo.
-  echo   [失败] 打包没成功，把上面的报错截给 Cola 即可。
+  echo   [失败] 打包没成功，上面的报错可以截图留存。
   pause
   exit /b 1
 )
 
 echo.
-echo   完成！成品在这里：dist\综应练习台.exe
+echo   完成！成品在 dist\ 里。
 start "" explorer "%~dp0dist"
 exit /b 0

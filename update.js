@@ -161,7 +161,7 @@ function initUpdate(options) {
   if (detectPortable()) {
     status.supported = false;
     status.reason = 'portable';
-    setPhase(PHASE.DISABLED, '免安装版不自动更新：下载新版 exe 覆盖原文件即可（用户数据在 %APPDATA%，不受影响）');
+    setPhase(PHASE.DISABLED, '免安装版不自动更新：下载新版后覆盖原文件即可，你的数据不受影响');
     return status;
   }
 
@@ -257,7 +257,7 @@ function initUpdate(options) {
   });
 
   status.supported = true;
-  setPhase(PHASE.IDLE, '初始化完成，源=' + (status.feed || '包内 app-update.yml'));
+  setPhase(PHASE.IDLE, '就绪');
   schedule(BOOT_CHECK_DELAY_MS);
   return status;
 }
@@ -405,7 +405,7 @@ function handleFailure(id, msg) {
   if (status.phase === PHASE.CHECKING && useNextBackup()) {
     status.error = '';
     backupRetry = true;
-    setPhase(PHASE.IDLE, '主源连不上，换备用源重试');
+    setPhase(PHASE.IDLE, '官方源连不上，换一条线路重试');
     schedule(BACKUP_RETRY_MS);
     return;
   }
@@ -586,13 +586,13 @@ function initMacUpdater(options) {
     status.supported = true;
     mac.ready = found;
     status.latestVersion = found.version;
-    setPhase(PHASE.DOWNLOADED, '上次已下好 v' + found.version + '（' + found.path + '），点「重启并更新」即可');
+    setPhase(PHASE.DOWNLOADED, '上次已下好 v' + found.version + '，点「重启并更新」即可');
     return status;
   }
 
   mac.ok = true;
   status.supported = true;
-  setPhase(PHASE.IDLE, 'mac 自实现更新：查 GitHub 最新 Release；下载与换包都要他点（源=' + mac.api + '）');
+  setPhase(PHASE.IDLE, '就绪');
   schedule(BOOT_CHECK_DELAY_MS);
   return status;
 }
@@ -729,7 +729,7 @@ async function macCheckOnce() {
     macAssertUrl(url);   // 地址不合规就在“检查”这一步就说清，不留到下载时才炸
     mac.pending = { version: tag, url: url, size: Number(asset.size) || 0, digest: String(asset.digest || '') };
     status.latestVersion = tag;
-    setPhase(PHASE.AVAILABLE, 'v' + tag + ' 可用（等他点「更新到 v' + tag + '」再下）');
+    setPhase(PHASE.AVAILABLE, 'v' + tag + ' 可用（点「更新到 v' + tag + '」开始下载）');
   } catch (err) {
     if (id === macAttempt) macFail('check', (err && err.message) || String(err));
   }
@@ -811,7 +811,7 @@ async function macPull(p) {
   mac.ready = { version: p.version, path: file };
   mac.pending = null;
   status.progress = { percent: 100, transferred: got, total: got, bytesPerSecond: 0 };
-  setPhase(PHASE.DOWNLOADED, 'v' + p.version + ' 已下好（' + file + '），等他点「重启并更新」');
+  setPhase(PHASE.DOWNLOADED, 'v' + p.version + ' 已下好，点「重启并更新」');
 }
 
 function macAssetName(p) {

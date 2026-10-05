@@ -12,7 +12,7 @@ set -o pipefail
 
 echo
 echo "  =============================================="
-echo "   综应练习台 - 出 macOS 版"
+echo "   练习台 - 出 macOS 版"
 echo "  =============================================="
 echo
 
@@ -49,7 +49,7 @@ fi
 # 4) 出包
 echo "  开始出包（首次会下载 Electron 的 mac 版，约 115MB）…"
 echo
-"$NODE_BIN/npm" run dist:mac || { echo; echo "  [失败] 出包没成功，把终端里的报错发给 Cola。"; read -n 1 -s -r -p "  按任意键关闭…"; exit 1; }
+"$NODE_BIN/npm" run dist:mac || { echo; echo "  [失败] 出包没成功。"; read -n 1 -s -r -p "  按任意键关闭…"; exit 1; }
 
 echo
 echo "  完成，产物在 dist/（.dmg 双击装上；.zip 是同内容，给自动更新用的）"
