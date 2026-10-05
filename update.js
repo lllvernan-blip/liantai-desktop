@@ -79,6 +79,13 @@ let switchedAway = false;  // 已经换离主源（只影响日志措辞）
 /* 每次尝试一个编号：electron-updater 对同一次失败既 emit('error') 又会 reject，
    有编号才能保证只处理一次；迟到的旧错误（编号已被下一次尝试顶掉）直接丢掉。 */
 let attempt = 0;
+/* 已经处理过的那次编号。上面那句话写的是意图，但光比编号挡不住两条路：同一次失败的两次
+   回调 id 都等于 attempt，第二次进来时 phase 已被第一次改掉，于是跳过换源分支、把 backupIndex
+   拨回主源并按 30 分钟重试——schedule 里的 clearTimeout 顺手把 1.5 秒后那次换源重试也杀了。
+   2026-10-05 真机日志：主源不通后退到第一条备用源，又 reset，然后没有下文，四条只试了一条。
+   归零点在 checking-for-update：electron-updater 每开始一轮检查都会发它，所以这个标记只跨
+   「同一轮里的两条路」，不会拦住下一轮（手动重试、1.5 秒后的换源重试都从新一轮开始）。 */
+let handledAttempt = -1;
 
 const status = {
   phase: PHASE.IDLE,
@@ -211,6 +218,7 @@ function initUpdate(options) {
 
   autoUpdater.on('checking-for-update', () => {
     status.error = '';
+    handledAttempt = -1;   // 新一轮检查开始：同一次失败的计数在这里归零
     setPhase(PHASE.CHECKING);
   });
 
@@ -391,7 +399,9 @@ function useNextBackup() {
 /* 一次失败的统一处理：能换备用源就换（只在“检查”阶段——下载阶段失败换源也没意义），
    换不动（都没了/显式指定了源）就报错并按 30 分钟重试。 */
 function handleFailure(id, msg) {
-  if (id !== attempt) return;   // 同一次失败的第二次回调，或者迟到的旧错误
+  if (id !== attempt) return;         // 迟到的旧错误（编号已被下一次尝试顶掉）
+  if (id === handledAttempt) return;  // 同一次失败的第二次回调（error 事件 + promise reject）
+  handledAttempt = id;
   if (status.phase === PHASE.CHECKING && useNextBackup()) {
     status.error = '';
     backupRetry = true;

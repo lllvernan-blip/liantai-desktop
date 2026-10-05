@@ -278,6 +278,37 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
     three.restore();
   }
 
+  /* ---- 3c. 同一次失败的两次回调（2026-10-05 真机实况）：electron-updater 对一次失败既
+          emit('error')，又让 checkForUpdates() 的 promise reject，两条路都走进 handleFailure，
+          而 id 还是同一个。第二次进来时 phase 已被第一次改成 idle，于是跳过换源分支、把
+          backupIndex 拨回 -1 并按 30 分钟重试——schedule 里的 clearTimeout 顺手杀掉了 1.5 秒
+          后的换源重试，四条备用源实际只试了第一条（真机日志只出现一次「换备用源取元数据」）。 ---- */
+  {
+    const f4 = new FakeUpdater();
+    const four = loadUpdate({ autoUpdater: f4 });
+    four.mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
+
+    // 一次检查里，同一条失败的两条路都报上来（中间不该再插 checking-for-update）
+    f4.emit("checking-for-update");
+    f4.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+    f4.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+
+    ok(f4.calls.setFeedURL.filter(c => c.provider === "generic").length === 1,
+       "壳: 同一次失败回调两次，只换一次源（不叠加）");
+    ok(four.mod.getStatus().phase === "idle" && four.mod.getStatus().error === "",
+       "壳: 第二次回调不撤销刚做的换源（不打 error、不等 30 分钟）");
+
+    // 接着模拟 1.5 秒后那次重试：应当推进到下一条备用源，而不是绕回第一条
+    const n1 = f4.calls.setFeedURL.length;
+    f4.emit("checking-for-update");
+    f4.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+    ok(f4.calls.setFeedURL.length === n1 + 1 && f4.calls.setFeedURL[n1].url !== f4.calls.setFeedURL[n1 - 1].url,
+       "壳: 第二次回调之后，换源链还能继续推进到下一条");
+
+    four.mod.stopUpdate();
+    four.restore();
+  }
+
   mod.stopUpdate();
   restore();
 }
