@@ -1223,8 +1223,9 @@ ok(pdRound.items.length === 5 && pdRound.items.length === PD_SAMPLE_ITEMS.length
 const sampleDoc = el("#docBody").innerHTML;
 ok(sampleDoc.indexOf("material") >= 0 && sampleDoc.indexOf("pdopt") >= 0 && sampleDoc.indexOf("示例题") >= 0,
    "示例轮: 一进来就是第一道题（材料 + 选项 + 示例标注），不再先过落地页");
-ok(el("#modbar").innerHTML === "" && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0,
-   "示例轮: 从起始页直进去也进快判态（页签全灭、快判按钮高亮）");
+ok(el("#modbar").innerHTML === "" && el(".modbar").hidden === true
+   && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0,
+   "示例轮: 从起始页直进去也进快判态（页签全灭、那行也跟着收起、快判按钮高亮）");
 
 /* ④ 示例题本身：与模型返回同形，且过同一道 sanitizePDItems 关 */
 ok(sanitizePDItems(PD_SAMPLE_ITEMS, PD_MIX).length === PD_SAMPLE_ITEMS.length,
@@ -1276,6 +1277,7 @@ ok(_view === "home" && el("#modLabel").textContent === "练习台 · 首页",
    "首页: 抬头不挂科目名（不再写成「综应A · 综合推送」）");
 ok(el("#subjbar").innerHTML.indexOf("active") < 0, "首页: 三个入口一个都不预选（快判也不亮）");
 ok(el("#modbar").innerHTML === "", "首页: 不摆任何科目的题型页签");
+ok(el(".modbar").hidden === true, "首页: 页签行整行收起（不留一条只有三个入口、右边一路空的横带）");
 ok(el("#docBody").innerHTML.indexOf('data-big="zy"') >= 0 && el("#docBody").innerHTML.indexOf('data-big="sl"') >= 0,
    "首页: 两句大题都在（综应 / 申论各自点名）");
 
@@ -1285,6 +1287,7 @@ ok(_view === "start" && el("#modLabel").textContent.indexOf("申论 · 综合推
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="sl"') >= 0
    && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0,
    "首页: 点申论才进申论的首页（科目点灯 + 它的页签）");
+ok(el(".modbar").hidden === false, "科目页: 真有页签，那一行才出现");
 
 /* ③ 左上角品牌名 = 回首页（首页不属于任何科目，得有个不挑科目的落点） */
 ok(PAGE_HTML.indexOf('id="btnHome"') >= 0 && PAGE_HTML.indexOf('$("#btnHome").onclick = ()=> renderHome();') >= 0,
@@ -1292,6 +1295,7 @@ ok(PAGE_HTML.indexOf('id="btnHome"') >= 0 && PAGE_HTML.indexOf('$("#btnHome").on
 renderHome();
 ok(_view === "home" && el("#subjbar").innerHTML.indexOf("active") < 0,
    "首页: 从科目页回得来，回到的是无选中态");
+ok(el(".modbar").hidden === true, "首页: 回来的路上页签行也跟着收起（不会残留一条空带）");
 
 /* ④ 大题入口：点哪句就把科目切到哪边，并直接出题（一步到题） */
 const realLoadQ = loadQuestion; const loadBigCalls = [];
@@ -1320,6 +1324,15 @@ ok(pdActive === false && state.settings.subject === "sl" && loadBigCalls2.length
    "大题入口: 从快判拐去大题会退出判别轨（抬头与页签回到作答轨）");
 loadQuestion = realLoadQ;
 renderHome();
+
+/* ⑤ 顶栏不留空行
+   科目入口搬到品牌那一行；页签行只在真有页签时才占位。 */
+ok(/id="btnHome"[^>]*>练习台<\/button>\s*<span class="subjbar" id="subjbar">/.test(PAGE_HTML),
+   "顶栏: 科目入口紧跟在品牌后面（同一行）");
+ok(/\.modbar\[hidden\]\{[^}]*display:none/.test(PAGE_HTML),
+   "顶栏: 页签行的 [hidden] 能盖住 .modbar 的 display:flex（不然 hidden 白设）");
+ok(PAGE_HTML.indexOf('$(".modbar").hidden = !tabs;') >= 0,
+   "顶栏: 没页签就把整行收起来（renderTabs 里一处判据）");
 
 /* 13 节用完 PD 出题桩就把真身装回去：
    以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，

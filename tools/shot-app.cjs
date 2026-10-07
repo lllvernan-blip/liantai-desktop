@@ -172,6 +172,14 @@ const AUDIT_JS = (scene) => `(() => {
     if (!c || c === "none" || c === "normal") noMark.push((s.className || "summary") + " 无三角");
   }
   if (noMark.length) add("WARN", "折叠件缺三角标记", noMark.length + " 处：" + noMark.slice(0, 4).join("；"));
+  // ⑦ 顶栏不留空行
+  //    科目入口跟品牌同一行；页签行只在**真有题型页签**时才占一行。
+  const toolbarEl = document.querySelector(".toolbar"), subjbarEl = document.querySelector("#subjbar"),
+        modrow = document.querySelector(".modbar");
+  if (toolbarEl && subjbarEl && !toolbarEl.contains(subjbarEl))
+    add("WARN", "科目入口不在顶栏第一行", "科目栏跑出 .toolbar 了：它跟品牌同一行，别再单开一行");
+  if (modrow && modrow.offsetHeight > 0 && !modrow.querySelector(".tab"))
+    add("FAIL", "顶栏空行", "页签行占着 " + modrow.offsetHeight + "px，里面一个页签都没有");
   // ⑥ 入口屏的辅助字预算：入口只写「这是什么 + 怎么开始」，说明字得数得出来
   const budget = ENTRY_BUDGET[SCENE.slice(0, 2)];
   if (budget != null) {

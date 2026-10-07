@@ -90,15 +90,18 @@ html,body{margin:0;padding:0;}
   .toolbar button.brand{border:0;background:transparent;padding:0;min-height:26px;font-size:15px;line-height:1.2;}
   .toolbar button.brand:hover{background:transparent;color:var(--gov-red-dark);}
   .spacer{flex:1 1 auto;}
-  /* 行高锁死：判别轨模式下不渲染页签，如果不锁，这一栏会矮 13px——整条顶栏就“往上跳”了一下 */
-  .modbar{display:flex;align-items:center;gap:4px;padding:0 max(14px,calc((100% - 880px)/2 + 14px));border-top:1px solid var(--line);min-height:47px;}
+  /* 页签行（2026-10-08 改）：只在**真有题型页签**时占一行，没有就整行收起（首页、快判轨）。
+     以前科目按钮也住在这一行，于是它永远在；可那行右边一大半是空的，首页看着就是白扔一行。
+     现在科目按钮跟品牌同一行，锁高的理由（判别轨不渲染页签会跳）也不存在了。 */
+  .modbar{display:flex;align-items:center;gap:4px;padding:0 max(14px,calc((100% - 880px)/2 + 14px));border-top:1px solid var(--line);}
+  .modbar[hidden]{display:none;}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;transition:background .15s ease,color .15s ease,border-color .15s ease;}
   .tab:hover{background:var(--wash-3);}
   /* 当前模块：底部红线 + 淡红底。不加粗（加粗会把页签宽度撑变，又造成一次小位移） */
   .tab.active{color:var(--ink);border-bottom-color:var(--gov-red);background:var(--red-wash);}
   .tab.active:hover{background:var(--red-wash-2);}
-  /* 科目切换：页签区左侧的两个科目按钮；页签只列当前科目的模块 */
-  .subjbar{display:flex;align-items:center;gap:6px;padding-right:12px;margin-right:6px;border-right:1px solid var(--line);}
+  /* 科目入口跟品牌同一行（2026-10-08）：它原来独占顶栏第二行，而那一行里它是唯一的住客 */
+  .subjbar{display:flex;align-items:center;gap:6px;margin-left:14px;}
   .subjbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
   .subjbtn.active{background:var(--red-wash);border-color:var(--gov-red);color:var(--gov-red);}   /* 实心红只留给主行动：科目报「范围」，位置由页签红线报 */
@@ -545,6 +548,7 @@ html,body{margin:0;padding:0;}
 <header class="topbar">
   <div class="toolbar">
     <button class="brand" id="btnHome" title="回到起始页">练习台</button>
+    <span class="subjbar" id="subjbar"></span>
     <span class="spacer"></span>
     <button class="linkbtn" id="btnProfile">我的画像</button>
     <button class="linkbtn" id="btnSettings">设置</button>
@@ -553,7 +557,6 @@ html,body{margin:0;padding:0;}
     <input type="file" id="fileImport" accept="application/json" style="display:none">
   </div>
   <div class="modbar">
-    <span class="subjbar" id="subjbar"></span>
     <span id="modbar"></span>
   </div>
 </header>
@@ -1957,8 +1960,12 @@ function renderTabs(){
   // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）。
   // 「综合」不设页签：点具体题型就推那个题型；不选题型（起始页）就是综合智能推送——两件事不该有两个入口。
   // 首页不摆任何科目的页签：没选科目就先不报范围（同一个理由：不谎报「你在哪」）
-  $("#modbar").innerHTML = (pdActive || home)? "" :
+  const tabs = (pdActive || home)? "" :
     moduleKeysOf(subj).map(k=>`<button class="tab${k===tabActiveKey?" active":""}" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
+  $("#modbar").innerHTML = tabs;
+  // 没有页签就整行收起（首页、快判轨）。以前这行留着、只住着三个科目按钮，右边一路空到窗口边——
+  // 一条横带为了三个按钮占掉 47px。
+  $(".modbar").hidden = !tabs;
   if(!pdActive && !home) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
 }
 function switchSubject(id){
