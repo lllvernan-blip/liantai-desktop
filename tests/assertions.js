@@ -584,9 +584,10 @@ ok(el("#modbar").innerHTML.indexOf("__all") < 0, "页签: 综合页签已撤（�
 renderStart();
 ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
    && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
-   && el("#docBody").innerHTML.indexOf('id="btnStart">练一道大题（综应 / 申论）') >= 0
+   && el("#docBody").innerHTML.indexOf('data-big="zy">练一道综应大题') >= 0
+   && el("#docBody").innerHTML.indexOf('data-big="sl">练一道申论大题') >= 0
    && el("#docBody").innerHTML.indexOf('id="btnSample"') >= 0,
-   "起始页: 快判是第一入口（带一行小字），大题退到第二位，另有示例题入口");
+   "起始页: 快判是第一入口（带一行小字），两句大题各自点名科目，另有示例题入口");
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
@@ -1201,9 +1202,9 @@ const startUp = el("#docBody").innerHTML;
 ok(startUp.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
    && startUp.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0,
    "快判往上提: 起始页最大的红按钮是「开始快判」，下面一行小字");
-ok(startUp.indexOf('<button class="big" id="btnStart">练一道大题（综应 / 申论）') >= 0
-   && startUp.indexOf("智能推送下一题") < 0,
-   "快判往上提: 大题退成第二个按钮，写「练一道大题（综应 / 申论）」，不带 primary");
+ok(startUp.indexOf('data-big="zy">练一道综应大题') >= 0 && startUp.indexOf('data-big="sl">练一道申论大题') >= 0
+   && startUp.indexOf("练一道大题（综应 / 申论）") < 0,
+   "快判往上提: 两句大题各自点名科目，不再写含糊的「综应 / 申论」");
 ok(startUp.indexOf('id="btnSample"') >= 0 && startUp.indexOf("先试一轮示例题（不用填 Key）") >= 0,
    "快判往上提: 起始页给示例轮一个小入口，并写明不用填 Key");
 // 一键出题不能带着空主题走：起始页没有 #pdTheme 输入框，pdThemeValue 得退到随机主题
@@ -1264,6 +1265,61 @@ ok(genCalls.length === 1 && genCalls[0][0] === PD_MIX && sampleCalls === 0,
    "示例轮: 填了 Key 就照常出题，不抢 AI 的活");
 genPDRound = realGenPD; callLLM = pdStubPrev;
 pdActive = false; pdRound = null; pdForm = null; state.settings.apiKey = apiKeyBeforeUp;
+
+/* ============ 13.6 首页（谁都没选）与两句大题各自点名科目 ============ */
+
+/* ① 首页：科目按钮一个都不亮，页签栏空着，抬头不挂科目名 */
+localStorage.clear();
+state.history = []; state.flows = []; state.settings.subject = "zy";
+renderHome();
+ok(_view === "home" && el("#modLabel").textContent === "练习台 · 首页",
+   "首页: 抬头不挂科目名（不再写成「综应A · 综合推送」）");
+ok(el("#subjbar").innerHTML.indexOf("active") < 0, "首页: 三个入口一个都不预选（快判也不亮）");
+ok(el("#modbar").innerHTML === "", "首页: 不摆任何科目的题型页签");
+ok(el("#docBody").innerHTML.indexOf('data-big="zy"') >= 0 && el("#docBody").innerHTML.indexOf('data-big="sl"') >= 0,
+   "首页: 两句大题都在（综应 / 申论各自点名）");
+
+/* ② 点了科目按钮才进那个科目的首页：抬头、点灯、页签一起回来 */
+switchSubject("sl");
+ok(_view === "start" && el("#modLabel").textContent.indexOf("申论 · 综合推送") === 0
+   && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="sl"') >= 0
+   && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0,
+   "首页: 点申论才进申论的首页（科目点灯 + 它的页签）");
+
+/* ③ 左上角品牌名 = 回首页（首页不属于任何科目，得有个不挑科目的落点） */
+ok(PAGE_HTML.indexOf('id="btnHome"') >= 0 && PAGE_HTML.indexOf('$("#btnHome").onclick = ()=> renderHome();') >= 0,
+   "首页: 左上角「练习台」是回家的入口");
+renderHome();
+ok(_view === "home" && el("#subjbar").innerHTML.indexOf("active") < 0,
+   "首页: 从科目页回得来，回到的是无选中态");
+
+/* ④ 大题入口：点哪句就把科目切到哪边，并直接出题（一步到题） */
+const realLoadQ = loadQuestion; const loadBigCalls = [];
+loadQuestion = async (k, st)=>{ loadBigCalls.push([k, st]); };
+state.settings.subject = "zy";
+startSubjectTask("sl");
+ok(state.settings.subject === "sl" && loadBigCalls.length === 1 && subjectOf(loadBigCalls[0][0]) === "sl",
+   "大题入口: 「练一道申论大题」把科目切到申论，并直接出题");
+startSubjectTask("zy");
+ok(state.settings.subject === "zy" && loadBigCalls.length === 2 && subjectOf(loadBigCalls[1][0]) === "zy",
+   "大题入口: 「练一道综应大题」切回综应，并直接出题");
+ok(JSON.parse(localStorage.getItem("gw_state")).settings.subject === "zy",
+   "大题入口: 科目切换落盘（与点科目按钮同一处口径）");
+loadQuestion = realLoadQ;
+
+/* ⑤ 快判页里也能拐去大题 */
+state.settings.subject = "zy";
+enterPD();
+const pdLandBig = el("#docBody").innerHTML;
+ok(pdLandBig.indexOf('data-big="zy"') >= 0 && pdLandBig.indexOf('data-big="sl"') >= 0 && pdLandBig.indexOf("想做整篇大题") >= 0,
+   "快判落地页: 给出两句大题入口（各自点名科目）");
+const loadBigCalls2 = [];
+loadQuestion = async (k, st)=>{ loadBigCalls2.push([k, st]); };
+startSubjectTask("sl");
+ok(pdActive === false && state.settings.subject === "sl" && loadBigCalls2.length === 1,
+   "大题入口: 从快判拐去大题会退出判别轨（抬头与页签回到作答轨）");
+loadQuestion = realLoadQ;
+renderHome();
 
 /* 13 节用完 PD 出题桩就把真身装回去：
    以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
@@ -1502,14 +1558,16 @@ ok(TOURS && TOURS.pd.length >= 4 && TOURS.zy.length >= 4 && TOURS.sl.length >= 4
 ok(TOURS.pd.every(s=>s.sel && s.text) && TOURS.zy.every(s=>s.sel && s.text) && TOURS.sl.every(s=>s.sel && s.text), "使用引导: 每一步都有目标元素与说明文字");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
-ok(TOURS.zy.some(s=> s.sel === "#btnStart") && TOURS.sl.some(s=> s.sel === "#btnStart"), "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
-ok(TOURS.zy[0].sel === "#btnQuick" && TOURS.sl[0].sel === "#btnQuick"
-   && TOURS.zy[1].sel === "#btnStart" && TOURS.sl[1].sel === "#btnStart" && TOURS.pd[0].sel === ".startbox .primary.big",
-   "使用引导: 先讲主行动（快判），再讲大题与模块页签等细分入口");
+ok(TOURS.zy.some(s=> s.sel === "[data-big='zy']") && TOURS.sl.some(s=> s.sel === "[data-big='sl']"),
+   "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
+ok(TOURS.home[0].sel === "#btnQuick" && TOURS.zy[1].sel === "[data-big='zy']" && TOURS.sl[1].sel === "[data-big='sl']" && TOURS.pd[0].sel === ".startbox .primary.big",
+   "使用引导: 先讲主行动（快判），再讲两句大题与模块页签等细分入口");
+ok(TOURS.home.every(s=>s.sel && s.text) && TOURS.home.length >= 3,
+   "使用引导: 首页单独一套（打开软件就落在这里，第一套引导是它）");
 ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
    && renderPDLanding.toString().indexOf('_view = "pd"') >= 0 && renderQuestion.toString().indexOf('_view = "q"') >= 0,
    "使用引导: 记录当前页面形态，重置后能判断能不能就地重播");
-ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到科目首页或快判页时会重新显示引导") >= 0,
+ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到首页或快判页时会重新显示引导") >= 0,
    "使用引导: 重置后当场重播（作答中不打断）");
 ok(tourEnd.toString().indexOf("markSeen") >= 0 && PAGE_HTML.indexOf("tourEnd(false)") >= 0,
    "使用引导: 中途被切走不算看过，下次进入还会播");

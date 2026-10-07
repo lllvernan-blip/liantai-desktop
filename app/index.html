@@ -86,6 +86,9 @@ html,body{margin:0;padding:0;}
   .toolbar .brand::before{content:"";display:inline-block;width:3px;height:13px;background:var(--gov-red);margin-right:7px;vertical-align:-1px;}
   .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:15px;color:var(--gov-red);letter-spacing:1.5px;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0;margin-left:8px;}
+  /* 品牌名就是回家的路（2026-10-08）：首页不属于任何科目，得有个不挑科目的落点 */
+  .toolbar button.brand{border:0;background:transparent;padding:0;min-height:26px;font-size:15px;line-height:1.2;}
+  .toolbar button.brand:hover{background:transparent;color:var(--gov-red-dark);}
   .spacer{flex:1 1 auto;}
   /* 行高锁死：判别轨模式下不渲染页签，如果不锁，这一栏会矮 13px——整条顶栏就“往上跳”了一下 */
   .modbar{display:flex;align-items:center;gap:4px;padding:0 max(14px,calc((100% - 880px)/2 + 14px));border-top:1px solid var(--line);min-height:47px;}
@@ -541,7 +544,7 @@ html,body{margin:0;padding:0;}
 
 <header class="topbar">
   <div class="toolbar">
-    <span class="brand">练习台</span>
+    <button class="brand" id="btnHome" title="回到起始页">练习台</button>
     <span class="spacer"></span>
     <button class="linkbtn" id="btnProfile">我的画像</button>
     <button class="linkbtn" id="btnSettings">设置</button>
@@ -758,10 +761,10 @@ const GONGWEN_TYPES = [
 /* ============ 科目定义 ============ */
 // 科目只回答两件事：有哪些模块、用哪套教练/阅卷口径（role）。模块内容仍写在 MODULES 里。
 const SUBJECTS = {
-  zy:{ name:"综应A", role:"事业单位综合管理类（综应A）",
+  zy:{ name:"综应A", short:"综应", role:"事业单位综合管理类（综应A）",
        note:"事业单位综合管理类，公文与案例分析为主",
        modules:["zy.gongwen","zy.guina","zy.fenxi","zy.duice","zy.shiwu"] },
-  sl:{ name:"申论", role:"公务员申论（小题 + 申发论述）",
+  sl:{ name:"申论", short:"申论", role:"公务员申论（小题 + 申发论述）",
        note:"公务员申论，给定材料；小题与申发论述",
        modules:["sl.guina","sl.duice","sl.fenxi","sl.guanche","sl.zuowen"] }
 };
@@ -843,7 +846,7 @@ const DEFAULT_STATE = {
              timeLimit:0,   // 作答限时的默认值（分钟，0 = 不限）：选过一次，下一题按同样时长起
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
-  tut:{ zy:false, sl:false, pd:false },
+  tut:{ home:false, zy:false, sl:false, pd:false },
   tutVersion:2,
   history:[],
   flows:[],
@@ -1041,8 +1044,8 @@ function load(){
     // 「最近练过的模块」也补前缀：不然切回科目时恢复不到上次的模块（裸键匹配不上任何模块）
     const lm = s.profile.lastModules.map(k=>migrateModuleKey(k));
     if(lm.join("|") !== s.profile.lastModules.join("|")){ s.profile.lastModules = lm; migrated = true; }
-    s.tut = Object.assign({ zy:false, sl:false, pd:false }, (s.tut && typeof s.tut === "object" && !Array.isArray(s.tut))? s.tut : {});
-    if(s.tutVersion !== DEFAULT_STATE.tutVersion){ s.tut = { zy:false, sl:false, pd:false }; s.tutVersion = DEFAULT_STATE.tutVersion; migrated = true; }
+    s.tut = Object.assign({ home:false, zy:false, sl:false, pd:false }, (s.tut && typeof s.tut === "object" && !Array.isArray(s.tut))? s.tut : {});
+    if(s.tutVersion !== DEFAULT_STATE.tutVersion){ s.tut = { home:false, zy:false, sl:false, pd:false }; s.tutVersion = DEFAULT_STATE.tutVersion; migrated = true; }
     // 迁移：练习记录从 gw_state 拆到 gw_history；写成功才清掉旧副本，失败则下轮再试
     let hist = loadHistory();
     if(Array.isArray(s.history) && s.history.length){
@@ -1918,6 +1921,10 @@ function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   const n = state.history.length + 1, y = new Date().getFullYear();
   $("#docNo").textContent = `${state.settings.noPrefix||"综应练"}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
+  if(_view === "home"){  // 首页不属于任何科目：抬头不挂科目名、也不挂模块名（2026-10-08：原来写着「综应A · 综合推送」，看着像已经进了综应）
+    $("#modLabel").textContent = "练习台 · 首页";
+    return;
+  }
   if(pdActive){   // 判别轨不是科目：抬头不挂科目名，只报当前形式
     // 落地页没有具体形式，抬头就写「快判」；写成「快判 · 快判训练」是自己跟自己重复
     const fname = (pdForm && PD_FORMS[pdForm])? PD_FORMS[pdForm].name : "";
@@ -1933,13 +1940,14 @@ function renderTabs(){
   // 页签只列当前科目的模块（左侧科目按钮切换）；「综合」= 当前科目内综合。
   // 判别轨（__pd）不是第三个科目，是另一种练习形式：入口挂在科目栏末尾，点进落地页
   const subj = curSubject();
+  const home = (_view === "home");   // 首页谁都没选：不点灯，也不摆某个科目的页签
   const sb = $("#subjbar");
   if(sb){
     // 快判排在科目之前（2026-10-07「快判往上提」）：它不是第三个科目，是另一种练法，所以先出现、
     // 再用一道竖线跟科目分开——位置与那道线都在说「这里不是选范围，是选怎么练」。
     sb.innerHTML = `<button class="subjbtn${pdActive?" active":""}" data-s="__pd" title="快判训练：看材料点答案，立刻对错。事实选择 / 分组概括 / 表达比较">快判</button>`
       + `<span class="subjdiv" aria-hidden="true"></span>`
-      + SUBJECT_ORDER.map(id=>`<button class="subjbtn${!pdActive && id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("");
+      + SUBJECT_ORDER.map(id=>`<button class="subjbtn${!pdActive && !home && id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("");
     sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=>{
       if(b.dataset.s === "__pd") return enterPD();
       if(b.dataset.s === curSubject() && !pdActive) return backToStart();   // 再点当前科目 = 直接回综合，不用绕道切别的科目
@@ -1948,9 +1956,10 @@ function renderTabs(){
   }
   // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）。
   // 「综合」不设页签：点具体题型就推那个题型；不选题型（起始页）就是综合智能推送——两件事不该有两个入口。
-  $("#modbar").innerHTML = pdActive? "" :
+  // 首页不摆任何科目的页签：没选科目就先不报范围（同一个理由：不谎报「你在哪」）
+  $("#modbar").innerHTML = (pdActive || home)? "" :
     moduleKeysOf(subj).map(k=>`<button class="tab${k===tabActiveKey?" active":""}" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
-  if(!pdActive) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
+  if(!pdActive && !home) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
 }
 function switchSubject(id){
   const fromPD = pdActive; pdActive = false;   // 从判别轨回到作答轨：先退出判别模式（同科目也照走，恢复原页签）
@@ -2047,30 +2056,28 @@ function banner(html, kind){
 }
 function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">长文阅卷通常 10-60 秒。</span><div class="peek" id="streamPeek"></div></p>`; }
 
-function renderStart(){
-  _view = "start";
-  reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
-  activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
-  tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
-  const rf = resumableFlow();   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
-  /* 第一入口是快判（2026-10-07「快判往上提」）：点一下直接出题，不用先选科目、不用打字、不用等阅卷。
-     大题退到第二个按钮（描边、不抢红），「示例题」给没填 Key 的人一条进门就能练的路。
-     有 Key 时「开始快判」跳过落地页直接出题；没 Key 时走内置示例轮，不丢报错——判据在 startPDRound。 */
-  docBody.innerHTML = `<div class="startbox">
+/* 起始页的正文两种形态共用一套：home（没选任何科目）与 start（在一个科目里）。
+   红按钮是快判；下面两句大题各自点名科目——原来写「练一道大题（综应 / 申论）」，实际去的是「上次练的
+   科目」，标签含糊；示例题入口给没填 Key 的人。 */
+function startBoxHtml(rf){
+  const bigs = SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("");
+  return `<div class="startbox">
     <h2>开始今天的练习</h2>
     <div class="actions" style="justify-content:center;margin:0"><button class="primary big" id="btnQuick">开始快判</button></div>
     <p class="hint" style="margin:7px 0 0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>
-    <div class="actions" style="justify-content:center;margin-top:22px"><button class="big" id="btnStart">练一道大题（综应 / 申论）</button></div>
+    <div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
     <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
+}
+function wireStartBox(){
   $("#btnQuick").onclick = ()=> startPDRound(PD_MIX);
-  $("#btnStart").onclick = startSmart;
   $("#btnSample").onclick = ()=> startPDSampleRound();
+  docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));
   const br = $("#btnResume");
   if(br) br.onclick = ()=>{
     const f = resumableFlow();
-    if(!f || f.closedAt){ renderStart(); return; }
+    if(!f || f.closedAt){ (_view === "home"? renderHome : renderStart)(); return; }
     // 科目对齐：链的科目与当前抬头不符时，先把 settings.subject 切回链的科目再进入——杜绝「在综应A 抬头下打开申论链」
     const fsubj = subjectOf(f.module);
     if(fsubj && fsubj !== curSubject()){ state.settings.subject = fsubj; save(); renderTabs(); }
@@ -2078,12 +2085,50 @@ function renderStart(){
     current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card" };
     activeModule = f.module; renderHeader(); renderQuestion();
   };
+}
+/* 大题的入口：点了就把科目切过去、直接出题（一步到题，跟快判那边对称）。
+   首页与快判页都用它；从快判回来时先把判别轨退掉，抬头与页签才会回到作答轨。 */
+function startSubjectTask(subject){
+  if(!SUBJECTS[subject]) return;
+  pdActive = false;
+  if(subject !== curSubject()){ state.settings.subject = subject; save(); }
+  tabActiveKey = null;
+  renderTabs();
+  startSmart();
+}
+/* 首页：打开软件落在这一屏，三个入口都不预选。
+   它不属于综应、也不属于申论，所以科目按钮不点灯、抬头不挂科目名、页签栏空着；
+   想看某个科目就先点它（进那个科目的首页），回这里点左上角的「练习台」。 */
+function renderHome(){
+  _view = "home";
+  reqSeq++;   // 回首页 = 作废在途请求（与 renderStart 同一口径）
+  activeModule = null; pdActive = false;
+  tabActiveKey = null;
+  renderHeader(); renderTabs();
+  docBody.innerHTML = startBoxHtml(resumableFlow());
+  wireStartBox();
+  maybeTour("home");
+}
+function renderStart(){
+  _view = "start";
+  reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
+  activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
+  tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
+  docBody.innerHTML = startBoxHtml(resumableFlow());   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
+  wireStartBox();
   maybeTour(curSubject());
 }
 
 /* ---- 使用引导：首次进入科目起始页时说明入口和练习流程；快判在自己的落地页说明规则。
     走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
 const TOURS = {
+  // 首页（2026-10-08）：打开软件就在这里，所以第一套引导是它——先点快判，再告诉两句大题各去哪个科目
+  home:[
+    { sel:"#btnQuick", text:"点这里直接开始：从材料里挑出对的说法，点选即判，一轮 5 题。" },
+    { sel:"[data-big='zy']", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。" },
+    { sel:"#btnSample", text:"还没填 API Key，也能先试一轮示例题。" },
+    { sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
+  ],
   pd:[
     // 先讲主行动，再讲细分入口：先讲模块页签会把不打算挑题型的人往手动选题带，正与「不选题型也能练」相反
     { sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。" },
@@ -2093,16 +2138,16 @@ const TOURS = {
     { sel:"#btnSettings", text:"真出题要用 API Key（示例题不用），申请方法见设置页。" },
   ],
   zy:[
-    // 先讲快判再讲大题：起始页的第一入口是快判（2026-10-07），引导第一步得落在那个红按钮上
+    // 先讲快判再讲大题：首页与科目首页的第一入口都是快判（2026-10-07），引导第一步得落在那个红按钮上
     { sel:"#btnQuick", text:"想快一点就点这里：从材料里挑出对的说法，点选即判，一轮 5 题。" },
-    { sel:"#btnStart", text:"要练整篇就点这里，不选模块也可以；交卷后按采分点逐条列出得分。" },
+    { sel:"[data-big='zy']", text:"要练整篇就点这里，直接出综应的大题；交卷后按采分点逐条列出得分。" },
     { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
   ],
   sl:[
     { sel:"#btnQuick", text:"想快一点就点这里：从材料里挑出对的说法，点选即判，一轮 5 题。" },
-    { sel:"#btnStart", text:"要练整篇就点这里，不选模块也可以。先读材料划出要点，再归类成稿。" },
+    { sel:"[data-big='sl']", text:"要练整篇就点这里，直接进申论的大题；先读材料划出要点，再归类成稿。" },
     { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
@@ -2674,9 +2719,14 @@ function renderPDLanding(){
       <input type="text" id="pdTheme" placeholder="如：养老服务" style="margin:7px auto 0;max-width:420px">
       <div class="subtypechips" style="margin:9px auto 0;max-width:700px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
     </div>
+    <div class="pdsetup">
+      <div class="pdoptlabel">想做整篇大题</div>
+      <div class="actions" style="justify-content:center;margin-top:9px">${SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("")}</div>
+    </div>
   </div>`;
   docBody.innerHTML = html; renderHeader();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
+  docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));   // 在快判里也能直接拐去练大题
   docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
   docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
   maybeTour("pd");
@@ -4748,19 +4798,20 @@ renderChangelog();
   initUpdateUi();
   ensureActive();
   installFlowListeners();   // 找点步的全局监听只装一次
-  fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderStart();
+  fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderHome();
+  $("#btnHome").onclick = ()=> renderHome();   // 左上角品牌名 = 回首页（首页不属于任何科目，得有回来的路）
   // 模型候选只有一个来源：这次启动就从接口实拉一遍（拉到什么就是什么）
   if(state.settings.apiKey) fetchModels(true);
   renderStartNotices();
   $("#setProvider").onchange = onProviderChange;
   $("#btnTutReset").onclick = ()=>{
-    state.tut = { zy:false, sl:false, pd:false };
+    state.tut = { home:false, zy:false, sl:false, pd:false };
     state.tutVersion = DEFAULT_STATE.tutVersion;
     save();
     closeModals();
-    // 重置后就地重播：首页/快判页直接重渲一次让它当场出现；正在作答不打断，回首页时自然再播
-    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到科目首页或快判页时会重新显示引导。"); return; }
-    if(pdActive) renderPDLanding(); else renderStart();
+    // 重置后就地重播：首页/科目首页/快判页直接重渲一次让它当场出现；正在作答不打断，回首页时自然再播
+    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到首页或快判页时会重新显示引导。"); return; }
+    if(pdActive) renderPDLanding(); else if(_view === "home") renderHome(); else renderStart();
   };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");

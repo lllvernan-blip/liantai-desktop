@@ -90,7 +90,7 @@ function PRELUDE() {
     state.settings.apiKey = opts.key === false ? "" : "sk-demo0demo0demo0demo0demo0demo0";
     state.settings.model = "deepseek-chat";
     state.settings.subject = opts.subject || "zy";
-    state.tut = { zy:true, sl:true, pd:true };   // 老场景默认「已看过教程」，保持各屏原状；要看教程本身用 17 号场景
+    state.tut = { home:true, zy:true, sl:true, pd:true };   // 老场景默认「已看过教程」，保持各屏原状；要看教程本身用 01b / 17 / 18 号场景
     state.history = opts.history ? __hist() : [];
     state.flows = [];
     state.experiences = opts.exp ? [{ id: "e1", type: "错因", kind: "格式", title: "漏写落款文号", body: "公文类作答结尾必须写发文机关与日期，材料里给了就照抄。", scope: "", module: "zy.gongwen", subject: "zy", ts: Date.now(), disabled: false, sourceSig: "x" }] : [];
@@ -107,8 +107,12 @@ function PRELUDE() {
 }
 
 // —— 场景 ——
-function s01_start_new() { __reset({ key: false }); banner("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN); renderStart(); }
-function s02_start_ready() { __reset({ history: true }); state.flows = [{ id: "flow_keep", subject: "sl", module: "sl.guina", subtype: "概括问题", sig: "x", question: __q, keyPoints: [], createdAt: Date.now() - 600e3, closedAt: null, step: "draft", attempts: [{ ts: Date.now(), answer: "a", outline: "", mode: "draft" }], selections: [], groups: [], drafts: [] }]; renderStart(); }
+function s01_start_new() { __reset({ key: false }); banner("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN); renderHome(); }
+// 首页的首次引导（2026-10-08）：首页是打开软件的第一屏，它自己一套引导
+function s01b_home_tut() { __reset({ key: false }); state.tut.home = false; renderHome(); }
+function s02_start_ready() { __reset({ history: true }); state.flows = [{ id: "flow_keep", subject: "sl", module: "sl.guina", subtype: "概括问题", sig: "x", question: __q, keyPoints: [], createdAt: Date.now() - 600e3, closedAt: null, step: "draft", attempts: [{ ts: Date.now(), answer: "a", outline: "", mode: "draft" }], selections: [], groups: [], drafts: [] }]; renderHome(); }
+// 科目首页（点了综应A）：科目点灯 + 该科目的题型页签都在（与首页的「无选中态」对照）
+function s02b_subject_home() { __reset({ history: true, subject: "zy" }); renderStart(); }
 function s03_landing() { __reset({ history: true }); renderModuleLanding("sl.guina"); }
 function s04_zy_card() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 0, phase: "card" }; activeModule = "zy.guina"; renderQuestion(); }
 function s05_zy_answer() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 1, phase: "answer" }; activeModule = "zy.guina"; renderQuestion(); }
@@ -279,7 +283,9 @@ function s29_flow_read_limit() {
 
 const SCENES = [
   ["01-起始页-新用户", s01_start_new, true],
+  ["01b-起始页-首次引导", s01b_home_tut, true],
   ["02-起始页-已配置", s02_start_ready, true],
+  ["02b-综应A-综合推送", s02b_subject_home, true],
   ["03-模块落地页", s03_landing, true],
   ["04-综应A-学习卡", s04_zy_card, true],
   ["05-综应A-作答", s05_zy_answer, true],
