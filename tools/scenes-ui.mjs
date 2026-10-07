@@ -180,6 +180,13 @@ function s14_pd_summary() {
   ] };
   renderPDSummary();
 }
+// 示例轮（2026-10-07「快判往上提」）：没填 Key 的人点「开始快判」应该落到这两屏——第一道题与小结点
+function s14b_pd_sample() { __reset({ key: false }); startPDRound(PD_MIX); }
+function s14c_pd_sample_done() {
+  __reset({ key: false });
+  startPDRound(PD_MIX);
+  for (let i = 0; i < 5; i++) { pdResolve(i % 2); if (!pdRound.done) pdNext(); }
+}
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s15b_settings_mac_update() {
@@ -289,6 +296,8 @@ const SCENES = [
   ["12-快判-落地页", s12_pd_landing, true],
   ["13-快判-作答", s13_pd_round, true],
   ["14-快判-小结", s14_pd_summary, true],
+  ["14b-快判-示例题", s14b_pd_sample, true],
+  ["14c-快判-示例小结", s14c_pd_sample_done, true],
   ["15-设置", s15_settings, false],
   ["15b-设置-mac查到新版", s15b_settings_mac_update, false],
   ["15c-设置-mac已下好", s15c_settings_mac_downloaded, false],

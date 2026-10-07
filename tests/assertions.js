@@ -582,7 +582,11 @@ ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf(
 renderTabs();
 ok(el("#modbar").innerHTML.indexOf("__all") < 0, "页签: 综合页签已撤（不选题型即综合推送，不设双入口）");
 renderStart();
-ok(el("#docBody").innerHTML.indexOf("智能推送下一题") >= 0 && el("#docBody").innerHTML.indexOf("按综合来推") >= 0, "起始页: 智能推送入口 + 「不选题型就按综合来推」明示");
+ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
+   && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
+   && el("#docBody").innerHTML.indexOf('id="btnStart">练一道大题（综应 / 申论）') >= 0
+   && el("#docBody").innerHTML.indexOf('id="btnSample"') >= 0,
+   "起始页: 快判是第一入口（带一行小字），大题退到第二位，另有示例题入口");
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
@@ -1180,7 +1184,89 @@ ok(el("#profileBody").innerHTML.indexOf("分组概括") >= 0 && el("#profileBody
 localStorage.clear();
 state.history = [];
 
-/* 13 节用完 PD 出题桩就把真身装回去：以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
+/* ============ 13.5 快判往上提（2026-10-07）：快判成第一入口 + 内置示例轮 ============ */
+
+/* ① 入口顺序：快判排在科目之前，且与科目之间有一道分隔 */
+renderTabs();
+const sbUp = el("#subjbar").innerHTML;
+ok(sbUp.indexOf("快判") >= 0 && sbUp.indexOf("快判") < sbUp.indexOf("综应A"),
+   "快判往上提: 科目栏里快判排在科目之前");
+ok(sbUp.indexOf('class="subjdiv"') >= 0, "快判往上提: 快判与科目之间有一道分隔（它不是第三个科目）");
+
+/* ② 起始页：大红按钮是快判，大题退成描边第二按钮，另有示例入口 */
+const apiKeyBeforeUp = state.settings.apiKey;   // 后面几步要改 Key：用完原样还回去（14.11 那条要验「导入不动本机 Key」）
+state.settings.apiKey = "";
+renderStart();
+const startUp = el("#docBody").innerHTML;
+ok(startUp.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
+   && startUp.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0,
+   "快判往上提: 起始页最大的红按钮是「开始快判」，下面一行小字");
+ok(startUp.indexOf('<button class="big" id="btnStart">练一道大题（综应 / 申论）') >= 0
+   && startUp.indexOf("智能推送下一题") < 0,
+   "快判往上提: 大题退成第二个按钮，写「练一道大题（综应 / 申论）」，不带 primary");
+ok(startUp.indexOf('id="btnSample"') >= 0 && startUp.indexOf("先试一轮示例题（不用填 Key）") >= 0,
+   "快判往上提: 起始页给示例轮一个小入口，并写明不用填 Key");
+// 一键出题不能带着空主题走：起始页没有 #pdTheme 输入框，pdThemeValue 得退到随机主题
+const startThemes = Array.from({length: 20}, ()=> pdThemeValue());
+ok(startThemes.every(t=> PD_TOPICS.indexOf(t) >= 0),
+   "快判往上提: 起始页没主题输入框时退回随机主题（不会带着空主题出题）");
+
+/* ③ 一键到题：没 Key 点「开始快判」直接进示例轮（不报错、不调 AI） */
+const pdStubPrev = callLLM; let sampleCalls = 0;
+callLLM = async (...a)=>{ sampleCalls++; return pdStubPrev(...a); };
+startPDRound(PD_MIX);
+ok(pdActive === true && !!pdRound && pdRound.sample === true && sampleCalls === 0,
+   "示例轮: 没填 Key 点「开始快判」直接进示例轮，不报错也不调 AI");
+ok(pdRound.items.length === 5 && pdRound.items.length === PD_SAMPLE_ITEMS.length && pdRound.idx === 0,
+   "示例轮: 5 道写死的题，开局停在第 1 题");
+const sampleDoc = el("#docBody").innerHTML;
+ok(sampleDoc.indexOf("material") >= 0 && sampleDoc.indexOf("pdopt") >= 0 && sampleDoc.indexOf("示例题") >= 0,
+   "示例轮: 一进来就是第一道题（材料 + 选项 + 示例标注），不再先过落地页");
+ok(el("#modbar").innerHTML === "" && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0,
+   "示例轮: 从起始页直进去也进快判态（页签全灭、快判按钮高亮）");
+
+/* ④ 示例题本身：与模型返回同形，且过同一道 sanitizePDItems 关 */
+ok(sanitizePDItems(PD_SAMPLE_ITEMS, PD_MIX).length === PD_SAMPLE_ITEMS.length,
+   "示例题: 5 道全部结构完整，能过 sanitizePDItems（与模型返回同一道关）");
+ok(PD_SAMPLE_ITEMS.every(it=> PD_FORM_ORDER.indexOf(it.form) >= 0 && it.context.length >= 60
+   && it.stem && it.options.length >= 2 && it.answer >= 0 && it.answer < it.options.length && it.trap && it.explain),
+   "示例题: 形式 / 材料 / 题干 / 选项 / 答案 / 辨析点 / 解析齐备");
+ok(new Set(PD_SAMPLE_ITEMS.map(it=> it.form)).size === 3,
+   "示例题: 三种形式都露面（一轮就让人看清快判练的三件事）");
+
+/* ⑤ 判分与小结走同一套，但「不落账」 */
+const histBeforeSample = state.history.length;
+const lsBeforeSample = localStorage.getItem("gw_history");
+for(let i=0;i<5;i++){ pdResolve(0); if(!pdRound.done) pdNext(); }
+ok(pdRound.done === true && el("#docBody").innerHTML.indexOf("本轮小结 · 综合快判") >= 0,
+   "示例轮: 答完 5 题照常出小结（与真轮同一屏）");
+ok(state.history.length === histBeforeSample && localStorage.getItem("gw_history") === lsBeforeSample,
+   "示例轮: 不计入练习记录（画像不被这 5 道固定题拖着走）");
+ok(el("#docBody").innerHTML.indexOf("再做一遍示例题") >= 0 && el("#docBody").innerHTML.indexOf("看快判的其他形式") >= 0,
+   "示例轮: 小结给「再做一遍」与「看其他形式」，不给 AI 出题的「再来一轮」");
+ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考你") < 0
+   && el("#docBody").innerHTML.indexOf("这几类就是快判最常考的辨析点") >= 0,
+   "示例轮: 不承诺「下次再考你」（示例题不入账，那条链也无从兜现）");
+ok(el("#bannerSlot").innerHTML.indexOf("想看新题，去设置里填一个 API Key") >= 0
+   && el("#bannerSlot").innerHTML.indexOf("bnrOpenSettings") >= 0,
+   "示例轮: 跑完才提示填 Key，提示里能直接点进设置");
+
+/* ⑥ 与大题的关系：练习页与小结点各一句 */
+ok(sampleDoc.indexOf("快判练的是从材料里辨认说法") >= 0 && el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") >= 0,
+   "关系说明: 快判练习页与小结点都说明它和大题的关系");
+
+/* ⑦ 填了 Key 就照常走 AI：别让示例轮的兜底把真出题也拦下 */
+state.settings.apiKey = "sk-test";
+const realGenPD = genPDRound; const genCalls = [];
+genPDRound = async (form, theme)=>{ genCalls.push([form, theme]); };
+startPDRound(PD_MIX);
+ok(genCalls.length === 1 && genCalls[0][0] === PD_MIX && sampleCalls === 0,
+   "示例轮: 填了 Key 就照常出题，不抢 AI 的活");
+genPDRound = realGenPD; callLLM = pdStubPrev;
+pdActive = false; pdRound = null; pdForm = null; state.settings.apiKey = apiKeyBeforeUp;
+
+/* 13 节用完 PD 出题桩就把真身装回去：
+   以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
    后面的用例看着「拦到了请求」，其实拦的是上一节的返回值——18 节的真实网络用例就是这么被蒙过去的。 */
 callLLM = realCallPD;
 
@@ -1417,8 +1503,9 @@ ok(TOURS.pd.every(s=>s.sel && s.text) && TOURS.zy.every(s=>s.sel && s.text) && T
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
 ok(TOURS.zy.some(s=> s.sel === "#btnStart") && TOURS.sl.some(s=> s.sel === "#btnStart"), "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
-ok(TOURS.zy[0].sel === "#btnStart" && TOURS.sl[0].sel === "#btnStart" && TOURS.pd[0].sel === ".startbox .primary.big",
-   "使用引导: 先讲主行动，再讲模块页签等细分入口");
+ok(TOURS.zy[0].sel === "#btnQuick" && TOURS.sl[0].sel === "#btnQuick"
+   && TOURS.zy[1].sel === "#btnStart" && TOURS.sl[1].sel === "#btnStart" && TOURS.pd[0].sel === ".startbox .primary.big",
+   "使用引导: 先讲主行动（快判），再讲大题与模块页签等细分入口");
 ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
    && renderPDLanding.toString().indexOf('_view = "pd"') >= 0 && renderQuestion.toString().indexOf('_view = "q"') >= 0,
    "使用引导: 记录当前页面形态，重置后能判断能不能就地重播");
