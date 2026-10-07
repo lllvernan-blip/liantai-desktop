@@ -581,7 +581,7 @@ state.history = [];
 ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf("zy.guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
 renderTabs();
 ok(el("#modbar").innerHTML.indexOf("__all") < 0, "页签: 综合页签已撤（不选题型即综合推送，不设双入口）");
-renderStart();
+renderHome();
 ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
    && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
    && el("#docBody").innerHTML.indexOf('data-big="zy">练一道综应大题') >= 0
@@ -1194,19 +1194,39 @@ ok(sbUp.indexOf("快判") >= 0 && sbUp.indexOf("快判") < sbUp.indexOf("综应A
    "快判往上提: 科目栏里快判排在科目之前");
 ok(sbUp.indexOf('class="subjdiv"') >= 0, "快判往上提: 快判与科目之间有一道分隔（它不是第三个科目）");
 
-/* ② 起始页：大红按钮是快判，大题退成描边第二按钮，另有示例入口 */
+/* ② 首页：大红按钮是快判，大题退成描边第二按钮，另有示例入口
+     （2026-10-08 这两句曾经连科目首页也照抄一份，结果综应A 里最大的红按钮写着「开始快判」） */
 const apiKeyBeforeUp = state.settings.apiKey;   // 后面几步要改 Key：用完原样还回去（14.11 那条要验「导入不动本机 Key」）
 state.settings.apiKey = "";
-renderStart();
+renderHome();
 const startUp = el("#docBody").innerHTML;
 ok(startUp.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
    && startUp.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0,
-   "快判往上提: 起始页最大的红按钮是「开始快判」，下面一行小字");
+   "快判往上提: 首页最大的红按钮是「开始快判」，下面一行小字");
 ok(startUp.indexOf('data-big="zy">练一道综应大题') >= 0 && startUp.indexOf('data-big="sl">练一道申论大题') >= 0
    && startUp.indexOf("练一道大题（综应 / 申论）") < 0,
    "快判往上提: 两句大题各自点名科目，不再写含糊的「综应 / 申论」");
 ok(startUp.indexOf('id="btnSample"') >= 0 && startUp.indexOf("先试一轮示例题（不用填 Key）") >= 0,
-   "快判往上提: 起始页给示例轮一个小入口，并写明不用填 Key");
+   "快判往上提: 首页给示例轮一个小入口，并写明不用填 Key");
+/* ②b 科目首页（综应A / 申论）：红按钮是本科目的主行动，快判不在纸面上抢红
+     （快判入口常驻顶栏最左那颗胶囊，科目页再放一遍就是同一条路开两个门） */
+state.settings.subject = "zy"; renderStart();
+const subjStart = el("#docBody").innerHTML;
+ok(subjStart.indexOf('class="primary big" id="btnSmart">开始综应练习') >= 0
+   && subjStart.indexOf("AI 按你最近的表现自动出题") >= 0,
+   "科目页: 红按钮是「开始综应练习」（本科目的主行动），下面一句讲它怎么出题");
+ok(subjStart.indexOf("开始快判") < 0 && subjStart.indexOf('id="btnSample"') < 0,
+   "科目页: 不出现「开始快判」，也不放示例轮（那是快判的事）");
+ok(subjStart.indexOf("data-big") < 0,
+   "科目页: 不放两句大题——点它们和点红按钮是同一个动作（startSmart）");
+ok(el("#subjbar").innerHTML.indexOf("快判") >= 0,
+   "科目页: 快判仍从顶栏最左那颗胶囊进（入口没被藏掉）");
+ok(el("#btnSmart").onclick === startSmart && el("#btnQuick").onclick !== startSmart,
+   "科目页: 红按钮接的是 startSmart（与「练一道综应大题」同一个动作，不是快判那条）");
+state.settings.subject = "sl"; renderStart();
+ok(el("#docBody").innerHTML.indexOf('id="btnSmart">开始申论练习') >= 0,
+   "科目页: 换到申论，红按钮跟着换名（开始申论练习）");
+state.settings.subject = "zy";
 // 一键出题不能带着空主题走：起始页没有 #pdTheme 输入框，pdThemeValue 得退到随机主题
 const startThemes = Array.from({length: 20}, ()=> pdThemeValue());
 ok(startThemes.every(t=> PD_TOPICS.indexOf(t) >= 0),
@@ -1571,10 +1591,10 @@ ok(TOURS && TOURS.pd.length >= 4 && TOURS.zy.length >= 4 && TOURS.sl.length >= 4
 ok(TOURS.pd.every(s=>s.sel && s.text) && TOURS.zy.every(s=>s.sel && s.text) && TOURS.sl.every(s=>s.sel && s.text), "使用引导: 每一步都有目标元素与说明文字");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
-ok(TOURS.zy.some(s=> s.sel === "[data-big='zy']") && TOURS.sl.some(s=> s.sel === "[data-big='sl']"),
-   "使用引导: 科目起始页的不选题型（综合）默认入口有说明");
-ok(TOURS.home[0].sel === "#btnQuick" && TOURS.zy[1].sel === "[data-big='zy']" && TOURS.sl[1].sel === "[data-big='sl']" && TOURS.pd[0].sel === ".startbox .primary.big",
-   "使用引导: 先讲主行动（快判），再讲两句大题与模块页签等细分入口");
+ok(TOURS.zy.some(s=> s.sel === "#btnSmart") && TOURS.sl.some(s=> s.sel === "#btnSmart"),
+   "使用引导: 科目首页的红按钮（不选题型的综合入口）有说明");
+ok(TOURS.home[0].sel === "#btnQuick" && TOURS.home[1].sel === "[data-big='zy']" && TOURS.zy[0].sel === "#btnSmart" && TOURS.sl[0].sel === "#btnSmart" && TOURS.pd[0].sel === ".startbox .primary.big",
+   "使用引导: 首页先讲快判、再讲两句大题；科目页只讲本科目的主行动");
 ok(TOURS.home.every(s=>s.sel && s.text) && TOURS.home.length >= 3,
    "使用引导: 首页单独一套（打开软件就落在这里，第一套引导是它）");
 ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0

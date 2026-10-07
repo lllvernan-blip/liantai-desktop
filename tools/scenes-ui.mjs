@@ -113,6 +113,8 @@ function s01b_home_tut() { __reset({ key: false }); state.tut.home = false; rend
 function s02_start_ready() { __reset({ history: true }); state.flows = [{ id: "flow_keep", subject: "sl", module: "sl.guina", subtype: "概括问题", sig: "x", question: __q, keyPoints: [], createdAt: Date.now() - 600e3, closedAt: null, step: "draft", attempts: [{ ts: Date.now(), answer: "a", outline: "", mode: "draft" }], selections: [], groups: [], drafts: [] }]; renderHome(); }
 // 科目首页（点了综应A）：科目点灯 + 该科目的题型页签都在（与首页的「无选中态」对照）
 function s02b_subject_home() { __reset({ history: true, subject: "zy" }); renderStart(); }
+// 申论科目首页：红按钮跟着换名（开始申论练习），快判同样不在纸面上
+function s02c_sl_subject_home() { __reset({ history: true, subject: "sl" }); renderStart(); }
 function s03_landing() { __reset({ history: true }); renderModuleLanding("sl.guina"); }
 function s04_zy_card() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 0, phase: "card" }; activeModule = "zy.guina"; renderQuestion(); }
 function s05_zy_answer() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 1, phase: "answer" }; activeModule = "zy.guina"; renderQuestion(); }
@@ -286,6 +288,7 @@ const SCENES = [
   ["01b-起始页-首次引导", s01b_home_tut, true],
   ["02-起始页-已配置", s02_start_ready, true],
   ["02b-综应A-综合推送", s02b_subject_home, true],
+  ["02c-申论-科目首页", s02c_sl_subject_home, true],
   ["03-模块落地页", s03_landing, true],
   ["04-综应A-学习卡", s04_zy_card, true],
   ["05-综应A-作答", s05_zy_answer, true],

@@ -2066,20 +2066,33 @@ function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI �
 /* 起始页的正文两种形态共用一套：home（没选任何科目）与 start（在一个科目里）。
    红按钮是快判；下面两句大题各自点名科目——原来写「练一道大题（综应 / 申论）」，实际去的是「上次练的
    科目」，标签含糊；示例题入口给没填 Key 的人。 */
+/* 起始页两种形态（2026-10-08 分开）：
+   · 首页（`_view === "home"`，没选科目）：红按钮是「开始快判」——打开软件第一眼就能练，快判最轻；
+     随后两句大题各自点名科目，再加一个示例题入口。
+   · 科目首页（综应A / 申论）：红按钮是**本科目的主行动**（走 `startSmart`）。快判不在这里抢红：
+     它不是科目内容，是另一种练法，入口常驻顶栏最左那颗「快判」，在科目页里再放一遍就是同一条路开两个门。 */
 function startBoxHtml(rf){
+  const home = (_view === "home");
+  const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
   const bigs = SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("");
   return `<div class="startbox">
     <h2>开始今天的练习</h2>
-    <div class="actions" style="justify-content:center;margin:0"><button class="primary big" id="btnQuick">开始快判</button></div>
-    <p class="hint" style="margin:7px 0 0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>
-    <div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
-    <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>
+    <div class="actions" style="justify-content:center;margin:0">${home
+      ? `<button class="primary big" id="btnQuick">开始快判</button>`
+      : `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`}</div>
+    <p class="hint" style="margin:7px 0 0">${home
+      ? "从材料里挑出对的说法，一轮 5 题，两三分钟。"
+      : "不选具体题型就按综合来推：AI 按你最近的表现自动出题，越练越准。"}</p>
+    ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
+    <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>` : ""}
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
 }
 function wireStartBox(){
-  $("#btnQuick").onclick = ()=> startPDRound(PD_MIX);
-  $("#btnSample").onclick = ()=> startPDSampleRound();
+  // 两种起始页各有自己的红按钮，各自都可能不在：取不到就跳过
+  const q = $("#btnQuick"); if(q) q.onclick = ()=> startPDRound(PD_MIX);
+  const sm = $("#btnSmart"); if(sm) sm.onclick = startSmart;
+  const sp = $("#btnSample"); if(sp) sp.onclick = ()=> startPDSampleRound();
   docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));
   const br = $("#btnResume");
   if(br) br.onclick = ()=>{
@@ -2145,16 +2158,14 @@ const TOURS = {
     { sel:"#btnSettings", text:"真出题要用 API Key（示例题不用），申请方法见设置页。" },
   ],
   zy:[
-    // 先讲快判再讲大题：首页与科目首页的第一入口都是快判（2026-10-07），引导第一步得落在那个红按钮上
-    { sel:"#btnQuick", text:"想快一点就点这里：从材料里挑出对的说法，点选即判，一轮 5 题。" },
-    { sel:"[data-big='zy']", text:"要练整篇就点这里，直接出综应的大题；交卷后按采分点逐条列出得分。" },
+    // 科目页的红按钮是本科目的主行动（快判常驻顶栏最左那颗胶囊，不在纸面上再放一个）
+    { sel:"#btnSmart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。" },
     { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
   ],
   sl:[
-    { sel:"#btnQuick", text:"想快一点就点这里：从材料里挑出对的说法，点选即判，一轮 5 题。" },
-    { sel:"[data-big='sl']", text:"要练整篇就点这里，直接进申论的大题；先读材料划出要点，再归类成稿。" },
+    { sel:"#btnSmart", text:"点这里开始：先读材料划出要点，再归类成稿；交卷后按采分点逐条给分。" },
     { sel:"#modbar", text:"想只练某一类，点上方一排里的模块。" },
     { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
