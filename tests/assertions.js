@@ -1238,8 +1238,8 @@ callLLM = async (...a)=>{ sampleCalls++; return pdStubPrev(...a); };
 startPDRound(PD_MIX);
 ok(pdActive === true && !!pdRound && pdRound.sample === true && sampleCalls === 0,
    "示例轮: 没填 Key 点「开始快判」直接进示例轮，不报错也不调 AI");
-ok(pdRound.items.length === 5 && pdRound.items.length === PD_SAMPLE_ITEMS.length && pdRound.idx === 0,
-   "示例轮: 5 道写死的题，开局停在第 1 题");
+ok(pdRound.items.length === PD_ROUND_SIZE && pdRound.idx === 0,
+   "示例轮: 一轮 5 题，开局停在第 1 题");
 const sampleDoc = el("#docBody").innerHTML;
 ok(sampleDoc.indexOf("material") >= 0 && sampleDoc.indexOf("pdopt") >= 0 && sampleDoc.indexOf("示例题") >= 0,
    "示例轮: 一进来就是第一道题（材料 + 选项 + 示例标注），不再先过落地页");
@@ -1248,13 +1248,31 @@ ok(el("#modbar").innerHTML === "" && el(".modbar").hidden === true
    "示例轮: 从起始页直进去也进快判态（页签全灭、那行也跟着收起、快判按钮高亮）");
 
 /* ④ 示例题本身：与模型返回同形，且过同一道 sanitizePDItems 关 */
-ok(sanitizePDItems(PD_SAMPLE_ITEMS, PD_MIX).length === PD_SAMPLE_ITEMS.length,
-   "示例题: 5 道全部结构完整，能过 sanitizePDItems（与模型返回同一道关）");
+ok(sanitizePDItems(PD_SAMPLE_ITEMS, PD_MIX).length === PD_ROUND_SIZE,
+   "示例题: 池子里的题结构完整，能过 sanitizePDItems（与模型返回同一道关）");
 ok(PD_SAMPLE_ITEMS.every(it=> PD_FORM_ORDER.indexOf(it.form) >= 0 && it.context.length >= 60
    && it.stem && it.options.length >= 2 && it.answer >= 0 && it.answer < it.options.length && it.trap && it.explain),
    "示例题: 形式 / 材料 / 题干 / 选项 / 答案 / 辨析点 / 解析齐备");
 ok(new Set(PD_SAMPLE_ITEMS.map(it=> it.form)).size === 3,
    "示例题: 三种形式都露面（一轮就让人看清快判练的三件事）");
+ok(PD_SAMPLE_ITEMS.every(it=> sanitizePDItems([it], it.form).length === 1),
+   "示例题: 逐题过一遍 sanitizePDItems（去重后选项仍 >=2、答案下标仍指得对——不对的题会被整题丢掉）");
+ok(PD_FORM_ORDER.every(f=> PD_SAMPLE_ITEMS.filter(it=> it.form === f).length >= PD_ROUND_SIZE),
+   "示例题: 每种形式都够凑一轮（不够就只能拿混合轮顶包：点了 A 得到 B，2026-10-08 拍板改掉）");
+// 单形式轮：点了哪个形式就出哪个形式，抬头/纸面也跟着报那个形式（不能冒充综合快判）
+startPDSampleRound("group-summarize");
+ok(pdRound.form === "group-summarize" && pdRound.items.length === PD_ROUND_SIZE
+   && pdRound.items.every(it=> it.form === "group-summarize"),
+   "示例轮/单形式: 点「分组概括」就给分组概括的 5 道（不再给三种混着来）");
+ok(el("#modLabel").textContent.indexOf("分组概括") >= 0
+   && el("#docBody").innerHTML.indexOf("示例题（分组概括，不调用 AI）") >= 0,
+   "示例轮/单形式: 抬头与纸面都如实报这个形式");
+startPDRound("expression-compare");
+ok(pdRound.form === "expression-compare" && pdRound.items.every(it=> it.form === "expression-compare"),
+   "示例轮/单形式: 没填 Key 时点形式卡片，走到底也拿这个形式（入口那一跳不能把形式丢掉）");
+startPDSampleRound();
+ok(pdRound.form === PD_MIX && new Set(pdRound.items.map(it=> it.form)).size === 3,
+   "示例轮/综合: 不传形式时仍是三种混着来的一轮（首页那个「先试一轮示例题」走这条）");
 
 /* ⑤ 判分与小结走同一套，但「不落账」 */
 const histBeforeSample = state.history.length;
@@ -2105,6 +2123,23 @@ ok(profilePdHtml().indexOf("示例题") >= 0 && profilePdHtml().indexOf("还没�
 pdRound.sample = false;
 ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 真轮没跑过时仍走原空态（不把话说过头）");
 pdRound = null; state.history = _histKeep;
+
+/* 19.10 顶栏跳高
+   页签行只在科目页出现，纸面原来会跟着往下走 44px；现在那 44px 由纸面上方的空白吸收，
+   两种页面的纸面起点一模一样（不能用 .topbar 补高——那会留一条带边框的空带子，正是要避免的浪费）。 */
+ok(renderTabs.toString().indexOf('toggle("gap-modbar"') >= 0
+   && /\.wrap\.gap-modbar\{[^}]*--h-modbar/.test(PAGE_HTML),
+   "顶栏: 页签行不出场时用纸面上方的空白补回那 44px");
+ok(PAGE_HTML.indexOf("--h-modbar:44px") >= 0 && PAGE_HTML.indexOf("height:var(--h-modbar)") >= 0,
+   "顶栏: 页签行的高度只在一处定（--h-modbar），不出场时补的就是这个数");
+/* 首页文号跟着抬头走：首页不属于任何科目，落款不能挂某个科目的前缀 */
+state.settings.noPrefix = "综应练";
+renderHome();
+const homeNo = el("#docNo").textContent;
+renderStart();
+ok(homeNo.indexOf("练习台〔") === 0 && el("#docNo").textContent.indexOf("综应练〔") === 0,
+   "首页文号: 首页写「练习台〔年〕第 N 号」，进科目才用设置里的前缀（" + homeNo + "）");
+state.settings.noPrefix = "综应练";
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);

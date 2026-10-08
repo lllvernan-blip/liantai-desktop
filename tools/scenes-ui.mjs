@@ -193,6 +193,9 @@ function s14c_pd_sample_done() {
   startPDRound(PD_MIX);
   for (let i = 0; i < 5; i++) { pdResolve(i % 2); if (!pdRound.done) pdNext(); }
 }
+// 没填 Key 时点「只练一种形式」（2026-10-08 补）：一轮就应该是那个形式，抬头/纸面也要如实报它——
+// 原来只有 5 道题，不管点哪个都给三种混着来的一轮（点了 A 得到 B）
+function s14d_pd_sample_single() { __reset({ key: false }); enterPD(); startPDRound("fact-select"); }
 function s15_settings() { __reset({ history: true }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s16_settings_nokey() { __reset({ history: true, key: false }); openModal("modalSettings"); fillSettings(); setReasonUI(); }
 function s15b_settings_mac_update() {
@@ -307,6 +310,7 @@ const SCENES = [
   ["14-快判-小结", s14_pd_summary, true],
   ["14b-快判-示例题", s14b_pd_sample, true],
   ["14c-快判-示例小结", s14c_pd_sample_done, true],
+  ["14d-快判-示例题-只练一种形式", s14d_pd_sample_single, true],
   ["15-设置", s15_settings, false],
   ["15b-设置-mac查到新版", s15b_settings_mac_update, false],
   ["15c-设置-mac已下好", s15c_settings_mac_downloaded, false],
