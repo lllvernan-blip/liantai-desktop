@@ -531,7 +531,7 @@ ok(cardHtml({points:["要点"],pitfalls:["失分"],templates:"框架",example:{s
    "学习卡: example 栏目渲染（示例案例+典型问法）");
 const cHtml = cardHtml({points:["要点一","要点二"],pitfalls:["失分"],templates:"框架",example:{scene:"场景",ask:"问法"}});
 ok((cHtml.match(/<section class="csec/g)||[]).length === 4 && (cHtml.match(/<h4>/g)||[]).length === 4,
-   "学习卡: 四节各自带节标题（要点 / 失分点 / 框架 / 示例）——2026-09-30「一大堆文字糊在一起」的起因就是没分节");
+   "学习卡: 四节各自带节标题（要点 / 失分点 / 框架 / 示例）——起因就是四块内容同貌同重、没有分节");
 ok((cHtml.match(/class="clist/g)||[]).length === 2 && cHtml.indexOf("<ul>") < 0,
    "学习卡: 要点与失分点改成顶线清单（一条一格），不再是无分隔的 bullet 长句堆");
 ok(cHtml.indexOf('class="csec pit"') >= 0 && cHtml.indexOf("clist clist-pit") >= 0,
@@ -1195,7 +1195,7 @@ ok(sbUp.indexOf("快判") >= 0 && sbUp.indexOf("快判") < sbUp.indexOf("综应A
 ok(sbUp.indexOf('class="subjdiv"') >= 0, "快判往上提: 快判与科目之间有一道分隔（它不是第三个科目）");
 
 /* ② 首页：大红按钮是快判，大题退成描边第二按钮，另有示例入口
-     （2026-10-08 这两句曾经连科目首页也照抄一份，结果综应A 里最大的红按钮写着「开始快判」） */
+     （这两句曾经连科目首页也照抄一份，结果综应A 里最大的红按钮写着「开始快判」） */
 const apiKeyBeforeUp = state.settings.apiKey;   // 后面几步要改 Key：用完原样还回去（14.11 那条要验「导入不动本机 Key」）
 state.settings.apiKey = "";
 renderHome();
@@ -1258,7 +1258,7 @@ ok(new Set(PD_SAMPLE_ITEMS.map(it=> it.form)).size === 3,
 ok(PD_SAMPLE_ITEMS.every(it=> sanitizePDItems([it], it.form).length === 1),
    "示例题: 逐题过一遍 sanitizePDItems（去重后选项仍 >=2、答案下标仍指得对——不对的题会被整题丢掉）");
 ok(PD_FORM_ORDER.every(f=> PD_SAMPLE_ITEMS.filter(it=> it.form === f).length >= PD_ROUND_SIZE),
-   "示例题: 每种形式都够凑一轮（不够就只能拿混合轮顶包：点了 A 得到 B，2026-10-08 拍板改掉）");
+   "示例题: 每种形式都够凑一轮（不够就只能拿混合轮顶包：点了 A 得到 B，已改成按形式取题）");
 // 单形式轮：点了哪个形式就出哪个形式，抬头/纸面也跟着报那个形式（不能冒充综合快判）
 startPDSampleRound("group-summarize");
 ok(pdRound.form === "group-summarize" && pdRound.items.length === PD_ROUND_SIZE
@@ -1350,7 +1350,7 @@ ok(JSON.parse(localStorage.getItem("gw_state")).settings.subject === "zy",
    "大题入口: 科目切换落盘（与点科目按钮同一处口径）");
 loadQuestion = realLoadQ;
 
-/* ②c 废话与重复（2026-10-08「把废话精简或者删掉」）
+/* ②c 废话与重复（原来上下一句话写两遍：上面「开始今天的练习」、下面「开始综应练习」）：
    纸面上不再写标题（抬头已经报了「你在哪」），也不再写「我按 XX 出题」这类机制说明。 */
 state.settings.subject = "zy"; renderStart();
 const subjPlain = el("#docBody").innerHTML;
@@ -1379,7 +1379,7 @@ ok(el("#docBody").innerHTML.indexOf("快判 · 从材料里做判断") < 0
    "废话精简: 快判落地页两行并一行（抬头已写着「快判」，纸面上不再重复标题）");
 renderHome();
 
-/* ⑤ 快判页里也能拐去大题 */
+/* ⑤ 快判页里也能拐去大题（从快判落地页也能直接拐去对应科目的那一句） */
 state.settings.subject = "zy";
 enterPD();
 const pdLandBig = el("#docBody").innerHTML;
@@ -1393,7 +1393,7 @@ ok(pdActive === false && state.settings.subject === "sl" && loadBigCalls2.length
 loadQuestion = realLoadQ;
 renderHome();
 
-/* ⑤ 顶栏不留空行
+/* ⑤ 顶栏不留空行（第二行只装着三个胶囊、右边一路空到窗口边）
    科目入口搬到品牌那一行；页签行只在真有页签时才占位。 */
 ok(/id="btnHome"[^>]*>练习台<\/button>\s*<span class="subjbar" id="subjbar">/.test(PAGE_HTML),
    "顶栏: 科目入口紧跟在品牌后面（同一行）");
@@ -2126,7 +2126,7 @@ pdRound.sample = false;
 ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 真轮没跑过时仍走原空态（不把话说过头）");
 pdRound = null; state.history = _histKeep;
 
-/* 19.10 顶栏跳高
+/* 19.10 顶栏跳高（页签行只在科目页出现，三种页面的纸面起点要保持不动）
    页签行只在科目页出现，纸面原来会跟着往下走 44px；现在那 44px 由纸面上方的空白吸收，
    两种页面的纸面起点一模一样（不能用 .topbar 补高——那会留一条带边框的空带子，正是要避免的浪费）。 */
 ok(renderTabs.toString().indexOf('toggle("gap-modbar"') >= 0
@@ -2138,7 +2138,7 @@ ok(PAGE_HTML.indexOf("--h-modbar:44px") >= 0 && PAGE_HTML.indexOf("height:var(--
 renderHome();
 const homeNo = el("#docNo").textContent;
 ok(homeNo.indexOf("练习台〔") === 0, "首页文号: 首页写「练习台〔年〕第 N 号」（" + homeNo + "）");
-/* 19.12 文号跟抬头一一对应——
+/* 19.12 文号跟抬头一一对应（申论轨写「申论」、快判轨写「快判」）——
    原先申论轨抬头写「申论」、落款却挂设置里的「综应练」，两项对不上。
    前缀能从头推出来，设置里的「文号前缀」就是死开关，已撤掉（界面不留不起作用的控件）。 */
 function noPrefixOf(track){

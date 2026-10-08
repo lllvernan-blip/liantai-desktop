@@ -521,7 +521,7 @@ function installUpdate() {
 
    四条不许动的边界：
    1. 只查不动手：开机自查（12 秒后）只把「有新版本」推给界面，**下载要用户点**「更新到 vX」，
-      **换包要用户再点**「重启并更新」。mac 上不存在「自己把应用换掉」这件事。
+      **换包要用户再点**「重启并更新」。mac 上不存在「自己把应用换掉」这件事（未签名的包用不了 Squirrel.Mac 那套自动替换）。
    2. 只从 GitHub 官方域取包：github.com / *.githubusercontent.com（资产会 302 到
       release-assets.githubusercontent.com）；明文 http 只放本机回环（自检要起假源）。
       地址来自 API 响应，所以响应就算被拐走，也只能拐到这几个域。

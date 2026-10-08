@@ -132,7 +132,7 @@ html,body{margin:0;padding:0;}
   .wrap{max-width:880px;margin:24px auto 56px;padding:0 14px;}
   /* 页签行不存在时（首页 / 快判轨）把它那 44px 还给纸面上方的空白：纸面位置全程不动，
      跳的只是头顶留白。
-     不要用 .topbar 补高度——那会在顶上留一条带边框的空带子，正是要避免的浪费空间。 */
+     不要用 .topbar 补高度——那会在顶上留一条带边框的空带子，等于白占一行。 */
   .wrap.gap-modbar{margin-top:calc(24px + var(--h-modbar));}
   .doc{background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);padding:40px 54px 56px;}
   .redhead{text-align:center;}
@@ -148,7 +148,7 @@ html,body{margin:0;padding:0;}
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:13px;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
-  /* 起始区的主行动再抬高一级：纸面上只有它一件事，就让它占得住地方 */
+  /* 起始区的主行动再抬高一级：纸面上只有它一件事，就让它占得住地方——空的地方靠把已有的东西做大，不添新元素 */
   .startbox .primary.big{padding:16px 54px;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
@@ -197,7 +197,7 @@ html,body{margin:0;padding:0;}
   details.card>summary{cursor:pointer;font-family:var(--hei);font-weight:700;font-size:15px;padding:11px 14px;list-style:none;display:flex;align-items:center;gap:8px;}
   details.card>summary::-webkit-details-marker{display:none;}
   details.card>summary .tag{font-family:var(--fangsong);font-weight:400;font-size:13px;color:var(--muted);}
-  /* 学习卡：原来是一整坨字（2026-09-30「一大堆文字糊在一起」）。三件事治好它
+  /* 学习卡：原来是一整坨字（四块内容同貌同重、条目之间只差几个像素）。三件事治好它：
      ① 每节都有节标题、节与节之间拉开——先看清「有哪几节」；
      ② 要点与失分点不再是一条条「•＋长句」，改成顶线清单：一条一格，能数得清；
      ③ 框架与示例收成引文块（左缘细线），不再和清单长一个样。 */
@@ -866,10 +866,10 @@ const DEFAULT_STATE = {
 /* ============ 申论训练链（读材料·找点 → 归类 → 一稿 → 批改 → 沉淀；找点并入读材料，回改已下线） ============ */
 // 只有申论走全链（usesFlowChain）；综应A 恢复「学习卡 → 作答 → 批改」两阶段（renderZyPage）。
 // 沉淀/经验闭环两科共用：批改成功后自动提炼，注入后续出题与阅卷（见「经验闭环」一节）。
-const FLOW_STEPS  = ["read","organize","draft","review","distill"];   // 找点并入读材料（2026-09-21：通读时就能划线和找点，不用走两遍）；revise（回改）已下线：旧数据停在 revise 的链由 sanitizeFlows 降级到「一稿」收下
+const FLOW_STEPS  = ["read","organize","draft","review","distill"];   // 找点并入读材料（通读时就能划线和找点，不用读两遍）；revise（回改）已下线：旧数据停在 revise 的链由 sanitizeFlows 降级到「一稿」收下
 const FLOW_LABELS = { read:"读材料", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
 
-/* 申论学习卡资料库（源：中公申论课堂笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
+/* 申论学习卡资料库（源：中公申论课程笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
    AI 据此生成学习卡（照综应口径缓存、可「换一张」、对弱维度定向）；AI 未返回卡时也作兜底。
    贯彻执行与申发论述暂无对应笔记，用通用常识垫底，有笔记后再替换。 */
 const SL_STUDY_CARDS = {
@@ -1928,13 +1928,13 @@ function networkFailHint(){
 function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   const n = state.history.length + 1, y = new Date().getFullYear();
-  // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字。
+  // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字（申论轨写「申论」、快判轨写「快判」、综应轨写「综应A」）。
   // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
   // 前缀既已跟着抬头推出来，设置里的「文号前缀」就成了死开关，一并撤掉（规矩：界面不许有一个不起作用的控件）。
   const pfx = (_view === "home")? "练习台"
             : ((pdActive || _view === "pd")? "快判" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
-  if(_view === "home"){  // 首页不属于任何科目：抬头不挂科目名、也不挂模块名（2026-10-08：原来写着「综应A · 综合推送」，看着像已经进了综应）
+  if(_view === "home"){  // 首页不属于任何科目：抬头不挂科目名、也不挂模块名（原来写着「综应A · 综合推送」，看着像已经进了综应）
     $("#modLabel").textContent = "练习台 · 首页";
     return;
   }
@@ -1974,7 +1974,7 @@ function renderTabs(){
     moduleKeysOf(subj).map(k=>`<button class="tab${k===tabActiveKey?" active":""}" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
   $("#modbar").innerHTML = tabs;
   // 没有页签就整行收起（首页、快判轨）。以前这行留着、只住着三个科目按钮，右边一路空到窗口边——
-  // 一条横带为了三个按钮占掉 47px。
+  // 一条横带为了三个按钮占掉 47px（空着的一行会被当成没花完的空间）。
   $(".modbar").hidden = !tabs;
   // 页签行不存在时，把它那 44px 还给纸面上方的空白：两种页面的纸面起点一模一样，不跳（见 .wrap.gap-modbar）
   const wrapEl = document.querySelector(".wrap"); if(wrapEl) wrapEl.classList.toggle("gap-modbar", !tabs);
@@ -2080,7 +2080,7 @@ function showLoading(t, tail){
 
 /* 起始页的正文两种形态共用一套：home（没选任何科目）与 start（在一个科目里）。
    红按钮是快判；下面两句大题各自点名科目——原来写「练一道大题（综应 / 申论）」，实际去的是「上次练的
-   科目」，标签含糊；示例题入口给没填 Key 的人。 */
+   科目」，标签含糊（「综应 / 申论」那种写法读不出到底去哪一科）；示例题入口给没填 Key 的人。 */
 /* 起始页两种形态（2026-10-08 分开）：
    · 首页（`_view === "home"`，没选科目）：红按钮是「开始快判」——打开软件第一眼就能练，快判最轻；
      随后两句大题各自点名科目，再加一个示例题入口。
@@ -2090,7 +2090,7 @@ function startBoxHtml(rf){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
   const bigs = SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("");
-  // 纸面上不再写标题
+  // 纸面上不再写标题（上面「开始今天的练习」、下面「开始综应练习」，同一个意思写两遍）：
   // 抬头已经报了「你在哪」，纸面上再写一遍「开始…」就是同一句话写两次——主行动自己就是标题。
   // data-start 是给断言看的：首页还是科目页，两形得能分开认。
   return `<div class="startbox" data-start="${home? "home":"subj"}">
@@ -2132,7 +2132,7 @@ function startSubjectTask(subject){
   renderTabs();
   startSmart();
 }
-/* 首页：打开软件落在这一屏，三个入口都不预选。
+/* 首页：打开软件落在这一屏，三个入口都不预选（谁都不预选，点开始快判也是一条路）。
    它不属于综应、也不属于申论，所以科目按钮不点灯、抬头不挂科目名、页签栏空着；
    想看某个科目就先点它（进那个科目的首页），回这里点左上角的「练习台」。 */
 function renderHome(){
@@ -2316,8 +2316,8 @@ function renderModuleLanding(k){
   const m = MODULES[k];
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module===k) n++;
-  // 标题不写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要（2026-10-08
-  // 「里面很多废话，并且重复」）。留在纸上的第一行是 note——它是「这是什么」，不是重复。
+  // 标题不写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要。
+  // 留在纸上的第一行是 note——它是「这是什么」，不是重复。
   // note 有时就是子类型名单的文字版（归纳概括：「概括问题 / 原因 / 影响 / 做法 / 特点」＝下面那排胶囊），
   // 同一个名单写两遍也是废话：这种就不写；只有真在描述「这是什么」的（公文写作 / 提出对策）才留一行。
   const subs = subtypeListOf(k);
@@ -2887,7 +2887,7 @@ function startPDRound(form){
 }
 /* 示例轮：把写死的题装进一轮，走与 AI 出题完全相同的渲染与判分路径（只有「不落账」和收尾按钮不同）。
    点了哪个形式就出哪个形式——原来只有 5 道题、不管点哪个都给三种混着来的一轮，
-   点了 A 得到 B（2026-10-08 拍板改掉）。现在每种形式各 5 道，单形式轮拿的就是那个形式。 */
+   点了 A 得到 B（早先按混合池取题，已改成按点的那一个形式取）。现在每种形式各 5 道，单形式轮拿的就是那个形式。 */
 function pdSampleItems(form){
   if(form !== PD_MIX && PD_FORM_ORDER.indexOf(form) >= 0){
     const same = PD_SAMPLE_ITEMS.filter(it=> it.form === form);
@@ -4726,7 +4726,7 @@ function cardNoteHtml(module, subtype){
   }</div></details>`;
 }
 
-/* 作答笔记已下线（题目笔记不要了）；学习卡笔记仍按模块+子类型存 */
+/* 作答笔记已下线（题目笔记这个功能不要了）；学习卡笔记仍按模块+子类型存 */
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
