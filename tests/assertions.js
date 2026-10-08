@@ -1620,7 +1620,9 @@ const __baseBefore = state.settings.baseUrl;
 const __realFetch = globalThis.fetch;   // 15.7 要让 saveSettings 里的拉模型请求注定失败：先留一份真的，事后还回去
 state.settings.apiKey = "";
 renderStartNotices();
-ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能开始练") >= 0, "提示: 没填 Key 时，首页有欢迎提示");
+ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与真快判") >= 0
+   && el("#bannerSlot").innerHTML.indexOf("还没填也能先跑一轮内置示例题") >= 0,
+   "提示: 没填 Key 时，首页的欢迎提示把「不用 Key 也能先跑一轮示例题」一并说清（口径跟着 0.0.17 的快判示例轮改）");
 globalThis.fetch = () => Promise.reject(new Error("net down"));
 el("#setKey").value = "sk-test-key";
 saveSettings();
@@ -2141,6 +2143,68 @@ ok(homeNo.indexOf("练习台〔") === 0 && el("#docNo").textContent.indexOf("综
    "首页文号: 首页写「练习台〔年〕第 N 号」，进科目才用设置里的前缀（" + homeNo + "）");
 state.settings.noPrefix = "综应练";
 
+/* 19.11 同一家族的第二轮：还有两处在「先演再报错」（2026-10-08 再复查）
+   ① 有 Key 但没选模型时，点快判（综合或单形式）会先演「AI 正在出「综合快判」快判题…」，
+      一秒后才弹「还没选定模型」；提交阅卷也一样先把按钮按成「阅卷中…」。
+   ② 出题等待页第二行写死「长文阅卷通常 10-60 秒」——此刻在等出题，屏幕上却在说阅卷。
+   ③ 没填 Key 的人看到的第一套引导（科目页）说「不选模块也可以，直接点这里开始」，
+      照做就被「出题和阅卷都要用 API Key」拦下来：引导在承诺做不到的事。 */
+const _spd = startPDRound.toString();
+ok(_spd.indexOf("entryBlocked()") >= 0 && _spd.indexOf("entryBlocked()") < _spd.indexOf("genPDRound("),
+   "没 Key 不进加载态: 快判出题也要先判（上一轮只补了大题那条路，快判这条漏了）");
+const _sa = submitAnswer.toString();
+ok(_sa.indexOf("entryBlocked()") >= 0 && _sa.indexOf("entryBlocked()") < _sa.indexOf('btn.textContent="阅卷中'),
+   "没 Key 不进加载态: 提交阅卷先判，别先把按钮按成「阅卷中…」再报错");
+// 真渲染一遍等待页：出题页不能说阅卷的话（用行为验，不看源码里的注释）
+showLoading("AI 正在为「归纳概括」准备学习卡与仿真题…");
+const _load = el("#docBody").innerHTML;
+ok(_load.indexOf("长文阅卷通常") < 0 && _load.indexOf("AI 出题通常") >= 0,
+   "出题等待页: 不再说「长文阅卷通常 10-60 秒」（那是阅卷的话，出题页说它是另一件事）");
+showLoading("慢的调用", "这轮可能要一分钟。");
+ok(el("#docBody").innerHTML.indexOf("这轮可能要一分钟。") >= 0,
+   "出题等待页: 时间预期可以按场景给（第二行是参数，不是写死的）");
+// 引导：有 Key 讲「点这里开始」，没 Key 讲「先填 Key」——两套话都得跟当时真能做到的事对上
+state.settings.apiKey = "";
+const zyNoKey = tourSteps("zy"), slNoKey = tourSteps("sl"), homeNoKey = tourSteps("home");
+ok(zyNoKey[0].sel === "#btnSettings" && zyNoKey[0].text.indexOf("API Key") >= 0
+   && zyNoKey.every(s=> s.text.indexOf("直接点这里开始") < 0),
+   "引导/无 Key: 科目页第一步改指设置页（不再承诺「点了就能开始」）");
+ok(zyNoKey.length === 3 && slNoKey.length === 3 && zyNoKey.every((s,i,a)=> a.findIndex(x=> x.sel === s.sel) === i),
+   "引导/无 Key: 末尾那步（也在讲 Key）去掉，同一个元素不在引导里讲两遍");
+ok(homeNoKey[1].text.indexOf("都要先填 API Key") >= 0 && homeNoKey[0].sel === "#btnQuick",
+   "引导/无 Key: 首页仍先讲快判（那条真能走），大题那句改成「都要先填 API Key」");
+state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
+ok(TOURS.zy[0].sel === "#btnSmart" && TOURS.zy.length === 4 && tourSteps("zy").length === 4,
+   "引导/有 Key: 原样不动（还是 4 步，第一步指红按钮）");
+/* 19.12 入口标签得对应到真去处，产出反馈不能夸口（2026-10-08 再复查） */
+state.settings.apiKey = "";
+renderPDLanding();
+const pdLandNoKey = el("#docBody").innerHTML;
+ok(pdLandNoKey.indexOf("先试一轮示例题（不用 Key）") >= 0 && pdLandNoKey.indexOf("开始一轮综合快判") < 0
+   && pdLandNoKey.indexOf("（也是内置示例题）") >= 0,
+   "快判落地页/没 Key: 按钮与分组都如实写成内置示例题（点了它拿到的就是内置题，别写得像真出题）");
+state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
+renderPDLanding();
+const pdLandKey = el("#docBody").innerHTML;
+ok(pdLandKey.indexOf("开始一轮综合快判") >= 0 && pdLandKey.indexOf("先试一轮示例题（不用 Key）") < 0
+   && pdLandKey.indexOf("也是内置示例题") < 0,
+   "快判落地页/有 Key: 还是「开始一轮综合快判」（有 Key 时它就是真出题，标签照旧）");
+state.settings.apiKey = "";
+renderStartNotices();
+ok(exportHelpText().indexOf("已生成备份") >= 0 && exportHelpText().indexOf("取消就等于没导出") >= 0
+   && exportHelpText().indexOf("已导出备份 ✓") < 0,
+   "导出: 只报「已生成备份 + 文件名」，不夸口「已导出 ✓」（浏览器/应用可能弹保存框，他取消了我们无从得知）");
+/* 19.13 存档说「不上传」可当不住真话：草稿与划线在批改那一步是要发给服务商的（2026-10-08 再复查） */
+state.settings.apiKey = "";
+ok(PAGE_HTML.indexOf("只存在本地，不上传") < 0
+   && PAGE_HTML.indexOf("我们的服务器不碰") >= 0 && PAGE_HTML.indexOf("发给你上面填的服务商") >= 0,
+   "设置/数据与备份: 不说「不上传」这种笼统话，写明「存本地 + 批改时发给服务商」（那是给分必须看的）");
+/* 存不进去就不许说「已保存」（模式：界面上每一句成功都得有一个为真的依据） */
+ok(save.toString().indexOf("return true") >= 0 && save.toString().indexOf("return false") >= 0,
+   "保存: save() 把「到底写进去了没有」回给调用方");
+ok(saveSettings.toString().indexOf("saved? \"已保存 ✓\"") >= 0
+   && saveSettings.toString().indexOf("没保存上") >= 0,
+   "保存: 存储写满时设置页不写「已保存 ✓」（同一屏的 banner 已在报「未能保存」，两边不能打架）");
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

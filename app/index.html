@@ -647,7 +647,7 @@ html,body{margin:0;padding:0;}
           <button type="button" id="btnExport2">导出备份</button>
           <button type="button" id="btnImport2">导入备份</button>
         </div>
-        <div class="note">练习记录、草稿、划线和 API Key 只存在本地，不上传；备份里不含 Key，可以放心转存。换电脑前先「导出备份」，新机器上「导入备份」接着练。</div>
+        <div class="note">练习记录、草稿、划线只存你这台机器上（我们的服务器不碰）；批改那一步会把题目、你的作答与归类提纲发给你上面填的服务商——它才能给分。备份里不含 Key，可放心转存。换电脑前先「导出备份」，新机器上「导入备份」接着练。</div>
       </div>
       <div class="field">
         <label>使用引导</label>
@@ -1091,12 +1091,14 @@ function load(){
 }
 function save(){
   // gw_state 不再含练习记录（见 load 迁移）；写满时优先丢弃可再生的大块：学习卡缓存（手写笔记不在其中）
-  try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); }
+  // 返回值 = 这次到底写进去了没有。界面上那些「已保存 ✓」得据此说（2026-10-08 复查：
+  // 原来存储写满时，banner 说「本次数据未能保存」，设置页同一屏却写着「已保存 ✓」）。
+  try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); return true; }
   catch(e){
     try{
-      if(Object.keys(state.cache.studyCards||{}).length){ state.cache.studyCards = {}; localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); }
+      if(Object.keys(state.cache.studyCards||{}).length){ state.cache.studyCards = {}; localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); return true; }
       else throw e;
-    }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份。", "error"); }
+    }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份。", "error"); return false; }
   }
 }
 
@@ -2070,7 +2072,10 @@ function banner(html, kind){
   const bi = $("#bnrInstall");
   if(bi) bi.onclick = ()=>{ bi.disabled = true; runInstall(); };
 }
-function showLoading(t){ docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">长文阅卷通常 10-60 秒。</span><div class="peek" id="streamPeek"></div></p>`; }
+function showLoading(t, tail){
+  // 第二行原来写死「长文阅卷通常 10-60 秒」——但这里是**出题**在等，屏幕上却在说阅卷（2026-10-08 复查）
+  docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">${esc(tail||"AI 出题通常 10-60 秒。")}</span><div class="peek" id="streamPeek"></div></p>`;
+}
 
 /* 起始页的正文两种形态共用一套：home（没选任何科目）与 start（在一个科目里）。
    红按钮是快判；下面两句大题各自点名科目——原来写「练一道大题（综应 / 申论）」，实际去的是「上次练的
@@ -2181,13 +2186,34 @@ const TOURS = {
     { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
   ],
 };
+/* 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人，科目页第一句
+   原是「不选模块也可以，直接点这里开始」——他照做就被一句「出题和阅卷都要用 API Key」拦下来，
+   引导在承诺做不到的事；而且看这套引导的往往正是新人（没 Key 的人）。
+   所以没 Key 时：科目页第一步改指设置页（并告诉他不填 Key 也能练的那条路），最后那一步（也在讲 Key）
+   一并去掉——同一个元素讲两遍也是废话。 */
+const TOURS_NO_KEY = {
+  home: { 1: { text:"想练整篇：这两句各自去综应或申论，都要先填 API Key（快判不用）。" } },
+  zy:   { 0: { sel:"#btnSettings", text:"出题和阅卷都要 API Key：先在这里填上（设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+  sl:   { 0: { sel:"#btnSettings", text:"出题和阅卷都要 API Key：先在这里填上（设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+  pd:   {},   // 快判这套本来就讲到了 Key（「真出题要用 API Key（示例题不用）」），不用改
+};
+function tourSteps(sub){
+  const base = TOURS[sub];
+  if(!base) return null;
+  if(state.settings.apiKey) return base;
+  const ov = TOURS_NO_KEY[sub] || {};
+  const out = base.map((s,i)=> ov[i]? Object.assign({}, s, ov[i]) : s);
+  // 没 Key 的科目页：第一步已经把 Key 讲透，末尾那步也讲 Key，去掉
+  return (sub === "zy" || sub === "sl")? out.slice(0, out.length - 1) : out;
+}
 let tour = null;   // { sub, steps, i }
 // 当前页面形态：start（科目首页）| pd（快判页）| landing（模块落地页）| q（作答中）。
 // 只用于「重置使用说明后能不能当场重播」：在能播的页就地播，作答中不打断练习。
 let _view = "start";
 function maybeTour(sub){
   if(state.tut[sub] || !TOURS[sub]) return;
-  const steps = TOURS[sub];
+  const steps = tourSteps(sub);   // 没填 Key 时的话不一样（见 TOURS_NO_KEY）
+  if(!steps) return;
   setTimeout(()=>{
     if(tour) return;                                            // 同时只播一套
     // 这套引导的每一步都要有落点才播：页面被切走、或停在不完整的页面时既不播，也不算看过
@@ -2320,9 +2346,10 @@ function renderModuleLanding(k){
 function entryBlocked(){
   const s = state.settings;
   if(s.apiKey && s.model) return false;
+  // 「不用 Key 也能先试一轮快判示例题」只对没 Key 的人说：他本来就有 Key、只是没选模型，这句是废话
   banner((s.apiKey
-    ? "还没选定模型：到设置页点「拉取模型列表」，点一个真实存在的名字。"
-    : "出题和阅卷都要用 API Key，选服务商、填好即可开始。") + "不用 Key 也能先试一轮快判示例题。" + OPEN_SETTINGS_BTN);
+    ? "还没选定模型：到设置页点「拉取模型列表」，点一个真实存在的名字，选好就能开始。"
+    : "出题和阅卷都要用 API Key，选服务商、填好即可开始。不用 Key 也能先试一轮快判示例题。") + OPEN_SETTINGS_BTN);
   return true;
 }
 async function startSmart(){
@@ -2817,12 +2844,15 @@ function renderPDLanding(){
   pdForm = null; pdRound = null;
   tabActiveKey = null; renderTabs();
   const recent = pdRecentTheme();
+  // 没填 Key 的入口标签得对应到真去处（2026-10-08 复查）：他点「开始一轮综合快判」拿到的是内置示例题，
+  // 按钮却写得跟真出题一样——「点了 A 得到 B」的那一半。示例题池 15 道，单形式也够一轮（见 pdSampleItems）。
+  const noKey = !state.settings.apiKey;
   // 抬头已经写着「快判」了，纸面上不再重复一遍标题；这一行只讲怎么玩（5 题 / 点选即判）
   let html = `<div class="startbox">
     <p style="margin:0">从材料里做判断，一轮 5 题，点选即判。</p>
-    <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
+    <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">${noKey? "先试一轮示例题（不用 Key）" : "开始一轮综合快判"}</button></div>
     <div class="pdforms">
-      <div class="pdformslabel">或只练一种形式</div>
+      <div class="pdformslabel">或只练一种形式${noKey? "（也是内置示例题）" : ""}</div>
       <div class="pdformgrid">${PD_FORM_ORDER.map(id=>`<button class="pdform" data-pdform="${id}"><b>${PD_FORMS[id].name}</b><span>${esc(PD_FORMS[id].desc)}</span></button>`).join("")}</div>
     </div>
     <div class="pdsetup">
@@ -2851,6 +2881,7 @@ function startPDRound(form){
   // 没填 Key 的人点「开始快判」不挨报错：直接跑内置示例轮，跑完再提示填 Key。有 Key 就照常出题。
   // 点了哪个形式就把那个形式传下去（不传就会拿混合轮顶包，点了 A 得到 B）
   if(!state.settings.apiKey){ startPDSampleRound(form); return; }
+  if(entryBlocked()) return;   // 有 Key 但没选模型：同上，不能先演一遍「AI 正在出快判题」（2026-10-08 复查）
   genPDRound(form, pdThemeValue());
 }
 /* 示例轮：把写死的题装进一轮，走与 AI 出题完全相同的渲染与判分路径（只有「不落账」和收尾按钮不同）。
@@ -3046,7 +3077,7 @@ function renderPDSummary(){
   // 「下次出题会再考你」是真承诺（weakTraps 那条链），但示例题不入账，也就无从兑现——那里换个说法
   const trapLine = misses.length
     ? "答错的集中在：" + esc(trapStr) + (r.sample? "——这几类就是快判最常考的辨析点。" : "——下次出题会在这些辨析点上再考你。")
-    : "全对——这个形式的辨析点你站得稳。";
+    : (r.form === PD_MIX? "全对——三种形式的辨析点你都站得住。" : "全对——这个形式的辨析点你站得稳。");
   html += `<p class="hint" style="margin:14px 0 0">${trapLine}</p>`;
   // 快判和大题的关系也写在小结里：快判练的「从材料里辨认说法」，正是申论/综应小题的同一个动作
   html += `<p class="hint" style="margin:10px 0 0">快判练的是从材料里辨认说法——申论和综应的小题，吃的就是这个动作。</p>`;
@@ -3849,6 +3880,9 @@ function insertSkeleton(){
 async function submitAnswer(){
   const t=$("#answer"); const ans=(t?t.value:"").trim();
   if(ans.length<20){ banner("写得太少了：至少写满一段再交卷。"); return; }
+  // 调不动就别先按「阅卷中…」（没 Key / 没选模型两条都拦）：按钮上的状态也是界面说的话，
+  // 原来会先亮一秒「阅卷中…」再弹一句「还没选定模型」（2026-10-08 复查）
+  if(entryBlocked()) return;
   const btn=$("#btnSubmit");
   if(btn.disabled) return;
   banner("");
@@ -4363,8 +4397,8 @@ async function fetchModels(silent){
 }
 function saveSettings(){
   const hadKey = !!state.settings.apiKey;   // 存之前有没有 Key：用来分清「刚填上」和「本来就有」
-  applyForm(); save(); renderHeader();
-  $("#setMsg").textContent = "已保存 ✓";
+  applyForm(); const saved = save(); renderHeader();
+  $("#setMsg").textContent = saved? "已保存 ✓" : "没保存上：本地存储已满，先「导出」备份再清理旧记录";
   setTimeout(()=>{ if($("#setMsg").textContent==="已保存 ✓") $("#setMsg").textContent=""; }, 1800);
   if(!state.settings.apiKey) banner("还没填 API Key，出题/阅卷功能暂不可用。填入后即可使用。");
   else {
@@ -4403,6 +4437,13 @@ function exportPayload(){
   s.marks = marksAll();
   return s;
 }
+/* 导出的反馈只报到「文件已生成」为止：浏览器与 Electron 都可能弹保存位置，
+   他取消了我们无从得知（页面不知道下载结果）——那就不能替他宣布「已导出 ✓」（2026-10-08 复查）。 */
+function exportHelpText(d){
+  d = d || new Date();
+  const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0");
+  return `已生成备份：练习台-备份-${stamp}.json（含草稿与划线、不含 API Key）。若弹出保存位置，选个地方存下即完成——取消就等于没导出。`;
+}
 function exportJSON(){
   const blob = new Blob([JSON.stringify(exportPayload(),null,2)],{type:"application/json"});
   const url = URL.createObjectURL(blob);
@@ -4411,7 +4452,7 @@ function exportJSON(){
   a.download = `练习台-备份-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
-  banner("已导出备份 ✓ 含草稿与划线、不含 API Key（可放心分享；换机后在新机器重填一次 Key 即可）");
+  banner(exportHelpText(d));
 }
 /* 导入白名单化重建：入口只收对象；profile/cache/flows/experiences 逐字段 typeof 校验，
    不合格字段丢弃用默认值，不整包失败；构造新对象时过滤 __proto__/constructor/prototype 键，防原型污染。 */
@@ -4923,7 +4964,7 @@ function renderStartNotices(){
   const un = updateNoticeHtml(updateInfo);
   if(un) notices.push(un);
   if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
-  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能开始练；还没有 Key 的话，设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
+  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能练大题与真快判；还没填也能先跑一轮内置示例题。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
   banner(notices.length? notices.join("<br>") : "");
 }
 

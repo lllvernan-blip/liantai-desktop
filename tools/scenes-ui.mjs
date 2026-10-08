@@ -115,6 +115,12 @@ function s02_start_ready() { __reset({ history: true }); state.flows = [{ id: "f
 function s02b_subject_home() { __reset({ history: true, subject: "zy" }); renderStart(); }
 // 申论科目首页：红按钮跟着换名（开始申论练习），快判同样不在纸面上
 function s02c_sl_subject_home() { __reset({ history: true, subject: "sl" }); renderStart(); }
+// 没填 Key 的两套引导（2026-10-08 复查）：引导的话得跟「此刻真能做到什么」一致——
+// 科目页第一步改指设置页，首页大题那句改成「都要先填 API Key」
+function s01c_home_tut_nokey() { __reset({ key: false }); state.tut.home = false; renderHome(); }
+function s02d_subj_tut_nokey() { __reset({ key: false, subject: "zy" }); state.tut.zy = false; renderStart(); }
+// 没填 Key 的快判落地页：入口标签如实写成内置示例题（点了 A 得到 B 的另一半）
+function s12b_pd_landing_nokey() { __reset({ key: false }); enterPD(); }
 function s03_landing() { __reset({ history: true }); renderModuleLanding("sl.guina"); }
 function s04_zy_card() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 0, phase: "card" }; activeModule = "zy.guina"; renderQuestion(); }
 function s05_zy_answer() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 1, phase: "answer" }; activeModule = "zy.guina"; renderQuestion(); }
@@ -292,6 +298,9 @@ const SCENES = [
   ["02-起始页-已配置", s02_start_ready, true],
   ["02b-综应A-综合推送", s02b_subject_home, true],
   ["02c-申论-科目首页", s02c_sl_subject_home, true],
+  ["01c-首页首次引导-没填Key", s01c_home_tut_nokey, true],
+  ["02d-科目首页首次引导-没填Key", s02d_subj_tut_nokey, true],
+  ["12b-快判-落地页-没填Key", s12b_pd_landing_nokey, true],
   ["03-模块落地页", s03_landing, true],
   ["04-综应A-学习卡", s04_zy_card, true],
   ["05-综应A-作答", s05_zy_answer, true],
