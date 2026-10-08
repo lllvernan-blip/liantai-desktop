@@ -9,6 +9,9 @@
    查两处：
      ① 提交说明——默认只查还没推上去的（origin/main..HEAD），推之前就能拦住
      ② 工作树里被 git 跟踪的文件（跳过本文件自己）
+
+   个人禁词（人名之类）不写在这个文件里：那是自查用的、跟项目无关，放仓库根的
+   .check-msg.local.json（已 gitignore），跑的时候并进通用词表；缺了也不影响。
    用法：
      node tools/check-msg.mjs                查「还没推的提交 + 工作树文件」
      node tools/check-msg.mjs --all          提交说明改查当前分支的全部历史
@@ -18,6 +21,8 @@
    主题行与正文分开查：漏过一次就是漏在主题行里（有一笔把转述写进了标题的括号里）。 */
 import cp from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const argv = process.argv.slice(2);
 const ALL = argv.includes("--all");
@@ -25,22 +30,36 @@ const NO_FILES = argv.includes("--no-files");
 const revIdx = argv.indexOf("--rev");
 const REV = revIdx >= 0 ? argv[revIdx + 1] : null;
 
-/* 提交说明的命中表：一律按「聊天腔」的理由加，不加无关的词（宁少勿滥，跟取景器规则一个道理）。
-   人名的写法各人不同，这份表按本仓库的实际情况维护。 */
-const COMMIT_PATTERNS = [
-  "阿楠", "楠哥", // 称呼本人
+/* 通用词表：一律按「聊天腔」的理由加，不加无关的词（宁少勿滥，跟取景器规则一个道理）。
+   提交说明查得宽一点；文件用更窄的一张——文件里会合法地引用外部材料的原话
+   （比如题型规范里引出版方的说法），所以文件表不查「原话」这类中性词。 */
+const GENERIC_COMMIT = [
   "用户说", "用户要求", "用户觉得", "用户指出", "用户反馈",
   "他说", "她说", "我说", // 转述谁说了什么
   "原话", "你觉得", "你自己说", "我跟你", "咱们",
 ];
-
-/* 文件用更窄的一张表：文件里会合法地引用外部材料的原话（比如题型规范里引出版方的说法），
-   所以这里只查「称呼本人」与「转述谁说了什么」，不查「原话」这类中性词。 */
-const FILE_PATTERNS = [
-  "阿楠", "楠哥", "李西楠",
+const GENERIC_FILE = [
   "用户说", "用户要求", "用户觉得", "用户指出", "用户反馈",
   "他说", "她说", "你觉得", "你自己说", "咱们",
 ];
+
+/* 本地禁词清单（不进仓库）：{"commit": ["…"], "file": ["…"]}，跟通用表并起来用。
+   读不到就当没有——别人 clone 下来照样能跑通用那半张表。 */
+const LOCAL_RULES = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  ".check-msg.local.json",
+);
+function localPatterns(key) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(LOCAL_RULES, "utf8"));
+    return Array.isArray(raw[key]) ? raw[key].filter((s) => typeof s === "string" && s) : [];
+  } catch {
+    return [];
+  }
+}
+const COMMIT_PATTERNS = [...GENERIC_COMMIT, ...localPatterns("commit")];
+const FILE_PATTERNS = [...GENERIC_FILE, ...localPatterns("file")];
 
 const SELF = "tools/check-msg.mjs"; // 本文件自己就是一张词表，跳过
 

@@ -148,7 +148,7 @@ html,body{margin:0;padding:0;}
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:13px;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
-  /* 起始区的主行动再抬高一级：纸面上只有它一件事，就让它占得住地方——空的地方靠把已有的东西做大，不添新元素 */
+  /* 起始区的主行动再抬高一级：纸面上只有它一件事，就让它占得住地方 */
   .startbox .primary.big{padding:16px 54px;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
@@ -1974,7 +1974,7 @@ function renderTabs(){
     moduleKeysOf(subj).map(k=>`<button class="tab${k===tabActiveKey?" active":""}" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
   $("#modbar").innerHTML = tabs;
   // 没有页签就整行收起（首页、快判轨）。以前这行留着、只住着三个科目按钮，右边一路空到窗口边——
-  // 一条横带为了三个按钮占掉 47px（空着的一行会被当成没花完的空间）。
+  // 一条横带为了三个按钮占掉 47px——没页签时整行收起。
   $(".modbar").hidden = !tabs;
   // 页签行不存在时，把它那 44px 还给纸面上方的空白：两种页面的纸面起点一模一样，不跳（见 .wrap.gap-modbar）
   const wrapEl = document.querySelector(".wrap"); if(wrapEl) wrapEl.classList.toggle("gap-modbar", !tabs);
@@ -2132,7 +2132,7 @@ function startSubjectTask(subject){
   renderTabs();
   startSmart();
 }
-/* 首页：打开软件落在这一屏，三个入口都不预选（谁都不预选，点开始快判也是一条路）。
+/* 首页：打开软件落在这一屏，三个入口都不预选。
    它不属于综应、也不属于申论，所以科目按钮不点灯、抬头不挂科目名、页签栏空着；
    想看某个科目就先点它（进那个科目的首页），回这里点左上角的「练习台」。 */
 function renderHome(){
