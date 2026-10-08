@@ -1260,8 +1260,9 @@ ok(new Set(PD_SAMPLE_ITEMS.map(it=> it.form)).size === 3,
 const histBeforeSample = state.history.length;
 const lsBeforeSample = localStorage.getItem("gw_history");
 for(let i=0;i<5;i++){ pdResolve(0); if(!pdRound.done) pdNext(); }
-ok(pdRound.done === true && el("#docBody").innerHTML.indexOf("本轮小结 · 综合快判") >= 0,
-   "示例轮: 答完 5 题照常出小结（与真轮同一屏）");
+ok(pdRound.done === true && el("#docBody").innerHTML.indexOf("本轮小结") >= 0
+   && el("#docBody").innerHTML.indexOf("本轮小结 · ") < 0,
+   "示例轮: 答完 5 题照常出小结（与真轮同一屏；形式名不再写第二遍）");
 ok(state.history.length === histBeforeSample && localStorage.getItem("gw_history") === lsBeforeSample,
    "示例轮: 不计入练习记录（画像不被这 5 道固定题拖着走）");
 ok(el("#docBody").innerHTML.indexOf("再做一遍示例题") >= 0 && el("#docBody").innerHTML.indexOf("看快判的其他形式") >= 0,
@@ -2076,6 +2077,34 @@ profBack();
 ok(el("#profileBody").innerHTML.indexOf('data-prof="hist"') >= 0, "画像: 点返回回到一级");
 state.history = [];
 state.settings.timeLimit = 0;
+
+/* 19.8 没填 Key 时不许先演「正在出题」（2026-10-08 复查发现的会说谎）
+   现场：点「练一道综应大题」→ 先出「AI 正在为「公文写作 · 通报」准备学习卡与仿真题…」→ 一秒后才报错，
+   人还被从首页拽进了综应A。现在三条出题路（首页大题 / 科目页红按钮 / 模块落地页）都在加载态之前过 entryBlocked。 */
+const _lqSrc = loadQuestion.toString();
+ok(_lqSrc.indexOf("entryBlocked()") >= 0 && _lqSrc.indexOf("entryBlocked()") < _lqSrc.indexOf("showLoading"),
+   "没 Key 不进加载态: 出题的兜底口先判 entryBlocked，再 showLoading");
+ok(startSmart.toString().indexOf("entryBlocked()") >= 0 && startSubjectTask.toString().indexOf("entryBlocked()") >= 0,
+   "没 Key 不进加载态: 首页大题与科目页红按钮先判，不切科目也不点灯");
+ok(startSubjectTask.toString().indexOf("entryBlocked()") < startSubjectTask.toString().indexOf("pdActive = false"),
+   "没 Key 不进加载态: 先判再动状态（不然人被挪到科目页，抬头还报「综应A · 综合推送」）");
+const _eb = entryBlocked.toString();
+ok(_eb.indexOf("s.apiKey && s.model") >= 0 && _eb.indexOf("OPEN_SETTINGS_BTN") >= 0 && _eb.indexOf("banner(") >= 0,
+   "没 Key 不进加载态: 提示里带「打开设置」的去路，且模型没选也拦");
+ok(renderPDSummary.toString().indexOf("本轮小结 · ") < 0,
+   "快判小结: 纸面不再把形式名写第二遍（抬头已报「快判 · 综合快判」）");
+
+/* 19.9 示例轮不入账，但也不许装作没发生（2026-10-08 复查）
+   现场：刚跑完一轮示例题的人点开画像的「快判」页，看到「还没练过快判。点科目栏的「快判」开一轮。」——
+   他 30 秒前刚练了 5 题，界面还把他往刚做过的事上推。 */
+const _histKeep = state.history.slice();
+state.history = [];
+pdRound = { form: PD_MIX, theme: "示例题", idx: 5, correct: 2, done: true, sample: true, items: [] };
+ok(profilePdHtml().indexOf("示例题") >= 0 && profilePdHtml().indexOf("还没练过快判") < 0,
+   "画像/快判: 刚跑完示例轮不写「还没练过」，而是说清「示例题不计入统计」");
+pdRound.sample = false;
+ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 真轮没跑过时仍走原空态（不把话说过头）");
+pdRound = null; state.history = _histKeep;
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);

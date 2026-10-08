@@ -2109,6 +2109,7 @@ function wireStartBox(){
    首页与快判页都用它；从快判回来时先把判别轨退掉，抬头与页签才会回到作答轨。 */
 function startSubjectTask(subject){
   if(!SUBJECTS[subject]) return;
+  if(entryBlocked()) return;   // 同上：没 Key 就停在原地，别把首页换成科目页（那是在谎报「你在哪」）
   pdActive = false;
   if(subject !== curSubject()){ state.settings.subject = subject; save(); }
   tabActiveKey = null;
@@ -2280,8 +2281,6 @@ function renderModuleLanding(k){
   let n = 0; for(const h of state.history) if(h.module===k) n++;
   // 标题不写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要（2026-10-08
   // 「里面很多废话，并且重复」）。留在纸上的第一行是 note——它是「这是什么」，不是重复。
-  // 标题不写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要（2026-10-08
-  // 「里面很多废话，并且重复」）。
   // note 有时就是子类型名单的文字版（归纳概括：「概括问题 / 原因 / 影响 / 做法 / 特点」＝下面那排胶囊），
   // 同一个名单写两遍也是废话：这种就不写；只有真在描述「这是什么」的（公文写作 / 提出对策）才留一行。
   const subs = subtypeListOf(k);
@@ -2303,7 +2302,21 @@ function renderModuleLanding(k){
   docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
 }
 
+/* 出题前的入口闸（2026-10-08 复查发现的会说谎）：没填 Key 时点「练一道综应大题」，界面会先演一遍
+   「AI 正在为「公文写作 · 通报」准备学习卡与仿真题…」再报错——明知走不通，却先答应了一声；
+   而且那句大题是「先切科目再出题」，人还被从首页拽进综应A（抬头变成「综应A · 综合推送」），他却什么都没练到。
+   现在三条出题路（首页两句大题 / 科目页红按钮 / 模块落地页的胶囊与「开始练习」）都先过这里：
+   原地提示，不切科目、不点灯、不进加载态。快判不用 Key，示例轮照走。 */
+function entryBlocked(){
+  const s = state.settings;
+  if(s.apiKey && s.model) return false;
+  banner((s.apiKey
+    ? "还没选定模型：到设置页点「拉取模型列表」，点一个真实存在的名字。"
+    : "出题和阅卷都要用 API Key，选服务商、填好即可开始。") + "不用 Key 也能先试一轮快判示例题。" + OPEN_SETTINGS_BTN);
+  return true;
+}
 async function startSmart(){
+  if(entryBlocked()) return;   // 先判再切科目：没 Key 的人不该被挪到另一个屏
   const k = weakestModule(); if(!k) return;
   activeModule = k; renderHeader();
   await loadQuestion(k, pickSubtypeFor(k));
@@ -2315,6 +2328,7 @@ async function startModule(k){
 
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
 async function loadQuestion(k, subtype){
+  if(entryBlocked()) return;   // 兜底：所有出题路都从这里过，进加载态之前就得判（见 entryBlocked）
   banner("");
   const mySeq = ++reqSeq;
   const prev = current;   // 出题失败时保住上一题，不打回首页
@@ -2924,9 +2938,8 @@ function renderPDRound(){
 }
 function renderPDSummary(){
   const r = pdRound; if(!r) return;
-  const f = PD_FORMS[r.form];
   const misses = r.items.map((it,i)=>({i,it})).filter(x=>!x.it.ok);
-  let html = `<div class="startbox"><h2>本轮小结 · ${f.name}</h2><p>主题「${esc(r.theme)}」 · ${r.items.length} 题对了 ${r.correct} 题</p>`;
+  let html = `<div class="startbox"><h2>本轮小结</h2><p>主题「${esc(r.theme)}」 · ${r.items.length} 题对了 ${r.correct} 题</p>`;
   // 逐题回顾跟小结标题同属一块内容：拆成两个兄弟节点会撑开一大片空白
   // 逐题回顾：一行一条，解析折在后面——一轮 10 题时全部摊开就是一大片灰字
   html += `<div class="pdreview">` + r.items.map((it,i)=>{ const cls = it.ok? "ok" : "miss"; const mk = it.ok? "✓" : (it.picked==null? "○" : "✗");
@@ -4041,7 +4054,13 @@ function profileModuleHtml(k){
 function profilePdHtml(){
   const pds = pdFormStats(), ts = pdTrapStats();
   let html = PROF_BACK + `<div class="sec-title">快判（只看正确率，不计入维度画像）</div>`;
-  if(!PD_FORM_ORDER.some(id=> pds.st[id].q > 0)) return html + `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
+  if(!PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
+    // 刚跑完示例轮的人不该被告知「还没练过」——他 30 秒前刚练了 5 题（2026-10-08 复查）。
+    // 示例轮不入账是故意的（不能让内置题污染正确率），那就把这件事说出来，而不是假装没发生。
+    return html + ((pdRound && pdRound.sample && pdRound.done)
+      ? `<div class="hint">刚才那轮是示例题（内置题，不计入统计）。填上 API Key 就能开真轮，正确率与辨析点都会记在这里。</div>`
+      : `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`);
+  }
   html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
     const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
     if(!t.q) return `<div class="mrow"><span class="mname">${PD_FORMS[id].name}</span><span class="mmeta">没练过</span><span class="mnone">${esc(PD_FORMS[id].desc)}</span></div>`;
