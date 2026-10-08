@@ -13,8 +13,5 @@ Thumbs.db
 tests-out.txt
 screenshots/
 
-# 公开面闸门（tools/check-msg.mjs）的本地禁词清单：自查用的，不进仓库
-.check-msg.local.json
-
 # 取景器（tools/shot.mjs）的输出：一次性走查用的截图与几何日志
 _shots/
