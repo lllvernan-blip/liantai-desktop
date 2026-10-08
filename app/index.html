@@ -575,7 +575,7 @@ html,body{margin:0;padding:0;}
     <div class="redhead">
       <div class="org" id="orgName">模拟练习专用</div>
       <div class="redline"><span class="bar"></span></div>
-      <div class="docno" id="docNo">综应练〔2026〕第 001 号</div>
+      <div class="docno" id="docNo">练习台〔2026〕第 001 号</div>
     </div>
     <div class="modlabel" id="modLabel">综应A · 公文写作</div>
 
@@ -634,11 +634,10 @@ html,body{margin:0;padding:0;}
         <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
       <details class="more">
-        <summary>更多设置（练习抬头 / 文号前缀）</summary>
+        <summary>更多设置（练习抬头）</summary>
         <div class="inner">
           <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">只做界面装饰，不是真实公文；建议用明显虚构的名字。</div></div>
           <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div></div>
-          <div class="field"><label>文号前缀</label><input type="text" id="setNo" placeholder="综应练"></div>
         </div>
       </details>
       <div class="field">
@@ -849,7 +848,7 @@ const LEGACY_ORG = "综应" + "练习台";
 const DEFAULT_STATE = {
   // model 默认为空：名字一律等实拉，不预置任何可能已经过期的模型名
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
-             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", noPrefix:"综应练", markColor:"#a7f3d0",
+             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", markColor:"#a7f3d0",
              timeLimit:0,   // 作答限时的默认值（分钟，0 = 不限）：选过一次，下一题按同样时长起
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
@@ -1929,9 +1928,11 @@ function networkFailHint(){
 function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   const n = state.history.length + 1, y = new Date().getFullYear();
-  // 落款跟着抬头走：首页不属于任何科目，就不能挂某个科目的文号前缀（抬头写「练习台 · 首页」、
-  // 落款却写「综应练」——两头不对，2026-10-08）
-  const pfx = (_view === "home")? "练习台" : (state.settings.noPrefix||"综应练");
+  // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字。
+  // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
+  // 前缀既已跟着抬头推出来，设置里的「文号前缀」就成了死开关，一并撤掉（规矩：界面不许有一个不起作用的控件）。
+  const pfx = (_view === "home")? "练习台"
+            : ((pdActive || _view === "pd")? "快判" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
   if(_view === "home"){  // 首页不属于任何科目：抬头不挂科目名、也不挂模块名（2026-10-08：原来写着「综应A · 综合推送」，看着像已经进了综应）
     $("#modLabel").textContent = "练习台 · 首页";
@@ -4314,7 +4315,6 @@ function fillSettings(){
   state.settings.reasonLevel = state.settings.reasonLevel || "standard";
   setReasonUI();
   $("#setOrg").value = state.settings.orgName||"";
-  $("#setNo").value = state.settings.noPrefix||"";
   renderMarkSwatches();
 }
 function applyForm(){
@@ -4325,7 +4325,6 @@ function applyForm(){
   state.settings.reasonLevel = state.settings.reasonLevel || "standard";
   state.settings.temperature = (REASON_LEVELS[state.settings.reasonLevel] || REASON_LEVELS.standard).temp;
   state.settings.orgName = $("#setOrg").value.trim() || DEFAULT_STATE.settings.orgName;   // 回落到现行默认值，不回落到已被迁移掉的旧默认名
-  state.settings.noPrefix = $("#setNo").value.trim() || "综应练";
 }
 // 从实拉名单里挑个“跑得快”的做默认：优先轻量款，否则取第一个
 function pickFast(ids){

@@ -2135,13 +2135,27 @@ ok(renderTabs.toString().indexOf('toggle("gap-modbar"') >= 0
 ok(PAGE_HTML.indexOf("--h-modbar:44px") >= 0 && PAGE_HTML.indexOf("height:var(--h-modbar)") >= 0,
    "顶栏: 页签行的高度只在一处定（--h-modbar），不出场时补的就是这个数");
 /* 首页文号跟着抬头走：首页不属于任何科目，落款不能挂某个科目的前缀 */
-state.settings.noPrefix = "综应练";
 renderHome();
 const homeNo = el("#docNo").textContent;
-renderStart();
-ok(homeNo.indexOf("练习台〔") === 0 && el("#docNo").textContent.indexOf("综应练〔") === 0,
-   "首页文号: 首页写「练习台〔年〕第 N 号」，进科目才用设置里的前缀（" + homeNo + "）");
-state.settings.noPrefix = "综应练";
+ok(homeNo.indexOf("练习台〔") === 0, "首页文号: 首页写「练习台〔年〕第 N 号」（" + homeNo + "）");
+/* 19.12 文号跟抬头一一对应——
+   原先申论轨抬头写「申论」、落款却挂设置里的「综应练」，两项对不上。
+   前缀能从头推出来，设置里的「文号前缀」就是死开关，已撤掉（界面不留不起作用的控件）。 */
+function noPrefixOf(track){
+  const before = _view, beforePD = pdActive, beforeSubj = state.settings.subject;
+  if(track === "pd"){ pdActive = true; _view = "pd"; }
+  else { pdActive = false; _view = "start"; state.settings.subject = track; }
+  renderHeader();
+  const t = el("#docNo").textContent;
+  _view = before; pdActive = beforePD; state.settings.subject = beforeSubj;
+  return t;
+}
+const noZy = noPrefixOf("zy"), noSl = noPrefixOf("sl"), noPd = noPrefixOf("pd");
+ok(noZy.indexOf("综应A〔") === 0 && noSl.indexOf("申论〔") === 0 && noPd.indexOf("快判〔") === 0,
+   "文号: 综应轨写「综应A」、申论轨写「申论」、快判轨写「快判」，跟抬头第一个词一致（" + [noZy, noSl, noPd].join(" / ") + "）");
+ok(PAGE_HTML.indexOf(">文号前缀</label>") < 0 && PAGE_HTML.indexOf('id="setNo"') < 0
+   && !("noPrefix" in state.settings),
+   "设置: 「文号前缀」这个死开关已撤掉（文号前缀由抬头推出来，留着就是个不起作用的控件）");
 
 /* 19.11 同一家族的第二轮：还有两处在「先演再报错」（2026-10-08 再复查）
    ① 有 Key 但没选模型时，点快判（综合或单形式）会先演「AI 正在出「综合快判」快判题…」，
