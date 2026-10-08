@@ -634,7 +634,7 @@ html,body{margin:0;padding:0;}
         <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
       <details class="more">
-        <summary>更多设置（练习抬头）</summary>
+        <summary>更多设置（练习文档样式）</summary>
         <div class="inner">
           <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">只做界面装饰，不是真实公文；建议用明显虚构的名字。</div></div>
           <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div></div>
@@ -2096,7 +2096,11 @@ function startBoxHtml(rf){
   return `<div class="startbox" data-start="${home? "home":"subj"}">
     <div class="actions" style="justify-content:center;margin:0">${home
       ? `<button class="primary big" id="btnQuick">开始快判</button>`
-      : `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`}</div>
+      : (state.settings.apiKey
+          ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
+          /* 没 Key 的人：出题这条路当下走不通，红按钮就不该说「开始练习」——换成他此刻真能做的事，
+             点了就是开设置页；"不用 Key 也能练"那条路写在引导里，不在纸面上抢位。 */
+          : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`)}</div>
     ${home? `<p class="hint" style="margin:9px 0 0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>` : ""}
     ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
     <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>` : ""}
@@ -2107,6 +2111,7 @@ function wireStartBox(){
   // 两种起始页各有自己的红按钮，各自都可能不在：取不到就跳过
   const q = $("#btnQuick"); if(q) q.onclick = ()=> startPDRound(PD_MIX);
   const sm = $("#btnSmart"); if(sm) sm.onclick = startSmart;
+  const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时科目页那颗：说了「先填 Key」就真把人送到设置页
   const sp = $("#btnSample"); if(sp) sp.onclick = ()=> startPDSampleRound();
   docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));
   const br = $("#btnResume");
@@ -2190,12 +2195,12 @@ const TOURS = {
 /* 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人，科目页第一句
    原是「不选模块也可以，直接点这里开始」——他照做就被一句「出题和阅卷都要用 API Key」拦下来，
    引导在承诺做不到的事；而且看这套引导的往往正是新人（没 Key 的人）。
-   所以没 Key 时：科目页第一步改指设置页（并告诉他不填 Key 也能练的那条路），最后那一步（也在讲 Key）
-   一并去掉——同一个元素讲两遍也是废话。 */
+   所以没 Key 时：科目页第一步改指纸面上那颗「先填 API Key」（也就是他此刻真该点的那颗），
+   最后那一步（也在讲 Key）一并去掉——同一个元素讲两遍也是废话。 */
 const TOURS_NO_KEY = {
   home: { 1: { text:"想练整篇：这两句各自去综应或申论，都要先填 API Key（快判不用）。" } },
-  zy:   { 0: { sel:"#btnSettings", text:"出题和阅卷都要 API Key：先在这里填上（设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
-  sl:   { 0: { sel:"#btnSettings", text:"出题和阅卷都要 API Key：先在这里填上（设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+  zy:   { 0: { sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+  sl:   { 0: { sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
   pd:   {},   // 快判这套本来就讲到了 Key（「真出题要用 API Key（示例题不用）」），不用改
 };
 function tourSteps(sub){

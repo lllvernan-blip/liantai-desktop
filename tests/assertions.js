@@ -1212,21 +1212,35 @@ ok(startUp.indexOf('id="btnSample"') >= 0 && startUp.indexOf("先试一轮示例
      （快判入口常驻顶栏最左那颗胶囊，科目页再放一遍就是同一条路开两个门） */
 state.settings.subject = "zy"; renderStart();
 const subjStart = el("#docBody").innerHTML;
-ok(subjStart.indexOf('class="primary big" id="btnSmart">开始综应练习') >= 0
+ok(subjStart.indexOf('class="primary big" id="btnSetup">先填 API Key') >= 0
    && subjStart.indexOf("data-start=\"subj\"") >= 0,
-   "科目页: 红按钮是「开始综应练习」（本科目的主行动），纸面上不再写别的说明");
+   "科目页（没填 Key）: 红按钮改说「先填 API Key」——出题这条路当下走不通，就不说「开始练习」");
 ok(subjStart.indexOf("开始快判") < 0 && subjStart.indexOf('id="btnSample"') < 0,
    "科目页: 不出现「开始快判」，也不放示例轮（那是快判的事）");
 ok(subjStart.indexOf("data-big") < 0,
    "科目页: 不放两句大题——点它们和点红按钮是同一个动作（startSmart）");
 ok(el("#subjbar").innerHTML.indexOf("快判") >= 0,
    "科目页: 快判仍从顶栏最左那颗胶囊进（入口没被藏掉）");
+ok(el("#btnSetup").onclick !== startSmart,
+   "科目页（没填 Key）: 红按钮接的不是出题那条路（它此刻走不通）");
+el("#btnSetup").onclick();
+ok(el("#modalSettings").hidden === false,
+   "科目页（没填 Key）: 那颗按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
+closeModals();
+state.settings.subject = "sl"; renderStart();
+ok(el("#docBody").innerHTML.indexOf('id="btnSetup">先填 API Key') >= 0,
+   "科目页（没填 Key）: 换到申论也是同一个形态，不为某个科目开特例");
+
+/* ②c 填了 Key 的科目首页：红按钮回到本科目的主行动 */
+state.settings.apiKey = "sk-test"; state.settings.subject = "zy"; renderStart();
+ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnSmart">开始综应练习') >= 0,
+   "科目页（填了 Key）: 红按钮是「开始综应练习」（本科目的主行动）");
 ok(el("#btnSmart").onclick === startSmart && el("#btnQuick").onclick !== startSmart,
-   "科目页: 红按钮接的是 startSmart（与「练一道综应大题」同一个动作，不是快判那条）");
+   "科目页（填了 Key）: 红按钮接的是 startSmart（与「练一道综应大题」同一个动作，不是快判那条）");
 state.settings.subject = "sl"; renderStart();
 ok(el("#docBody").innerHTML.indexOf('id="btnSmart">开始申论练习') >= 0,
-   "科目页: 换到申论，红按钮跟着换名（开始申论练习）");
-state.settings.subject = "zy";
+   "科目页（填了 Key）: 换到申论，红按钮跟着换名（开始申论练习）");
+state.settings.apiKey = ""; state.settings.subject = "zy";
 // 一键出题不能带着空主题走：起始页没有 #pdTheme 输入框，pdThemeValue 得退到随机主题
 const startThemes = Array.from({length: 20}, ()=> pdThemeValue());
 ok(startThemes.every(t=> PD_TOPICS.indexOf(t) >= 0),
@@ -2180,9 +2194,9 @@ ok(el("#docBody").innerHTML.indexOf("这轮可能要一分钟。") >= 0,
 // 引导：有 Key 讲「点这里开始」，没 Key 讲「先填 Key」——两套话都得跟当时真能做到的事对上
 state.settings.apiKey = "";
 const zyNoKey = tourSteps("zy"), slNoKey = tourSteps("sl"), homeNoKey = tourSteps("home");
-ok(zyNoKey[0].sel === "#btnSettings" && zyNoKey[0].text.indexOf("API Key") >= 0
+ok(zyNoKey[0].sel === "#btnSetup" && zyNoKey[0].text.indexOf("API Key") >= 0
    && zyNoKey.every(s=> s.text.indexOf("直接点这里开始") < 0),
-   "引导/无 Key: 科目页第一步改指设置页（不再承诺「点了就能开始」）");
+   "引导/无 Key: 科目页第一步指纸面上那颗「先填 API Key」（他此刻真该点的那颗），不承诺「点了就能开始」");
 ok(zyNoKey.length === 3 && slNoKey.length === 3 && zyNoKey.every((s,i,a)=> a.findIndex(x=> x.sel === s.sel) === i),
    "引导/无 Key: 末尾那步（也在讲 Key）去掉，同一个元素不在引导里讲两遍");
 ok(homeNoKey[1].text.indexOf("都要先填 API Key") >= 0 && homeNoKey[0].sel === "#btnQuick",
