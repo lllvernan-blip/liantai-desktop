@@ -12,7 +12,8 @@
     "icon:mac": "python3 tools/make-mac-icon.py",
     "release": "node tools/release.mjs",
     "release:mac": "node tools/release-mac.mjs",
-    "release:check": "node tools/release-check.mjs"
+    "release:check": "node tools/release-check.mjs",
+    "check:msg": "node tools/check-msg.mjs"
   },
   "build": {
     "appId": "com.lllvernan.liantai",
