@@ -58,7 +58,14 @@ function apiGet(path, raw) {
     const args = ["api", path];
     if (raw) args.push("-H", "Accept: application/vnd.github.raw");
     const r = spawnSync(GH, args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-    if (r.status !== 0) throw new Error((r.stderr || "").trim() || "gh api 失败");
+    if (r.status !== 0) {
+      /* 404 不是「gh 坏了」，是「这个东西还不存在」——最常见的一种：version 刚提上去、Release 还没建，
+         这时跑一次对账（正是最该跑的时候）却抛出一串 ESM 栈，什么也说明不了。回 null，让调用方说人话，
+         与下面匿名分支的行为对齐（那条路一直是 404 → null）。 */
+      const err = (r.stderr || "").trim();
+      if (/HTTP 404|Not Found/i.test(err)) return null;
+      throw new Error(err || "gh api 失败");
+    }
     return r.stdout;
   }
   return null; // 异步分支在 fetchJson 里走
