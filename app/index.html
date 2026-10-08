@@ -142,7 +142,9 @@ html,body{margin:0;padding:0;}
   /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:13px;margin:0 0 24px;}
-  .startbox .big{min-width:260px;}
+  .startbox .big{min-width:320px;}
+  /* 起始区的主行动再抬高一级：纸面上只有它一件事，就让它占得住地方 */
+  .startbox .primary.big{padding:16px 54px;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
@@ -573,11 +575,8 @@ html,body{margin:0;padding:0;}
     <div class="modlabel" id="modLabel">综应A · 公文写作</div>
 
     <div id="docBody">
-      <div class="startbox">
-        <h2>开始今天的练习</h2>
-        <p>AI 按你最近的表现自动出题，先给学习卡再做题，越练越准。</p>
-        <button class="primary big" id="btnStart">智能推送下一题</button>
-      </div>
+      <!-- 启动前占位：boot 一跑就被 renderHome() 换掉；写死一套旧按钮反而会跟真页面不一致 -->
+      <div class="startbox"></div>
     </div>
   </div>
 
@@ -2075,14 +2074,14 @@ function startBoxHtml(rf){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
   const bigs = SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("");
-  return `<div class="startbox">
-    <h2>开始今天的练习</h2>
+  // 纸面上不再写标题
+  // 抬头已经报了「你在哪」，纸面上再写一遍「开始…」就是同一句话写两次——主行动自己就是标题。
+  // data-start 是给断言看的：首页还是科目页，两形得能分开认。
+  return `<div class="startbox" data-start="${home? "home":"subj"}">
     <div class="actions" style="justify-content:center;margin:0">${home
       ? `<button class="primary big" id="btnQuick">开始快判</button>`
       : `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`}</div>
-    <p class="hint" style="margin:7px 0 0">${home
-      ? "从材料里挑出对的说法，一轮 5 题，两三分钟。"
-      : "不选具体题型就按综合来推：AI 按你最近的表现自动出题，越练越准。"}</p>
+    ${home? `<p class="hint" style="margin:9px 0 0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>` : ""}
     ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
     <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>` : ""}
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
@@ -2279,13 +2278,20 @@ function renderModuleLanding(k){
   const m = MODULES[k];
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module===k) n++;
-  // 标题只写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要
+  // 标题不写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要（2026-10-08
+  // 「里面很多废话，并且重复」）。留在纸上的第一行是 note——它是「这是什么」，不是重复。
+  // 标题不写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要（2026-10-08
+  // 「里面很多废话，并且重复」）。
+  // note 有时就是子类型名单的文字版（归纳概括：「概括问题 / 原因 / 影响 / 做法 / 特点」＝下面那排胶囊），
+  // 同一个名单写两遍也是废话：这种就不写；只有真在描述「这是什么」的（公文写作 / 提出对策）才留一行。
+  const subs = subtypeListOf(k);
+  const noteRedundant = subs.length > 0 && m.note.split(/[\/、·]/).map(s=>s.trim()).filter(Boolean)
+    .every(t=> subs.some(s=> s.indexOf(t) >= 0));
   let html = `<div class="startbox">
-    <h2>${esc(m.name)}</h2>
-    <p>${esc(m.note)}</p>
+    ${noteRedundant? "" : `<p>${esc(m.note)}</p>`}
     <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过——第一次进来会有引导。"}</p>
     <div class="subtypechips">
-    ${subtypeListOf(k).map(t=>{
+    ${subs.map(t=>{
       const st = subtypeStat(k,t);
       return `<button class="chip" data-t="${t}">${t}${st? ` <small>${Math.round(st.avg)}分·${st.n}次</small>`:""}</button>`;
     }).join("")}
@@ -2724,9 +2730,9 @@ function renderPDLanding(){
   pdForm = null; pdRound = null;
   tabActiveKey = null; renderTabs();
   const recent = pdRecentTheme();
+  // 抬头已经写着「快判」了，纸面上不再重复一遍标题；这一行只讲怎么玩（5 题 / 点选即判）
   let html = `<div class="startbox">
-    <h2>快判 · 从材料里做判断</h2>
-    <p style="margin:0">一轮 5 题，点选即判。</p>
+    <p style="margin:0">从材料里做判断，一轮 5 题，点选即判。</p>
     <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button></div>
     <div class="pdforms">
       <div class="pdformslabel">或只练一种形式</div>

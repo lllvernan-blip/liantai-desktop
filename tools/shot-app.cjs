@@ -94,7 +94,10 @@ const METRICS_JS = `(() => {
 // 2026-10-08 首页与两句大题：01 53（两句大题各自点名科目，去掉「综应 / 申论」那种含糊写法）、
 // 02 75（-01 再加一句「继续上次没做完的题（…）」）、12 快判落地页 159（新增大题入口一行）。
 // 这三次加的都是**按钮名与入口**，不是解释字——所以抬线，不删字；再往上加东西之前先问一句值不值。
-const ENTRY_AUX_BUDGET = { "01": 60, "02": 85, "03": 74, "12": 170, "26": 95 };
+// 2026-10-08 迟些时候精简文案：删掉纸面上重复的标题
+// （「开始今天的练习」「归纳概括」「快判 · 从材料里做判断」）与机制说明，并去掉与胶囊重复的模块名单；
+// 实测 01 50 / 02 69 / 03 40 / 26 85 / 12 165，线跟着降下来——**这次是真删了字，降线就是把门槛拉回去**。
+const ENTRY_AUX_BUDGET = { "01": 55, "02": 75, "03": 45, "12": 170, "26": 90 };
 const AUDIT_JS = (scene) => `(() => {
   const SCENE = ${JSON.stringify(String(scene))};
   const ENTRY_BUDGET = ${JSON.stringify(ENTRY_AUX_BUDGET)};
@@ -189,7 +192,10 @@ const AUDIT_JS = (scene) => `(() => {
       if (Math.round(parseFloat(getComputedStyle(el).fontSize)) > 14) continue;
       let t = "";
       for (const n of el.childNodes) if (n.nodeType === 3) t += n.textContent;
-      t = t.replace(/\s+/g, "");
+      /* 注意正则里的反斜杠：这段是模板字符串里的源码，一个反斜杠的 s 转义会被吃掉（JS 不认识的转义符把反斜杠丢掉），
+         运行时变成「把字母 s 全删掉」——删的不是空白。这个坑静默跑了很久（2026-10-08 对账时才发现：
+         同一个元素自测得 20、外部探针得 14，差的正好是 6 个空格），所以这里必须写两个反斜杠。 */
+      t = t.replace(/\\s+/g, "");
       if (!t) continue;
       aux += t.length; blocks.push(t.length + "·" + t.slice(0, 16));
     }

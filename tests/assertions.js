@@ -228,7 +228,7 @@ ok(el("#bannerSlot").innerHTML.indexOf("model not found") >= 0, "异常时透出
 handleErr({ code:"JSON" }, true);
 ok(el("#bannerSlot").innerHTML.indexOf("格式异常") >= 0, "AI 吐坏 JSON 时提示重试（不再漏成裸异常）");
 handleErr({ code:"TIMEOUT" }, false);
-ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0, "无题可看时才回到起点");
+ok(el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0, "无题可看时才回到起点");
 handleErr({ code:"NO_KEY" }, true);
 ok(el("#bannerSlot").innerHTML.indexOf("API Key") >= 0, "未配置 Key 有明确指引");
 
@@ -1056,10 +1056,10 @@ ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerH
 
 /* ①b 返回综合：再点当前科目按钮 = 回起始页，不用绕道切科目再切回来 */
 renderModuleLanding("zy.gongwen");
-ok(el("#docBody").innerHTML.indexOf("开始今天的练习") < 0,
+ok(el("#docBody").innerHTML.indexOf("data-start=") < 0,
    "返回综合: 前置——人在公文写作落地页");
 backToStart();
-ok(el("#docBody").innerHTML.indexOf("开始今天的练习") >= 0 && tabActiveKey === null,
+ok(el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0 && tabActiveKey === null,
    "返回综合: 再点当前科目回到综合推送，页签全灭");
 ok(el("#modLabel").textContent === "综应A · 综合推送", "返回综合: 抬头如实报「科目 · 综合推送」，不再挂上次练的模块名");
 
@@ -1213,8 +1213,8 @@ ok(startUp.indexOf('id="btnSample"') >= 0 && startUp.indexOf("先试一轮示例
 state.settings.subject = "zy"; renderStart();
 const subjStart = el("#docBody").innerHTML;
 ok(subjStart.indexOf('class="primary big" id="btnSmart">开始综应练习') >= 0
-   && subjStart.indexOf("AI 按你最近的表现自动出题") >= 0,
-   "科目页: 红按钮是「开始综应练习」（本科目的主行动），下面一句讲它怎么出题");
+   && subjStart.indexOf("data-start=\"subj\"") >= 0,
+   "科目页: 红按钮是「开始综应练习」（本科目的主行动），纸面上不再写别的说明");
 ok(subjStart.indexOf("开始快判") < 0 && subjStart.indexOf('id="btnSample"') < 0,
    "科目页: 不出现「开始快判」，也不放示例轮（那是快判的事）");
 ok(subjStart.indexOf("data-big") < 0,
@@ -1330,6 +1330,35 @@ ok(state.settings.subject === "zy" && loadBigCalls.length === 2 && subjectOf(loa
 ok(JSON.parse(localStorage.getItem("gw_state")).settings.subject === "zy",
    "大题入口: 科目切换落盘（与点科目按钮同一处口径）");
 loadQuestion = realLoadQ;
+
+/* ②c 废话与重复（2026-10-08「把废话精简或者删掉」）
+   纸面上不再写标题（抬头已经报了「你在哪」），也不再写「我按 XX 出题」这类机制说明。 */
+state.settings.subject = "zy"; renderStart();
+const subjPlain = el("#docBody").innerHTML;
+ok(subjPlain.indexOf("开始今天的练习") < 0 && subjPlain.indexOf("AI 按你最近") < 0,
+   "废话精简: 科目页既没有重复的标题，也没有「我按你最近表现出题」这句机制说明");
+ok(subjPlain.indexOf('data-start="subj"') >= 0, "废话精简: 科目页带 data-start=\"subj\"（两形在断言里分得开）");
+renderHome();
+const homePlain = el("#docBody").innerHTML;
+ok(homePlain.indexOf("开始今天的练习") < 0 && homePlain.indexOf('data-start="home"') >= 0,
+   "废话精简: 首页也不再写「开始今天的练习」——主行动自己就是标题");
+ok(homePlain.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0,
+   "废话精简: 但「快判是什么」那一行留着（它是「这是什么」，不是重复）");
+renderModuleLanding("zy.guina");
+const landPlain = el("#docBody").innerHTML;
+ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") < 0,
+   "废话精简: 归纳概括落地页不写模块名标题，也不写与胶囊重复的那句名单");
+ok(landPlain.indexOf("近期加权均分") >= 0 || landPlain.indexOf("还没练过") >= 0,
+   "废话精简: 但成绩那行留着（是数据，不是废话）");
+renderModuleLanding("zy.duice");
+ok(el("#docBody").innerHTML.indexOf("针对问题提出解决措施") >= 0
+   && el("#docBody").innerHTML.indexOf("<h2>") < 0,
+   "废话精简: 真在描述「这是什么」的 note（提出对策）还留着，只去掉重复的标题");
+renderPDLanding();
+ok(el("#docBody").innerHTML.indexOf("快判 · 从材料里做判断") < 0
+   && el("#docBody").innerHTML.indexOf("从材料里做判断，一轮 5 题，点选即判。") >= 0,
+   "废话精简: 快判落地页两行并一行（抬头已写着「快判」，纸面上不再重复标题）");
+renderHome();
 
 /* ⑤ 快判页里也能拐去大题 */
 state.settings.subject = "zy";
