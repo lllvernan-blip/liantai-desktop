@@ -1614,7 +1614,9 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   const m = MODULES[k];
   const scope = subtype? `${subtypeWord(k)}：「${subtype}」` : `题型：综合`;
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
-  const matSpec = `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）`;
+  // 材料一律虚构：模型不知道某地真实做法，放它写「根据某文件」只会编出看着像真的政策名与文号
+  const matSpec = `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）
+虚构要求：材料是虚构情境——不得出现真实政策、法规、文件的名称与文号，机关与地点一律写「某市/某县/某镇/某社区」这类模糊主体，不得把编造的内容写成「根据某文件」；数字只作情境设定，不指向任何真实来源。`;
   // 字数口径唯一来源是本地表：模块表或文种表里的数字写死进 prompt，生成结果再由 enforceWordLimit 纠偏，不信模型
   const localLimit = localAnsLen(k, subtype);
   const reqSpec = localLimit? `作答要求（含作答身份、对象，明确写「不超过${localLimit}字」）`
