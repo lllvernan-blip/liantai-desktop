@@ -37,6 +37,7 @@ mac 版**没有 Apple 开发者证书**，所以不签名、不公证，也不�
 | `app/index.html` | **应用本体**（单文件 HTML + CSS + JS，零依赖）；业务代码改这里 |
 | `tests/` | 零依赖自检：从 `app/index.html` 抽取唯一 `<script>`，配合 DOM 桩在 Node 里跑 |
 | `题型规范.md` | 各模块子类型与评分维度的数值依据（改 `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 必须同步它） |
+| `docs/` | 协作规则的细节层：`界面规范.md`（质感与排版）、`验证与取景器.md`（探针 / 漂移 / 取景器）、`发布与更新.md`（发布流程 / 验包 / 卡点）——`AGENTS.md` 各节都指向这里 |
 | `打包.bat` | 双击自助出包（Windows）：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
 | `打包-mac.command` | 双击自助出包（macOS）：重做图标 → 跑 `npm run dist:mac`，完成后自动打开 `dist/` |
 | `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
