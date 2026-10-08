@@ -3045,7 +3045,7 @@ function renderPDRound(){
   // 快判和大题的关系写在练习页首行：这一屏练的辨认动作，就是申论/综应小题的入口动作
   html += `<p class="hint" style="margin:6px 0 10px">快判练的是从材料里辨认说法，申论和综应的小题练的是同一个动作。</p>`;
   html += `<div class="material"><div class="label">材料节选</div>${esc(it.context)}</div>`;
-  html += `<div class="require" style="margin-top:12px"><b>题干：</b>${esc(it.stem)}</div>`;
+  html += `<div class="require" style="margin-top:12px"><b style="min-width:auto">题干：</b>${esc(it.stem)}</div>`;
   html += `<div class="pdopts">` + it.options.map((o,i)=>{
     let cls = "pdopt";
     if(it.done){ if(i===it.answer) cls += " good"; else if(it.picked===i) cls += " bad"; else cls += " dim"; }
