@@ -473,27 +473,34 @@ renderQuestion();
 ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "申论七步链: 步骤条在场，落点是读材料");
 ok(activeFlow() && activeFlow().module === "sl.guina", "申论七步链: 渲染即建链");
 ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0, "读材料: 题目与材料同屏（找点合并后材料按句分段）");
-ok(el("#docBody").innerHTML.indexOf("解题要点") >= 0, "读材料: 学习卡折叠并入本步（展开可看）");
-ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "读材料: 笔记可见可续写（真实输入走 input 监听，真机另验）");
-ok(el("#docBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 显示上次翻卡次数");
+// 学习卡不再内嵌在纸面里：收成常驻浮标 + 抽屉（抽屉那几条断言在下面），要点是材料不被顶出首屏
+ok(el("#docBody").innerHTML.indexOf("看学习卡") >= 0 && el("#docBody").innerHTML.indexOf("btnCard") > el("#docBody").innerHTML.indexOf("materialBox"),
+   "读材料: 学习卡收成浮标，正文（材料）在前、卡片不占位");
+ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "读材料: 笔记不再摊在纸面上（收进抽屉）");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始归类」推进）");
+flowGoStep("organize");
+ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: organize 步不摆 Next（主行动自带推进，同一个意思不写两遍）");
+flowGoStep("read");
 ok(el("#docBody").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存");
 ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
-ok(el("#docBody").innerHTML.indexOf("学习卡") < el("#docBody").innerHTML.indexOf("materialBox"), "读材料: 学习卡在材料上方先给出");
+ok(el("#docBody").innerHTML.indexOf("btnCard") >= 0 && el("#docBody").innerHTML.indexOf("cardDrawer") >= 0,
+   "读材料: 学习卡收成常驻浮标 + 抽屉（不再压在材料上方）");
 ok(distillPanelHtml().indexOf("btnFlowDone") >= 0, "沉淀: 有「完成，回首页」收尾出口");
 flowGoStep("draft");
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷在场");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: draft 步不摆 Next（靠「提交阅卷」推进）");
-ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") >= 0, "一稿: 能看到自己的笔记");
 ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡浮标在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
 ok(el("#drawerBody").innerHTML.indexOf("解题要点") >= 0, "抽屉: 卡片原文只在抽屉里");
+ok(el("#drawerBody").innerHTML.indexOf("上次练习翻了 2 次卡") >= 0, "熟悉度: 抽屉里报出上次翻卡次数");
 saveNote("sl.guina","概括原因","申论要点一：先找动词\n要点二：归类上位词");
 el("#btnDrawerClose").onclick();
 ok(el("#cardDrawer").hidden === true, "抽屉: 可关闭");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 2, "抽屉: 再看再计");
+ok(el("#drawerBody").innerHTML.indexOf("申论要点一：先找动词") >= 0 && el("#drawerBody").innerHTML.indexOf("drawerNote") >= 0,
+   "抽屉: 笔记就在卡下面（边看边写，不用回读材料步）");
 const flowGate = activeFlow();
 ok(flowGoStep("review") === false && flowGate.step === "draft", "批改门槛: 无批改结果不得进入批改步");
 ok(el("#bannerSlot").innerHTML.indexOf("批改") >= 0, "批改门槛: 拒绝时有明确提示");
@@ -506,7 +513,12 @@ callLLM = async (sys, user)=>{ genCallsCard++; capCard = { sys, user }; return {
 await loadQuestion("sl.guina","概括问题");
 ok(genCallsCard === 1 && current && current.studyCard === SL_STUDY_CARDS["sl.guina"], "申论学习卡: AI 未带卡时回退内置资料库卡");
 ok(JSON.parse(capCard.user).library && JSON.parse(capCard.user).library.points.length >= 5, "申论学习卡: 资料库随出题注入（library 字段在场）");
-ok(el("#docBody").innerHTML.indexOf("归纳概括·学习卡") >= 0 && el("#docBody").innerHTML.indexOf("btnNewCard") >= 0, "申论学习卡: 读材料步渲染，且照综应口径可「换一张」");
+ok(el("#docBody").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 读材料步给浮标入口");
+el("#btnCard").onclick();
+ok(el("#cardDrawerTitle").textContent.indexOf("归纳概括") >= 0 && el("#drawerBody").innerHTML.indexOf("btnNewCard") >= 0,
+   "申论学习卡: 抽屉里写清是哪张卡，且照综应口径可「换一张」");
+el("#btnDrawerClose").onclick();
+ok(current.cardPeeks === 0, "读材料: 看卡不计次（翻卡计次只属作答阶段）");
 const cachedCard = { title:"AI 生成的卡", points:["x"], pitfalls:[], templates:"" };
 state.cache.studyCards["sl.guina::概括问题2"] = cachedCard;
 await loadQuestion("sl.guina","概括问题2");
@@ -786,10 +798,8 @@ ok(materialRangeHtml.toString().indexOf("mergedMaterialRange") >= 0, "读材料:
 ok(toggleSentenceSelection(fB, 0, "") === true && fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 点选整句收入");
 ok(toggleSentenceSelection(fB, 0, "s0") === true && !fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 再点取消整句，划选记录不受影响");
 
-/* 归类：组数与提纲 */
-fB.groups = groupAutoSplit(fB.selections);
-ok(fB.groups.length === Math.min(Math.max(fB.selections.length,1),8), "归类: 组数 = clamp(选区数,1,8)");
-ok(fB.groups.every(g=> Array.isArray(g.facts)), "归类: 每组有归属数组");
+/* 归类：提纲按类聚合（类从哪来已改成「逐个点建」，面板那边的断言在 12.8） */
+fB.groups = [];
 const outlineDemo = buildOrganizeOutline(
   [{ name:"格式要求", facts:[0] }, { name:"", facts:[1] }],
   [{ text:"有抬头有落款" }, { text:"语言要得体" }]);
@@ -995,35 +1005,38 @@ renderStart();
 ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") < 0, "恢复现场: 超 24h 的链不再提示");
 state.flows = []; _flowId = null;
 
-/* 12.8 小修：organize 未入组提示 + 提纲/找点不自动重排 */
-const fOrg = { selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} };
-ok(organizePanelHtml(fOrg).indexOf("1 个点还没归进任何一组") >= 0, "organize: 有未入组的点时轻提示");
-ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"",facts:[0]}], question:{background:"x"} }).indexOf("还没归进任何一组") < 0, "organize: 全部入组时不提示");
-// 归类页只摆已归入的点，备选收进「加要点」：不再 N 组 × M 点铺满整屏
+/* 12.8 归类：逐点走 —— 一屏一个点，点已建的类归入（可多归），走完生成提纲 */
+const fOrg = { selections:[{text:"甲点"},{text:"乙点"}], groups:[], question:{background:"x"} };
 const orgHtml = organizePanelHtml(fOrg);
-ok(orgHtml.indexOf('class="asgline" data-si="0"') >= 0 && orgHtml.indexOf('data-unasg="0"') >= 0,
-   "organize: 已归入的点摆成一行（带「移出」）");
-ok(orgHtml.indexOf('class="asgline" data-si="1"') < 0 && orgHtml.indexOf("加要点（备选 1 个）") >= 0,
-   "organize: 未归入的点不摆出来，只在备选条里计个数");
-const orgHtml2 = organizePanelHtml({ selections:[{text:"甲点",free:true}], groups:[{name:"",facts:[0]}], question:{background:"x"} });
-ok(orgHtml2.indexOf("备选已全部归入本组") >= 0 && orgHtml2.indexOf("划选") >= 0,
-   "organize: 备选清空时给明确空态 + 保留划选/整句标记");
-// 同一个点可以同时归进两组：已归清单上标出「也在「X」」
-const orgHtml3 = organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"甲组",facts:[0]},{name:"乙组",facts:[0]}], question:{background:"x"} });
-ok(orgHtml3.indexOf("也在「乙组」") >= 0 && orgHtml3.indexOf("也在「甲组」") >= 0,
-   "organize: 一个点归进两组时，两边都标明");
-// DOM 是归属唯一出处（已归清单的 data-si ∪ 备选里勾上的框）：这层拼装函数单独测，不靠真 DOM
+const curBlock = h => (String(h).match(/<div class="ogcur">[\s\S]*?<\/div>/) || [""])[0];
+ok(curBlock(orgHtml).indexOf("甲点") >= 0 && curBlock(orgHtml).indexOf("乙点") < 0,
+   "归类: 当前点区只摆这一个点的原文");
+ok(orgHtml.indexOf("已归 0 / 2 个点") >= 0, "归类: 报出已归进度");
+ok(orgHtml.indexOf("还没有类") >= 0 && orgHtml.indexOf("data-og=") < 0, "归类: 一个类都没建时给明确空态");
+ok(orgHtml.indexOf('data-jump="1"') >= 0, "归类: 已找的点收在折叠清单里，能跳回去重归");
+ok(organizePanelHtml({ selections:[], groups:[] }).indexOf("进一稿（提纲为空）") >= 0, "归类: 没有找到点时给直接进一稿的出口");
+// 选中态跟着当前点走
+const orgHtml1 = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"政务服务效能",facts:[0]}], orgIdx:0 });
+ok(orgHtml1.indexOf('class="ogcat on"') >= 0 && orgHtml1.indexOf("政务服务效能") >= 0, "归类: 已归入的类显示为选中");
+ok(organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"甲类",facts:[0]}], orgIdx:1 }).indexOf('class="ogcat on"') < 0,
+   "归类: 换到下一个点时选中态跟着换");
+// 一个点能同时归进两类：两颗胶囊同时选中
+const orgHtml2 = organizePanelHtml({ selections:[{text:"甲点",free:true}], groups:[{name:"甲类",facts:[0]},{name:"乙类",facts:[0]}], orgIdx:0 });
+ok((orgHtml2.match(/class="ogcat on"/g) || []).length === 2 && orgHtml2.indexOf("划选") >= 0,
+   "归类: 一个点能同时归进两类，且保留划选/整句标记");
+ok(orgHtml2.indexOf("已归 1 / 1 个点") >= 0, "归类: 归好后进度跟上");
+// 最后一个点的主动作是生成提纲，不是「下一个点」
+ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[] }).indexOf("生成提纲，进入一稿") >= 0,
+   "归类: 走到最后一个点就是生成提纲");
+ok(orgHtml.indexOf("下一个点") >= 0, "归类: 没走完时给「下一个点」");
+// 归属反查表：一个点被哪几类收着
 const sel3 = [{text:"甲点",free:true},{text:"乙点"}];
 const grp3 = [{name:"甲组",facts:[0]},{name:"",facts:[0,1]}];
 const h3 = holderOf(grp3, sel3);
-ok(h3[0].length === 2 && h3[1].length === 1, "organize: 归属反查表记录一个点被哪几组收着 -> " + JSON.stringify(h3));
-const asg3 = assignedHtml(grp3[1].facts, sel3, grp3, 1, h3);
-ok(asg3.indexOf('data-si="0"') >= 0 && asg3.indexOf('data-si="1"') >= 0 && asg3.indexOf("移出") >= 0,
-   "organize: 已归清单逐行画出（每行带「移出」）");
-ok(asg3.indexOf("也在「甲组」") >= 0 && asg3.indexOf("也在「要点2」") < 0,
-   "organize: 只给跨组重复的点标「也在」，并跳过它自己");
-ok(assignedHtml([], sel3, grp3, 1, h3).indexOf("这一组还没归点") >= 0, "organize: 空组给明确空态");
-ok(groupLabel([{name:""}], 0) === "要点1" && groupLabel([{name:"甲组"}], 0) === "甲组", "organize: 没命名时按「要点N」称呼");
+ok(h3[0].length === 2 && h3[1].length === 1, "归类: 归属反查表记录一个点被哪几类收着 -> " + JSON.stringify(h3));
+ok(groupLabel([{name:""}], 0) === "要点1" && groupLabel([{name:"甲组"}], 0) === "甲组", "归类: 没命名时按「要点N」称呼");
+ok(buildOrganizeOutline(grp3, sel3).indexOf("甲组：甲点") >= 0 && buildOrganizeOutline(grp3, sel3).indexOf("要点2：甲点；乙点") >= 0,
+   "归类: 提纲按类聚合，跨类重复的点两类都出现");
 
 current = null;
 

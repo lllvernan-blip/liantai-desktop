@@ -125,7 +125,9 @@ function s03_landing() { __reset({ history: true }); renderModuleLanding("sl.gui
 function s04_zy_card() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 0, phase: "card" }; activeModule = "zy.guina"; renderQuestion(); }
 function s05_zy_answer() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 1, phase: "answer" }; activeModule = "zy.guina"; renderQuestion(); }
 function s06_flow_read() { __reset({ history: true }); __flow("read"); renderQuestion(); }
+function s06b_flow_read_drawer() { __reset({ history: true }); __flow("read"); renderQuestion(); document.querySelector("#btnCard").onclick(); }
 function s07_flow_organize() { __reset({ history: true }); __flow("organize"); renderQuestion(); }
+function s07b_flow_organize_done() { __reset({ history: true }); const f = __flow("organize"); f.orgIdx = 2; renderQuestion(); }
 function s08_flow_draft() { __reset({ history: true }); __flow("draft"); renderQuestion(); }
 function s09_flow_review() { __reset({ history: true, exp: true }); __flow("review"); lastGrade = { g: __grade(), total: 67, expCheck: { again: ["漏写落款文号"], fixed: [], at: Date.now() } }; renderQuestion(); }
 function s10_flow_distill() { __reset({ history: true, exp: true }); __flow("distill"); _lastDistilled = [{ id: "d1", type: "失分点", title: "把企业反映当做法", body: "材料里的第三方反映不是该主体的做法，概括时不能算作措施。", scope: "" }]; renderQuestion(); }
@@ -305,7 +307,9 @@ const SCENES = [
   ["04-综应A-学习卡", s04_zy_card, true],
   ["05-综应A-作答", s05_zy_answer, true],
   ["06-申论-读材料", s06_flow_read, true],
+  ["06b-申论-读材料-学习卡抽屉", s06b_flow_read_drawer, true],
   ["07-申论-归类", s07_flow_organize, true],
+  ["07b-申论-归类-走完", s07b_flow_organize_done, true],
   ["08-申论-一稿", s08_flow_draft, true],
   ["09-申论-批改", s09_flow_review, true],
   ["10-申论-沉淀", s10_flow_distill, true],

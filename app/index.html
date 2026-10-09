@@ -193,10 +193,8 @@ html,body{margin:0;padding:0;}
   .require b{font-family:var(--hei);display:inline-block;min-width:5em;text-indent:0;}
   .require br{display:none;}   /* 标签后面那个换行去掉：值接在标签后，但仍对齐到值那一列 */
 
-  details.card{border:1px solid var(--line);border-left:3px solid var(--gov-red);background:var(--wash-2);margin-top:16px;}
-  details.card>summary{cursor:pointer;font-family:var(--hei);font-weight:700;font-size:15px;padding:11px 14px;list-style:none;display:flex;align-items:center;gap:8px;}
-  details.card>summary::-webkit-details-marker{display:none;}
-  details.card>summary .tag{font-family:var(--fangsong);font-weight:400;font-size:13px;color:var(--muted);}
+  /* 学习卡不再内嵌：读材料与作答两步都走「常驻浮标 + 抽屉」（见 cardFabHtml） */
+  /* details.card（申论读材料步的内嵌学习卡）已下线：那一步改走常驻浮标 + 抽屉，卡本体只在抽屉里 */
   /* 学习卡：原来是一整坨字（四块内容同貌同重、条目之间只差几个像素）。三件事治好它：
      ① 每节都有节标题、节与节之间拉开——先看清「有哪几节」；
      ② 要点与失分点不再是一条条「•＋长句」，改成顶线清单：一条一格，能数得清；
@@ -405,10 +403,10 @@ html,body{margin:0;padding:0;}
   .expbody{padding:2px 2px 10px;font-size:14px;line-height:1.85;}
   .expacts{display:flex;gap:6px;align-items:center;margin-top:2px;}
   /* 折叠入口要有看得见的标记：折叠是这套界面收纳信息的主要手段，缺了三角就不知道能点开 */
-  .mrow>summary::after,.expline>summary::after,details.card>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);flex:0 0 auto;} 
-  .mrow[open]>summary::after,.expline[open]>summary::after,details.card[open]>summary::after{content:"▾";}
-  .notebox>summary::after,details.more>summary::after,.addpick>summary::after{content:"▸";float:right;font-size:12px;color:var(--line-strong);}
-  .notebox[open]>summary::after,details.more[open]>summary::after,.addpick[open]>summary::after{content:"▾";}
+  .mrow>summary::after,.expline>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);flex:0 0 auto;} 
+  .mrow[open]>summary::after,.expline[open]>summary::after{content:"▾";}
+  .notebox>summary::after,details.more>summary::after{content:"▸";float:right;font-size:12px;color:var(--line-strong);}
+  .notebox[open]>summary::after,details.more[open]>summary::after{content:"▾";}
   .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
   .typestat .t{padding:4px 9px;font-size:13px;background:var(--wash-2);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
@@ -439,10 +437,10 @@ html,body{margin:0;padding:0;}
      步骤条不可点（没有点击处理），所以不给 cursor/hover：看着能点却点不动，比不给反馈更糙 */
   /* 链子吸在顶部栏下面。外面套一层是因为链子只有 fit-content 宽：背景得横贯纸面，
      否则滚动的题目文字会从链子右侧穿出来 */
-  .railwrap{position:sticky;top:96px;z-index:5;background:var(--paper);margin:16px 0 2px;}
+  .railwrap{position:sticky;top:96px;z-index:5;background:var(--paper);margin:0 0 14px;}
   .railwrap .flowrail{margin:0;}
   .flowrail{display:flex;flex-wrap:wrap;width:fit-content;align-items:center;counter-reset:fs;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
-  .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:6px;font-family:var(--hei);font-size:13px;color:var(--muted);padding:9px 16px 9px 14px;background:transparent;border:none;border-radius:0;}
+  .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:6px;font-family:var(--hei);font-size:13px;color:var(--muted);padding:7px 14px 7px 12px;background:transparent;border:none;border-radius:0;}
   .flowrail .fstep+.fstep{border-left:1px solid var(--line-soft);}
   .flowrail .fstep::before{content:counter(fs);display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;font-size:11px;font-variant-numeric:tabular-nums;border-radius:var(--r-pill);background:var(--wash-3);color:var(--muted);}
   .flowrail .fstep.done::before{content:"✓";background:var(--success-bg);color:var(--success);}
@@ -456,29 +454,27 @@ html,body{margin:0;padding:0;}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:4px 2px;border-bottom:1px solid var(--line);}
   .pickline button.linkbtn{white-space:nowrap;}   /* 长要点折行时「移除」会被挤成两行竖排 */
   .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:2px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
-  /* 归类：一组一张条，已归入的点平铺在上、其余收进「加要点」——
-     同一个点要归进两组时，就在两组的加要点里各勾一次，清单里各出现一次，不再 N 组 × M 点铺满整屏 */
-  /* 归类组从「盒子」改成「带顶线的节」：与批改页的采分点对照 / 维度分同一套修辞，方框少一层、密度反而高 */
-  .ogroup{border-top:1px solid var(--line);padding:12px 0 4px;margin-bottom:18px;}
-  .ogroup .grow{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:5px;}
+  /* 归类：一次只摆一个点（原文在上，已建好的类在下面点选），不再 N 组 × M 点铺满整屏。
+     点多的时候一屏变成一张表、很少的时候又空一半，都难扫；一屏一个点，视线不用在几组之间来回找。
+     已找的点收进下面的折叠清单，谁归了谁没归一眼看完。 */
+  .ognow{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;}
+  .ogwho{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-family:var(--hei);font-size:13px;color:var(--muted);}
+  .ogprog{font-variant-numeric:tabular-nums;color:var(--muted-2);}
+  .ogcur{display:flex;gap:8px;align-items:baseline;font-size:15px;line-height:1.8;padding:8px 0 10px;}
+  .ogcur .atext{flex:1 1 auto;}
+  .ogcats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .ogcat{font-family:var(--hei);font-size:13px;padding:6px 12px;border:1px solid var(--line);background:var(--ctl);border-radius:var(--r-pill);cursor:pointer;}
+  .ogcat:hover{border-color:var(--gov-red);}
+  .ogcat.on{border-color:var(--gov-red);background:var(--red-wash);color:var(--gov-red);}   /* 已归入本类：再点一次就取消 */
+  .ogcat i{font-style:normal;font-size:12px;color:var(--muted);margin-left:6px;font-variant-numeric:tabular-nums;}
+  .ogcat.on i{color:var(--gov-red);}
+  .ognew{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .ognew input{flex:1 1 240px;min-width:0;border:none;border-bottom:1px dashed var(--line-strong);background:transparent;padding:7px 2px;font-family:var(--hei);font-size:14px;border-radius:0;}
+  .ognew input:focus{outline:none;border-bottom-color:var(--gov-red);}
+  .ogline.cur{background:var(--wash);}
+  .ogline.cur .ptag{background:var(--red-wash);color:var(--gov-red);}
   /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
-  .ogroup .gname{flex:1 1 auto;font-family:var(--hei);font-size:15px;font-weight:700;border:none;border-bottom:1px dashed transparent;background:transparent;padding:3px 2px;min-height:0;border-radius:0;}
-  .ogroup .gname:hover{border-bottom-color:var(--line);}
-  .ogroup .gname:focus{outline:none;border-bottom-color:var(--gov-red);}
-  .ogroup .gcount{flex:0 0 auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
-  .ogroup .assigned{margin-top:2px;}
-  .asgline{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--line);font-size:14px;}
-  .asgline .atext{flex:1 1 auto;}
-  .asgline .gtag2{flex:0 0 auto;font-size:12px;color:var(--muted);}
-  .asgline button.linkbtn{min-height:0;padding:4px 6px;font-size:12px;color:var(--text-disabled);}   /* 4px 内边距是故意留的：热区撑到 24px（行内文字按钮的最低档），又不把一行一条的行高撑起来 */
-  .asgline:hover button.linkbtn{color:var(--gov-red);}   /* 每行都杵一个「移出」会很唬：平时淡着，指上去才显 */
-  .asgempty{padding:6px 2px;font-size:13px;color:var(--text-disabled);}
-  .addpick{margin-top:2px;}
-  .addpick>summary{cursor:pointer;list-style:none;font-size:13px;color:var(--muted);padding:4px 2px;}
-  .addpick>summary::-webkit-details-marker{display:none;}
-  .addpick>summary:hover{color:var(--gov-red);}
-  .addpick .picks{margin-top:2px;border-top:1px solid var(--line);padding-top:4px;}
-  .ogroup label{display:flex;gap:8px;align-items:flex-start;font-size:14px;padding:4px 0;cursor:pointer;}
+  .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:2px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
   .fnav{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap;}
   /* 回改稿的行级差异对照：新增绿、删除删除线 */
   .dline{font-size:14px;line-height:1.8;padding:1px 0;}
@@ -538,7 +534,7 @@ html,body{margin:0;padding:0;}
 
   /* 悬停只给红按钮上浮一档：其余控件换色换边就行，一排东西各飞各的不叫精致 */
   .chip:active,.subjbtn:active{background:var(--wash-3);}
-  details.card>summary:hover{background:var(--wash);}
+  /* 阅读动效：hover 只给真能点的东西（这里原先还挂了 details.card，那条已下线）*/
   /* 采分点对照行不是可点元素，不给 hover——加上去会让人以为能点（hover 只给交互元素） */
   .flowrail .fstep{transition:background .16s ease,border-color .16s ease,color .16s ease;}
 
@@ -3160,6 +3156,23 @@ function syncRail(flow){
   const cur = FLOW_STEPS.indexOf(flow && flow.step);
   return FLOW_STEPS.map((s,i)=>({ step:s, label:FLOW_LABELS[s], state: i<cur? "done" : (i===cur? "active" : "pending") }));
 }
+/* 切步后回到纸面顶部：对齐的是「顶栏下沿」而不是视口顶——顶栏 sticky 92px，
+   对齐视口顶等于把红头送进它下面，看着像没滚。只在主动切步时补这一手：
+   同一步内的重渲染（打字、勾选都会触发 save + 重画）不滚，否则一次输入就跳一下。 */
+function scrollToDocTop(){
+  // window 在 node 侧的 DOM 桩子里根本不存在，先判它本身（`typeof window.scrollTo` 会当场抛 ReferenceError）
+  if(typeof window === "undefined" || typeof window.scrollTo !== "function") return;
+  const doc = document.querySelector("#doc");
+  if(!doc || typeof doc.getBoundingClientRect !== "function") return;
+  const box = doc.getBoundingClientRect();
+  if(!box || typeof box.top !== "number") return;   // 量不到就别瞎滚
+  const bar = document.querySelector(".topbar");
+  const barBox = (bar && typeof bar.getBoundingClientRect === "function")? bar.getBoundingClientRect() : null;
+  const barH = (barBox && typeof barBox.height === "number")? barBox.height : 0;
+  const y = box.top + (window.pageYOffset || 0) - barH;
+  if(!isFinite(y) || y <= 0) return;   // 已经在上头，别把页面往上推
+  window.scrollTo(0, y);
+}
 function flowGoStep(step){
   const f = activeFlow(); if(!f) return false;
   if(FLOW_STEPS.indexOf(step) < 0) return false;
@@ -3169,6 +3182,7 @@ function flowGoStep(step){
   }
   f.step = step; save();
   renderFlowStep();
+  scrollToDocTop();   // 切步＝整屏换内容，把人带回纸面顶部（上面那段说明）
   return true;
 }
 
@@ -3271,14 +3285,7 @@ function pickListHtml(f){
   ).join("");
 }
 
-/* ============ 归类：均衡分组 + 提纲 ============ */
-/* 组数 = clamp(选区数,1,8)，轮流均分；用户可改派、可命名 */
-function groupAutoSplit(selections){
-  const n = Math.min(Math.max((selections||[]).length, 1), 8);
-  const groups = Array.from({length:n}, ()=>({ name:"", facts:[] }));
-  (selections||[]).forEach((sl,i)=> groups[i % n].facts.push(i));
-  return groups;
-}
+/* ============ 归类：逐点走 + 提纲 ============ */
 /* 一行一组的纯文本提纲：只供批改诊断，绝不参与计分 */
 function buildOrganizeOutline(groups, selections){
   const lines = [];
@@ -3293,31 +3300,46 @@ function buildOrganizeOutline(groups, selections){
   });
   return lines.join("\n");
 }
-/* 归类面板：一组一条「已归入的点」清单，备选收进各自的「加要点」。
-   同一个点要归进两组时，在两组的加要点里各勾一次，就各出现在两组的清单里——不再 N 组 × M 点铺满整屏。
-   归属只认一个地方：本组已归清单里的 data-si ∪ 本组加要点里勾上的框（domFacts 读的就是这两处）。 */
+/* 归类面板：一次只处理一个点——上面摆这个点的原文，下面一排已建好的类（点一下归入，可以多归），
+   再加一行「新建一类」的输入框；底部「上一个点 / 下一个点」，走完最后一个点就是「生成提纲，进入一稿」。
+   为什么不给点编号：找点那边的清单本来就没有序号，这里冒出「第 3 个点」会让人去找那个不存在的第 3 个。
+   已找的点收在下面的折叠清单里，随时能跳回任何一个。 */
 function organizePanelHtml(f){
-  const groups = f.groups || [];
-  if(!groups.length) return `<div class="hint" style="margin-top:10px">上一步还没有找点。可以直接进一稿（提纲将为空），或回上一步找点。</div>`;
   const sels = f.selections || [];
-  const covered = new Set();
-  groups.forEach(g=> (g.facts||[]).forEach(fi=> covered.add(fi)));
-  const unc = sels.filter((sl,i)=> !covered.has(i)).length;
-  const uncHint = `<div class="hint" id="uncHint" style="color:var(--warn);margin-top:6px"${unc? "": " hidden"}>${unc? `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。` : ""}</div>`;
-  return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词。提纲只供批改诊断，不参与计分。</div>` + uncHint +
-    `<div id="organizeBox">${groups.map((g,i)=>{
-      const facts = Array.isArray(g.facts)? g.facts.filter(si=> sels[si]) : [];
-      const holder = holderOf(groups, sels);
-      const rest = sels.map((sl,si)=>si).filter(si=> facts.indexOf(si) < 0);
-      return `
-      <div class="ogroup" data-g="${i}">
-        <div class="grow"><input type="text" class="gname" placeholder="上位概括词，如：政务服务效能" value="${esc(g.name||"")}"><span class="gcount">${facts.length} 点</span></div>
-        <div class="assigned">${assignedHtml(facts, sels, groups, i, holder)}</div>
-        <details class="addpick"><summary>${rest.length? `加要点（备选 ${rest.length} 个）` : "加要点（备选已全部归入本组）"}</summary><div class="picks">${picksHtml(rest, sels)}</div></details>
-      </div>`; }).join("")}
+  if(!sels.length) return `<div class="hint" style="margin-top:10px">这一步还没有找到点——可以直接进一稿（提纲将为空），或回上一步找点。</div>`
+    + `<div class="actions"><button class="primary" id="btnToDraft">进一稿（提纲为空）</button></div>`;
+  const groups = Array.isArray(f.groups)? f.groups : [];
+  const idx = Math.min(Math.max(Number(f.orgIdx) || 0, 0), sels.length - 1);
+  const holder = holderOf(groups, sels);
+  const cur = sels[idx] || {};
+  const inGroups = si => (holder[si] || []);
+  const doneCnt = sels.filter((sl,si)=> inGroups(si).length).length;
+  const last = idx >= sels.length - 1;
+  // 这个点归到哪几类：可以多选——同一个点既能算「制度建设」也能算「服务效能」，再点一次就取消
+  const cats = groups.map((g,i)=>{
+    const on = inGroups(idx).indexOf(i) >= 0;
+    return `<button class="ogcat${on? " on":""}" data-og="${i}" aria-pressed="${on? "true":"false"}">${esc(groupLabel(groups, i))}<i>${(g.facts||[]).length}</i></button>`;
+  }).join("");
+  return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词。提纲只供批改诊断，不参与计分。</div>
+    <div class="ognow">
+      <div class="ogwho"><span>这个点归到哪一类</span><span class="ogprog">已归 ${doneCnt} / ${sels.length} 个点</span></div>
+      <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
+      <div class="ogcats" id="ogCats">${cats || '<span class="hint">还没有类——先在下面写一个上位概括词，建第一类。</span>'}</div>
+      <div class="ognew"><input type="text" id="newCatName" placeholder="新一类的上位概括词，如：政务服务效能"><button id="btnNewCat">建这一类并归入</button></div>
+      <div class="actions">
+        <button id="btnOrgPrev"${idx? "":" disabled"}>上一个点</button>
+        <button class="primary" id="btnOrgNext">${last? "生成提纲，进入一稿" : "下一个点"}</button>
+      </div>
+      ${last? "" : `<div class="hint">这个点一时拿不准也能先过去——下面的清单里能跳回来重归。</div>`}
     </div>
-    <div class="actions"><button id="btnRegroup">重新均衡分组</button><button class="primary" id="btnToDraft">生成提纲，进入一稿</button></div>
-    <details class="notebox" open style="margin-top:14px"><summary>提纲预览（一行一组）</summary><div class="notebody"><div class="tpl" id="outlinePrev">${esc(buildOrganizeOutline(groups, f.selections)) || "（空）"}</div></div></details>`;
+    <details class="notebox" style="margin-top:14px"${doneCnt? "":" open"}><summary>已找的点（${sels.length} 个 · 已归 ${doneCnt} 个）</summary><div class="notebody">${
+      sels.map((sl,si)=>{
+        const gs = inGroups(si);
+        const where = gs.length? gs.map(gi=> esc(groupLabel(groups, gi))).join("、") : "还没归";
+        return `<div class="pickline ogline${si===idx? " cur":""}"><span class="ptag">${sl.free? "划选":"整句"}</span><span style="flex:1 1 auto">${esc(sl.text)}</span><button class="linkbtn" data-jump="${si}">${gs.length? esc(where) : "去归它"}</button></div>`;
+      }).join("")
+    }</div></details>
+    <details class="notebox" style="margin-top:10px"${last? " open":""}><summary>提纲预览（一行一类）</summary><div class="notebody"><div class="tpl" id="outlinePrev">${esc(buildOrganizeOutline(groups, sels)) || "（空）"}</div></div></details>`;
 }
 /* 每个点被哪几组收着（组序号数组）——用来在已归清单上标「也在「X」」 */
 function holderOf(groups, sels){
@@ -3330,74 +3352,6 @@ function groupLabel(groups, gi){
   const nm = String(g.name||"").trim();
   return nm || ("要点" + (gi+1));
 }
-/* 一组的「已归入」清单：只显示，唯一动作是「移出」（把点放回本组备选） */
-function assignedHtml(facts, sels, groups, gi, holder){
-  if(!facts.length) return `<div class="asgempty">这一组还没归点——点开下面的「加要点」挑。</div>`;
-  return facts.map(si=>{
-    const sl = sels[si]; if(!sl) return "";
-    const others = ((holder && holder[si]) || []).filter(x=> x !== gi);
-    const label = others.length? `<span class="gtag2">也在「${esc(groupLabel(groups, others[0]))}」</span>` : "";
-    return `<div class="asgline" data-si="${si}"><span class="ptag">${sl.free? "划选":"整句"}</span><span class="atext">${esc(sl.text)}</span>${label}<button class="linkbtn" data-unasg="${si}">移出</button></div>`;
-  }).join("");
-}
-function picksHtml(rest, sels){
-  if(!rest.length) return `<div class="hint">备选点都归好了。要让某个点在别的组也出现，去那一组勾。</div>`;
-  return rest.map(si=>`<label><input type="checkbox" data-si="${si}"> <span>${esc(sels[si].text)}</span></label>`).join("");
-}
-/* DOM 是归属的唯一出处：本组已归清单里的 data-si ∪ 本组加要点里勾上的框 */
-function domFacts(gel){
-  const out = [];
-  if(!gel || !gel.querySelectorAll) return out;
-  gel.querySelectorAll(".assigned [data-si]").forEach(el=> out.push(Number(el.dataset.si)));
-  gel.querySelectorAll(".picks input[type=checkbox]:checked").forEach(c=> out.push(Number(c.dataset.si)));
-  return out.filter((v,i,a)=> a.indexOf(v) === i);
-}
-/* 勾选 / 移出后就地重画：已归清单与备选都按新归属来，展开状态与正在输入的组名都不动 */
-function repaintGroups(f, override){
-  const box = $("#organizeBox");
-  if(!box || !box.querySelectorAll) return;
-  const gels = Array.from(box.querySelectorAll(".ogroup"));
-  const sels = f.selections || [];
-  const factsOf = gels.map((gel,i)=>{
-    if(override && Object.prototype.hasOwnProperty.call(override, i)) return override[i].filter(si=> sels[si]);
-    return domFacts(gel).filter(si=> sels[si]);
-  });
-  const groups = gels.map(gel=> ({ name: (gel.querySelector(".gname")||{value:""}).value || "", facts: [] }));
-  factsOf.forEach((fa,i)=> groups[i].facts = fa);
-  const holder = {};
-  factsOf.forEach((fa,gi)=> fa.forEach(si=>{ (holder[si] = holder[si] || []).push(gi); }));
-  gels.forEach((gel,gi)=>{
-    const asg = gel.querySelector(".assigned");
-    if(asg) asg.innerHTML = assignedHtml(factsOf[gi], sels, groups, gi, holder);
-    const cnt = gel.querySelector(".gcount");
-    if(cnt) cnt.textContent = factsOf[gi].length + " 点";
-    const ad = gel.querySelector(".addpick");
-    if(ad){
-      const rest = sels.map((sl,si)=>si).filter(si=> factsOf[gi].indexOf(si) < 0);
-      const sum = ad.querySelector("summary");
-      if(sum) sum.textContent = rest.length? `加要点（备选 ${rest.length} 个）` : "加要点（备选已全部归入本组）";
-      const pk = ad.querySelector(".picks");
-      if(pk) pk.innerHTML = picksHtml(rest, sels);
-    }
-  });
-  const covered = new Set();
-  factsOf.forEach(fa=> fa.forEach(si=> covered.add(si)));
-  const unc = sels.filter((sl,i)=> !covered.has(i)).length;
-  const uh = $("#uncHint");
-  if(uh){
-    uh.hidden = !unc;
-    if(unc) uh.textContent = `有 ${unc} 个点还没归进任何一组——点开对应组的「加要点」安置它们，或「重新均衡分组」重排。`;
-  }
-}
-function readGroupsDom(){
-  const box = $("#organizeBox");
-  if(!box || !box.querySelectorAll) return null;
-  return Array.from(box.querySelectorAll(".ogroup")).map(gel=>({
-    name: (gel.querySelector(".gname")||{value:""}).value || "",
-    facts: domFacts(gel)
-  }));
-}
-
 /* ============ 回改：清单 + 行级差异 ============ */
 /* 回改清单：hits 里 ✗/◐ 的子项 + evidence 里的【缺：xxx】标注（已在子项证据里出现的不重复列） */
 function revisionListHtml(g){
@@ -3463,9 +3417,10 @@ function navHtml(step, f){
   const next = (i >= 0 && i < FLOW_STEPS.length - 1)? FLOW_STEPS[i+1] : null;
   let html = `<div class="fnav">`;
   if(prev) html += `<button class="linkbtn" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
-  // read 靠「开始找点」推进、draft 靠「提交阅卷」推进——这两步不摆 Next
+  // read / organize / draft 三步各有自己的主行动（开始找点 / 生成提纲 / 提交阅卷），不摆 Next——
+  // 摆出来就是同一个意思在屏幕上写两遍（「生成提纲，进入一稿」下面再挂一个「下一步：一稿」）
   // 批改步：离开流程的「智能推送下一题」已降为次要（见 gradeHtml 的 inFlow），流程的下一步在这里顶上去当主行动
-  if(next && step !== "read" && step !== "draft"){
+  if(next && step !== "read" && step !== "organize" && step !== "draft"){
     const cls = step === "review" ? ` class="primary"` : "";
     html += `<button${cls} id="btnFlowNext">下一步：${FLOW_LABELS[next]}</button>`;
   }
@@ -3475,18 +3430,16 @@ function navHtml(step, f){
 function renderFlowStep(){
   if(!current || !current.question){ renderStart(); return; }
   const f = activeFlow();
-  if(f && f.step === "organize" && f.selections.length && !(Array.isArray(f.groups) && f.groups.length)){
-    f.groups = groupAutoSplit(f.selections); save();   // 第一次进归类：按选区数均衡分组
-  }
   const step = f? f.step : (lastGrade? "review" : "draft");
   const {question} = current;
   // 读材料 / 归类这两步也把限时摆出来：时钟从「开始作答」就起算，不摆出来用户不知道它在跑
   const showTl = step === "read" || step === "organize";
-  let html = `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
+  // 步骤条摆在纸面第一行：它说的是「我现在在哪」，不是这道题的题干，不该夹在要求与当前步面板之间
+  let html = f? railHtml(f) : "";
+  html += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   html += metaLineHtml(question);
-  if(f) html += railHtml(f);
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
   if(f) html += navHtml(step, f);
   docBody.innerHTML = html;
@@ -3494,23 +3447,11 @@ function renderFlowStep(){
   wireStep(step, f);
 }
 function stepPanelHtml(step, f){
-  const {module, subtype} = current;
   const question = current.question;
   if(step === "read"){
     let html = "";
-    if(current.studyCard){
-      const lp = lastPeeks(module, subtype);
-      // 读材料步默认折叠学习卡：卡片约 530px，展开时会把材料推到首屏之外（这一步恰恰叫「读材料」）。
-      // 收起后 summary 行照旧（「先看卡再看材料，可折叠」），材料回到首屏。综应A 的卡是整页平铺（zyCardHtml），不在此列。
-      html += `<details class="card">
-        <summary>学习卡 · ${esc(current.studyCard.title||MODULES[module].name+"·学习卡")} <span class="tag">先看卡再看材料，可折叠</span></summary>
-        <div class="card-body">${cardHtml(current.studyCard)}
-          <h4 class="noteh">我的笔记</h4>
-          <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-          <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
-          ${lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
-        </div></details>`;
-    }
+    // 学习卡收成常驻浮标 + 抽屉（见 cardFabHtml）：内嵌成折叠块时一展开就把材料顶出首屏，
+    // 而这一步恰恰叫「读材料」。综应A 的卡仍是整页平铺（zyCardHtml），不在此列。
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:10px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
     html += `<div class="material"><div class="label">背景材料 · 读材料与找点</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
@@ -3518,6 +3459,7 @@ function stepPanelHtml(step, f){
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
     html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnToOrganize">找点完毕，开始归类</button></div>`;
+    html += cardFabHtml("看学习卡", false) + cardDrawerHtml();
     return html;
   }
   if(step === "organize") return f? organizePanelHtml(f) : `<div class="hint" style="margin-top:10px">没有进行中的训练链。</div>`;
@@ -3628,8 +3570,46 @@ function setTimeLimit(m){
   const el = $("#timeLeft");
   if(el) paintTimeLeft(el);   // 就地更新，不重渲：重渲会重建作答区
 }
+/* 学习卡：常驻浮标 + 右侧抽屉，不再内嵌成纸面里的折叠块。
+   内嵌的卡一展开就是 530px，把材料顶出首屏——而读材料那一步恰恰叫「读材料」。
+   浮标不动、抽屉滑出，看卡与看正文互不挤占；笔记就在抽屉底部，边看边写。
+   读材料与作答两步共用同一套：同一个东西没有两种形态。翻卡计次照旧（越少越熟），
+   每打开一次 +1，抽屉顶上与浮标上同步报数。 */
+function cardFabHtml(act, count){
+  return `<button class="fab" id="btnCard">${act}${count? ` · 已翻 <b>${current.cardPeeks||0}</b> 次` : ""}</button>`;
+}
+function cardDrawerHtml(){
+  return `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
+      <div class="mhead"><span><span id="cardDrawerTitle">学习卡</span> <span class="tag" id="peekBadge">本次已翻 ${current.cardPeeks||0} 次（越少越熟）</span></span><button class="x" id="btnDrawerClose" title="关闭">✕</button></div>
+      <div class="card-body" id="drawerBody"></div>
+    </div></div>`;
+}
+function openCardDrawer(count){
+  // 计次只属作答阶段（见 AGENTS.md）：读材料步传 false，一看一查不算「忍住了没翻」
+  if(count) current.cardPeeks = (current.cardPeeks||0)+1;
+  const mod = current.module, sub = current.subtype;
+  if(count){
+    const badge = $("#peekBadge"); if(badge) badge.textContent = `本次已翻 ${current.cardPeeks} 次（越少越熟）`;
+  }
+  const ti = $("#cardDrawerTitle");   // 抽屉顶上写清这是哪张卡：卡正文本身只有各节内容，不带标题
+  if(ti) ti.textContent = (current.studyCard && String(current.studyCard.title||"").trim()) || "学习卡";
+  const fb = count && $("#btnCard") && $("#btnCard").querySelector("b"); if(fb) fb.textContent = current.cardPeeks;
+  const lp = lastPeeks(mod, sub);
+  $("#drawerBody").innerHTML = (current.studyCard? cardHtml(current.studyCard) : '<span class="hint">本题没有学习卡。</span>')
+    + `<h4 class="noteh">我的笔记</h4><textarea class="noteedit" id="drawerNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(mod,sub))}</textarea>`
+    + `<div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>`
+    + (lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : "");
+  $("#btnDrawerClose").onclick = ()=>{ $("#cardDrawer").hidden = true; };
+  const dn = $("#drawerNote");
+  dn.addEventListener("input", ()=> saveNote(mod, sub, dn.value));
+  dn.addEventListener("blur", persistFlush);
+  const bn = $("#btnNewCard");
+  if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(mod, sub)]; save(); loadQuestion(mod, sub); };
+  $("#cardDrawer").hidden = false;
+}
+function wireCardDrawer(count){ const b = $("#btnCard"); if(b) b.onclick = ()=> openCardDrawer(!!count); }
 function draftPanelHtml(f){
-  const {module, subtype} = current;
+  const {module} = current;
   const question = current.question;
   const outline = f? buildOrganizeOutline(f.groups, f.selections) : "";
   const rewriting = !!(f && f.step === "revise");   // 回改稿：同一面板，多一份回改清单与差异对照
@@ -3652,13 +3632,8 @@ function draftPanelHtml(f){
       <span class="hint" id="gradeLive" aria-live="polite"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
-  html += cardNoteHtml(module, subtype);   // 放在作答区之后：作答时用不上它，写完/补记时顺手（在材料与作答区之间会白占一节）
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
-  html += `<button class="fab" id="btnCard">翻学习卡 · 已翻 <b>${current.cardPeeks||0}</b> 次</button>`;
-  html += `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
-      <div class="mhead"><span>学习卡 <span class="tag" id="peekBadge">本次已翻 ${current.cardPeeks||0} 次（越少越熟）</span></span><button class="x" id="btnDrawerClose" title="关闭">✕</button></div>
-      <div class="card-body" id="drawerBody"></div>
-    </div></div>`;
+  html += cardFabHtml("翻学习卡", true) + cardDrawerHtml();
   return html;
 }
 
@@ -3733,25 +3708,11 @@ function refreshMarksRecap(){
   if(sm) sm.textContent = `我划的重点（${runs.length} 处）`;
 }
 function wireDraft(f){
-  const {module, subtype} = current;
+  const {module} = current;
   const question = current.question;
   if(module===GONGWEN_KEY && $("#btnTpl")) $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
-  const openDrawer = ()=>{
-    current.cardPeeks = (current.cardPeeks||0)+1;
-    $("#peekBadge").textContent = `本次已翻 ${current.cardPeeks} 次（越少越熟）`;
-    const fb = $("#btnCard").querySelector("b"); if(fb) fb.textContent = current.cardPeeks;
-    $("#drawerBody").innerHTML = (current.studyCard? cardHtml(current.studyCard) : '<span class="hint">本题没有学习卡。</span>') +
-      `<h4 class="noteh">我的笔记</h4><textarea class="noteedit" id="drawerNote" placeholder="在这里也可以补记。">${esc(getNote(module,subtype))}</textarea>`;
-    $("#btnDrawerClose").onclick = ()=>{ $("#cardDrawer").hidden = true; };
-    $("#drawerNote").addEventListener("input", ()=>{
-      saveNote(module, subtype, $("#drawerNote").value);
-      const nb = $("#noteBody"); if(nb) nb.innerHTML = esc($("#drawerNote").value);
-    });
-    $("#drawerNote").addEventListener("blur", persistFlush);
-    $("#cardDrawer").hidden = false;
-  };
-  $("#btnCard").onclick = openDrawer;
+  wireCardDrawer(true);   // 作答步：翻卡计次（越少越熟）
   // 草稿保护：边写边存；签名不同（换了题）就不会串味；字数上限以本地表为准
   const sig = qSig(question);
   const limit = ansLimitFor(module, question);
@@ -3774,33 +3735,39 @@ function wireDraft(f){
   }
 }
 function wireOrganize(f){
-  const box = $("#organizeBox");
-  if(box){
-    const applyGroups = ()=>{
-      const domGroups = readGroupsDom();
-      if(domGroups && domGroups.length) f.groups = domGroups;
-      const op = $("#outlinePrev");
-      if(op) op.textContent = buildOrganizeOutline(f.groups, f.selections) || "（空）";
-    };
-    box.addEventListener("change", (ev)=>{
-      // 勾上＝归入本组：立刻把这个点挪进上面的已归清单；组名失焦（type=text）只重画提纲
-      if(ev.target && ev.target.type === "checkbox") repaintGroups(f);
-      applyGroups(); save();
-    });   // 勾选/失焦提交：立即落盘
-    box.addEventListener("input", ()=>{ applyGroups(); persistSoon(); });   // 组名打字：内存即时上屏，落盘防抖 300ms
-    box.addEventListener("click", (ev)=>{
-      const btn = (ev.target && ev.target.closest)? ev.target.closest("[data-unasg]") : null;
-      if(!btn) return;
-      const gel = btn.closest(".ogroup"); if(!gel) return;
-      const gi = Number(gel.dataset.g), si = Number(btn.dataset.unasg);
-      const keep = {};
-      keep[gi] = domFacts(gel).filter(x=> x !== si);   // 移出＝这个点回到本组备选
-      repaintGroups(f, keep);
-      applyGroups(); save();
-    });
-    box.addEventListener("focusout", persistFlush);   // 失焦兼底：立即落盘
-  }
-  const rg = $("#btnRegroup"); if(rg) rg.onclick = ()=>{ f.groups = groupAutoSplit(f.selections); save(); renderFlowStep(); };
+  const sels = f.selections || [];
+  // 换点、跳点、重画都走这一手：重渲染后 DOM 是新的，选中态与清单自然跟上
+  const goTo = i => { f.orgIdx = Math.max(0, Math.min(i, sels.length - 1)); save(); renderFlowStep(); };
+  const at = ()=> Math.max(0, Math.min(Number(f.orgIdx) || 0, sels.length - 1));
+  const prev = $("#btnOrgPrev"); if(prev) prev.onclick = ()=> goTo(at() - 1);
+  const next = $("#btnOrgNext"); if(next) next.onclick = ()=>{
+    if(at() >= sels.length - 1) return flowGoStep("draft");   // 走完最后一个点 = 生成提纲进一稿
+    goTo(at() + 1);
+  };
+  const cats = $("#ogCats");
+  if(cats) cats.onclick = ev=>{
+    const b = (ev.target && ev.target.closest)? ev.target.closest("[data-og]") : null;
+    if(!b) return;
+    const g = (f.groups || [])[Number(b.dataset.og)]; if(!g) return;
+    if(!Array.isArray(g.facts)) g.facts = [];
+    const si = at(), at2 = g.facts.indexOf(si);
+    if(at2 >= 0) g.facts.splice(at2, 1); else g.facts.push(si);   // 再点一次 = 这个点不算这一类
+    save(); renderFlowStep();
+  };
+  const bc = $("#btnNewCat");
+  if(bc) bc.onclick = ()=>{
+    const inp = $("#newCatName");
+    const name = String((inp && inp.value) || "").trim();
+    if(!name) return banner("先给这一类起个上位概括词。");
+    if(!Array.isArray(f.groups)) f.groups = [];
+    f.groups.push({ name, facts:[at()] });
+    save(); renderFlowStep();
+  };
+  const box = $("#flowPanel");   // 「已找的点」里点类名 = 跳到那个点
+  if(box) box.onclick = ev=>{
+    const b = (ev.target && ev.target.closest)? ev.target.closest("[data-jump]") : null;
+    if(b) goTo(Number(b.dataset.jump));
+  };
   const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> flowGoStep("draft");
 }
 function wireStep(step, f){
@@ -3824,9 +3791,7 @@ function wireStep(step, f){
       }
       save(); renderFlowStep();
     };
-    const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
-    const cn = $("#cardNote");
-    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
+      wireCardDrawer(false);   // 读材料步：看卡不计次（计次只属作答阶段）
   }
   if(step === "organize" && f) wireOrganize(f);
   if(step === "draft") wireDraft(f);
@@ -4725,15 +4690,8 @@ function marksRecapHtml(q){
 function marksRunsHtml(runs){
   return runs.length? runs.map(t=>`<div class="markrun">${esc(t)}</div>`).join("") : '<span class="hint">还没划。在上方材料里选中几个字，点「划线」。</span>';
 }
-/* 学习卡笔记：这一类题通用的，只读展示；要改去「读材料」步或翻卡时写 */
-function cardNoteHtml(module, subtype){
-  const cardNote = getNote(module, subtype);
-  return `<details class="notebox"><summary>学习卡笔记（这一类题通用）${cardNote? " — 已有笔记":" — 还没有"}</summary><div class="notebody">${
-    cardNote? esc(cardNote) : '<span class="hint">这一类题还没有笔记。在「读材料」步的学习卡里记，或翻卡时顺手记。</span>'
-  }</div></details>`;
-}
-
-/* 作答笔记已下线（题目笔记这个功能不要了）；学习卡笔记仍按模块+子类型存 */
+/* 作答笔记已下线（题目笔记这个功能不要了）；学习卡笔记仍按模块+子类型存，
+   写与看都在学习卡抽屉里（见 openCardDrawer）——同一个东西不留两个入口 */
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
