@@ -1,6 +1,6 @@
 # 项目协作规则
 
-只写「下次不照做就会犯错」的约束，不是设计文档、也不是开发日志。**尺寸是硬约束：目标 ≤32 KiB**（Codex 系项目指令链默认上限就是 32 KiB，超了按字节截断——写长了等于把后面的规矩删掉）。使用方式与边界写 `README.md`，历史与实测过程进 git（压缩前全文可 `git log -- AGENTS.md` 翻到，压缩发生在 2026-10-08）。
+只写「下次不照做就会犯错」的约束，不是设计文档、也不是开发日志；只写陈述句与客观事实，不写叙事、引语和理由展开。**尺寸是硬约束：≤32 KiB**（Codex 系项目指令链默认上限，超了按字节截断）。使用方式与边界写 `README.md`，历史与实测过程进 git。
 
 ## 边界
 
@@ -16,7 +16,7 @@
 
 ## 模型与档位（AI 调用）
 
-- 模型候选唯一出口是自绘下拉 `#modelMenu`：原生 datalist 会按已填文字过滤（曾致「只拉到一个模型」的误报），外挂 chips 已并入。别恢复这两条路。
+- 模型候选唯一出口是自绘下拉 `#modelMenu`：原生 datalist 会按已填文字过滤，外挂 chips 已并入，两条路都别恢复。
 - 模型能力**不按名字猜**：`THINK_FAMILIES` 只收参数发法特殊的家族（qwen3 / glm），其余默认按 reasoning_effort 实测试探。`modelCaps`（被拒自动降级 + 顶栏 banner）与 `modelProbe`（思考字数 / 耗时，两档攒够给结论）是持久状态，load / importJSON 已迁移，别绕过它另建能力判定。
 - **输出坏了最多重发两次**（`BODY_RETRY_MAX = 2`）：① `content` 为空；② `content` 在但 `parseJsonLoose` 解不出。**两种坏法只要 `finish=length` 就原地把额度翻倍重发**。重发还坏才抛：空输出 `{code:"EMPTY"}`、坏 JSON `{code:"JSON"}`，`handleErr` 各按各的说法提示，不许静默吞。坏输出走 `llmFailNote()` 记控制台（`main.js` 把渲染进程警告以上收进 `logs/startup.log`）。`sseFinish()` 是拿 `finish_reason` 用的，别当无用解析删。
 - **额度动态**：首次 `MAX_OUT_TOKENS = 16384`，`finish=length` 就翻倍（→32768→65536，封顶 `MAX_OUT_TOKENS_HARD`）。思考与正文共用一个额度（`reasoning_tokens` 计在 `completion_tokens` 里）。**别写死「某模型的输出上限」**（实测 deepseek-flash 对 4096…65536 全收 200）。阅卷思考档单独降 `GRADE_LEVEL = "quick"`（阅卷照 need 逐条核，不吃长链推理）。
@@ -31,7 +31,7 @@
 - **注入顺序就是复测策略**（`activeExperiences`）：还在犯的（recur 多的在前）→ 该核 / 该复测的（没核过，或已改但过了 `RETEST_DAYS = 7` 天）→ 刚核过且已改的。已改掉不是注销，是一周后换题再来一次（超校正效应）。
 - **阅卷温度钉在 0**（`GRADE_TEMP = 0`）。三档判法写在 `SCORING_RULES`：**数点不估百分比**，判「半分」必须在 evidence 里写出考生答到了什么。评分校准句（多数答卷落中间档 / 拿不准按中间档 / 答得长不等于答得全）属批改质量，删它等于打开宽松抬分与长度偏好两扇门。**别往 prompt 里写「分差控制在 ±3」这种数字承诺**。
 - **判分要数的点出题时就写死**（`keyPoints[].need`，3-6 条，**一条只写一个可核对的事实、不许塞并列要件**；`GEN_POINT_RULES` 有反例）。阅卷只做一件事：照 `need` 逐条独立核（不许并起来判、不许顺带算）。旧记录没带 `need` 就退回按子项文字拆点。`keyPoints` 是原样 `JSON.stringify` 进请求体的，不用另加字段。
-- **阅卷漂移的现状，别再折腾**：need 原子化后两个爱跳的子项 10 次不跳，残差 ±1~1.5/20（折百 ±5~7.5）。样本少时的「极差 0」是运气——**报数必须连样本数一起报**，对用户报数字前先自己量三次，并且把 evidence 抄出来看（才分得清「稳定地对」与「稳定地偏严」）。
+- **阅卷残差现状**：need 原子化后残差 ±1~1.5/20（折百 ±5~7.5）；样本少时「极差 0」是运气。**报数必须连样本数一起报**，对用户报数字前先自己量三次，并把 evidence 抄出来看（分辨「稳定地对」与「稳定地偏严」）。
 - **快判「下次再考你」是真承诺**：`pdTrapStats`（看最近 `PD_TRAP_WINDOW = 20` 题）→ `pdWeakTraps`（错过就排进来，错得多、出得多的靠前）→ `genPDRound` 请求体的 `weakTraps`（改请求体别丢）。辨析点文本先用 `pdTrapKind` 按关键词归到标准类再统计。
 - **错因归有限几类**：`GRADE_TAGS` 六类（漏点 / 跑偏 / 结构 / 格式 / 表达 / 材料），`gradeTagOf` 只认闭集里的一类（认不出的当没给）。快判的 trap 故意相反（认不出就原样留着）。两套标签分开维护。
 - **标签的出口是出题**：`gradeTagStats(k)`（最近 `GRADE_TAG_WINDOW = 20` 条有采分点的记录，按模块分开）→ `weakGradeTags(k, 3)` → `gen()` 请求体的 `weakTags`。画像「常错类型」与出题「重点考这几类」必须同一份数据。
@@ -56,13 +56,13 @@
 - **差量缓存会错位，已能自检修复**：`installer.exe`（NSIS 写）与 `current.blockmap`（electron-updater 写）由两个程序维护、可能指向两个版本，那时拿旧尺子量新安装包、组装后校验不过。`alignDifferentialCache()` 每次检查前核对（blockmap 里 `sizes` 逐块相加 == 安装包大小，能分辨 2.5KB），对不上就删 `current.blockmap`。
 - **发布**：`npm run release` / `npm run release:mac` / `npm run release:check`，**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**（2026-10-03 拍板）：一个 tag 下一整套 = Windows 三件 + mac 五件。
 - **单发 mac 必须加 `--prerelease`**：Windows 的自动更新读 `/releases/latest/download/latest.yml`，而 GitHub 的 latest 指「最新的非 prerelease Release」——只带 mac 资产的 Release 把它占住，Windows 用户检查更新就 404（`release-mac.mjs` 默认不自己建 Release，除非 `--create`）。
-- **发布前先跑发布闸门**：① `git status --short` 干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ 源码 grep `sk-[a-f0-9]{20,}` 零命中；④ `npm run release:check`——package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）与「文档引用的文件路径都存在」都收在那个脚本里了，不用再人肉逐条查。**验包不许碰本机那份安装**（NSIS 会按 AppId 先把上一版静默卸掉，0.0.13 那次真卸掉了）——详细规矩见 `docs/发布与更新.md`。
+- **发布前先跑发布闸门**：① `git status --short` 干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ 源码 grep `sk-[a-f0-9]{20,}` 零命中；④ `npm run release:check`——package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）与「文档引用的文件路径都存在」都收在那个脚本里了，不用再人肉逐条查。**验包不许碰本机那份安装**（NSIS 按 AppId 先静默卸掉上一版，0.0.13 实证）——详细规矩见 `docs/发布与更新.md`。
 - **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 五件；④ 任意一端 `npm run release:check` 看八件齐不齐。
   - Windows **直连官方 git 协议不通**：拉取用转发站一次性 fetch，**别改 origin、更别用它推送**（推送带令牌）——`git fetch "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop.git" main && git merge --ff-only FETCH_HEAD`；拉完 `git rev-parse HEAD` 必须就是 mac 推的那条 sha，不等就别发。
   - **先发的那台决定 tag**（`gh release create` 用本地 HEAD 建 tag）：谁先发谁先拉最新；tag 不是本地 HEAD 就 `git checkout <tag>` 重新出包。Windows 的 gh 登录是交互式的，必须本人敲一次（`gh auth login --with-token < 文件` 可非交互）。
   - **历史被改写时（改提交说明这类）那台要重新对齐**：`git fetch <转发站> main && git reset --hard FETCH_HEAD`。
 - **别在 mac 上顺手出 Windows 包**：NSIS 要 wine 抽卸载器（`NsisTarget.js` 的 `WineVm`），本机没 wine 也没 Rosetta。要一条命令出两平台只有 GitHub Actions。
-- **「洁癖」= neat-freak Skill**（`~/.cola/skills/kkkkhazix-khazix-skills-neat-freak`）：说「跑洁癖」或「收尾时把文档和记忆同步掉」都走它。它管六个事实面（代码 / 运行态 / 文档 / 规则 / 记忆 / 工作区），每面标 `verified-current` / `changed-and-verified` / `pending` / `out-of-scope` / `not-applicable`，并审「本文件的规矩有没有被执行」；记忆面只能读（Cola 记忆库只读，写入走 bookmark）。**它替代不了发布闸门**：两个都跑。
+- **「洁癖」= neat-freak Skill**（`~/.cola/skills/kkkkhazix-khazix-skills-neat-freak`）：说「跑洁癖」就走它；对账代码 / 文档 / 规则 / 工作区，并审本文件规矩的执行情况，记忆面只读。**替代不了发布闸门**，两个都跑。
 - 这台 mac：Node 在 `~/.local/opt/node`（跑前 `export PATH="$HOME/.local/opt/node/bin:$PATH"`），gh 在 `~/.local/opt/gh/bin/gh`；npm 记的「not yet covered by allowScripts」不用管。
 
 ## 名称与版本（别乱动的三样）
@@ -81,13 +81,13 @@
 - **信息密度优先：长信息一律「一行一条 + 点开看明细」**，不用卡片依次铺开。三种收纳件 `.mrow` / `.expline` / `.notebox`；**折叠的 `summary` 必须有可见三角**。批改页次序：分数 → **我的答案（逐句批注）** → 参考答案（范文，正文摆出来）→ 阅卷点评 → 维度分（折叠）。逐句标注是**派生**的：拿采分项 evidence 里的逐字片段（AI 写在引号里）定位回答卷、得分加到那句上，不额外调一次 AI；定位不到一半就整块退回只摆答案——宁可不说，不能瞎标（见 `answerMarks`）。**漏答不单列清单**：标红已经说了「你写的这句不行」，漏掉哪几点、该怎么补由范文与点评交代（`comment` 的 prompt 里写明要点名）。渲染断言盯着 `width:NN%`、`均分 N`、`短板·X`、`asent miss`、`折合 N 分`。
 - **文案分四类**：空态提示（留）、必备声明（留）、讲机制 / 流程（删）、重复的口径（并成一条）。只写「结论与操作」；**发给模型的参数细节不写**；「只存本地 / 备份不含 Key / Key 只发往你填的地址」这类声明一字不动（删了就是骗人）。
 - **更新日志一行一条、只写一句话**：`app/index.html` 的 `CHANGELOG` 是给用户扫一眼的，不是给开发者看的；一条只写一件事，**不带括号、不写原因、不写怎么实现的**（参照 ColaMD：`v2.7.3 · 本地链接能跳了`）。细节进 commit message 与 Release 说明。**两个平台共用同一条**，**动笔的地方在这台 mac**。这条只管新写的条目，0.0.14 及更早的历史条目不回改。
-- **一次点击进快判（2026-10-07 拍板）**：首页最大的红按钮是「开始快判」，点一下直接出题（`startPDRound(PD_MIX)`，不再过落地页）；两句大题各占一个描边按钮；科目栏里快判排在科目之前，用一道 `.subjdiv` 细线分开——位置和那道线都在说「它不是第三个科目，是另一种练法」。
+- **一次点击进快判（2026-10-07 拍板）**：首页最大的红按钮是「开始快判」，点一下直接出题（`startPDRound(PD_MIX)`，不再过落地页）；两句大题各占一个描边按钮；科目栏里快判排在科目之前，用一道 `.subjdiv` 细线分开——它不是第三个科目，是另一种练法。
   - **两种起始页分开写**：`startBoxHtml(rf)` 按 `_view === "home"` 分两形——首页红按钮「开始快判」（+ 两句大题 + 示例题链接），**科目首页红按钮是本科目主行动**（`#btnSmart` → `startSmart`）；**没填 Key 时科目页那颗换成 `#btnSetup`「先填 API Key（出题和阅卷都要）」→ 开设置页**——出题这条路此刻走不通，按钮就不说「开始练习」，说了什么就做什么。快判不在科目页抢红，科目页不放两句大题也不放示例轮。三颗按钮都可能在也可能不在，`wireStartBox()` 一律取到再接线。
   - **首页没有科目**：打开落在 `renderHome()`，三个入口一个都不预选（`.subjbtn` 不许带 `active`）、页签栏空着、抬头灰字只写「首页」（文号已带「练习台」）。品牌名 `#btnHome` 是唯一回首页的路，别删。
   - **大题必须点名科目**：「练一道综应大题 / 练一道申论大题」走 `startSubjectTask(subject)`（切科目 → 退判别轨 `pdActive = false` → 出题）。**不许写成「练一道大题（综应 / 申论）」**——那实际去的是上次练的科目。快判落地页也放这两句。
   - **判 Key 只有 `startPDRound` 一处**：没填 Key 的人在这里拿到内置示例轮（`PD_SAMPLE_ITEMS`、不调 AI、同一套渲染判分、**不入 history**、小结给「填一个 Key」入口），进快判的每个入口都走这一处。
-  - **示例题每种形式各 5 道**：`pdSampleItems(form)` 按形式取，不传形式（首页那条）才三种轮着取凑混合轮；`startPDRound` 无 Key 时把点的那一个形式一路传下去，抬头与纸面如实报（只有 `r.form === PD_MIX` 才写「三种形式混着来」）。**改池子守三条**：每种形式不少于 `PD_ROUND_SIZE` 道；正确项在材料里有逐字出处、干扰项只从各形式 `spec` 写明的那几类里造；**正确项的位置要分散**——曾径 15 道全挤在一头（事实选择、分组概括全在 A，表达比较全在 B），一轮里盯着第一项点就能拿 4/5。改完拿 `pdSampleItems` 跑十轪看三个形式的答案序列，别出现固定的「全 0 / 全 1」。快判练习页与小结点那句「快判练的是从材料里辨认说法…」别当水词删。
-- **纸就是纸，留白不堆东西**：纸面（`#doc`）下半截常常空着，**这是故意的**——「你把那个都填满，就没艺术感、没设计感了，太功能性了。它本来就是模拟纸张，纸张本来就是长方形的嘛。」空的地方要动只有一条路：把已有的那件事做大（如起始区主行动放大），不是添新东西。
+  - **示例题每种形式各 5 道**：`pdSampleItems(form)` 按形式取，不传形式（首页那条）才三种轮着取凑混合轮；`startPDRound` 无 Key 时把点的那一个形式一路传下去，抬头与纸面如实报（只有 `r.form === PD_MIX` 才写「三种形式混着来」）。**改池子守三条**：每种形式不少于 `PD_ROUND_SIZE` 道；正确项在材料里有逐字出处、干扰项只从各形式 `spec` 写明的那几类里造；**正确项的位置要分散**（曾 15 道全挤在一头，盯一头点就能 4/5）。改完拿 `pdSampleItems` 跑十轮看三个形式的答案序列，不许出现固定的「全 0 / 全 1」。快判练习页与小结点那句「快判练的是从材料里辨认说法…」别当水词删。
+- **纸就是纸，留白不堆东西**：纸面（`#doc`）下半截空着是刻意设计（模拟纸张）。要动只有一条路：把已有的那件事做大（如起始区主行动放大），不是添新东西。
 - **落款跟着抬头走**：文号（`#docNo`）前缀**由抬头推出来**，没有设置项——首页 `练习台`、快判轨 `快判`、其余按科目名 `综应A` / `申论`（`renderHeader` 一处定）。**能推出来的东西就不要让用户去设置里维护**（留一个不起作用的控件就是界面在说谎，原来的「文号前缀」输入框已撤）。
 - **入口少字、详情可密**：入口屏（起始页 / 模块落地页 / 快判落地页）只写「这是什么 + 怎么开始」；进去的明细（作答页 / 批改页 / 画像二级页 / 设置 / 折叠件内部）可以密。判「字多」看的是**入口**。
 - **一句成功 / 一句「正在做」，都得有依据**：复查时把「点下瞬间」与「一秒后」两个时刻的界面文字都抓出来对账，凡是「先答应、马上又反悔」的都算骗人。已按这条修过的（新增调用点时照这份清单自问）：
@@ -128,14 +128,14 @@
 - 量真实布局用取景器 `node tools/shot.mjs <场景文件.mjs> <输出目录>`，**先套 `caffeinate -d -u -t <秒>`**（显示器休眠能把 45 秒变成 17 分钟）；**量可见字要排除 `details:not([open])` 的子元素**；同一份代码连跑两遍要逐张字节一致（`tools/cmp-shots.mjs` 比对），展开态不能留给下一屏。
 - **取景器什么时候跑**（别改一处就跑一次）：改逻辑 / prompt / 注释 / 断言都不跑，只跑 `node tests/run.mjs`。**只在两件事上起全量**：① 一批界面改动做完（同一轮的几处一起量）；② **发版前**——这一次不能省。想立刻确认某一屏的几何，写个单场景探针（`node tools/shot.mjs /tmp/我的场景.mjs /tmp/out`，25 秒出一屏的数字），不必起全量。
 - 取景器规则宁少勿滥；**退出码 2 = 有 FAIL**。入口字预算调线要说得出口理由，删了字就把线降回去。
-- **别用 `node -e` 写带 JSON 片段的探针**（Git Bash 会把带冒号 + 反斜杠的参数当路径列表改写，能白排查半天），写成文件再跑。
+- **别用 `node -e` 写带 JSON 片段的探针**（Git Bash 会把含冒号 + 反斜杠的参数当路径列表改写），写成文件再跑。
 
 ## 编辑纪律
 
 - 先读周边代码和现有测试，再做最小范围修改。
 - `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 一改必须同步 `题型规范.md`。
 - 打包走 `npm run dist`：先 `tools/stamp-build.mjs` 写 `app/build.json`（里面只有版本号，设置面板底部显示它——别写成「构建时间」），再调 electron-builder。**不要用文本工具改 `打包.bat`**（GBK + `chcp 936` 会被写坏）；加步骤改 `package.json` 的 `scripts.dist`。
-- 提交说明只写描述性内容：改了什么、为什么、怎么验证的。**不引用对话、不写「某人说」这类原话**——提交历史是公开的，聊天腔一看就是 AI 代笔。**文档与注释同理**（README、AGENTS.md、代码注释都在公开面）。提交前自己把这两处过一遍（体检工具在仓库外：`node ~/cola/tools/check-msg.mjs [--rev <ref>]`，清单在旁边那份 `check-msg.local.json`；**别放进 `~/.cola/` 顶层**——那儿的自定义目录会被整理机制当作「不认识的东西」搬进 `legacy/`）。命中就改，别带着它推；已经推上去才发现要改，就得重写历史 + 强推，动的是公开历史，先问。
+- 提交说明只写改了什么、为什么、怎么验证的；**不引用对话、不写「某人说」这类原话**，文档与注释同理（README、AGENTS.md、代码注释都在公开面）。提交前过体检工具（在仓库外：`node ~/cola/tools/check-msg.mjs [--rev <ref>]`，清单在同目录 `check-msg.local.json`；**别放 `~/.cola/` 顶层**——那里的自定义目录会被整理机制搬进 `legacy/`）。命中就改；已推送才查出要改，就得重写历史 + 强推，先问。
 - **成批写 / 改措辞先过目**：成段、成批的文字（代码注释、文档、界面文字、提交说明）在落盘前先列「原来 → 现在」的对照给他看，等一句话再写进去；单处一句话的修补不用问。（2026-10-08 定）
 - **不把一次性开发流水账写进本文件**：写之前先问「不照做会不会犯错」，不会就别写。使用方式与边界写 `README.md`，历史走 git。
 - 不提交 API Key、真实个人资料或真实练习备份；`node_modules/`、`dist/`、`logs/` 不进 Git。
