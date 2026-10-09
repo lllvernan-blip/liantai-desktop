@@ -3629,7 +3629,7 @@ function draftPanelHtml(f){
   const rewriting = !!(f && f.step === "revise");   // 回改稿：同一面板，多一份回改清单与差异对照
   // 归类不再占一步：它是作答区那一行右侧的一个入口，想先理一遍要点再写就点它，归完回到这里
   const gN = (f && !rewriting)? (f.groups || []).length : 0;
-  const orgBtn = (f && !rewriting)? `<button class="linkbtn" id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
+  const orgBtn = (f && !rewriting)? `<button id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
   let html = "";
   if(rewriting){
     html += `<div class="hint" style="margin-top:10px">按下面的清单逐条回改，提交后重新阅卷。</div>`;
@@ -4112,7 +4112,7 @@ function gradeHtml(g, total){
     const bits = [];
     if(ec.again.length) bits.push(`「${ec.again.join("」「")}」又犯了`);
     if(ec.fixed.length) bits.push(`「${ec.fixed.join("」「")}」这次没再犯`);
-    html += `<div class="hint" style="margin-top:10px">沉淀的错因：${esc(bits.join("；"))}。</div>`;
+    html += `<div class="hint" style="margin-top:10px">记过的错因：${esc(bits.join("；"))}。</div>`;
   }
   // 提炼是批改之后异步跑的：跑完就地补一行（见 paintExpLine），不让用户为了看「这次提炼了什么」再走一屏
   html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div>`;

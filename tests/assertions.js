@@ -1853,9 +1853,9 @@ const gExec = { hits:[{ point:"p", score:20, awarded:20, status:"满分", eviden
 const chkExec = applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"漏写落款", status:"again" }] }, 1700000002000);
 lastGrade = { g:gExec, total:100, expCheck:chkExec };
 const execHtml = gradeHtml(gExec, 100);
-ok(execHtml.indexOf("沉淀的错因：") >= 0 && execHtml.indexOf("「漏写落款」又犯了") >= 0, "批改页: 漏写落款又犯了——回执落到页面上");
+ok(execHtml.indexOf("记过的错因：") >= 0 && execHtml.indexOf("「漏写落款」又犯了") >= 0, "批改页: 漏写落款又犯了——回执落到页面上");
 lastGrade = { g:gExec, total:100, expCheck:null };
-ok(gradeHtml(gExec, 100).indexOf("沉淀的错因：") < 0, "批改页: 没有回执就不摆空行");
+ok(gradeHtml(gExec, 100).indexOf("记过的错因：") < 0, "批改页: 没有回执就不摆空行");
 lastGrade = null; current = null;
 
 /* 16.4 快判辨析点：自由文本同类归并 → 按类统计 → 下次出题优先考错得多的那几类 */
