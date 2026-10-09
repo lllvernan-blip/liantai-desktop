@@ -5,6 +5,10 @@
  *   npm run release:check -- v0.0.15 查指定 tag
  *   npm run release:check -- --quiet 只在有问题时输出
  *
+ * 除了对账资产，它还把原来写在 AGENTS.md 人肉清单里的两条机械检查收进来：
+ *   package.json 三铁律（version 与 tag 同版 / build.win.target 只有 nsis / 没有顶层 productName）
+ *   文档里引用的仓内文件都存在
+ *
  * 为什么要有它：
  *   两个平台各自在各自机器上出包、各自往同一个 Release 上补资产（Windows：`npm run release`；
  *   mac：`npm run release:mac`）。两边都对账，但**都只对自己的那半边负责**——所以
@@ -15,7 +19,7 @@
  * 只读：不打包、不上传、不建 Release、不改任何文件。退出码 0 = 齐了，1 = 缺东西。
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -117,8 +121,69 @@ function list(title, rows) {
 
 const problems = [];
 
+/* ================= 本仓库自检（与 Release 无关，但发版前同样必须为真） ================= */
+
+const localRows = [];
+const localProblems = [];
+{
+  /* 铁律一：只发 NSIS 安装版。加了 portable 就得单独禁用它的自动更新，所以这里拦住。 */
+  const winTarget = pkg.build && pkg.build.win && pkg.build.win.target;
+  /* electron-builder 允许两种写法：字符串 / 数组 / 带 arch 的对象（本项目就是对象那种），
+     所以按对象取 target 名，别拿 JSON 直接比字符串。 */
+  const targetNames = (Array.isArray(winTarget) ? winTarget : winTarget ? [winTarget] : [])
+    .map((t) => (typeof t === "string" ? t : (t && t.target) || ""))
+    .filter(Boolean);
+  const onlyNsis = targetNames.length === 1 && targetNames[0] === "nsis";
+  localRows.push({
+    name: "build.win.target 只有 nsis",
+    ok: onlyNsis,
+    note: onlyNsis ? "" : "现在=" + JSON.stringify(winTarget || null) + "（只发 NSIS 安装版）",
+  });
+  if (!onlyNsis) localProblems.push("package.json 的 build.win.target 不再是唯一的 nsis");
+
+  /* 铁律二：不要顶层 productName——Electron 用它决定 userData 目录，一改用户的记录就搬走。 */
+  const topProductName = Object.prototype.hasOwnProperty.call(pkg, "productName");
+  localRows.push({
+    name: "没有顶层 productName",
+    ok: !topProductName,
+    note: topProductName ? "顶层 productName 决定 userData 目录，一改数据就搬走" : "显示名走 build.productName，安全",
+  });
+  if (topProductName) localProblems.push("package.json 多了顶层 productName");
+
+  /* 铁律三：version 与 tag 同版。不提版本号，老用户永远收不到这一版。 */
+  const sameVersion = tag === "v" + pkg.version;
+  localRows.push({ name: "tag 与 package.json 同版", ok: sameVersion, note: "tag " + tag + " · package.json " + pkg.version });
+  if (!sameVersion) localProblems.push("tag " + tag + " 与 package.json 的 " + pkg.version + " 不是同一版");
+}
+{
+  /* 文档里引用的仓内文件得真在：AGENTS.md / README.md 一旦指向一个不存在的脚本，
+     下一个人会照着敲一遍才发现。只看仓内的固定前缀，外链（http、/releases/…）不在此列。 */
+  const PREFIXES = ["app/", "tests/", "tools/", "docs/", "build/"];
+  const ROOT_FILES = ["AGENTS.md", "README.md", "package.json", "题型规范.md", "main.js", "update.js", "打包.bat", "打包-mac.command"];
+  const files = ["AGENTS.md", "README.md", "题型规范.md", ...readdirSync(join(root, "docs")).filter((f) => f.endsWith(".md")).map((f) => "docs/" + f)];
+  const missing = new Set();
+  let checked = 0;
+  for (const f of files) {
+    const text = readFileSync(join(root, f), "utf8");
+    for (const m of text.matchAll(/[A-Za-z0-9_\u4e00-\u9fa5./-]+\.(?:mjs|cjs|json|html|command|bat|yml|md|py|js)/g)) {
+      const t = m[0];
+      if (t.includes("://") || t.startsWith("/")) continue;
+      const internal = PREFIXES.some((p) => t.startsWith(p)) || ROOT_FILES.includes(t);
+      if (!internal) continue;
+      checked++;
+      if (!existsSync(join(root, t))) missing.add(f + " → " + t);
+    }
+  }
+  const list = [...missing];
+  localRows.push({ name: "文档引用的仓内文件都存在", ok: list.length === 0, note: list.length ? "缺 " + list.join("；") : "查了 " + checked + " 处" });
+  if (list.length) localProblems.push("文档引用了不存在的文件：" + list.join("；"));
+}
+
 const release = await fetchJson("/repos/" + REPO + "/releases/tags/" + tag);
+if (!quiet) console.log("=== 双平台对账 " + tag + "（" + REPO + "）===");
+list("本仓库（与 Release 无关，发版前同样必须为真）", localRows);
 if (!release) {
+  for (const p of localProblems) console.error("  [缺] " + p);
   console.error("Release " + tag + " 不存在（这一版还没发，或者 tag 写错了）。");
   process.exit(1);
 }
@@ -126,8 +191,6 @@ if (!release) {
 const names = (release.assets || []).map((a) => a.name);
 const has = (n) => names.includes(n);
 const bySuffix = (suffix) => names.filter((n) => n.endsWith(suffix));
-
-if (!quiet) console.log("=== 双平台对账 " + tag + "（" + REPO + "）===");
 
 /* ---- Windows：latest.yml（指针）+ 安装包 + blockmap ---- */
 const winRows = [];
@@ -199,6 +262,7 @@ list("Windows（NSIS 安装版）", winRows);
 list("macOS（dmg + zip）", macRows);
 list("自动更新指针", pointerRows);
 
+problems.push(...localProblems);
 const missingWin = winRows.filter((r) => !r.ok).length;
 const missingMac = macRows.filter((r) => !r.ok).length;
 if (missingWin) problems.push("Windows 缺 " + missingWin + " 项");
@@ -206,7 +270,7 @@ if (missingMac) problems.push("macOS 缺 " + missingMac + " 项");
 
 console.log("");
 if (problems.length === 0) {
-  console.log("  两个平台都齐了：" + release.assets.length + " 个资产" + (macArchs.length ? "（mac arch：" + macArchs.join("/") + "）" : ""));
+  console.log("  本仓库三条铁律都在，文件引用都在；两个平台也齐了：" + release.assets.length + " 个资产" + (macArchs.length ? "（mac arch：" + macArchs.join("/") + "）" : ""));
   process.exit(0);
 }
 for (const p of problems) console.error("  [缺] " + p);
