@@ -22,11 +22,11 @@
 - **额度动态**：首次 `MAX_OUT_TOKENS = 16384`，`finish=length` 就翻倍（→32768→65536，封顶 `MAX_OUT_TOKENS_HARD`）。思考与正文共用一个额度（`reasoning_tokens` 计在 `completion_tokens` 里）。**别写死「某模型的输出上限」**（实测 deepseek-flash 对 4096…65536 全收 200）。阅卷思考档单独降 `GRADE_LEVEL = "quick"`（阅卷照 need 逐条核，不吃长链推理）。
 - **范文从批改主请求拆出去单独拉**：`fetchModelAnswer()` 在批改成功后另发一次，**要纯文本不要 JSON**；那次失败只当没写过（catch 掉、留空，`renderGrade` 不渲染空范文），别拖垮整次批改。往主请求里再塞大块附属内容前先想这条。
 - **传输层失败自动同档静默重发一次**（`retriedNet`）：DNS / TLS / 连接断 / 整体超时；HTTP 错误照旧走降级阶梯（只 400/422 换档）**绝不重发**。一次请求最坏 4 次调用（传输 1 + 输出 2 + 降级 1）；`retriedNet` 与输出重发不是一回事。
-- 综应A 学习卡阶段不亮题面（点「开始作答」才出现）；学习卡 `example` 是「这类题长什么样」的全新示例，prompt 明令不得复用本题材料情节；翻卡计次只属作答阶段。
+- **训练链只有三步**（`FLOW_STEPS`：读材料含找点 / 一稿 / 批改）：链前先摆一整页学习卡（`f.cardSeen`，不进步骤条），**两科都是先看学习卡再动手**、卡阶段不亮题面；归类降级成一稿页上的入口（`f.orgOpen`），沉淀并进批改页（`_lastDistilled` 异步跑完由 `paintExpLine` 就地补一行）。写与读材料时卡以浮标 + 抽屉常驻，**浮标挂在 `#docBody` 之外的 `#fabSlot`**——纸面里每个直接子元素都带着入场动画，动画填充的 transform 会成为 fixed 的包含块，浮标就变成「滑到底才看得见」。学习卡 `example` 是「这类题长什么样」的全新示例，prompt 明令不得复用本题材料情节；翻卡计次只属作答阶段。
 
 ## 学习闭环（错因 · 复测 · 快判辨析点）
 
-- **闭环最后一步是「回执」，不是「沉淀」**：批改 prompt 要求逐条回报 `experienceChecks`（title 原样照抄 + `again/fixed/na`），`applyExperienceChecks` 写回：`again → recur+1、cleared=false`，`fixed → cleared=true`，没给或 title 对不上就什么都不改（保持待验证）。批改页那行与画像三态都用这份结果，别另存一份。
+- **闭环最后一步是「回执」，不是「沉淀」**：批改 prompt 要求逐条回报 `experienceChecks`（title 原样照抄 + `again/fixed/na`），`applyExperienceChecks` 写回：`again → recur+1、cleared=false`，`fixed → cleared=true`，没给或 title 对不上就什么都不改（保持待验证）。批改页那行与画像三态都用这份结果，别另存一份。**沉淀不再占一步**（2026-10-09）：提炼结果就近补进批改页，经验库管理在画像的经验页。
 - `experienceChecks` 与 `kind` **都不参与计分**（与 hits/scores 分开）；`awarded` 与总分口径一字不动。
 - **注入顺序就是复测策略**（`activeExperiences`）：还在犯的（recur 多的在前）→ 该核 / 该复测的（没核过，或已改但过了 `RETEST_DAYS = 7` 天）→ 刚核过且已改的。已改掉不是注销，是一周后换题再来一次（超校正效应）。
 - **阅卷温度钉在 0**（`GRADE_TEMP = 0`）。三档判法写在 `SCORING_RULES`：**数点不估百分比**，判「半分」必须在 evidence 里写出考生答到了什么。评分校准句（多数答卷落中间档 / 拿不准按中间档 / 答得长不等于答得全）属批改质量，删它等于打开宽松抬分与长度偏好两扇门。**别往 prompt 里写「分差控制在 ±3」这种数字承诺**。
@@ -56,7 +56,7 @@
 - **差量缓存会错位，已能自检修复**：`installer.exe`（NSIS 写）与 `current.blockmap`（electron-updater 写）由两个程序维护、可能指向两个版本，那时拿旧尺子量新安装包、组装后校验不过。`alignDifferentialCache()` 每次检查前核对（blockmap 里 `sizes` 逐块相加 == 安装包大小，能分辨 2.5KB），对不上就删 `current.blockmap`。
 - **发布**：`npm run release` / `npm run release:mac` / `npm run release:check`，**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**（2026-10-03 拍板）：一个 tag 下一整套 = Windows 三件 + mac 五件。
 - **单发 mac 必须加 `--prerelease`**：Windows 的自动更新读 `/releases/latest/download/latest.yml`，而 GitHub 的 latest 指「最新的非 prerelease Release」——只带 mac 资产的 Release 把它占住，Windows 用户检查更新就 404（`release-mac.mjs` 默认不自己建 Release，除非 `--create`）。
-- **发布前先跑发布闸门（五项机械检查）**：① `git status --short` 干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）；④ 源码 grep `sk-[a-f0-9]{20,}` 零命中；⑤ AGENTS/README 引用的文件路径全部存在。**验包不许碰本机那份安装**（NSIS 会按 AppId 先把上一版静默卸掉，0.0.13 那次真卸掉了）——详细规矩见 `docs/发布与更新.md`。
+- **发布前先跑发布闸门**：① `git status --short` 干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ 源码 grep `sk-[a-f0-9]{20,}` 零命中；④ `npm run release:check`——package.json 三铁律（version 已提、`build.win.target` 仅 nsis、无顶层 `productName`）与「文档引用的文件路径都存在」都收在那个脚本里了，不用再人肉逐条查。**验包不许碰本机那份安装**（NSIS 会按 AppId 先把上一版静默卸掉，0.0.13 那次真卸掉了）——详细规矩见 `docs/发布与更新.md`。
 - **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 五件；④ 任意一端 `npm run release:check` 看八件齐不齐。
   - Windows **直连官方 git 协议不通**：拉取用转发站一次性 fetch，**别改 origin、更别用它推送**（推送带令牌）——`git fetch "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop.git" main && git merge --ff-only FETCH_HEAD`；拉完 `git rev-parse HEAD` 必须就是 mac 推的那条 sha，不等就别发。
   - **先发的那台决定 tag**（`gh release create` 用本地 HEAD 建 tag）：谁先发谁先拉最新；tag 不是本地 HEAD 就 `git checkout <tag>` 重新出包。Windows 的 gh 登录是交互式的，必须本人敲一次（`gh auth login --with-token < 文件` 可非交互）。

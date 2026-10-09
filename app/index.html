@@ -566,6 +566,7 @@ html,body{margin:0;padding:0;}
 
 <div class="wrap">
   <div id="bannerSlot"></div>
+  <div id="fabSlot"></div>
 
   <div class="doc" id="doc">
     <div class="redhead">
@@ -779,7 +780,7 @@ function moduleKeysOf(subject){ const s = SUBJECTS[subject]; return s? s.modules
 function moduleName(k){ return (MODULES[k] && MODULES[k].name) || String(k==null?"":k); }
 function subjectName(k){ const s = subjectOf(k); return s? SUBJECTS[s].name : ""; }
 function roleOf(k){ const s = subjectOf(k); return (s && SUBJECTS[s].role) || SUBJECTS[DEFAULT_SUBJECT].role; }
-// 流程分叉：五步链（读材料含找点/归类/一稿/沉淀）只归申论；综应A 走「学习卡 → 作答 → 批改」两阶段
+// 流程分叉：三步链（读材料含找点 / 一稿 / 批改）只归申论，链前先摆一整页学习卡；综应A 走「学习卡 → 作答 → 批改」两阶段
 function usesFlowChain(k){ return subjectOf(k) === "sl"; }
 
 /* ============ 旧数据迁移：裸模块键 -> 科目前缀 ============ */
@@ -859,11 +860,12 @@ const DEFAULT_STATE = {
   modelProbe:{}  // 档位有效性观测：模型名 → 档位 → { n, reason, secs }（思考字数与耗时的累计）
 };
 
-/* ============ 申论训练链（读材料·找点 → 归类 → 一稿 → 批改 → 沉淀；找点并入读材料，回改已下线） ============ */
-// 只有申论走全链（usesFlowChain）；综应A 恢复「学习卡 → 作答 → 批改」两阶段（renderZyPage）。
-// 沉淀/经验闭环两科共用：批改成功后自动提炼，注入后续出题与阅卷（见「经验闭环」一节）。
-const FLOW_STEPS  = ["read","organize","draft","review","distill"];   // 找点并入读材料（通读时就能划线和找点，不用读两遍）；revise（回改）已下线：旧数据停在 revise 的链由 sanitizeFlows 降级到「一稿」收下
-const FLOW_LABELS = { read:"读材料", organize:"归类", draft:"一稿", review:"批改", distill:"沉淀" };
+/* ============ 申论训练链（学习卡 → 读材料·找点 → 一稿 → 批改） ============ */
+// 只有申论走全链（usesFlowChain）；综应A 走「学习卡 → 作答 → 批改」两阶段（renderZyPage）——
+// 两科共用的只有开头那张学习卡：先记知识点再动手，是一致的。
+// 归类降级成一稿页上的入口、沉淀并进批改页（2026-10-09）：链子只剩三步。
+const FLOW_STEPS  = ["read","draft","review"];
+const FLOW_LABELS = { read:"读材料", draft:"一稿", review:"批改" };
 
 /* 申论学习卡资料库（源：中公申论课程笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
    AI 据此生成学习卡（照综应口径缓存、可「换一张」、对弱维度定向）；AI 未返回卡时也作兜底。
@@ -969,12 +971,13 @@ function sanitizeFlows(list){
   if(!Array.isArray(list)) return [];
   return list.filter(f=>{
     if(!f || typeof f !== "object" || typeof f.id !== "string" || !f.question || typeof f.question !== "object") return false;
-    if(FLOW_STEPS.indexOf(f.step) < 0 && f.step !== "done" && f.step !== "revise") return false;   // 非法 step：丢弃该项，不整包失败（revise 另处理：降级不丢）
+    if(FLOW_STEPS.indexOf(f.step) < 0 && f.step !== "done" && f.step !== "revise" && f.step !== "organize" && f.step !== "distill") return false;   // 非法 step：丢弃该项，不整包失败（已下线的步另处理：降级不丢）
     return true;
   }).map(f=>{
     const o = Object.assign({ subject:null, subtype:null, sig:"", keyPoints:[], createdAt:0, closedAt:null,
-                              step:"read", attempts:[], selections:[], groups:[], drafts:[] }, f);
-    if(o.step === "revise") o.step = "draft";   // 回改已下线：这些链回到「一稿」继续，不整条消失
+                              step:"read", cardSeen:true, attempts:[], selections:[], groups:[], drafts:[] }, f);
+    if(o.step === "revise" || o.step === "organize") o.step = "draft";   // 回改与归类都已下线：这些链回到「一稿」继续，不整条消失
+    if(o.step === "distill") o.step = "review";   // 沉淀并进批改页：停在这一步的老链回到「批改」
     for(const k of ["keyPoints","attempts","selections","groups","drafts"]) if(!Array.isArray(o[k])) o[k] = [];
     if(o.closedAt == null) o.closedAt = null;
     return o;
@@ -1869,18 +1872,6 @@ function experienceListHtml(){
   if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。</div>`;
   return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
-function distillPanelHtml(){
-  let html = `<div class="sec-title">本次新提炼</div><div class="explist">`;
-  if(_lastDistilled.length){
-    html += _lastDistilled.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span><span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}</div></details>`).join("");
-  } else {
-    html += `<div class="hint" style="padding:6px 2px">这次没有提炼出新经验。</div>`;
-  }
-  html += `</div>`;
-  html += `<div class="sec-title">我的经验（${(state.experiences||[]).length}/${EXP_MAX}）</div><div class="explist">` + experienceListHtml() + `</div>`;
-  html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnFlowDone">完成，回首页</button><span class="hint">还想再练，点上方「换一题」。</span></div>`;
-  return html;
-}
 function wireExperiences(){
   document.querySelectorAll("[data-exp-toggle]").forEach(b=> b.onclick = ()=>{
     const e = (state.experiences||[]).find(x=>x.id===b.dataset.expToggle);
@@ -2074,6 +2065,7 @@ function banner(html, kind){
 function showLoading(t, tail){
   // 第二行原来写死「长文阅卷通常 10-60 秒」——但这里是**出题**在等，屏幕上却在说阅卷（2026-10-08 复查）
   docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">${esc(tail||"AI 出题通常 10-60 秒。")}</span><div class="peek" id="streamPeek"></div></p>`;
+  paintFab();
 }
 
 /* 起始页的正文两种形态共用一套：home（没选任何科目）与 start（在一个科目里）。
@@ -2145,6 +2137,7 @@ function renderHome(){
   tabActiveKey = null;
   renderHeader(); renderTabs();
   docBody.innerHTML = startBoxHtml(resumableFlow());
+  paintFab();
   wireStartBox();
   maybeTour("home");
 }
@@ -2154,6 +2147,7 @@ function renderStart(){
   activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
   tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
   docBody.innerHTML = startBoxHtml(resumableFlow());   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
+  paintFab();
   wireStartBox();
   maybeTour(curSubject());
 }
@@ -2338,6 +2332,7 @@ function renderModuleLanding(k){
     <div class="actions" style="justify-content:center;margin-top:26px"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
   </div>`;
   docBody.innerHTML = html;
+  paintFab();
   $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
   docBody.querySelectorAll(".chip").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
 }
@@ -2475,16 +2470,18 @@ function metaLineHtml(q){
   if(q && q.difficulty) parts.push(`<b>难度：</b>${esc(q.difficulty)}`);
   return parts.length? `<div class="require">${parts.join("　　")}</div>` : "";
 }
-function zyHeadHtml(showQuestion){
+function qHeadHtml(showQuestion){
   const {question} = current;
   let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  if(showQuestion === false) return html;   // 学习卡阶段不亮题面：题目等点了「开始作答」再见面
+  if(showQuestion === false) return html;   // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   html += metaLineHtml(question);
   return html;
 }
-function zyCardHtml(){
+/* 学习卡整页：综应A 的学习阶段与申论链的开头共用这一屏（先记知识点再动手，做的时候忘了还能随时翻）。
+   btn = {id, label}—— 只有主按钮的文字各科不同，其余一字不差。 */
+function cardPageHtml(btn){
   const {module, subtype} = current;
   let html = "";
   if(current.studyCard){
@@ -2496,24 +2493,31 @@ function zyCardHtml(){
       ${lp != null? `<div class="hint" style="margin-top:8px">上次作答中你翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
     </div></div>`;
   } else {
-    html += `<div class="hint" style="margin-top:10px">本题没有学习卡，直接作答即可。</div>`;
+    html += `<div class="hint" style="margin-top:10px">本题没有学习卡，直接开始即可。</div>`;
   }
-  html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnZyAnswer">我已学习，开始作答</button></div>`;
+  html += `<div class="actions" style="margin-top:14px"><button class="primary" id="${btn.id}">${btn.label}</button></div>`;
   return html;
+}
+function wireCardPage(btnId, onGo){
+  const cn = $("#cardNote");
+  if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
+  const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
+  const b = $("#" + btnId); if(b) b.onclick = onGo;
 }
 function renderZyPage(){
   if(!current || !current.question){ renderStart(); return; }
   const phase = current.phase || "card";
-  let html = zyHeadHtml(phase !== "card");
+  let html = qHeadHtml(phase !== "card");
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
     html += `<div class="material mat-scroll"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
     html += draftPanelHtml(null);
   } else {
-    html += zyCardHtml();
+    html += cardPageHtml({ id:"btnZyAnswer", label:"我已学习，开始作答" });
   }
   docBody.innerHTML = html;
+  paintFab(phase === "answer"? "翻学习卡" : null, phase === "answer");   // 作答时随时能翻回来看（与申论一致）
   renderHeader();
   wireZyPage(phase);
 }
@@ -2527,10 +2531,7 @@ function wireZyPage(phase){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
   } else {
-    const ba = $("#btnZyAnswer"); if(ba) ba.onclick = ()=>{ current.phase = "answer"; renderZyPage(); };
-    const cn = $("#cardNote");
-    if(cn){ cn.addEventListener("input", ()=> saveNote(current.module, current.subtype, cn.value)); cn.addEventListener("blur", persistFlush); }
-    const bn = $("#btnNewCard"); if(bn) bn.onclick = ()=>{ delete state.cache.studyCards[cardKey(current.module, current.subtype)]; save(); loadQuestion(current.module, current.subtype); };
+    wireCardPage("btnZyAnswer", ()=>{ current.phase = "answer"; renderZyPage(); });
   }
 }
 
@@ -2870,6 +2871,7 @@ function renderPDLanding(){
     </div>
   </div>`;
   docBody.innerHTML = html; renderHeader();
+  paintFab();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
   docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));   // 在快判里也能直接拐去练大题
   docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
@@ -3057,6 +3059,7 @@ function renderPDRound(){
     html += `<div class="actions"><button class="primary" id="pdNext">${r.idx < r.items.length-1? "下一题" : "看本轮小结"}</button></div>`;
   }
   docBody.innerHTML = html; renderHeader();
+  paintFab();
   if(!it.done){
     docBody.querySelectorAll("[data-pdopt]").forEach(b=> b.onclick = ()=> pdResolve(Number(b.dataset.pdopt)));
     const sk = $("#pdSkip"); if(sk) sk.onclick = ()=> pdResolve(null);
@@ -3092,6 +3095,7 @@ function renderPDSummary(){
     html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div></div>`;
   }
   docBody.innerHTML = html; renderHeader();
+  paintFab();
   $("#pdAgain").onclick = r.sample? ()=> startPDSampleRound(r.form) : ()=> genPDRound(r.form, r.theme);
   $("#pdSwitch").onclick = renderPDLanding;
   // 跑完才提 Key：没填的人这时才知道「新题要 Key」，进门时不会被一句报错先劈头盖脸
@@ -3099,7 +3103,7 @@ function renderPDSummary(){
 }
 
 /* ============ 申论训练链：生命周期 ============ */
-// 读材料（含找点）→ 归类 → 一稿 → 批改 → 沉淀。换题、切科目、导入恢复都经 ensureFlow/closeFlow 走同一条生命周期。
+// 学习卡 → 读材料（含找点）→ 一稿 → 批改。换题、切科目、导入恢复都经 ensureFlow/closeFlow 走同一条生命周期。
 // closeFlow 只置收口标记：草稿、选区、批改记录全部保留——用户内容绝不因换题或收口而消失。
 function genFlowId(){ return "flow_" + Date.now() + "_" + Math.random().toString(36).slice(2,8); }
 function activeFlow(){
@@ -3113,7 +3117,7 @@ function ensureFlow(module, subtype, question, keyPoints){
   if(f) closeFlow(f, { reason:"switched" });                // 换题：收口旧链，草稿与选区不动
   f = { id: genFlowId(), subject: subjectOf(module), module, subtype: subtype||null, sig,
         question, keyPoints: keyPoints||[], createdAt: Date.now(), closedAt: null,
-        step: "read", attempts: [], selections: [], groups: [], drafts: [] };
+        step: "read", cardSeen: false, attempts: [], selections: [], groups: [], drafts: [] };   // 新链先从学习卡开头：先记知识点再动手
   state.flows.push(f);
   _flowId = f.id;
   pruneFlows();
@@ -3180,6 +3184,7 @@ function flowGoStep(step){
     banner("还没有批改结果——先在「一稿」提交阅卷，才能进入「批改」步。");
     return false;   // 不允许空批改
   }
+  if(step === "draft" && f.orgOpen) f.orgOpen = false;   // 换步进来看到的是一稿页；归类面板只在点那个入口的时候打开
   f.step = step; save();
   renderFlowStep();
   scrollToDocTop();   // 切步＝整屏换内容，把人带回纸面顶部（上面那段说明）
@@ -3301,13 +3306,14 @@ function buildOrganizeOutline(groups, selections){
   return lines.join("\n");
 }
 /* 归类面板：一次只处理一个点——上面摆这个点的原文，下面一排已建好的类（点一下归入，可以多归），
-   再加一行「新建一类」的输入框；底部「上一个点 / 下一个点」，走完最后一个点就是「生成提纲，进入一稿」。
+   再加一行「新建一类」的输入框；底部「上一个点 / 下一个点」，走完最后一个点就是「回到一稿」。
+   它是从一稿页上打开的工具，不是链上的一步（明细也能跳过不归——提纲只供批改诊断）。
    为什么不给点编号：找点那边的清单本来就没有序号，这里冒出「第 3 个点」会让人去找那个不存在的第 3 个。
    已找的点收在下面的折叠清单里，随时能跳回任何一个。 */
 function organizePanelHtml(f){
   const sels = f.selections || [];
-  if(!sels.length) return `<div class="hint" style="margin-top:10px">这一步还没有找到点——可以直接进一稿（提纲将为空），或回上一步找点。</div>`
-    + `<div class="actions"><button class="primary" id="btnToDraft">进一稿（提纲为空）</button></div>`;
+  if(!sels.length) return `<div class="hint" style="margin-top:10px">还没有找到点——回读材料时点几个句子就行；直接写也可以。</div>`
+    + `<div class="actions"><button class="primary" id="btnToDraft">回到一稿</button></div>`;
   const groups = Array.isArray(f.groups)? f.groups : [];
   const idx = Math.min(Math.max(Number(f.orgIdx) || 0, 0), sels.length - 1);
   const holder = holderOf(groups, sels);
@@ -3315,12 +3321,15 @@ function organizePanelHtml(f){
   const inGroups = si => (holder[si] || []);
   const doneCnt = sels.filter((sl,si)=> inGroups(si).length).length;
   const last = idx >= sels.length - 1;
+  // 归类是从一稿页上打开的工具：走到一半想收起来也得有出口。末点的主动作就是「回到一稿」，
+  // 所以角落里那个链接只在没走到末点时出现（同一个去处不在屏幕上写两遍）。
+  const head = `<div class="secrow"><div class="sec-title">归类</div>${last? "" : `<span class="secright"><button class="linkbtn" id="btnCloseOrg">回到一稿</button></span>`}</div>`;
   // 这个点归到哪几类：可以多选——同一个点既能算「制度建设」也能算「服务效能」，再点一次就取消
   const cats = groups.map((g,i)=>{
     const on = inGroups(idx).indexOf(i) >= 0;
     return `<button class="ogcat${on? " on":""}" data-og="${i}" aria-pressed="${on? "true":"false"}">${esc(groupLabel(groups, i))}<i>${(g.facts||[]).length}</i></button>`;
   }).join("");
-  return `<div class="hint" style="margin-top:10px">把找到的点归成几类，给每类一个上位概括词。提纲只供批改诊断，不参与计分。</div>
+  return head + `<div class="hint">把找到的点归成几类，给每类一个上位概括词。提纲只供批改诊断，不参与计分。</div>
     <div class="ognow">
       <div class="ogwho"><span>这个点归到哪一类</span><span class="ogprog">已归 ${doneCnt} / ${sels.length} 个点</span></div>
       <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
@@ -3328,7 +3337,7 @@ function organizePanelHtml(f){
       <div class="ognew"><input type="text" id="newCatName" placeholder="新一类的上位概括词，如：政务服务效能"><button id="btnNewCat">建这一类并归入</button></div>
       <div class="actions">
         <button id="btnOrgPrev"${idx? "":" disabled"}>上一个点</button>
-        <button class="primary" id="btnOrgNext">${last? "生成提纲，进入一稿" : "下一个点"}</button>
+        <button class="primary" id="btnOrgNext">${last? "回到一稿" : "下一个点"}</button>
       </div>
       ${last? "" : `<div class="hint">这个点一时拿不准也能先过去——下面的清单里能跳回来重归。</div>`}
     </div>
@@ -3411,29 +3420,31 @@ function railHtml(f){
   return `<div class="railwrap"><div class="flowrail" id="flowRail">` +
     syncRail(f).map(s=>`<span class="fstep ${s.state}" data-step="${s.step}">${s.label}</span>`).join("") + `</div></div>`;
 }
-function navHtml(step, f){
+function navHtml(step){
   const i = FLOW_STEPS.indexOf(step);
   const prev = i > 0? FLOW_STEPS[i-1] : null;
-  const next = (i >= 0 && i < FLOW_STEPS.length - 1)? FLOW_STEPS[i+1] : null;
+  // 链上每一步都自带主行动（找点完毕动笔写 / 提交阅卷），末步「批改」的主行动是离开链的
+  // 「智能推送下一题」（见 gradeHtml）。所以这里只留「上一步」，不再挂一枚重复的 Next。
   let html = `<div class="fnav">`;
   if(prev) html += `<button class="linkbtn" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
-  // read / organize / draft 三步各有自己的主行动（开始找点 / 生成提纲 / 提交阅卷），不摆 Next——
-  // 摆出来就是同一个意思在屏幕上写两遍（「生成提纲，进入一稿」下面再挂一个「下一步：一稿」）
-  // 批改步：离开流程的「智能推送下一题」已降为次要（见 gradeHtml 的 inFlow），流程的下一步在这里顶上去当主行动
-  if(next && step !== "read" && step !== "organize" && step !== "draft"){
-    const cls = step === "review" ? ` class="primary"` : "";
-    html += `<button${cls} id="btnFlowNext">下一步：${FLOW_LABELS[next]}</button>`;
-  }
-  // 回到一稿重做已下线：批改后直接沉淀，重做就换一题重新来
   return html + `</div>`;
 }
+function renderChainCard(f){
+  docBody.innerHTML = qHeadHtml(false) + cardPageHtml({ id:"btnChainStart", label:"我已学习，开始读材料" });
+  paintFab();
+  renderHeader();
+  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  wireCardPage("btnChainStart", ()=>{ f.cardSeen = true; save(); renderFlowStep(); });
+}
+/* 哪几步带学习卡浮标：读材料时看卡不计次，一稿阶段翻卡计次（计次只属作答阶段）。 */
+const FAB_BY_STEP = { read:{ act:"看学习卡", count:false }, draft:{ act:"翻学习卡", count:true }, revise:{ act:"翻学习卡", count:true } };
 function renderFlowStep(){
   if(!current || !current.question){ renderStart(); return; }
   const f = activeFlow();
+  if(f && !f.cardSeen){ renderChainCard(f); return; }   // 新链先从学习卡开头：先记知识点再动手
   const step = f? f.step : (lastGrade? "review" : "draft");
   const {question} = current;
-  // 读材料 / 归类这两步也把限时摆出来：时钟从「开始作答」就起算，不摆出来用户不知道它在跑
-  const showTl = step === "read" || step === "organize";
+  const showTl = step === "read";   // 读材料步也把限时摆出来：时钟从「开始作答」就起算，一稿页自己有这一行
   // 步骤条摆在纸面第一行：它说的是「我现在在哪」，不是这道题的题干，不该夹在要求与当前步面板之间
   let html = f? railHtml(f) : "";
   html += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
@@ -3441,8 +3452,10 @@ function renderFlowStep(){
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   html += metaLineHtml(question);
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
-  if(f) html += navHtml(step, f);
+  if(f) html += navHtml(step);
   docBody.innerHTML = html;
+  const fb = FAB_BY_STEP[step];   // 浮标挂在纸面之外：写与读材料时随时能翻卡
+  paintFab(fb && fb.act, fb && fb.count);
   renderHeader();
   wireStep(step, f);
 }
@@ -3450,26 +3463,21 @@ function stepPanelHtml(step, f){
   const question = current.question;
   if(step === "read"){
     let html = "";
-    // 学习卡收成常驻浮标 + 抽屉（见 cardFabHtml）：内嵌成折叠块时一展开就把材料顶出首屏，
-    // 而这一步恰恰叫「读材料」。综应A 的卡仍是整页平铺（zyCardHtml），不在此列。
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:10px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
     html += `<div class="material"><div class="label">背景材料 · 读材料与找点</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
     html += `<div class="markpop" id="markPop"><button id="popMark">划线</button><button id="popPick">选为要点</button></div>`;
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
-    html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnToOrganize">找点完毕，开始归类</button></div>`;
-    html += cardFabHtml("看学习卡", false) + cardDrawerHtml();
+    html += `<div class="actions" style="margin-top:14px"><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
     return html;
   }
-  if(step === "organize") return f? organizePanelHtml(f) : `<div class="hint" style="margin-top:10px">没有进行中的训练链。</div>`;
-  if(step === "draft" || step === "revise") return draftPanelHtml(f);
+  // 归类降级成一稿页上的入口：f.orgOpen 打开时，一稿那一屏就换成归类面板
+  if(step === "draft" || step === "revise") return (f && f.orgOpen)? organizePanelHtml(f) : draftPanelHtml(f);
   if(step === "review"){
     if(!lastGrade) return `<div class="hint" style="margin-top:10px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
-    // 有进行中的训练链时（renderFlowStep 会再拼 .fnav），主行动交给流程的下一步
-    return gradeHtml(lastGrade.g, lastGrade.total, !!f);
+    return gradeHtml(lastGrade.g, lastGrade.total);   // 批改是链子的最后一步：主行动交回「智能推送下一题」
   }
-  if(step === "distill") return distillPanelHtml();
   return "";
 }
 /* ============ 作答限时 ============ */
@@ -3575,6 +3583,13 @@ function setTimeLimit(m){
    浮标不动、抽屉滑出，看卡与看正文互不挤占；笔记就在抽屉底部，边看边写。
    读材料与作答两步共用同一套：同一个东西没有两种形态。翻卡计次照旧（越少越熟），
    每打开一次 +1，抽屉顶上与浮标上同步报数。 */
+/* 学习卡浮标挂在 #docBody 之外的 #fabSlot 里：纸面里每个直接子元素都带着入场动画，
+   而动画填充的 transform 会把那一块变成 fixed 的包含块——浮标就变成「滑到底才看得见」。
+   act 为空 = 清空（这一屏不要浮标）。 */
+function paintFab(act, count){
+  const slot = $("#fabSlot"); if(!slot) return;
+  slot.innerHTML = act? (cardFabHtml(act, count) + cardDrawerHtml()) : "";
+}
 function cardFabHtml(act, count){
   return `<button class="fab" id="btnCard">${act}${count? ` · 已翻 <b>${current.cardPeeks||0}</b> 次` : ""}</button>`;
 }
@@ -3611,17 +3626,19 @@ function wireCardDrawer(count){ const b = $("#btnCard"); if(b) b.onclick = ()=> 
 function draftPanelHtml(f){
   const {module} = current;
   const question = current.question;
-  const outline = f? buildOrganizeOutline(f.groups, f.selections) : "";
   const rewriting = !!(f && f.step === "revise");   // 回改稿：同一面板，多一份回改清单与差异对照
+  // 归类不再占一步：它是作答区那一行右侧的一个入口，想先理一遍要点再写就点它，归完回到这里
+  const gN = (f && !rewriting)? (f.groups || []).length : 0;
+  const orgBtn = (f && !rewriting)? `<button class="linkbtn" id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
   let html = "";
   if(rewriting){
     html += `<div class="hint" style="margin-top:10px">按下面的清单逐条回改，提交后重新阅卷。</div>`;
     html += revisionListHtml(lastGrade && lastGrade.g || {});
   }
-  if(outline) html += `<details class="notebox" style="margin-top:12px"><summary>归类提纲（只供参考，不参与计分）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`;
+  // 提纲不再另摆一份：归类面板里有一份「提纲预览」，同一个东西不在两处各写一遍
   if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
-    <div class="secrow"><div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div>${limitRowHtml()}</div>
+    <div class="secrow"><div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
@@ -3633,7 +3650,6 @@ function draftPanelHtml(f){
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
   if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
-  html += cardFabHtml("翻学习卡", true) + cardDrawerHtml();
   return html;
 }
 
@@ -3712,6 +3728,8 @@ function wireDraft(f){
   const question = current.question;
   if(module===GONGWEN_KEY && $("#btnTpl")) $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
+  // 归类是这一页上的入口（链上不再占一步）：点开就是逐点走那一屏，归完回到这里
+  const bo = $("#btnOpenOrg"); if(bo && f) bo.onclick = ()=>{ f.orgOpen = true; save(); renderFlowStep(); };
   wireCardDrawer(true);   // 作答步：翻卡计次（越少越熟）
   // 草稿保护：边写边存；签名不同（换了题）就不会串味；字数上限以本地表为准
   const sig = qSig(question);
@@ -3736,12 +3754,13 @@ function wireDraft(f){
 }
 function wireOrganize(f){
   const sels = f.selections || [];
+  const backToDraft = ()=>{ f.orgOpen = false; save(); renderFlowStep(); };   // 归类面板收起 = 回到一稿
   // 换点、跳点、重画都走这一手：重渲染后 DOM 是新的，选中态与清单自然跟上
   const goTo = i => { f.orgIdx = Math.max(0, Math.min(i, sels.length - 1)); save(); renderFlowStep(); };
   const at = ()=> Math.max(0, Math.min(Number(f.orgIdx) || 0, sels.length - 1));
   const prev = $("#btnOrgPrev"); if(prev) prev.onclick = ()=> goTo(at() - 1);
   const next = $("#btnOrgNext"); if(next) next.onclick = ()=>{
-    if(at() >= sels.length - 1) return flowGoStep("draft");   // 走完最后一个点 = 生成提纲进一稿
+    if(at() >= sels.length - 1) return backToDraft();   // 走完最后一个点：回到一稿，不再往前推一步
     goTo(at() + 1);
   };
   const cats = $("#ogCats");
@@ -3768,17 +3787,16 @@ function wireOrganize(f){
     const b = (ev.target && ev.target.closest)? ev.target.closest("[data-jump]") : null;
     if(b) goTo(Number(b.dataset.jump));
   };
-  const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> flowGoStep("draft");
+  const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> backToDraft();
+  const bk = $("#btnCloseOrg"); if(bk) bk.onclick = ()=> backToDraft();
 }
 function wireStep(step, f){
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
-  // 读材料 / 归类这两步：时钟已经在跑（从开始作答起算），把控件与剩余时间接上
-  if(step === "read" || step === "organize") wireTimeControls();
+  if(step === "read") wireTimeControls();
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
-  const nextBtn = $("#btnFlowNext"); if(nextBtn) nextBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.min(FLOW_STEPS.length-1, FLOW_STEPS.indexOf(step)+1)]);
   if(step === "read"){
     wireMarks(false);
-    const bo = $("#btnToOrganize"); if(bo) bo.onclick = ()=> flowGoStep("organize");
+    const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> flowGoStep("draft");
     const pp = $("#popPick");
     if(pp) pp.onclick = ()=>{
       const pop = $("#markPop"); if(!pop) return;
@@ -3793,12 +3811,9 @@ function wireStep(step, f){
     };
       wireCardDrawer(false);   // 读材料步：看卡不计次（计次只属作答阶段）
   }
-  if(step === "organize" && f) wireOrganize(f);
-  if(step === "draft") wireDraft(f);
-  if(step === "revise" && f) wireDraft(f);
-  if(step === "distill"){
-    wireExperiences();
-    const done = $("#btnFlowDone"); if(done) done.onclick = ()=>{ closeActiveFlow("distill-done"); banner("本次练习完成，经验已入库。"); renderStart(); };
+  if(step === "draft" || step === "revise"){
+    if(f && f.orgOpen) wireOrganize(f);   // 归类面板打开时，这一屏就是它（没有作答区可接）
+    else wireDraft(f);
   }
   if(step === "review"){
     const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
@@ -3915,9 +3930,9 @@ async function submitAnswer(){
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
     const fullMark = pts && pts.got === pts.max && !(g.weaknesses||[]).length;
     setTimeout(()=>{
-      _lastDistilled = [];   // 派发前置空：distill 步绝不能把上一题的旧经验标成「本次新提炼」
+      _lastDistilled = [];   // 派发前置空：提炼结果绝不能把上一题的旧经验标成「本次新提炼」
       if(fullMark) return;
-      distillExperience(mod, sub, g, q).catch(()=>{ _lastDistilled = []; });   // 提炼失败也置空
+      distillExperience(mod, sub, g, q).then(paintExpLine).catch(()=>{ _lastDistilled = []; });   // 提炼失败也置空
     }, 0);
   }catch(e){
     clearInterval(tick);
@@ -4058,7 +4073,16 @@ function answerReviewHtml(g, answer){
   });
   return `<div class="sec-title" style="margin-top:16px">我的答案</div>` + head + `<div class="answerreview">${body}</div>`;
 }
-function gradeHtml(g, total, inFlow){
+/* 提炼结果就地补进批改页那一行：经验闭环的最后一步是「回执」，不再单占一屏（2026-10-09） */
+function paintExpLine(){
+  const el = $("#expLine"); if(!el) return;
+  const n = (_lastDistilled || []).length;
+  el.innerHTML = n? `这次提炼了 ${n} 条经验（<button class="linkbtn" id="btnGoExp">去画像里看</button>）` : "";
+  const b = $("#btnGoExp");
+  if(b) b.onclick = ()=>{ openModal("modalProfile"); profGo("exp"); };
+}
+function gradeHtml(g, total){
+  // 批改是链子的最后一步（沉淀已并进这一页）：主行动交回「智能推送下一题」
   const dims = MODULES[current.module].dims;
   const pts = pointsOf(g.hits);
   // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
@@ -4090,6 +4114,8 @@ function gradeHtml(g, total, inFlow){
     if(ec.fixed.length) bits.push(`「${ec.fixed.join("」「")}」这次没再犯`);
     html += `<div class="hint" style="margin-top:10px">沉淀的错因：${esc(bits.join("；"))}。</div>`;
   }
+  // 提炼是批改之后异步跑的：跑完就地补一行（见 paintExpLine），不让用户为了看「这次提炼了什么」再走一屏
+  html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div>`;
   if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
   // 优点收成一句而不是一排小牌：它不是这一页的结论，正面的东西点到就够
   const goods = (g.strengths||[]).filter(Boolean);
@@ -4101,7 +4127,7 @@ function gradeHtml(g, total, inFlow){
   for(const d of dims){ const v=Number(g.scores[d])||0; const pct=Math.round(v/20*100);
     html += `<div class="barline"><span class="bn">${d}</span><span class="bt"><i class="${pct<60?"lo":""}" style="width:${pct}%"></i></span><span class="bv">${v}/20</span></div>`; }
   html += `</div></div></details>`;
-  const nextCls = inFlow ? "" : ` class="primary big"`;
+  const nextCls = ` class="primary big"`;
   html += `<div class="nextrow">
       <button${nextCls} id="btnNext">智能推送下一题</button>
       <button id="btnRetry">同模块再来一道</button>

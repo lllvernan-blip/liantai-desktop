@@ -190,6 +190,14 @@ ok(el("#docBody").innerHTML.indexOf("漏掉的采分点") < 0 && el("#docBody").
    "批改页: 漏答清单已下线（漏了哪几点交给范文与点评，标红只说自己的卷面）");
 ok(el("#docBody").innerHTML.indexOf("全部采分点对照") < 0 && el("#docBody").innerHTML.indexOf("先改这几条") < 0,
    "批改页: 丢分清单与全量对照表都已下线");
+/* 提炼（原「沉淀」步）结果就地补进批改页：它是异步跑的，跑完才填这一行 */
+ok(el("#docBody").innerHTML.indexOf('id="expLine"') >= 0, "批改页: 留出「这次提炼了 N 条经验」的位置");
+_lastDistilled = [{ type:"错因", title:"把反映当做法", body:"材料里的第三方反映不是做法。" }];
+paintExpLine();
+ok(el("#expLine").innerHTML.indexOf("这次提炼了 1 条经验") >= 0 && el("#expLine").innerHTML.indexOf("btnGoExp") >= 0,
+   "批改页: 提炼结果就地补一行，并给去画像的入口");
+_lastDistilled = []; paintExpLine();
+ok(el("#expLine").innerHTML === "", "批改页: 这次没提炼出经验就不留空行");
 /* 序号小标题不算作答：它后面还有内容时永不标红（红是给「你写的这句没分」的） */
 ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:4,status:"满分",evidence:"答到：「正文内容」"}] }, "一、开头小标题。正文内容到这里。").indexOf("asent miss") < 0,
    "逐句标注: 序号小标题不标红（它是这条的题头，分落在后面的正文上）");
@@ -480,8 +488,8 @@ ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
   return code;
 })() === "NO_MODEL", "没有模型时: 直接报 NO_MODEL，不兜底成某个写死的名字");
 
-/* 8.5 科目分叉：申论走七步链（读材料→找点→…→沉淀），综应A 走两阶段（学习卡 → 作答 → 批改） */
-ok(usesFlowChain("sl.guina") && usesFlowChain("sl.guanche"), "分叉: 申论走七步链");
+/* 8.5 科目分叉：申论走三步链（学习卡 → 读材料·找点 → 一稿 → 批改），综应A 走两阶段（学习卡 → 作答 → 批改） */
+ok(usesFlowChain("sl.guina") && usesFlowChain("sl.guanche"), "分叉: 申论走训练链");
 ok(!usesFlowChain("zy.gongwen") && !usesFlowChain("zy.guina"), "分叉: 综应A 走两阶段");
 saveNote("sl.guina","概括原因","申论要点一：先找动词");
 ok(getNote("sl.guina","概括原因") === "申论要点一：先找动词" && getNote("sl.guina","概括做法") === "", "笔记: 按模块+子类型键存取，不串味");
@@ -489,26 +497,41 @@ state.history = [{ module:"sl.guina", subtype:"概括原因", cardPeeks:2, grade
 current = { module:"sl.guina", subtype:"概括原因", question:{ background:"阶段题。第二句！", requirements:"不超过250字。" }, cardPeeks:0,
             studyCard:{ title:"概括原因·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架文本" } };
 renderQuestion();
-ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "申论七步链: 步骤条在场，落点是读材料");
-ok(activeFlow() && activeFlow().module === "sl.guina", "申论七步链: 渲染即建链");
+// 链子从学习卡开头：先记知识点再动手（与综应A 同一形），还没进链
+ok(el("#docBody").innerHTML.indexOf("btnChainStart") >= 0 && el("#docBody").innerHTML.indexOf("我已学习，开始读材料") >= 0,
+   "链前学习卡: 打开这道题先给一整页卡");
+ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "链前学习卡: 还没进链，不摆步骤条");
+ok(el("#docBody").innerHTML.indexOf("阶段题。") < 0, "链前学习卡: 不亮题面（先看方法再看题）");
+ok(activeFlow() && activeFlow().module === "sl.guina", "训练链: 渲染即建链");
+ok(activeFlow().cardSeen === false, "链前学习卡: 新链记着「还没看过卡」");
+el("#btnChainStart").onclick();
+ok(activeFlow().cardSeen === true, "链前学习卡: 点过就记下来，这条链不再重复拦");
+ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "训练链: 步骤条在场，落点是读材料");
 ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0, "读材料: 题目与材料同屏（找点合并后材料按句分段）");
-// 学习卡不再内嵌在纸面里：收成常驻浮标 + 抽屉（抽屉那几条断言在下面），要点是材料不被顶出首屏
-ok(el("#docBody").innerHTML.indexOf("看学习卡") >= 0 && el("#docBody").innerHTML.indexOf("btnCard") > el("#docBody").innerHTML.indexOf("materialBox"),
-   "读材料: 学习卡收成浮标，正文（材料）在前、卡片不占位");
+// 学习卡浮标挂在纸面之外：纸面里每个直接子元素都带入场动画，动画填充的 transform 会变成 fixed 的包含块
+ok(el("#fabSlot").innerHTML.indexOf("看学习卡") >= 0 && el("#docBody").innerHTML.indexOf("看学习卡") < 0,
+   "读材料: 学习卡浮标在纸面之外（否则滑到底才看得见）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "读材料: 笔记不再摊在纸面上（收进抽屉）");
-ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: read 步不摆 Next（靠「开始归类」推进）");
-flowGoStep("organize");
-ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: organize 步不摆 Next（主行动自带推进，同一个意思不写两遍）");
-flowGoStep("read");
+ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: 不再挂 Next（每一步自带主行动）");
+ok(flowGoStep("organize") === false, "归类: 不再占一步（降级成一稿页上的入口）");
 ok(el("#docBody").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存");
 ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
-ok(el("#docBody").innerHTML.indexOf("btnCard") >= 0 && el("#docBody").innerHTML.indexOf("cardDrawer") >= 0,
+ok(el("#fabSlot").innerHTML.indexOf("btnCard") >= 0 && el("#fabSlot").innerHTML.indexOf("cardDrawer") >= 0,
    "读材料: 学习卡收成常驻浮标 + 抽屉（不再压在材料上方）");
-ok(distillPanelHtml().indexOf("btnFlowDone") >= 0, "沉淀: 有「完成，回首页」收尾出口");
 flowGoStep("draft");
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷在场");
-ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: draft 步不摆 Next（靠「提交阅卷」推进）");
-ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡浮标在场");
+ok(el("#docBody").innerHTML.indexOf("先归类再写") >= 0, "一稿: 归类是这一页上的入口");
+ok(el("#docBody").innerHTML.indexOf('id="btnOpenOrg"') > el("#docBody").innerHTML.indexOf("作答区"),
+   "一稿: 归类入口坐在「作答区」那一行的右侧（不孤零零占一行）");
+el("#btnOpenOrg").onclick();
+ok(activeFlow().orgOpen === true && el("#docBody").innerHTML.indexOf("回到一稿") >= 0 && el("#docBody").innerHTML.indexOf("提交阅卷") < 0,
+   "归类入口: 点它才展开归类面板（链上不再有这一步）");
+el("#btnFlowPrev").onclick();   // 从归类面板走开去读材料
+el("#btnToDraft").onclick();    // 再回来
+ok(activeFlow().orgOpen === false && el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("回到一稿") < 0,
+   "归类入口: 走开再回到一稿，面板自动收起（不揣着上一屏的状态回来）");
+ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: 一稿不摆 Next（靠「提交阅卷」推进）");
+ok(el("#fabSlot").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡浮标在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
 ok(el("#drawerBody").innerHTML.indexOf("解题要点") >= 0, "抽屉: 卡片原文只在抽屉里");
@@ -532,7 +555,9 @@ callLLM = async (sys, user)=>{ genCallsCard++; capCard = { sys, user }; return {
 await loadQuestion("sl.guina","概括问题");
 ok(genCallsCard === 1 && current && current.studyCard === SL_STUDY_CARDS["sl.guina"], "申论学习卡: AI 未带卡时回退内置资料库卡");
 ok(JSON.parse(capCard.user).library && JSON.parse(capCard.user).library.points.length >= 5, "申论学习卡: 资料库随出题注入（library 字段在场）");
-ok(el("#docBody").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 读材料步给浮标入口");
+ok(el("#docBody").innerHTML.indexOf("我已学习，开始读材料") >= 0, "申论学习卡: 开链先摆一整页卡（与综应A 同一形）");
+el("#btnChainStart").onclick();
+ok(el("#fabSlot").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 读材料步给浮标入口（挂在纸面之外，一开始就看得见）");
 el("#btnCard").onclick();
 ok(el("#cardDrawerTitle").textContent.indexOf("归纳概括") >= 0 && el("#drawerBody").innerHTML.indexOf("btnNewCard") >= 0,
    "申论学习卡: 抽屉里写清是哪张卡，且照综应口径可「换一张」");
@@ -552,7 +577,7 @@ current = { module:"zy.gongwen", subtype:"通知", question:{ background:"综应
             studyCard:{ title:"通知·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架" } };
 renderQuestion();
 ok(!state.flows.some(x=>x.sig === qSig(current.question)) && (activeFlow() === null || activeFlow().module === "sl.guina"), "综应A: 渲染不建训练链");
-ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A: 不渲染七步步骤条");
+ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A: 不渲染步骤条（它走学习卡 → 作答 → 批改）");
 ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A: 学习卡阶段有「开始作答」入口");
 ok(el("#docBody").innerHTML.indexOf("综应要点：格式三件套") >= 0, "综应A: 学习卡阶段笔记可见");
 ok(el("#docBody").innerHTML.indexOf("上次作答中你翻了 2 次卡") >= 0, "综应A: 翻卡熟悉度提示照旧");
@@ -574,7 +599,7 @@ ok(cardHtml({points:[],pitfalls:[],templates:""}).indexOf("这类题长什么样
    "学习卡: 旧卡没有 example 也不渲染空栏目");
 el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("背景材料") >= 0, "综应A: 作答页 = 材料 + 作答区");
-ok(el("#docBody").innerHTML.indexOf("翻学习卡") >= 0, "综应A: 作答页翻卡浮标在场");
+ok(el("#fabSlot").innerHTML.indexOf("翻学习卡") >= 0, "综应A: 作答页翻卡浮标在场（与申论同一处，作答时随时能翻）");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "综应A: 翻卡计次照旧（照旧参与调度）");
 el("#btnDrawerClose").onclick();
@@ -771,9 +796,9 @@ ok(MODULES["sl.zuowen"].dims.join("/") === "立意准确/结构完整/论证充�
    "申发论述: 维度是立意/结构/论证/语言/结合材料 -> " + MODULES["sl.zuowen"].dims.join("/"));
 ok((MODULES["sl.zuowen"].subtypes||[]).length >= 2, "申发论述: 有细分 -> " + (MODULES["sl.zuowen"].subtypes||[]).join("/"));
 ok(usesFlowChain("sl.zuowen") && MODULES["sl.zuowen"].dims.indexOf("文种适配") < 0,
-   "申发论述: 归申论、走七步链，不套公文那套维度");
+   "申发论述: 归申论、走训练链，不套公文那套维度");
 
-/* 11. 七步训练链：状态机 / 找点 / 归类 / 提纲进批改 / 迁移 / 裁剪 */
+/* 11. 训练链：状态机 / 找点 / 归类 / 提纲进批改 / 迁移 / 裁剪 */
 /* ① 同题复用 / 换题关闭且草稿保留 */
 const fqA = { background:"流程题甲", requirements:"要求甲" };
 saveDraft(qSig(fqA), "甲还没交的草稿");
@@ -787,10 +812,24 @@ ok(loadDraft(qSig(fqA)) === "甲还没交的草稿", "flow: 收口后未提交�
 ok(fB.sig === qSig(fqB) && fB.step === "read" && fB.subject === "zy", "flow: 新链从读材料开始并带科目");
 /* ③ 无 attempts 进 review 被拒 */
 ok(flowGoStep("review") === false && activeFlow().step === "read", "批改门槛: 无批改结果进批改步被拒");
+/* ② 链子只剩三步：归类降级成一稿页上的入口、沉淀并进批改页 */
+ok(FLOW_STEPS.join(",") === "read,draft,review" && flowGoStep("distill") === false && flowGoStep("organize") === false,
+   "训练链: 只剩读材料 / 一稿 / 批改三步（归类和沉淀都不再占一步）");
+const migFlows = sanitizeFlows([
+  { id:"f1", question:{ background:"x", requirements:"r" }, step:"organize" },
+  { id:"f2", question:{ background:"x", requirements:"r" }, step:"distill" },
+  { id:"f3", question:{ background:"x", requirements:"r" }, step:"read" },
+]);
+ok(migFlows[0].step === "draft" && migFlows[1].step === "review" && migFlows[2].step === "read",
+   "迁移: 停在归类 / 沉淀的老链落到一稿 / 批改，不整条消失");
+ok(migFlows.every(f=> f.cardSeen === true), "迁移: 老链算「看过学习卡」，不让进行中的题被一张卡拦住");
+ok(sanitizeFlows([{ id:"f4", question:{ background:"x", requirements:"r" }, step:"乱写的" }]).length === 0,
+   "迁移: 真非法的 step 照样丢弃");
+
 /* ② syncRail 三态 */
-const rail = syncRail({ step:"organize" });
-ok(rail.map(x=>x.state).join(",") === "done,active,pending,pending,pending", "步骤条: i<cur done / = active / > pending（找点并入读材料，五步）");
-ok(rail[1].label === "归类" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
+const rail = syncRail({ step:"draft" });
+ok(rail.map(x=>x.state).join(",") === "done,active,pending", "步骤条: i<cur done / = active / > pending（三步）");
+ok(rail[1].label === "一稿" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
 
 /* ④ 句子表切分与选区偏移 */
 const sq2 = { background:"第一句。第二句！\n\n第二段只有一句？", requirements:"r" };
@@ -918,6 +957,7 @@ state.history = []; state.experiences = []; _lastDistilled = [];
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"回改题材料。", requirements:"不超过250字。" }, cardPeeks:0 };
 renderQuestion();
 const fR = activeFlow();
+fR.cardSeen = true;   // 测试直接落在链中段：学习卡那一屏另有断言
 flowGoStep("draft");
 el("#answer").value = "第一稿的作答内容，字数肯定超过二十个字了，没有问题。";
 el("#btnSubmit").disabled = false;
@@ -1011,7 +1051,7 @@ callLLM = realCall12;
 state.flows = []; _flowId = null; current = null;
 const rq12 = { background:"恢复题材料。", requirements:"r" };
 const rFlow = ensureFlow("sl.guina", "概括问题", rq12, []);
-rFlow.step = "read";
+rFlow.step = "read"; rFlow.cardSeen = true;
 renderStart();
 ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") >= 0, "恢复现场: 有未关闭的链时首页给入口");
 ok(el("#docBody").innerHTML.indexOf("materialBox") < 0, "恢复现场: 不自动跳进链里");
@@ -1033,7 +1073,7 @@ ok(curBlock(orgHtml).indexOf("甲点") >= 0 && curBlock(orgHtml).indexOf("乙点
 ok(orgHtml.indexOf("已归 0 / 2 个点") >= 0, "归类: 报出已归进度");
 ok(orgHtml.indexOf("还没有类") >= 0 && orgHtml.indexOf("data-og=") < 0, "归类: 一个类都没建时给明确空态");
 ok(orgHtml.indexOf('data-jump="1"') >= 0, "归类: 已找的点收在折叠清单里，能跳回去重归");
-ok(organizePanelHtml({ selections:[], groups:[] }).indexOf("进一稿（提纲为空）") >= 0, "归类: 没有找到点时给直接进一稿的出口");
+ok(organizePanelHtml({ selections:[], groups:[] }).indexOf("回到一稿") >= 0, "归类: 没有找到点时给回到一稿的出口");
 // 选中态跟着当前点走
 const orgHtml1 = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"政务服务效能",facts:[0]}], orgIdx:0 });
 ok(orgHtml1.indexOf('class="ogcat on"') >= 0 && orgHtml1.indexOf("政务服务效能") >= 0, "归类: 已归入的类显示为选中");
@@ -1045,8 +1085,15 @@ ok((orgHtml2.match(/class="ogcat on"/g) || []).length === 2 && orgHtml2.indexOf(
    "归类: 一个点能同时归进两类，且保留划选/整句标记");
 ok(orgHtml2.indexOf("已归 1 / 1 个点") >= 0, "归类: 归好后进度跟上");
 // 最后一个点的主动作是生成提纲，不是「下一个点」
-ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[] }).indexOf("生成提纲，进入一稿") >= 0,
-   "归类: 走到最后一个点就是生成提纲");
+ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[] }).indexOf("回到一稿") >= 0,
+   "归类: 走到最后一个点就是回到一稿（它不再是一步）");
+// 归类是从一稿页上打开的工具：走到一半也得能收起来（末点的主动作就是回到一稿，那里不再重复一个链接）
+const orgMid = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[], orgIdx:0 });
+ok(orgMid.indexOf("btnCloseOrg") >= 0 && (orgMid.match(/回到一稿/g) || []).length === 1,
+   "归类: 没走到末点时角落里有「回到一稿」，随时能收起来");
+const orgEnd = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[], orgIdx:1 });
+ok(orgEnd.indexOf("btnCloseOrg") < 0 && (orgEnd.match(/回到一稿/g) || []).length === 1,
+   "归类: 走到末点时这个去处只写一遍（主动作已经是它）");
 ok(orgHtml.indexOf("下一个点") >= 0, "归类: 没走完时给「下一个点」");
 // 归属反查表：一个点被哪几类收着
 const sel3 = [{text:"甲点",free:true},{text:"乙点"}];
@@ -1805,10 +1852,10 @@ current = { module:"sl.guina", subtype:"概括问题", question:{ background:"b"
 const gExec = { hits:[{ point:"p", score:20, awarded:20, status:"满分", evidence:"" }], scores:{}, strengths:[], weaknesses:[], comment:"c" };
 const chkExec = applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"漏写落款", status:"again" }] }, 1700000002000);
 lastGrade = { g:gExec, total:100, expCheck:chkExec };
-const execHtml = gradeHtml(gExec, 100, false);
+const execHtml = gradeHtml(gExec, 100);
 ok(execHtml.indexOf("沉淀的错因：") >= 0 && execHtml.indexOf("「漏写落款」又犯了") >= 0, "批改页: 漏写落款又犯了——回执落到页面上");
 lastGrade = { g:gExec, total:100, expCheck:null };
-ok(gradeHtml(gExec, 100, false).indexOf("沉淀的错因：") < 0, "批改页: 没有回执就不摆空行");
+ok(gradeHtml(gExec, 100).indexOf("沉淀的错因：") < 0, "批改页: 没有回执就不摆空行");
 lastGrade = null; current = null;
 
 /* 16.4 快判辨析点：自由文本同类归并 → 按类统计 → 下次出题优先考错得多的那几类 */
@@ -1912,7 +1959,7 @@ state.history = [ { ts:1, module:"sl.guina", subtype:"概括问题", grade:{ tot
 const gTag = { hits: state.history[0].hits, scores:{}, strengths:[], weaknesses:[], comment:"c" };
 lastGrade = { g:gTag, total:50, expCheck:null };
 // 批改页不再单独列丢分处（主体换成逐句批注的答卷），错因类型只在画像的「常错类型」里体现
-const tagHtml2 = gradeHtml(gTag, 50, false);
+const tagHtml2 = gradeHtml(gTag, 50);
 ok(tagHtml2.indexOf("kindtag") < 0 && tagHtml2.indexOf("漏掉的采分点") < 0,
    "错因标签: 批改页不单列错因（kind 只在画像的「常错类型」里统计）");
 ok(gradeTagOf({kind:"格式"}) === "格式" && gradeTagOf({kind:"-"}) === "" && gradeTagOf({}) === "",
@@ -2045,6 +2092,7 @@ state.settings.timeLimit = 0;
 localStorage.clear();
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"材".repeat(120), requirements:"不超过250字。" }, keyPoints:[], cardPeeks:0 };
 renderQuestion();
+activeFlow().cardSeen = true;   // 这一段量的是限时，不重复走链前的学习卡
 flowGoStep("read");
 ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('placeholder="不限时"') >= 0 && dtHtml().indexOf('value=""') >= 0,
    "限时: 读材料步就有控件（时钟从开始作答起算），默认留空 = 不限时");
@@ -2054,9 +2102,9 @@ ok(el("#timeLeft").textContent === "", "限时: 不限时不显示任何时间")
 el("#inpLimit").value = "30"; el("#inpLimit").onchange();
 ok(curLimitMin() === 30 && curLimitFrom() > 0, "限时: 填 30 分钟后起算");
 const tlAnchor = curLimitFrom();
-flowGoStep("organize"); flowGoStep("draft");
+flowGoStep("draft");
 ok(curLimitFrom() === tlAnchor && activeFlow().limitFrom === tlAnchor,
-   "限时: 读材料 → 归类 → 一稿 用的是同一个时钟（切步不重置）");
+   "限时: 读材料 → 一稿 用的是同一个时钟（切步不重置）");
 ok(activeFlow().limitMin === 30, "限时: 时长也在链上（跨步与刷新都不丢）");
 ok(state.settings.timeLimit === 30, "限时: 选择被记住，下一题按同样时长起");
 ok(/^剩余 (30:0\d|29:5\d)$/.test(el("#timeLeft").textContent), "限时: 立刻显示剩余 -> " + el("#timeLeft").textContent);

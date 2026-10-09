@@ -57,7 +57,8 @@ function PRELUDE() {
     const f = {
       id: "flow_demo", subject: "sl", module: "sl.guina", subtype: "概括问题", sig,
       question: q, keyPoints: [], createdAt: Date.now() - 600e3, closedAt: null, step,
-      attempts: step === "draft" || step === "review" || step === "distill" ? [{ ts: Date.now() - 300e3, answer: "一、优化办事流程。把分散在各部门的审批事项集中到一窗受理。\n二、上线好差评系统，评价结果与窗口考核挂钩。\n三、推进数据共享，减少重复提交。\n四、加强宣传引导。", outline: "要点1：一窗受理", mode: "draft" }] : [],
+      cardSeen: true, orgOpen: false,   // 场景默认落在链中段；链前学习卡那一屏另有一个场景
+      attempts: step === "draft" || step === "review" ? [{ ts: Date.now() - 300e3, answer: "一、优化办事流程。把分散在各部门的审批事项集中到一窗受理。\n二、上线好差评系统，评价结果与窗口考核挂钩。\n三、推进数据共享，减少重复提交。\n四、加强宣传引导。", outline: "要点1：一窗受理", mode: "draft" }] : [],
       selections: sels,
       groups: [{ name: "优化办事流程", facts: [0] }, { name: "强化监督评价", facts: [1] }, { name: "推进数据共享", facts: [2] }],
       drafts: [],
@@ -124,13 +125,15 @@ function s12b_pd_landing_nokey() { __reset({ key: false }); enterPD(); }
 function s03_landing() { __reset({ history: true }); renderModuleLanding("sl.guina"); }
 function s04_zy_card() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 0, phase: "card" }; activeModule = "zy.guina"; renderQuestion(); }
 function s05_zy_answer() { __reset(); current = { module: "zy.guina", subtype: "概括做法", question: __q, keyPoints: [], studyCard: __card, cardPeeks: 1, phase: "answer" }; activeModule = "zy.guina"; renderQuestion(); }
+// 链子从学习卡开头（与综应A 同一形）：这一屏还没进链，所以另起一个场景
+function s04b_flow_card() { __reset({ history: true }); const f = __flow("read"); f.cardSeen = false; renderQuestion(); }
 function s06_flow_read() { __reset({ history: true }); __flow("read"); renderQuestion(); }
 function s06b_flow_read_drawer() { __reset({ history: true }); __flow("read"); renderQuestion(); document.querySelector("#btnCard").onclick(); }
-function s07_flow_organize() { __reset({ history: true }); __flow("organize"); renderQuestion(); }
-function s07b_flow_organize_done() { __reset({ history: true }); const f = __flow("organize"); f.orgIdx = 2; renderQuestion(); }
+// 归类降级成一稿页上的入口：这两屏都是「一稿 + 归类面板打开」
+function s07_flow_organize() { __reset({ history: true }); const f = __flow("draft"); f.orgOpen = true; renderQuestion(); }
+function s07b_flow_organize_done() { __reset({ history: true }); const f = __flow("draft"); f.orgOpen = true; f.orgIdx = 2; renderQuestion(); }
 function s08_flow_draft() { __reset({ history: true }); __flow("draft"); renderQuestion(); }
 function s09_flow_review() { __reset({ history: true, exp: true }); const f = __flow("review"); lastGrade = { g: __grade(), total: 67, expCheck: { again: ["漏写落款文号"], fixed: [], at: Date.now() }, answer: (f.attempts[0]||{}).answer || "" }; renderQuestion(); }
-function s10_flow_distill() { __reset({ history: true, exp: true }); __flow("distill"); _lastDistilled = [{ id: "d1", type: "失分点", title: "把企业反映当做法", body: "材料里的第三方反映不是该主体的做法，概括时不能算作措施。", scope: "" }]; renderQuestion(); }
 function s11_profile() {
   __reset({ history: true, exp: true });
   // 种一条「复犯过」的错因：画像里要看得见经验状态那一行（已改掉/复犯/待验证）
@@ -306,13 +309,13 @@ const SCENES = [
   ["03-模块落地页", s03_landing, true],
   ["04-综应A-学习卡", s04_zy_card, true],
   ["05-综应A-作答", s05_zy_answer, true],
+  ["04b-申论-链前学习卡", s04b_flow_card, true],
   ["06-申论-读材料", s06_flow_read, true],
   ["06b-申论-读材料-学习卡抽屉", s06b_flow_read_drawer, true],
   ["07-申论-归类", s07_flow_organize, true],
   ["07b-申论-归类-走完", s07b_flow_organize_done, true],
   ["08-申论-一稿", s08_flow_draft, true],
   ["09-申论-批改", s09_flow_review, true],
-  ["10-申论-沉淀", s10_flow_distill, true],
   ["11-画像", s11_profile, false],
   ["11b-画像-模块详情", s11b_profile_module, false],
   ["11c-画像-练习记录", s11c_profile_hist, false],
