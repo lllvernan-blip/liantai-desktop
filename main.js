@@ -179,24 +179,26 @@ function handleRequest(req, res) {
 /* 更新接口（供页面调用）                                              */
 /* ------------------------------------------------------------------ */
 
-/* 只有 GET /status 是免头的（跨站也读不到响应，没有 CORS 头）；
+/* GET /status 只读不动作，不需要 x-liantai 头；
    其余动作一律要 x-liantai 自定义头——跨站请求会先触发 OPTIONS 预检，
    而本服务从不回 CORS 头，预检不过就发不出来。防线不靠「端口没人知道」。
-   再叠一道 Origin 校验：同源页面发的 POST 带 Origin，与本机源不符就拒（防 DNS rebinding / 代理篡改）。 */
+   所有路由（含 /status）都过 Origin 校验：与本机源不符就拒。
+   跨站请求必带 Origin，DNS rebinding 下「跨站也读不到响应」不成立，
+   只有显式校验 Origin 才真的把外站请求挡在外面。 */
 function handleUpdateRoute(req, res, pathname) {
   const json = (code, body) => send(res, code, JSON.stringify(body), { 'Content-Type': 'application/json; charset=utf-8' });
   const action = pathname.slice('/__update'.length);
-
-  if (req.method === 'GET' && action === '/status') {
-    json(200, update.getStatus());
-    return;
-  }
 
   const expectedOrigin = 'http://' + HOST + ':' + serverPort;
   const origin = req.headers.origin;
   if (origin && origin !== expectedOrigin) {
     log('update-forbidden', 'origin=' + origin + ' ' + req.method + ' ' + pathname);
     json(403, { ok: false, error: 'forbidden' });
+    return;
+  }
+
+  if (req.method === 'GET' && action === '/status') {
+    json(200, update.getStatus());
     return;
   }
 
@@ -369,6 +371,13 @@ function createWindow() {
 
   wc.on('render-process-gone', (_e, details) => {
     log('render-process-gone', 'reason=' + details.reason + ' exitCode=' + details.exitCode);
+    /* 崩溃别留白屏：重载本机页面。连续崩也重载——每次都有日志，查得回来；
+       不重载的话用户只能自己猜着重启。 */
+    if (details.reason !== 'clean-exit' && mainWindow && !mainWindow.isDestroyed()) {
+      try { wc.loadURL('http://' + HOST + ':' + serverPort + '/index.html').catch((err) => log('reload-after-crash-failed', err && err.message)); } catch (err) {
+        log('reload-after-crash-failed', (err && err.message) || String(err));
+      }
+    }
   });
 
   wc.on('preload-error', (_e, preloadPath, error) => {
@@ -392,6 +401,14 @@ function createWindow() {
   wc.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+  /* setWindowOpenHandler 只拦 window.open，拦不住窗口内 location 跳转 / 表单提交——
+     补 will-navigate：本机自己的页面放行，其余一律取消，http(s) 转交系统浏览器。 */
+  wc.on('will-navigate', (e, url) => {
+    if (typeof url === 'string' && url.indexOf('http://' + HOST + ':') === 0) return;
+    e.preventDefault();
+    log('will-navigate-blocked', url);
+    if (/^https?:/i.test(url)) shell.openExternal(url);
   });
 
   const target = 'http://' + HOST + ':' + serverPort + '/index.html';

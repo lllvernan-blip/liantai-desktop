@@ -581,7 +581,9 @@ if ! mv "$TARGET" "$BAK" 2>>"$LOG"; then
   note "更新放弃：没法挪走旧版（多半是权限）"; rm -rf "$WORK"; reopen; exit 1
 fi
 if ! mv "$NEW" "$TARGET" 2>>"$LOG"; then
-  mv "$BAK" "$TARGET" 2>>"$LOG"
+  if ! mv "$BAK" "$TARGET" 2>>"$LOG"; then
+    cp -pR "$BAK" "$TARGET" 2>>"$LOG" && rm -rf "$BAK"   # rename 也失败的最后一道退路：整份拷回
+  fi
   note "更新失败：换入新版没成功，已恢复旧版"
   rm -rf "$WORK"; reopen; exit 1
 fi
@@ -843,11 +845,12 @@ async function macPull(p) {
       res.pipe(out);
     });
     if (p.size && got !== p.size) throw new Error('下载不完整（收到 ' + got + ' 字节，应为 ' + p.size + '）');
-    if (p.digest) {
-      const want = String(p.digest).replace(/^sha256:/i, '').toLowerCase();
-      const gotHex = hash.digest('hex');
-      if (want && want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
-    }
+    /* 未签名链上 sha256 是包内容唯一的防线：发布页不给 digest 就拒收，不许静默跳过——
+       有条件校验等于没有校验。 */
+    const want = String(p.digest || '').replace(/^sha256:/i, '').toLowerCase();
+    if (!want) throw new Error('发布页没给 sha256，包完整性无从校验——拒收（宁可先不更新）');
+    const gotHex = hash.digest('hex');
+    if (want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
     fs.renameSync(part, file);   // 校验过了才改回正名：半截文件不许看起来像“下好了”
   } catch (err) {
     fail = err;

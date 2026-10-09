@@ -214,8 +214,13 @@ function main() {
           "确实只发 mac 的话，加 --create --prerelease：\n" +
           "  npm run release:mac -- --create --prerelease");
     }
+    /* tag 必须钉在出包的那条本地提交上：不带 --target 会默认指向远端默认分支 HEAD，
+       本地没推上去或远端已领先时，tag 与安装包内容脱节。 */
+    const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
+    const headSha = head.status === 0 ? head.stdout.trim() : "";
     const created = gh(["release", "create", tag, "--repo", REPO, "--title", pkg.version,
       "--notes", releaseNotes(),
+      ...(headSha ? ["--target", headSha] : []),
       prerelease ? "--prerelease" : "--latest"]);
     if (created.status !== 0) die("创建 Release 失败（重试；先确认 gh 已登录、tag 没被别的 Release 占用）。");
     console.log("  已创建 Release " + tag + (prerelease ? "（prerelease：不会占用 /releases/latest）" : ""));

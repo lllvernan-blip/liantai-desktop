@@ -9,8 +9,8 @@
  *
  * 做法：把待推提交里变动的文件传成 blob → 组一棵树（base_tree 指向远端那棵树）→
  * 建一个提交 → 挪分支指针。作者、提交者、时间、提交信息全部照抄本地那份，
- * 所以 API 建出来的 commit sha 应当和本地逐字相同；真不一致会明确报出来
- * （内容仍然是对的，只是 sha 不同，这时 git fetch 后再对一次即可）。
+ * 所以 API 建出来的 commit sha 应当和本地逐字相同；blob / 树 / 提交任一 sha 对不上就停手，
+ * 不挪分支指针（sha 是内容寻址，对不上就是内容不同，不是「元数据有别」）。
  *
  * 只推快进：远端分支必须是本地历史的祖先，否则停手让你先合并/变基。
  */
@@ -94,21 +94,18 @@ function main() {
     return;
   }
 
-  // 待推的提交链（从最老的开始）
+  // 待推的提交链（从最老的开始）。封顶 1000：远端不在祖先链上时永远找不到，别把整条历史白走一遍。
   const chain = [];
   let cur = head;
-  while (cur && cur !== remote) {
+  while (cur && cur !== remote && chain.length < 1000) {
     chain.unshift(cur);
     const parents = readCommit(cur).parents;
     cur = parents[0] || "";
   }
-  if (chain.length === 0) {
-    console.error("远端 " + remote.slice(0, 7) + " 不在本地历史里（本地落后了？先 git pull）。");
-    process.exit(1);
-  }
   if (chain.length > 1) console.log("要推 " + chain.length + " 个提交。");
   if (cur !== remote) {
-    console.error("远端 " + remote.slice(0, 7) + " 不是本地历史的祖先 —— 这条只能快进，先合并/变基再来。");
+    console.error("远端 " + remote.slice(0, 7) + " 不在本地 HEAD 的祖先链上——本地落后或两边分叉。");
+    console.error("先对齐再推：能连上 GitHub 就 git pull；连不上就先修网络。这条只能快进。");
     process.exit(1);
   }
 
@@ -171,15 +168,16 @@ function main() {
     last = commit.sha;
   }
 
+  /* blob / 树 / 提交 sha 都是内容寻址：对不上就是远端建出的内容与本地不同。
+     这种提交不许上 main——指针一挪，远端就是一份没人核对过的内容。 */
+  if (shaMismatch) {
+    console.error("\n有 sha 对不上（见上面标 !! 的条目）——远端建出的内容与本地不同，已停手，不挪分支指针。");
+    console.error("多半是网络改写了上传内容。排除后重跑本工具即可（blob 上传幂等，传过的不会重传）。");
+    process.exit(1);
+  }
   api("PATCH", "repos/" + REPO + "/git/refs/heads/" + BRANCH, { sha: last, force: false });
   console.log("\n已推：" + BRANCH + " -> " + last.slice(0, 7) + "  （https://github.com/" + REPO + "）");
-
-  if (shaMismatch) {
-    console.log("\n注意：远端 commit sha 和本地不同（内容一致，只是元数据有别）。本地说一句就能对齐：");
-    console.log("  git fetch origin && git reset --hard origin/" + BRANCH);
-  } else {
-    console.log("本地与远端 sha 完全一致，下一次 git push 也不会打架。");
-  }
+  console.log("本地与远端 sha 完全一致，下一次 git push 也不会打架。");
 }
 
 main();

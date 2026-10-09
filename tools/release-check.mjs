@@ -19,6 +19,7 @@
  * 只读：不打包、不上传、不建 Release、不改任何文件。退出码 0 = 齐了，1 = 缺东西。
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -237,6 +238,26 @@ if (has(macYml)) {
 }
 const macArchs = [...new Set([...dmgs, ...zips].map((n) => (/-([a-z0-9]+)\.(dmg|zip)$/.exec(n) || [])[1]).filter(Boolean))];
 
+/* ---- 字节对账：传上去的安装包与本地是不是同一份字节 ----
+   上传命令的返回码只说明「传了」，不说明「没传坏」。GitHub 给每个资产算 sha256（digest 字段），
+   与本地文件比一次，传输损坏就拦在这里。本机没有对应产物时跳过（这个脚本两边机器都会跑）。 */
+const byteRows = [];
+for (const a of release.assets || []) {
+  if (!/\.(exe|dmg|zip)$/.test(a.name)) continue;
+  const dist = join(root, "dist");
+  const ext = a.name.match(/\.(exe|dmg|zip)$/)[0];
+  const local = existsSync(dist)
+    ? readdirSync(dist).find((n) => n.endsWith(ext) && n.includes(version))
+    : null;
+  const want = a.digest ? String(a.digest).replace(/^sha256:/i, "").toLowerCase() : "";
+  if (!local) { byteRows.push({ name: a.name, ok: true, note: "本机没有对应产物，跳过字节对账" }); continue; }
+  if (!want) { byteRows.push({ name: a.name, ok: true, note: "GitHub 没回 digest，跳过字节对账" }); continue; }
+  const got = createHash("sha256").update(readFileSync(join(dist, local))).digest("hex");
+  const ok = got === want;
+  byteRows.push({ name: a.name, ok, note: ok ? "远端字节 = 本地（sha256）" : "远端 " + want.slice(0, 16) + "… ≠ 本地 " + got.slice(0, 16) + "…" });
+  if (!ok) problems.push(a.name + " 的远端字节与本地产物不一致（传输损坏或传错文件）");
+}
+
 /* ---- 指针位：/releases/latest 指「最新的非 prerelease」，Windows 自动更新读它 ---- */
 const releases = (await fetchJson("/repos/" + REPO + "/releases?per_page=30")) || [];
 const stable = releases.filter((r) => !r.prerelease && !r.draft);
@@ -261,6 +282,7 @@ pointerRows.push({ name: "本版是 prerelease？", ok: true, note: release.prer
 list("Windows（NSIS 安装版）", winRows);
 list("macOS（dmg + zip）", macRows);
 list("自动更新指针", pointerRows);
+list("字节对账（本机有产物才比）", byteRows);
 
 problems.push(...localProblems);
 const missingWin = winRows.filter((r) => !r.ok).length;

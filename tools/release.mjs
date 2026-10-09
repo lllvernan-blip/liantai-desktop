@@ -91,7 +91,10 @@ if (reconcileOnly) {
   if (status !== 0) {
     console.error("\n打包报错了（多半是组件下载超时：本机到 github.com 时通时断）。");
     console.error("先跑一次 tools/release.mjs 重试；还不行就查 %LOCALAPPDATA%\\electron-builder\\Cache 少了哪个组件。");
-    console.error("下面先按现有产物对账（补不齐就停）。");
+    /* 打包失败就停手：往下走会把空 Release 建出来，占住 /releases/latest 而没有 latest.yml，
+       所有存量 Windows 用户的检查更新立刻 404。产物完整、只是想补传对账时，走 --reconcile-only。 */
+    console.error("已停手，不建 Release。");
+    process.exit(1);
   }
 }
 
@@ -258,9 +261,14 @@ function ensureRelease() {
     return true;
   }
   const notes = releaseNotes();
+  /* tag 必须钉在出包的那条本地提交上：不带 --target 会默认指向远端默认分支 HEAD，
+     本地没推上去或远端已领先时，tag 与安装包内容脱节。 */
+  const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
+  const headSha = head.status === 0 ? head.stdout.trim() : "";
   const created = spawnSync(
     "gh",
-    ["release", "create", tag, "--repo", REPO, "--title", pkg.version, "--notes", notes],
+    ["release", "create", tag, "--repo", REPO, "--title", pkg.version, "--notes", notes,
+      ...(headSha ? ["--target", headSha] : [])],
     { cwd: root, stdio: "inherit" }
   );
   if (created.status !== 0) {
