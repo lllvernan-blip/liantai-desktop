@@ -1928,19 +1928,18 @@ function renderHeader(){
   const pfx = (_view === "home")? "练习台"
             : ((pdActive || _view === "pd")? "快判" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
-  if(_view === "home"){  // 首页不属于任何科目：抬头不挂科目名、也不挂模块名（原来写着「综应A · 综合推送」，看着像已经进了综应）
-    $("#modLabel").textContent = "练习台 · 首页";
+  if(_view === "home"){  // 首页不属于任何科目：文号已带着「练习台」，灰字不再重复，只报「首页」
+    $("#modLabel").textContent = "首页";
     return;
   }
-  if(pdActive){   // 判别轨不是科目：抬头不挂科目名，只报当前形式
-    // 落地页没有具体形式，抬头就写「快判」；写成「快判 · 快判训练」是自己跟自己重复
+  if(pdActive){   // 判别轨：「快判」由页签和文号说，灰字只报当前形式；落地页还没有形式名，灰字就空着
     const fname = (pdForm && PD_FORMS[pdForm])? PD_FORMS[pdForm].name : "";
-    $("#modLabel").textContent = fname? "快判 · " + fname : "快判";
+    $("#modLabel").textContent = fname;
     return;
   }
-  const subj = SUBJECTS[curSubject()];
   const mn = (activeModule !== "__all" && MODULES[activeModule])? MODULES[activeModule].name : "综合推送";
-  $("#modLabel").textContent = subj.name + " · " + mn + ((current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
+  // 灰字报「模块 · 子类型」；科目名不进这行——科目按钮亮着、文号也带着科目名，再写第三遍是凑数
+  $("#modLabel").textContent = mn + ((current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
 }
 function renderTabs(){
   // 页签 = 入口，不是开关：点开先看模块落地页（子类型/底子），点「开始练习」才真正调 AI
@@ -2149,7 +2148,7 @@ function renderHome(){
 function renderStart(){
   _view = "start";
   reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
-  activeModule = null; renderHeader();   // 起始页抬头如实报「科目 · 综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
+  activeModule = null; renderHeader();   // 起始页灰字如实报「综合推送」，不再挂着上次练的模块名（页面下方写的不是它）
   tabActiveKey = null; renderTabs();   // 起始页 = 综合推送：不该有任何题型页签高亮
   docBody.innerHTML = startBoxHtml(resumableFlow());   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
   paintFab();
@@ -2318,7 +2317,7 @@ function renderModuleLanding(k){
   const m = MODULES[k];
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module===k) n++;
-  // 标题不写模块名：抬头小字已经报了「科目 · 模块」，同一个词在 40px 内写两遍没必要。
+  // 标题不写模块名：抬头小字已经报了模块，同一个词在 40px 内写两遍没必要。
   // 留在纸上的第一行是 note——它是「这是什么」，不是重复。
   // note 有时就是子类型名单的文字版（归纳概括：「概括问题 / 原因 / 影响 / 做法 / 特点」＝下面那排胶囊），
   // 同一个名单写两遍也是废话：这种就不写；只有真在描述「这是什么」的（公文写作 / 提出对策）才留一行。
@@ -2344,7 +2343,7 @@ function renderModuleLanding(k){
 
 /* 出题前的入口闸（2026-10-08 复查发现的会说谎）：没填 Key 时点「练一道综应大题」，界面会先演一遍
    「AI 正在为「公文写作 · 通报」准备学习卡与仿真题…」再报错——明知走不通，却先答应了一声；
-   而且那句大题是「先切科目再出题」，人还被从首页拽进综应A（抬头变成「综应A · 综合推送」），他却什么都没练到。
+   而且那句大题是「先切科目再出题」，人还被从首页拽进综应A（文号变成「综应A〔2026〕…」），他却什么都没练到。
    现在三条出题路（首页两句大题 / 科目页红按钮 / 模块落地页的胶囊与「开始练习」）都先过这里：
    原地提示，不切科目、不点灯、不进加载态。快判不用 Key，示例轮照走。 */
 function entryBlocked(){

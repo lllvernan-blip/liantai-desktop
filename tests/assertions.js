@@ -690,12 +690,12 @@ ok(curSubject() === "sl" && state.settings.subject === "sl", "科目: 切换后�
 ok(el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0
    && el("#modbar").innerHTML.indexOf("案例实务") < 0, "页签: 切到申论后只渲染申论模块");
 ok(activeModule === null, "科目: 切到申论后落在综合起始页（不再暗记上次模块，抬头如实报综合推送）");
-ok(el("#modLabel").textContent === "申论 · 综合推送", "抬头: 科目名 · 综合推送（起始页不再挂模块名）");
+ok(el("#modLabel").textContent === "综合推送", "抬头: 灰字只报综合推送（科目名由页签和文号说，不重复）");
 switchSubject("zy");
 ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
    "页签: 切回综应A 只留综应模块");
 ok(activeModule === null, "科目: 切回综应A 同样落在综合起始页");
-ok(el("#modLabel").textContent === "综应A · 综合推送", "抬头: 切回后科目名跟着走");
+ok(el("#modLabel").textContent === "综合推送", "抬头: 切回后灰字仍是综合推送，不跟着换科目名");
 
 // 「综合」= 当前科目内综合
 state.settings.subject = "sl"; renderTabs();
@@ -1118,7 +1118,7 @@ enterPD();
 ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
    "快判: 进入后高亮快判按钮、作答轨科目按钮不高亮");
-ok(el("#modLabel").textContent.indexOf("快判") === 0, "快判: 抬头不挂科目名");
+ok(el("#modLabel").textContent === "", "快判: 落地页灰字空着（轨名由页签和文号说，不重复）");
 ok(el("#modbar").innerHTML.indexOf("公文写作") < 0 && el("#modbar").innerHTML.indexOf("综合") < 0,
    "快判: 不渲染综应/申论的模块页签");
 const pdLand = el("#docBody").innerHTML;
@@ -1140,7 +1140,7 @@ ok(el("#docBody").innerHTML.indexOf("data-start=") < 0,
 backToStart();
 ok(el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0 && tabActiveKey === null,
    "返回综合: 再点当前科目回到综合推送，页签全灭");
-ok(el("#modLabel").textContent === "综应A · 综合推送", "返回综合: 抬头如实报「科目 · 综合推送」，不再挂上次练的模块名");
+ok(el("#modLabel").textContent === "综合推送", "返回综合: 灰字如实报综合推送，不再挂上次练的模块名");
 
 /* ② 出题：三种形式 prompt 各自成形，带主题与相关经验（拦 callLLM） */
 const realCallPD = callLLM;
@@ -1405,8 +1405,8 @@ pdActive = false; pdRound = null; pdForm = null; state.settings.apiKey = apiKeyB
 localStorage.clear();
 state.history = []; state.flows = []; state.settings.subject = "zy";
 renderHome();
-ok(_view === "home" && el("#modLabel").textContent === "练习台 · 首页",
-   "首页: 抬头不挂科目名（不再写成「综应A · 综合推送」）");
+ok(_view === "home" && el("#modLabel").textContent === "首页",
+   "首页: 灰字只报首页（科目名不预挂，也不重复文号里的「练习台”）");
 ok(el("#subjbar").innerHTML.indexOf("active") < 0, "首页: 三个入口一个都不预选（快判也不亮）");
 ok(el("#modbar").innerHTML === "", "首页: 不摆任何科目的题型页签");
 ok(el(".modbar").hidden === true, "首页: 页签行整行收起（不留一条只有三个入口、右边一路空的横带）");
@@ -1415,7 +1415,7 @@ ok(el("#docBody").innerHTML.indexOf('data-big="zy"') >= 0 && el("#docBody").inne
 
 /* ② 点了科目按钮才进那个科目的首页：抬头、点灯、页签一起回来 */
 switchSubject("sl");
-ok(_view === "start" && el("#modLabel").textContent.indexOf("申论 · 综合推送") === 0
+ok(_view === "start" && el("#modLabel").textContent.indexOf("综合推送") === 0
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="sl"') >= 0
    && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0,
    "首页: 点申论才进申论的首页（科目点灯 + 它的页签）");
