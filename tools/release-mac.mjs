@@ -69,7 +69,7 @@ function gh(ghArgs) {
 }
 
 /* gh 只装在自备位置的可能（这台 mac 上没有 Homebrew、系统里本来也没 gh）：
-   先看 PATH，再退到 ~/.local/opt/gh/bin/gh —— 与 打包-mac.command 找 npm 的路子一致。 */
+   先看 PATH，再退到 ~/.local/opt/gh/bin/gh —— 沿用 release.mjs 的老规矩。 */
 let GH = "gh";
 function resolveGh() {
   const onPath = spawnSync("gh", ["--version"], { encoding: "utf8" });

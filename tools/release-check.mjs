@@ -38,7 +38,7 @@ const tag = tagArg ? (tagArg[0] === "v" ? tagArg : "v" + tagArg) : "v" + pkg.ver
 const version = tag.replace(/^v/, "");
 
 /* gh 只装在自备位置的可能（这台 mac 上没有 Homebrew）：先看 PATH，再退到 ~/.local/opt/gh/bin/gh
-   —— 与 打包-mac.command 找 npm、release-mac.mjs 找 gh 的路子一致。 */
+   —— 与 打包.bat 找 npm、release.mjs 找 gh 的路子一致。 */
 function resolveGh() {
   const onPath = spawnSync("gh", ["--version"], { encoding: "utf8" });
   if (!onPath.error && onPath.status === 0) return "gh";
@@ -159,8 +159,8 @@ const localProblems = [];
   /* 文档里引用的仓内文件得真在：AGENTS.md / README.md 一旦指向一个不存在的脚本，
      下一个人会照着敲一遍才发现。只看仓内的固定前缀，外链（http、/releases/…）不在此列。 */
   const PREFIXES = ["app/", "tests/", "tools/", "docs/", "build/"];
-  const ROOT_FILES = ["AGENTS.md", "README.md", "package.json", "题型规范.md", "main.js", "update.js", "打包.bat", "打包-mac.command"];
-  const files = ["AGENTS.md", "README.md", "题型规范.md", ...readdirSync(join(root, "docs")).filter((f) => f.endsWith(".md")).map((f) => "docs/" + f)];
+  const ROOT_FILES = ["AGENTS.md", "README.md", "package.json", "main.js", "update.js", "打包.bat"];
+  const files = ["AGENTS.md", "README.md", ...readdirSync(join(root, "docs")).filter((f) => f.endsWith(".md")).map((f) => "docs/" + f)];
   const missing = new Set();
   let checked = 0;
   for (const f of files) {
