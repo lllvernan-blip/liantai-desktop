@@ -2087,15 +2087,16 @@ function startBoxHtml(rf){
   // 纸面上不再写标题（上面「开始今天的练习」、下面「开始综应练习」，同一个意思写两遍）：
   // 抬头已经报了「你在哪」，纸面上再写一遍「开始…」就是同一句话写两次——主行动自己就是标题。
   // data-start 是给断言看的：首页还是科目页，两形得能分开认。
+  // 首页的说明行在按钮上方：抬头之下纸面留白拉到按钮之间会空一截，一行小字先接住视线，主行动紧随其后。
   return `<div class="startbox" data-start="${home? "home":"subj"}">
-    <div class="actions" style="justify-content:center;margin:0">${home
+    ${home? `<p class="hint" style="text-align:center;margin:0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>` : ""}
+    <div class="actions" style="justify-content:center;margin:${home? "12px":"0"} 0 0">${home
       ? `<button class="primary big" id="btnQuick">开始快判</button>`
       : (state.settings.apiKey
           ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
           /* 没 Key 的人：出题这条路当下走不通，红按钮就不该说「开始练习」——换成他此刻真能做的事，
              点了就是开设置页；"不用 Key 也能练"那条路写在引导里，不在纸面上抢位。 */
           : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`)}</div>
-    ${home? `<p class="hint" style="margin:9px 0 0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>` : ""}
     ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
     <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>` : ""}
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
