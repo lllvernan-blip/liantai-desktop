@@ -290,13 +290,7 @@ html,body{margin:0;padding:0;}
   .grade details.notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
   .grade details.notebox>summary{padding:9px 2px;}
   .grade details.notebox .notebody{padding:2px 2px 10px;}
-  /* 丢分清单：按扣分从多到少，一行一条（点 · 证据 · 扣了几分） */
-  .losslist{border-top:1px solid var(--line);margin:10px 0 2px;}
-  .lossline{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.75;}
-  .lossline .ls{flex:0 0 34px;text-align:right;font-family:var(--hei);color:var(--danger);font-variant-numeric:tabular-nums;}
-  .lossline .lp{flex:0 0 auto;font-family:var(--hei);}
-  .lossline .le{flex:1 1 auto;min-width:0;color:var(--muted-2);font-size:13px;}
-/* 错因类型小标：批改页丢分处的那一小块文字。字号走六档里的 12px，颜色维度只借 token，不新造色。 */
+/* 错因类型小标：回改页里不达标子项旁的那一小块文字。字号走六档里的 12px，颜色维度只借 token，不新造色。*/
 .kindtag{flex:0 0 auto;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 6px;border-radius:var(--r-ctl);white-space:nowrap;}
 .hitline .kindtag{order:1;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
@@ -315,7 +309,13 @@ html,body{margin:0;padding:0;}
   .pill{padding:4px 10px;font-size:13px;border-radius:var(--r-ctl);}
   .pill.good{background:var(--success-bg);color:var(--success);}
   .pill.bad{background:var(--danger-bg);color:var(--danger);}
-  .comment{margin-top:12px;font-size:15px;line-height:1.85;}
+  /* 我的答案（逐句批注）：这是批改页的主体。满分的句子照旧、半分的那句分数转焦橙、
+     没对上任何采分点的标红——分数落在句子上，比另列一张丢分清单直接得多。
+     用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
+  .answerreview{margin-top:8px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
+  .answerreview .asent.miss{background:var(--danger-bg);box-shadow:inset 0 -2px 0 var(--danger-line);color:var(--danger);}
+  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:12px;color:var(--success);margin-left:2px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
+  .answerreview .asc.part{color:var(--warn);}   /* 没拿满的那句：分数转焦橙，句子本身不动 */
   .nextrow{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
   /* 弹层整体不滚：边框与抬头（含关闭键）固定，只有 .panel-body 的内容滚动 */
@@ -1672,7 +1672,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
     "experienceChecks":[{"title":"原样照抄 experiences 里那一条的 title","status":"again / fixed / na"}],`: ""}
-    "comment":"总体点评（80字内，指出下一步该补哪里）"
+    "comment":"总体点评（120 字内）：先点名这次没答到的采分点是哪几点，再说清该怎么补。不要只说「有遗漏」这种话，也不要重复采分点总数（那个数已经在分数旁报了）"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
@@ -3908,7 +3908,7 @@ async function submitAnswer(){
     if(saveHistory()){ clearDraft(qSig(q)); }
     else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
-    renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec });   // 申论：提交即进入「批改」步；综应A：显示结果页
+    renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
     setLimitState(limMin, 0);   // 这一稿停表：回改是新的一稿，下次进作答区重新起算
     _timeUpSaid = false;
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
@@ -3972,6 +3972,92 @@ function updateProfile(k){
 // inFlow：由训练链的批改步（renderFlowStep）调用时为 true。此时流程的下一步才是唯一主行动，
 // 「智能推送下一题」是离场动作，降级为次要按钮，免得红主按钮在劝用户中期离链。
 // 综应A 的结果页（renderZyPage）不建训练链、没有 .fnav，不传此参数，主按钮保持原样。
+/* ============ 答卷逐句标注 ============ */
+/* 把答卷切成句子：保留句末标点（中文句读与换行都算一次断句，换行单独成片以便原样还原）。
+   逐句标注要回答的是「这句话拿了几分」，所以只按句读切，不按字数。 */
+function splitAnswer(text){
+  const out = []; let buf = "";
+  for(const ch of String(text||"")){
+    if(ch === "\n"){ if(buf){ out.push(buf); buf = ""; } out.push("\n"); continue; }
+    buf += ch;
+    if("。！？；".indexOf(ch) >= 0){ out.push(buf); buf = ""; }
+  }
+  if(buf) out.push(buf);
+  return out;
+}
+/* 证据里的逐字片段：AI 写的是叙述（答到：「X」。【缺：Y】），考生原句在引号里，先把它抽出来 */
+const ANS_QUOTED = /[「『“"]([^」』”"]{4,})[」』”"]/g;
+function evidenceFrags(ev){
+  const out = []; let m; ANS_QUOTED.lastIndex = 0;
+  while((m = ANS_QUOTED.exec(String(ev||"")))){ const t = m[1].trim(); if(t) out.push(t); }
+  return out;
+}
+/* 「【缺：xxx】」这类标注说的是「这一处答卷里压根没有」，逐句标注用不上它——
+   没答到的点由参考答案与阅卷点评交代，不再单列清单（同一个意思不写两遍） */
+/* 在答卷里找这段证据：先整段逐字找，再退到最长可匹配前缀——至少 6 字，再短就会随手配到别处 */
+function locateFrag(text, frag){
+  const f = String(frag||"").trim();
+  if(f.length < 4) return -1;
+  const at = text.indexOf(f);
+  if(at >= 0) return at;
+  for(let k = Math.min(f.length, 40); k >= 6; k--){
+    const p = text.indexOf(f.slice(0, k));
+    if(p >= 0) return p;
+  }
+  return -1;
+}
+/* 逐句标注的底账：分数是**派生**出来的，不额外问 AI 一次——
+   每条采分项的证据里都带着考生原句，把它定位回答卷，得分就加到落上的那一句；
+   一句覆盖多条时得分与满分都相加，这样「这句拿满没有」还看得出来。
+   兜底：该定位的证据里定位不到一半，就整块退回「只摆答案」——宁可不说，不能瞎标。 */
+function answerMarks(hits, answer){
+  const text = String(answer||"");
+  const parts = splitAnswer(text);
+  const starts = []; let off = 0;
+  for(const p of parts){ starts.push(off); off += p.length; }
+  const got = new Array(parts.length).fill(0), full = new Array(parts.length).fill(0);
+  let need = 0, ok = 0;
+  for(const h of (hits||[])){
+    const fs = evidenceFrags(h && h.evidence);
+    if(!fs.length) continue;   // 纯「【缺：…】」的标注：那一处本来就不在答卷里，没有句子可标
+    need++;
+    let at = -1;
+    for(const f of fs){ const p = locateFrag(text, f); if(p >= 0){ at = p; break; } }
+    if(at < 0) continue;
+    ok++;
+    let i = 0; while(i + 1 < parts.length && starts[i+1] <= at) i++;
+    got[i] += Number(h.awarded) || 0;
+    full[i] += Number(h.score) || 0;
+  }
+  return { parts, got, full, need, ok, usable: !need || ok / need >= 0.5 };
+}
+/* 「一、xxxx。」这类序号小标题：它是那一条的题头，不是一条作答。
+   分落在紧随的正文上，小标题自己当然是 0——拿它去标红就是在冤枉人。 */
+const ANS_HEADING = /^(?:[一二三四五六七八九十百]+[、.．]|\d+[、.．)])/;
+function isNumHeading(p){ return ANS_HEADING.test(String(p||"").trim()); }
+/* 我的答案（逐句批注）：得分句在句末报出这一句拿了几分；没对上的标红。
+   没得分的不报 +0——0 是噪音，红本身就是结论。 */
+function answerReviewHtml(g, answer){
+  const text = String(answer||"").trim();
+  if(!text) return "";
+  const m = answerMarks(g && g.hits, text);
+  const head = m.usable
+    ? `<div class="hint" style="margin-top:4px">标红＝这句没对上任何采分点；句末括号里是这一句拿到的分。</div>`
+    : `<div class="hint" style="margin-top:4px">这次的证据没能逐句对回答卷，只把作答原文摆出来。</div>`;
+  const nextReal = i => { for(let k = i + 1; k < m.parts.length; k++){ if(m.parts[k] !== "\n") return k; } return -1; };
+  let body = "";
+  m.parts.forEach((p, i)=>{
+    if(p === "\n"){ body += "<br>"; return; }
+    if(!p.trim()){ body += esc(p); return; }
+    const sc = Math.round(m.got[i] * 10) / 10, fu = Math.round(m.full[i] * 10) / 10;
+    // 下一句不属于同一个「条」就不算题头：光一条序号、后面接的是别的条目，它自己就是那条作答
+    const nx = nextReal(i);
+    const heading = isNumHeading(p) && nx >= 0 && !isNumHeading(m.parts[nx]) && m.got[nx] > 0;
+    const cls = !m.usable? "" : (sc <= 0? (heading? "" : " miss") : (fu > 0 && sc < fu - 0.001? " part" : ""));
+    body += `<span class="asent${cls}">${esc(p)}</span>` + ((m.usable && sc > 0)? `<i class="asc${(fu > 0 && sc < fu - 0.001)? " part":""}">（+${sc}）</i>` : "");
+  });
+  return `<div class="sec-title" style="margin-top:16px">我的答案</div>` + head + `<div class="answerreview">${body}</div>`;
+}
 function gradeHtml(g, total, inFlow){
   const dims = MODULES[current.module].dims;
   const pts = pointsOf(g.hits);
@@ -3981,10 +4067,6 @@ function gradeHtml(g, total, inFlow){
   let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
   // 右上角只报两个数：采分点几项、丢了多少分——“先改哪条”往下看，细账折在最下面
   const hits = g.hits || [];
-  // lost 只服务下面的「先改这几条」（Top3 丢分清单）与无分值老记录的「待改进」回退，按 status 文本筛。
-  // 页眉那个「丢 N 分」不能再用它：status 与 awarded 可能自相矛盾（模型写 status:"满分" 却给 awarded:2），
-  // 按 status 筛会算成“丢 0 分”，而卷面按实得分明明丢了分，同一行还会标 ✓ 配 2/4。页眉必须与卷面同口径。
-  const lost = hits.filter(h=> hitClass(h)!=="hit" && isFinite(Number(h.score)) && isFinite(Number(h.awarded)));
   if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
   const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
@@ -3995,17 +4077,11 @@ function gradeHtml(g, total, inFlow){
     const over = overtimeSec(tm.min, tm.usedSec);
     html += `<div class="hint" style="margin-top:6px">本题限时 ${tm.min} 分钟 · 用时 ${fmtDur(tm.usedSec)}${over > 0? `（超时 ${fmtDur(over)}）` : ""}。</div>`;
   }
-  // 丢分清单替代单独的「待改进」段：同一个意思，但它带扣分与证据，能按扣分排序——先改哪条不用猜
-  if(lost.length){
-    const top = lost.slice().sort((a,b)=> (Number(b.score)-Number(b.awarded)) - (Number(a.score)-Number(a.awarded))).slice(0,3);
-    html += `<div class="sec-title" style="margin-top:14px">先改这几条</div><div class="losslist">`;
-    for(const h of top){
-      const lose = Math.round((Number(h.score) - Number(h.awarded)) * 10) / 10;
-      const kt = gradeTagOf(h);
-      html += `<div class="lossline"><span class="ls">−${lose}</span><span class="lp">${esc(h.point||"")}</span>${kt? `<span class="kindtag">${esc(kt)}</span>`:""}${h.evidence? `<span class="le">${esc(h.evidence)}</span>`:""}</div>`;
-    }
-    html += `</div>`;
-  }
+  // 主体是「我的答案」：先看清自己哪句没对上（见 answerReviewHtml）
+  html += answerReviewHtml(g, lastGrade && lastGrade.answer);
+  // 参考答案摆上台面：逐句标注说清哪句不行，范文给出「该怎么写」的成篇样子——
+  // 原来它折在最底下，等于把最有用的那一块藏起来了
+  if(g.modelAnswer) html += `<div class="sec-title" style="margin-top:18px">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）
   const ec = (lastGrade && lastGrade.expCheck) || null;
   if(ec && (ec.again.length || ec.fixed.length)){
@@ -4015,27 +4091,16 @@ function gradeHtml(g, total, inFlow){
     html += `<div class="hint" style="margin-top:10px">沉淀的错因：${esc(bits.join("；"))}。</div>`;
   }
   if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
-  const goods=(g.strengths||[]).map(s=>`<span class="pill good">+ ${esc(s)}</span>`).join("");
-  const bads=(g.weaknesses||[]).map(s=>`<span class="pill bad">− ${esc(s)}</span>`).join("");
-  html += `<div class="pills" style="margin-top:10px"><span class="plabel">优点</span>${goods||'<span class="hint">这次没列出明显优点</span>'}</div>`;
-  // 没有分值信息的老记录排不出丢分清单，退回「待改进」的原话
-  if(!lost.length && bads) html += `<div class="pills"><span class="plabel">待改进</span>${bads}</div>`;
-  if(hits.length){
-    html += `<details class="notebox" style="margin-top:14px"><summary>全部采分点对照（${hits.length} 项）</summary><div class="notebody">`;
-    for(const h of hits){
-      const cls = hitClass(h);
-      const mark = cls==="hit" ? "✓" : (cls==="part" ? "◐" : "✗");
-      const sc = (isFinite(Number(h.score)) && isFinite(Number(h.awarded))) ? `<span class="sc">${h.awarded}/${h.score}</span>` : "";
-      const kth = (cls !== "hit")? gradeTagOf(h) : "";   // 拿满分的子项不算错因，不贴标签
-      html += `<div class="hitline ${cls}"><span class="mk">${mark}</span><span class="pt">${esc(h.point||"")}</span>${kth? `<span class="kindtag">${esc(kth)}</span>`:""}${sc}${h.evidence?`<span class="ev">${esc(h.evidence)}</span>`:""}</div>`;
-    }
-    html += `</div></details>`;
-  }
+  // 优点收成一句而不是一排小牌：它不是这一页的结论，正面的东西点到就够
+  const goods = (g.strengths||[]).filter(Boolean);
+  if(goods.length) html += `<div class="hint" style="margin-top:8px">答得好的地方：${goods.map(s=>esc(s)).join("、")}。</div>`;
+  // 老记录（无分值、无采分点）没有逐句标注可用，退回「待改进」的原话
+  if(!hits.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
+  // 漏答的点不另列清单：答卷上标不出来，但「漏了哪几点、该怎么补」是范文与点评的活
   html += `<details class="notebox" style="margin-top:10px"><summary>维度分（只用于画像诊断，不参与总分）</summary><div class="notebody"><div class="bars">`;
   for(const d of dims){ const v=Number(g.scores[d])||0; const pct=Math.round(v/20*100);
     html += `<div class="barline"><span class="bn">${d}</span><span class="bt"><i class="${pct<60?"lo":""}" style="width:${pct}%"></i></span><span class="bv">${v}/20</span></div>`; }
   html += `</div></div></details>`;
-  if(g.modelAnswer) html += `<details class="notebox" style="margin-top:10px"><summary>参考答案（范文，仅供对照）</summary><div class="notebody modelanswer">${esc(g.modelAnswer)}</div></details>`;
   const nextCls = inFlow ? "" : ` class="primary big"`;
   html += `<div class="nextrow">
       <button${nextCls} id="btnNext">智能推送下一题</button>
@@ -4045,8 +4110,10 @@ function gradeHtml(g, total, inFlow){
   return html;
 }
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
-function renderGrade(g, total, expCheck, time){
-  lastGrade = { g, total, expCheck: expCheck || null, time: time || null };
+function renderGrade(g, total, expCheck, time, answer){
+  // answer 要留住：批改页的主体是「逐句批注的我的答案」，渲染时得拿到答卷原文
+  const ans = String(answer || (state.history[0] && state.history[0].answer) || "");
+  lastGrade = { g, total, expCheck: expCheck || null, time: time || null, answer: ans };
   if(current && usesFlowChain(current.module)){
     const f = activeFlow();
     if(f && f.sig === qSig(current.question)) f.step = "review";

@@ -57,7 +57,7 @@ function PRELUDE() {
     const f = {
       id: "flow_demo", subject: "sl", module: "sl.guina", subtype: "概括问题", sig,
       question: q, keyPoints: [], createdAt: Date.now() - 600e3, closedAt: null, step,
-      attempts: step === "draft" || step === "review" || step === "distill" ? [{ ts: Date.now() - 300e3, answer: "一、优化办事流程。把分散在各部门的审批事项集中到一窗受理。\n二、上线好差评系统，评价结果与窗口考核挂钩。\n三、推进数据共享，减少重复提交。", outline: "要点1：一窗受理", mode: "draft" }] : [],
+      attempts: step === "draft" || step === "review" || step === "distill" ? [{ ts: Date.now() - 300e3, answer: "一、优化办事流程。把分散在各部门的审批事项集中到一窗受理。\n二、上线好差评系统，评价结果与窗口考核挂钩。\n三、推进数据共享，减少重复提交。\n四、加强宣传引导。", outline: "要点1：一窗受理", mode: "draft" }] : [],
       selections: sels,
       groups: [{ name: "优化办事流程", facts: [0] }, { name: "强化监督评价", facts: [1] }, { name: "推进数据共享", facts: [2] }],
       drafts: [],
@@ -72,11 +72,11 @@ function PRELUDE() {
   window.__grade = function () {
     return {
       hits: [
-        { point: "把分散在各部门的审批事项集中到一窗受理", evidence: "材料第一句", status: "满分", score: 4, awarded: 4, kind: "-" },
-        { point: "推动材料线上共享，减少重复提交", evidence: "材料只说企业反映，未写做法", status: "部分命中", score: 4, awarded: 2, kind: "材料" },
-        { point: "压缩平均办理时限", evidence: "12 个工作日压缩到 4 个", status: "满分", score: 4, awarded: 3, kind: "漏点" },
-        { point: "上线好差评系统并与窗口考核挂钩", evidence: "上线了好差评系统，办事群众扫码即可评价", status: "满分", score: 4, awarded: 4, kind: "-" },
-        { point: "把标准化清单覆盖率与开办环节写进计划", evidence: "覆盖率提高到九成、环节从 6 个压到 3 个", status: "未命中", score: 4, awarded: 0, kind: "漏点" },
+        { point: "把分散在各部门的审批事项集中到一窗受理", evidence: "答到：「把分散在各部门的审批事项集中到一窗受理」，做法写得很准。", status: "满分", score: 4, awarded: 4, kind: "-" },
+        { point: "推动材料线上共享，减少重复提交", evidence: "答到：「减少重复提交」只讲了目的，【缺：靠什么推动材料线上共享】", status: "部分命中", score: 4, awarded: 2, kind: "材料" },
+        { point: "压缩平均办理时限", evidence: "答到：「一窗受理」提到了流程优化，【缺：12 个工作日压缩到 4 个】", status: "部分命中", score: 4, awarded: 3, kind: "漏点" },
+        { point: "上线好差评系统并与窗口考核挂钩", evidence: "答到：「上线好差评系统，评价结果与窗口考核挂钩」", status: "满分", score: 4, awarded: 4, kind: "-" },
+        { point: "把标准化清单覆盖率与开办环节写进计划", evidence: "【缺：覆盖率提高到九成】【缺：环节从 6 个压到 3 个】", status: "未命中", score: 4, awarded: 0, kind: "漏点" },
       ],
       scores: { 要点全面: 13, 归类准确: 14, 表述精炼: 12, 条理清晰: 15, 语言准确: 13 },
       strengths: ["要点位置集中", "语言简洁"],
@@ -129,7 +129,7 @@ function s06b_flow_read_drawer() { __reset({ history: true }); __flow("read"); r
 function s07_flow_organize() { __reset({ history: true }); __flow("organize"); renderQuestion(); }
 function s07b_flow_organize_done() { __reset({ history: true }); const f = __flow("organize"); f.orgIdx = 2; renderQuestion(); }
 function s08_flow_draft() { __reset({ history: true }); __flow("draft"); renderQuestion(); }
-function s09_flow_review() { __reset({ history: true, exp: true }); __flow("review"); lastGrade = { g: __grade(), total: 67, expCheck: { again: ["漏写落款文号"], fixed: [], at: Date.now() } }; renderQuestion(); }
+function s09_flow_review() { __reset({ history: true, exp: true }); const f = __flow("review"); lastGrade = { g: __grade(), total: 67, expCheck: { again: ["漏写落款文号"], fixed: [], at: Date.now() }, answer: (f.attempts[0]||{}).answer || "" }; renderQuestion(); }
 function s10_flow_distill() { __reset({ history: true, exp: true }); __flow("distill"); _lastDistilled = [{ id: "d1", type: "失分点", title: "把企业反映当做法", body: "材料里的第三方反映不是该主体的做法，概括时不能算作措施。", scope: "" }]; renderQuestion(); }
 function s11_profile() {
   __reset({ history: true, exp: true });

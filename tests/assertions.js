@@ -174,14 +174,30 @@ el("#answer").value = "一二三四五";
 syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
 ok(el("#wordCount").innerHTML.indexOf("/ 200 字") >= 0, "题目页: 未超出时显示 已写/上限");
 current = { module:"zy.gongwen", subtype:"通知", question:q1 };
+// 批改页的主体是「我的答案」：证据里带逐字原句，这里正好走一遍定位 -> 标分 / 标红
 renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送机关"],
-              hits:[ {point:"标题含事由",status:"命中",evidence:"考生写了标题"},
-                     {point:"写明主送机关",status:"未命中",evidence:"缺主送机关"},
-                     {point:"落款单位与日期",status:"部分命中",evidence:"有单位无日期"} ],
-              comment:"继续加油" }, 60);
-ok(el("#docBody").innerHTML.indexOf("采分点对照") >= 0, "阅卷页: 采分点对照表");
-ok(el("#docBody").innerHTML.indexOf("hitline miss") >= 0, "阅卷页: 未命中标红");
-ok(el("#docBody").innerHTML.indexOf("hitline part") >= 0, "阅卷页: 部分命中单独标记");
+              hits:[ {point:"标题含事由",score:4,awarded:4,status:"满分",evidence:"答到：「关于调整作息的通知」"},
+                     {point:"写明主送机关",score:4,awarded:0,status:"零分",evidence:"【缺：写明主送机关】"},
+                     {point:"落款单位与日期",score:2,awarded:1,status:"半分",evidence:"答到：「遵照执行」只写了要求，【缺：成文日期】"} ],
+              comment:"继续加油", modelAnswer:"关于调整作息的通知。各科室请遵照执行。" },
+            60, null, null, "关于调整作息的通知。各科室请注意作息调整，请遵照执行。特此通知。");
+ok(el("#docBody").innerHTML.indexOf("我的答案") >= 0, "批改页: 主体是逐句批注的「我的答案」");
+ok(el("#docBody").innerHTML.indexOf("asent miss") >= 0, "批改页: 没对上采分点的句子标红");
+ok(el("#docBody").innerHTML.indexOf("（+4）") >= 0, "批改页: 得分句在句末括号里标分");
+ok(el("#docBody").innerHTML.indexOf("（+0）") < 0 && el("#docBody").innerHTML.indexOf("asc part") >= 0,
+   "批改页: 没得分的不标 +0（红本身就是结论）；没拿满的那句分数转焦橙");
+ok(el("#docBody").innerHTML.indexOf("漏掉的采分点") < 0 && el("#docBody").innerHTML.indexOf("missline") < 0,
+   "批改页: 漏答清单已下线（漏了哪几点交给范文与点评，标红只说自己的卷面）");
+ok(el("#docBody").innerHTML.indexOf("全部采分点对照") < 0 && el("#docBody").innerHTML.indexOf("先改这几条") < 0,
+   "批改页: 丢分清单与全量对照表都已下线");
+/* 序号小标题不算作答：它后面还有内容时永不标红（红是给「你写的这句没分」的） */
+ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:4,status:"满分",evidence:"答到：「正文内容」"}] }, "一、开头小标题。正文内容到这里。").indexOf("asent miss") < 0,
+   "逐句标注: 序号小标题不标红（它是这条的题头，分落在后面的正文上）");
+ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:0,status:"零分",evidence:"【缺：无】"}] }, "四、加强宣传引导。").indexOf("asent miss") >= 0,
+   "逐句标注: 光一行序号、一分没得，照样标红（它这条本来就是作答）");
+ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:4,status:"满分",evidence:"答到：「正文内容」"}] }, "一、开头小标题。\n正文内容到这里。").indexOf("asent miss") < 0,
+   "逐句标注: 小标题自己占一行也照样跟正文算一条（分落在下一行上，不是它的错）");
+ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0, "批改页: 范文摆上台面（不再折叠）");
 ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
 
 /* 4.5 采分点分值口径（满分/半分/零分三档 + 标注符号） */
@@ -205,7 +221,8 @@ ok(hitClass({status:"命中"}) === "hit" && hitClass({status:"部分命中"}) ==
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[ {point:"标题含事由",score:5,awarded:5,status:"满分",evidence:"写了标题"},
                    {point:"落款单位与日期",score:5,awarded:0,status:"零分",evidence:"【缺：落款】"} ] }, 50);
 ok(el("#docBody").innerHTML.indexOf("折合 50 分") >= 0, "阅卷页: 总分按采分点口径显示 (5 / 10 分)");
-ok(el("#docBody").innerHTML.indexOf("5/5") >= 0 && el("#docBody").innerHTML.indexOf("0/5") >= 0, "阅卷页: 每个子项显示实得分/满分");
+ok(el("#docBody").innerHTML.indexOf("采分点 2 项") >= 0 && el("#docBody").innerHTML.indexOf("丢 5 分") >= 0,
+   "阅卷页: 右上角只报采分点项数与丢分");
 ok(el("#docBody").innerHTML.indexOf("不参与总分") >= 0, "阅卷页: 声明维度分不参与总分");
 current.question.score = 20;   // 子项合计 15 ≠ 题目满分 20，必须明示而不是静默
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[{point:"只列了一个子项",score:5,awarded:5,status:"满分"}] }, 33);
@@ -217,7 +234,9 @@ saveMarks(qSig(qMk), new Set([1,2,6]));
 ok(markedRuns(qMk).length === 2 && markedRuns(qMk)[0] === "BC" && markedRuns(qMk)[1] === "G", "划线随写随看: 字符级标记还原成句子（保持原文顺序）");
 ok(marksRecapHtml(qMk).indexOf("我划的重点（2 处）") >= 0 && marksRecapHtml(qMk).indexOf("BC") >= 0, "划线随写随看: 列表渲染出划过的句子");
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", modelAnswer:"第一，迅速核实情况。第二，按预案上报。", hits:[] }, 50);
-ok(el("#docBody").innerHTML.indexOf("参考答案（范文") >= 0 && el("#docBody").innerHTML.indexOf("按预案上报") >= 0, "阅卷页: 完整参考答案渲染");
+ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody").innerHTML.indexOf("按预案上报") >= 0,
+   "阅卷页: 完整范文直接摆出来");
+ok(el("#docBody").innerHTML.indexOf("参考答案（范文") < 0, "阅卷页: 范文不再折成「参考答案（范文，仅供对照）」那一栏");
 
 /* 5. 失败路径 */
 el("#docBody").innerHTML = "正在作答的题";
@@ -1892,10 +1911,12 @@ state.history = [ { ts:1, module:"sl.guina", subtype:"概括问题", grade:{ tot
   { point:"做法", score:5, awarded:5, kind:"-", evidence:"" } ] } ];
 const gTag = { hits: state.history[0].hits, scores:{}, strengths:[], weaknesses:[], comment:"c" };
 lastGrade = { g:gTag, total:50, expCheck:null };
-const tagHtml = gradeHtml(gTag, 50, false);
-ok(tagHtml.indexOf("kindtag") >= 0 && tagHtml.indexOf(">格式<") >= 0, "错因标签: 批改页丢分处带类型");
-ok((tagHtml.match(/kindtag/g)||[]).length === 2 && tagHtml.indexOf(`>做法</span><span class="sc"`) >= 0,
-   "错因标签: 丢分处两处都贴类型，拿满分的子项不贴");
+// 批改页不再单独列丢分处（主体换成逐句批注的答卷），错因类型只在画像的「常错类型」里体现
+const tagHtml2 = gradeHtml(gTag, 50, false);
+ok(tagHtml2.indexOf("kindtag") < 0 && tagHtml2.indexOf("漏掉的采分点") < 0,
+   "错因标签: 批改页不单列错因（kind 只在画像的「常错类型」里统计）");
+ok(gradeTagOf({kind:"格式"}) === "格式" && gradeTagOf({kind:"-"}) === "" && gradeTagOf({}) === "",
+   "错因标签: 归类函数照旧（kind 在词表内才认，画像按它统计）");
 lastGrade = null;
 profGo("mod", "sl.guina");
 ok(el("#profileBody").innerHTML.indexOf("常错类型：格式 1 处") >= 0,
