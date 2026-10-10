@@ -16,8 +16,8 @@
 
 ## 模型与档位（AI 调用）
 
-- 模型候选唯一出口是自绘下拉 `#modelMenu`：原生 datalist 会按已填文字过滤，外挂 chips 已并入，两条路都别恢复。
-- 模型能力**不按名字猜**：`THINK_FAMILIES` 只收参数发法特殊的家族（qwen3 / glm），其余默认按 reasoning_effort 实测试探。`modelCaps`（被拒自动降级 + 顶栏 banner）与 `modelProbe`（思考字数 / 耗时）是持久状态，load / importJSON 已迁移，别绕过它另建能力判定。
+- 模型候选唯一出口是自绘下拉 `#modelMenu`：原生 datalist 会按已填文字过滤，外挂 chips 同样不用，两条路都别恢复。
+- 模型能力**不按名字猜**：`THINK_FAMILIES` 只收参数发法特殊的家族（qwen3 / glm），其余默认按 reasoning_effort 实测试探。`modelCaps`（被拒自动降级 + 顶栏 banner）与 `modelProbe`（思考字数 / 耗时）是持久状态，`load` / `importJSON` 要带着它们走，别绕过另建能力判定。
 - **输出坏了最多重发两次**（`BODY_RETRY_MAX = 2`）：① `content` 为空；② `content` 在但 `parseJsonLoose` 解不出。**两种坏法只要 `finish=length` 就原地把额度翻倍重发**。重发还坏才抛：空输出 `{code:"EMPTY"}`、坏 JSON `{code:"JSON"}`，`handleErr` 各按各的说法提示，不许静默吞。坏输出走 `llmFailNote()` 记控制台（`main.js` 把渲染进程警告以上收进 `logs/startup.log`）。`sseFinish()` 是拿 `finish_reason` 用的，别当无用解析删。
 - **额度动态**：首次 `MAX_OUT_TOKENS = 16384`，`finish=length` 就翻倍（→32768→65536，封顶 `MAX_OUT_TOKENS_HARD`）。思考与正文共用一个额度（`reasoning_tokens` 计在 `completion_tokens` 里）。**别写死「某模型的输出上限」**。阅卷思考档单独降 `GRADE_LEVEL = "quick"`（阅卷照 need 逐条核，不吃长链推理）。
 - **范文从批改主请求拆出去单独拉**：`fetchModelAnswer()` 在批改成功后另发一次，**要纯文本不要 JSON**；那次失败只当没写过（catch 掉、留空，`renderGrade` 不渲染空范文），别拖垮整次批改。往主请求里再塞大块附属内容前先想这条。
@@ -52,7 +52,7 @@
 - **只发 NSIS 安装版，不要再加 `portable`**；免安装版必须禁用自动更新（带 `PORTABLE_EXECUTABLE_FILE` 就置 `disabled`）。
 - 更新不碰用户数据（`%APPDATA%\liantai-desktop` 只是程序文件被换）；`nsis.deleteAppDataOnUninstall` 保持 `false`。更新失败绝不阻断：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，出错后 30 分钟重试、常驻每 6 小时，不在启动路径弹阻断对话框。
 - **备用源与校验下载分离**：主源永远是包内 `app-update.yml`，连不通按 `BACKUP_FEEDS` 顺序换源；元数据取自 `BACKUP_FEEDS[i]`、包地址改写指向 `BACKUP_FEEDS[i+1]`（`installCrossSourceHook`），**相邻两条同时活着才算一条能走通的路**。设了 `LIANTAI_UPDATE_FEED` 就只认它。
-- **差量缓存会错位，已能自检修复**：`installer.exe`（NSIS 写）与 `current.blockmap`（electron-updater 写）由两个程序维护、可能指向两个版本；`alignDifferentialCache()` 每次检查前核对（blockmap 里 `sizes` 逐块相加 == 安装包大小），对不上就删 `current.blockmap`。
+- **差量缓存会错位，每次检查前必须自检**：`installer.exe`（NSIS 写）与 `current.blockmap`（electron-updater 写）由两个程序维护、可能指向两个版本；`alignDifferentialCache()` 每次检查前核对（blockmap 里 `sizes` 逐块相加 == 安装包大小），对不上就删 `current.blockmap`。
 - **发布**：三个命令 `release` / `release:mac` / `release:check`（用法看 `docs/发布与更新.md`），**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**：一个 tag 下一整套 = Windows 三件 + mac 五件。
 - **单发 mac 必须加 `--prerelease`**：只带 mac 资产的 Release 会占住 `/releases/latest`，Windows 用户检查更新就 404（`release-mac.mjs` 默认不自己建 Release，除非 `--create`）。
 - **发布前先跑发布闸门**：① `git status --short` 干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ 源码 grep `sk-[a-f0-9]{20,}` 零命中；④ `npm run release:check`（package.json 三铁律与「文档引用的文件路径都存在」都收在它里面）。**验包不许碰本机那份安装**；详细规矩见 `docs/发布与更新.md`。
@@ -60,7 +60,7 @@
   - Windows **直连官方 git 协议不通**：拉取用转发站一次性 fetch，**别改 origin、更别用它推送**（推送带令牌）——`git fetch "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop.git" main && git merge --ff-only FETCH_HEAD`；拉完 `git rev-parse HEAD` 必须就是 mac 推的那条 sha，不等就别发。
   - **先发的那台决定 tag**（`gh release create` 用本地 HEAD 建 tag）：谁先发谁先拉最新；tag 不是本地 HEAD 就 `git checkout <tag>` 重新出包。Windows 的 gh 登录是交互式的，必须本人敲一次（`gh auth login --with-token < 文件` 可非交互）。
   - **历史被改写时（改提交说明这类）那台要重新对齐**：`git fetch <转发站> main && git reset --hard FETCH_HEAD`。
-- **别在 mac 上顺手出 Windows 包**：NSIS 要 wine 抽卸载器（`NsisTarget.js` 的 `WineVm`），本机没 wine 也没 Rosetta。要一条命令出两平台只有 GitHub Actions。
+- **别在 mac 上出 Windows 包**：NSIS 要 wine 抽卸载器（`NsisTarget.js` 的 `WineVm`），这条链只认 Windows 本机或 GitHub Actions；要一条命令出两平台只有后者。
 - **「洁癖」= neat-freak Skill**（`~/.cola/skills/kkkkhazix-khazix-skills-neat-freak`）：说「跑洁癖」就走它；对账代码 / 文档 / 规则 / 工作区，并审本文件规矩的执行情况，记忆面只读。**替代不了发布闸门**，两个都跑。
 - 这台 mac：Node 在 `~/.local/opt/node`（跑前 `export PATH="$HOME/.local/opt/node/bin:$PATH"`），gh 在 `~/.local/opt/gh/bin/gh`。
 
@@ -78,15 +78,15 @@
 - 动效三条自律：只播一次、≤240ms、不循环不自动播放；只动 opacity / transform / 颜色；`prefers-reduced-motion` 下一律关。不引外部资源、不加依赖。
 - **信息密度优先：长信息一律「一行一条 + 点开看明细」**，不用卡片依次铺开。三种收纳件 `.mrow` / `.expline` / `.notebox`；**折叠的 `summary` 必须有可见三角**。批改页次序：分数 → **我的答案（逐句批注）** → 参考答案（范文，正文摆出来）→ 阅卷点评 → 维度分（折叠）。逐句标注是**派生**的：拿采分项 evidence 里的逐字片段（AI 写在引号里）定位回答卷、得分加到那句上，不额外调一次 AI；定位不到一半就整块退回只摆答案——宁可不说，不能瞎标（见 `answerMarks`）。**漏答不单列清单**：标红已经说了「你写的这句不行」，漏掉哪几点、该怎么补由范文与点评交代（`comment` 的 prompt 里写明要点名）。
 - **文案分四类**：空态提示（留）、必备声明（留）、讲机制 / 流程（删）、重复的口径（并成一条）。只写「结论与操作」；**发给模型的参数细节不写**；「只存本地 / 备份不含 Key / Key 只发往你填的地址」这类声明一字不动（删了就是骗人）。
-- **更新日志一行一条、只写一句话**：`app/index.html` 的 `CHANGELOG` 给用户扫一眼；一条只写一件事，**不带括号、不写原因、不写怎么实现的**。细节进 commit message 与 Release 说明。**两个平台共用同一条**，**动笔的地方在这台 mac**。这条只管新写的条目，更早的历史条目不回改。
-- **一次点击进快判（2026-10-07 拍板）**：首页最大的红按钮是「开始快判」，点一下直接出题（`startPDRound(PD_MIX)`，不再过落地页）；快判落地页顶部题型行显示三种单形式入口，点击直接开练；科目栏里快判排在科目之前，用一道 `.subjdiv` 细线分开——它不是第三个科目，是另一种练法。
+- **更新日志一行一条、只写一句话**：`app/index.html` 的 `CHANGELOG` 给用户扫一眼；一条只写一件事，**不带括号、不写原因、不写怎么实现的**。细节进 commit message 与 Release 说明。**两个平台共用同一条**，**动笔的地方在这台 mac**。只约束新写的条目，旧条目不回改。
+- **一次点击进快判**：首页最大的红按钮是「开始快判」，点一下直接出题（`startPDRound(PD_MIX)`，不再过落地页）；快判落地页顶部题型行显示三种单形式入口，点击直接开练；科目栏里快判排在科目之前，用一道 `.subjdiv` 细线分开——它不是第三个科目，是另一种练法。
   - **两种起始页分开写**：`startBoxHtml(rf)` 按 `_view === "home"` 分两形——首页红按钮「开始快判」（+ 两句大题 + 示例题链接），**科目首页红按钮是本科目主行动**（`#btnSmart` → `startSmart`）；**没填 Key 时科目页那颗换成 `#btnSetup`「先填 API Key（出题和阅卷都要）」→ 开设置页**——出题这条路此刻走不通，按钮就不说「开始练习」，说了什么就做什么。快判不在科目页抢红，科目页不放两句大题也不放示例轮。三颗按钮都可能在也可能不在，`wireStartBox()` 一律取到再接线。
   - **首页没有科目**：打开落在 `renderHome()`，三个入口一个都不预选（`.subjbtn` 不许带 `active`）、页签栏空着、抬头灰字只写「首页」（文号已带「练习台」）。品牌名 `#btnHome` 是唯一回首页的路，别删。
   - **大题必须点名科目**：「练一道综应大题 / 练一道申论大题」走 `startSubjectTask(subject)`（切科目 → 退判别轨 `pdActive = false` → 出题）。**不许写成「练一道大题（综应 / 申论）」**——那实际去的是上次练的科目。
   - **判 Key 只有 `startPDRound` 一处**：没填 Key 的人在这里拿到内置示例轮（`PD_SAMPLE_ITEMS`、不调 AI、同一套渲染判分、**不入 history**、小结给「填一个 Key」入口），进快判的每个入口都走这一处。
   - **示例题每种形式各 5 道**：`pdSampleItems(form)` 按形式取，不传形式（首页那条）才三种轮着取凑混合轮；`startPDRound` 无 Key 时把点的那一个形式一路传下去，抬头与纸面如实报（只有 `r.form === PD_MIX` 才写「三种形式混着来」）。**改池子守三条**：每种形式不少于 `PD_ROUND_SIZE` 道；正确项在材料里有逐字出处、干扰项只从各形式 `spec` 写明的那几类里造；**正确项的位置要分散**（不许出现盯一头点就能 4/5 的池子）。改完拿 `pdSampleItems` 跑十轮看三个形式的答案序列。快判练习页与小结点那句「快判练的是从材料里辨认说法…」别当水词删。
 - **纸就是纸，留白不堆东西**：纸面（`#doc`）下半截空着是刻意设计（模拟纸张）。要动只有一条路：把已有的那件事做大（如起始区主行动放大），不是添新东西。
-- **落款跟着抬头走**：文号（`#docNo`）前缀**由抬头推出来**，没有设置项——首页 `练习台`、快判轨 `快判`、其余按科目名 `综应A` / `申论`（`renderHeader` 一处定）。**能推出来的东西就不要让用户去设置里维护**（留一个不起作用的控件就是界面在说谎，原来的「文号前缀」输入框已撤）。
+- **落款跟着抬头走**：文号（`#docNo`）前缀**由抬头推出来**，没有设置项——首页 `练习台`、快判轨 `快判`、其余按科目名 `综应A` / `申论`（`renderHeader` 一处定）。**能推出来的东西就不要让用户去设置里维护**（留一个不起作用的控件就是界面在说谎）。
 - **入口少字、详情可密**：入口屏（起始页 / 模块落地页 / 快判落地页）只写「这是什么 + 怎么开始」；进去的明细（作答页 / 批改页 / 画像二级页 / 设置 / 折叠件内部）可以密。判「字多」看的是**入口**。
 - **一句成功 / 一句「正在做」，都得有依据**：把「点下瞬间」与「一秒后」两个时刻的界面文字都抽出来对账，凡是「先答应、马上又反悔」的都算骗人。新增调用点时照这几条自问：
   - **出题 / 阅卷一律先过 `entryBlocked()`**（缺 Key 或没选模型都不进加载态、不点亮按钮），必须排在 `showLoading` 之前；`startPDRound` 与 `submitAnswer` 都在列。
@@ -123,7 +123,7 @@
 
 - 临时量一段真行为：写成探针文件再跑 `node tools/probe.mjs 我的探针.js`（可用应用全部函数与常量、支持顶层 await；一次性，用完删）。
 - 量阅卷漂移用 `tools/drift.mjs`，**基线必须两份答卷都跑**（只测「写具体」那份会看到假象的极差 0）；Key 只从 `LIANTAI_KEY` 读。
-- **界面验收用真浏览器看当屏**（2026-10-10）：改完打开 `app/index.html`（壳功能除外）自己看一眼，别只看数字。取景器已从仓库移除，需要时从 git 历史取回。
+- **界面验收用真浏览器看当屏**：改完打开 `app/index.html`（壳功能除外）自己看一眼，别只看断言数字。
 - **别用 `node -e` 写带 JSON 片段的探针**（Git Bash 会把含冒号 + 反斜杠的参数当路径列表改写），写成文件再跑。
 
 ## 编辑纪律
@@ -133,6 +133,6 @@
 - 打包走 `npm run dist`：先 `tools/stamp-build.mjs` 写 `app/build.json`（里面只有版本号，设置面板底部显示它——别写成「构建时间」），再调 electron-builder。**不要用文本工具改 `打包.bat`**（GBK + `chcp 936` 会被写坏）；加步骤改 `package.json` 的 `scripts.dist`。
 - 提交说明只写改了什么、为什么、怎么验证的；**不引用对话、不写「某人说」这类原话**，文档与注释同理（README、AGENTS.md、代码注释都在公开面）。提交前过体检工具（仓库外：`node ~/cola/tools/check-msg.mjs`，清单在同目录 `check-msg.local.json`；**别放进 `~/.cola/` 顶层**，那里会被整理机制搬走）。命中就改；已推送才发现要改，得重写历史 + 强推，先问。
 - **成批写 / 改措辞先过目**：成段、成批的文字（代码注释、文档、界面文字、提交说明）在落盘前先列「原来 → 现在」的对照给他看，等一句话再写进去；单处一句话的修补不用问。
-- **不把一次性开发流水账写进本文件**：写之前先问「不照做会不会犯错」，不会就别写。使用方式与边界写 `README.md`，历史走 git。
+- **规则句判据（三条全过才写进来）**：① 现在时祈使——写「照着做 / 别做 X」，不带日期戳与「曾 / 原来 / 已撤」；② 不绑今天的机制——机制名换了这条还成立，绑着的那半句进 `docs/`；③ 单次事故不进正文——只进泛化后的结论，事故归 git。写之前先问「不照做会不会犯错」，不会就别写；使用方式与边界写 `README.md`，历史走 git。
 - 不提交 API Key、真实个人资料或真实练习备份；`node_modules/`、`dist/`、`logs/` 不进 Git。
 - 不删除用户未授权的文件或数据；临时调试产物结束前清理。
