@@ -635,8 +635,6 @@ state.history = [];
 
 /* 8.7 子类型扩展到全部题型 */
 ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf("zy.guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
-renderTabs();
-ok(el("#modbar").innerHTML.indexOf("__all") < 0, "页签: 综合页签已撤（不选题型即综合推送，不设双入口）");
 renderHome();
 ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
    && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
@@ -677,32 +675,36 @@ ok((el("#markSwatches").innerHTML.match(/swatch sel/g)||[]).length === 1, "颜�
 ok(el("#markSwatches").innerHTML.indexOf("#fbcfe8") >= 0 && el("#markSwatches").innerHTML.indexOf("#fde68a") >= 0, "颜色: 黄色仍在备选，但非默认");
 ok(document.documentElement.style["--mark"] === "#a7f3d0", "颜色: CSS 变量已应用");
 
-/* 9. 科目切换：页签只列当前科目的模块 / 抬头跟科目 / 画像分组 / prompt 口径 */
+/* 9. 科目切换：模块 chips 只列当前科目的模块（落在纸面，不在顶栏）/ 抬头跟科目 / 画像分组 / prompt 口径 */
 state.history = [];
 state.profile.lastModules = ["zy.shiwu", "sl.guanche"];   // 两个科目各有一个「上次练的模块」
-renderTabs();
+state.settings.subject = "zy"; renderStart();
 ok(el("#subjbar").innerHTML.indexOf("综应A") >= 0 && el("#subjbar").innerHTML.indexOf("申论") >= 0,
-   "科目切换: 两个科目都在页签区");
-ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
-   "页签: 当前科目（综应A）只列综应模块");
+   "科目切换: 两个科目都在科目栏");
+const zyChips = el("#docBody").innerHTML;
+ok(zyChips.indexOf("data-mod=") >= 0
+   && ["zy.gongwen","zy.guina","zy.fenxi","zy.duice","zy.shiwu"].every(k=> zyChips.indexOf(MODULES[k].name) >= 0),
+   "科目起始页: 模块入口落进纸面 chips，五个模块名都在");
+ok(zyChips.indexOf('data-mod="zy.gongwen"') >= 0 && zyChips.indexOf("贯彻执行") < 0,
+   "科目起始页: chips 只列当前科目（综应A）的模块");
 switchSubject("sl");
 ok(curSubject() === "sl" && state.settings.subject === "sl", "科目: 切换后落盘 settings.subject");
-ok(el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0
-   && el("#modbar").innerHTML.indexOf("案例实务") < 0, "页签: 切到申论后只渲染申论模块");
-ok(activeModule === null, "科目: 切到申论后落在综合起始页（不再暗记上次模块，抬头如实报综合推送）");
-ok(el("#modLabel").textContent === "综合推送", "抬头: 灰字只报综合推送（科目名由页签和文号说，不重复）");
+ok(el("#docBody").innerHTML.indexOf("贯彻执行") >= 0 && el("#docBody").innerHTML.indexOf("公文写作") < 0
+   && el("#docBody").innerHTML.indexOf("案例实务") < 0, "科目起始页: 切到申论后 chips 只渲染申论模块");
+ok(activeModule === null, "科目: 切到申论后落在综合起始页（不再暗记上次模块，抬头如实报综合 · 智能出题）");
+ok(el("#modLabel").textContent === "综合 · 智能出题", "抬头: 灰字只报综合 · 智能出题（科目名由科目栏和文号说，不重复）");
 switchSubject("zy");
-ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
-   "页签: 切回综应A 只留综应模块");
+ok(el("#docBody").innerHTML.indexOf("公文写作") >= 0 && el("#docBody").innerHTML.indexOf("贯彻执行") < 0,
+   "科目起始页: 切回综应A 只留综应模块");
 ok(activeModule === null, "科目: 切回综应A 同样落在综合起始页");
-ok(el("#modLabel").textContent === "综合推送", "抬头: 切回后灰字仍是综合推送，不跟着换科目名");
+ok(el("#modLabel").textContent === "综合 · 智能出题", "抬头: 切回后灰字仍是综合 · 智能出题，不跟着换科目名");
 
 // 「综合」= 当前科目内综合
 state.settings.subject = "sl"; renderTabs();
 const slSeen = {};
 for(let i=0;i<200;i++){ slSeen[weakestModule()] = 1; }
 ok(Object.keys(slSeen).every(k=>k.indexOf("sl.")===0) && Object.keys(slSeen).length === SUBJECTS.sl.modules.length,
-   "综合推送: 只在当前科目内选模块 -> " + Object.keys(slSeen).join(","));
+   "智能出题: 只在当前科目内选模块 -> " + Object.keys(slSeen).join(","));
 state.settings.subject = "zy"; ensureActive(); renderTabs();
 
 // 画像按科目分组 + 练习记录加科目列
@@ -1113,45 +1115,44 @@ renderTabs();
 ok(el("#subjbar").innerHTML.indexOf("快判") >= 0 && el("#subjbar").innerHTML.indexOf('data-s="__pd"') >= 0,
    "快判: 科目栏有第三入口");
 switchSubject("zy");
-ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0, "快判: 切回作答轨后模块页签照旧（综应A）");
+ok(el("#docBody").innerHTML.indexOf('data-mod="zy.gongwen"') >= 0, "快判: 切回作答轨后模块 chips 照旧（综应A）");
 enterPD();
 ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn icon active" data-s="__pd"') >= 0
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
    "快判: 进入后高亮快判按钮（图标版）、作答轨科目按钮不高亮");
-ok(el("#modLabel").textContent === "", "快判: 落地页灰字空着（轨名由页签和文号说，不重复）");
-ok(PD_FORM_ORDER.every(id=> el("#modbar").innerHTML.indexOf(`data-pdform="${id}"`) >= 0
-   && el("#modbar").innerHTML.indexOf(PD_FORMS[id].name) >= 0
-   && el("#modbar").innerHTML.indexOf(PD_FORMS[id].desc) >= 0)
-   && el(".modbar").hidden === false,
-   "快判布局: 三种形式及说明占据顶部题型行");
-ok(renderTabs.toString().indexOf('startPDRound(b.dataset.pdform)') >= 0,
-   "快判布局: 顶部形式入口直接开始对应练习轮");
-ok(el("#modbar").innerHTML.indexOf("公文写作") < 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
-   "快判: 顶部不混入综应/申论模块页签");
+ok(el("#modLabel").textContent === "", "快判: 落地页灰字空着（轨名由科目栏和文号说，不重复）");
 const pdLand = el("#docBody").innerHTML;
-ok(pdLand.indexOf("开始") >= 0 && PD_FORM_ORDER.every(id=> pdLand.indexOf(PD_FORMS[id].name) < 0),
-   "快判: 综合快判保留纸面主入口，单形式名称不在纸面重复");
+ok(PD_FORM_ORDER.every(id=> pdLand.indexOf(`data-pdform="${id}"`) >= 0
+   && pdLand.indexOf(PD_FORMS[id].name) >= 0)
+   && pdLand.indexOf('class="pdforms"') >= 0,
+   "快判布局: 三种形式入口以 chips 摆在纸面一排");
+ok(renderPDLanding.toString().indexOf('startPDRound(b.dataset.pdform)') >= 0,
+   "快判布局: 单形式 chips 直接开始对应练习轮");
+ok(pdLand.indexOf("公文写作") < 0 && pdLand.indexOf("贯彻执行") < 0,
+   "快判: 落地页不混入综应/申论模块 chips");
+ok(pdLand.indexOf("开始") >= 0,
+   "快判: 综合快判仍是纸面主入口（单形式入口是一排 chips，不是另一套科目入口）");
 ok(pdLand.indexOf('<details class="pdthemes">') >= 0 && pdLand.indexOf("自选主题（可选，留空随机）") >= 0
    && pdLand.indexOf('data-pdtopic=') >= 0 && pdLand.indexOf('data-big=') < 0,
    "快判布局: 主题选择收进折叠区，主题选项保留，纸面不重复摆科目入口");
 ok(pdLand.indexOf("综合快判") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0
-   && pdLand.indexOf("或只练一种形式") >= 0,
-   "快判: 纸面主入口开始综合轮，单形式入口在顶部题型行");
+   && pdLand.indexOf('class="pdforms"') >= 0,
+   "快判: 纸面主入口开始综合轮，单形式入口是同一排里的三个 chips");
 switchSubject("sl");
-ok(pdActive === false && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0,
-   "快判: 从快判切申论，作答轨页签正常恢复");
+ok(pdActive === false && el("#docBody").innerHTML.indexOf("贯彻执行") >= 0 && el("#docBody").innerHTML.indexOf("公文写作") < 0,
+   "快判: 从快判切申论，作答轨模块 chips 正常恢复");
 switchSubject("zy");
-ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerHTML.indexOf("快判") >= 0,
-   "快判: 切回综应A，页签齐全且快判入口仍在");
+ok(el("#docBody").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerHTML.indexOf("快判") >= 0,
+   "快判: 切回综应A，模块 chips 齐全且快判入口仍在");
 
 /* ①b 返回综合：再点当前科目按钮 = 回起始页，不用绕道切科目再切回来 */
 renderModuleLanding("zy.gongwen");
 ok(el("#docBody").innerHTML.indexOf("data-start=") < 0,
    "返回综合: 前置——人在公文写作落地页");
 backToStart();
-ok(el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0 && tabActiveKey === null,
-   "返回综合: 再点当前科目回到综合推送，页签全灭");
-ok(el("#modLabel").textContent === "综合推送", "返回综合: 灰字如实报综合推送，不再挂上次练的模块名");
+ok(el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0,
+   "返回综合: 再点当前科目回到综合起始页，纸面不挂模块 chips");
+ok(el("#modLabel").textContent === "综合 · 智能出题", "返回综合: 灰字如实报综合 · 智能出题，不再挂上次练的模块名");
 
 /* ② 出题：三种形式 prompt 各自成形，带主题与相关经验（拦 callLLM） */
 const realCallPD = callLLM;
@@ -1358,9 +1359,9 @@ ok(pdRound.items.length === PD_ROUND_SIZE && pdRound.idx === 0,
 const sampleDoc = el("#docBody").innerHTML;
 ok(sampleDoc.indexOf("material") >= 0 && sampleDoc.indexOf("pdopt") >= 0 && sampleDoc.indexOf("示例题") >= 0,
    "示例轮: 一进来就是第一道题（材料 + 选项 + 示例标注），不再先过落地页");
-ok(el("#modbar").innerHTML === "" && el(".modbar").hidden === true
+ok(el("#docBody").innerHTML.indexOf("data-mod=") < 0
    && el("#subjbar").innerHTML.indexOf('class="subjbtn icon active" data-s="__pd"') >= 0,
-   "示例轮: 从起始页直进去也进快判态（页签全灭、那行也跟着收起、快判按钮高亮）");
+   "示例轮: 从起始页直进去也进快判态（纸面换成判别题、不挂模块 chips、快判按钮高亮）");
 
 /* ④ 示例题本身：与模型返回同形，且过同一道 sanitizePDItems 关 */
 ok(sanitizePDItems(PD_SAMPLE_ITEMS, PD_MIX).length === PD_ROUND_SIZE,
@@ -1423,25 +1424,25 @@ pdActive = false; pdRound = null; pdForm = null; state.settings.apiKey = apiKeyB
 
 /* ============ 13.6 首页（谁都没选）与两句大题各自点名科目 ============ */
 
-/* ① 首页：科目按钮一个都不亮，页签栏空着，抬头不挂科目名 */
+/* ① 首页：科目按钮一个都不亮，纸面不摆模块 chips，抬头不挂科目名 */
 localStorage.clear();
 state.history = []; state.flows = []; state.settings.subject = "zy";
 renderHome();
 ok(_view === "home" && el("#modLabel").textContent === "首页",
    "首页: 灰字只报首页（科目名不预挂，也不重复文号里的「练习台”）");
 ok(el("#subjbar").innerHTML.indexOf("active") < 0, "首页: 三个入口一个都不预选（快判也不亮）");
-ok(el("#modbar").innerHTML === "", "首页: 不摆任何科目的题型页签");
-ok(el(".modbar").hidden === true, "首页: 页签行整行收起（不留一条只有三个入口、右边一路空的横带）");
+ok(el("#docBody").innerHTML.indexOf("data-mod=") < 0, "首页: 不摆任何科目的模块 chips");
 ok(el("#docBody").innerHTML.indexOf('data-big="zy"') >= 0 && el("#docBody").innerHTML.indexOf('data-big="sl"') >= 0,
    "首页: 两句大题都在（综应 / 申论各自点名）");
 
-/* ② 点了科目按钮才进那个科目的首页：抬头、点灯、页签一起回来 */
+/* ② 点了科目按钮才进那个科目的首页：抬头、点灯、模块 chips 一起回来 */
 switchSubject("sl");
-ok(_view === "start" && el("#modLabel").textContent.indexOf("综合推送") === 0
+ok(_view === "start" && el("#modLabel").textContent.indexOf("综合 · 智能出题") === 0
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="sl"') >= 0
-   && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0,
-   "首页: 点申论才进申论的首页（科目点灯 + 它的页签）");
-ok(el(".modbar").hidden === false, "科目页: 真有页签，那一行才出现");
+   && el("#docBody").innerHTML.indexOf("贯彻执行") >= 0,
+   "首页: 点申论才进申论的首页（科目点灯 + 它的模块 chips）");
+ok(el("#docBody").innerHTML.indexOf('data-mod="sl.guanche"') >= 0,
+   "科目页: 模块 chips 真在纸面上（进科目页才有）");
 
 /* ③ 左上角品牌名 = 回首页（首页不属于任何科目，得有个不挑科目的落点） */
 ok(PAGE_HTML.indexOf('id="btnHome"') >= 0 && PAGE_HTML.indexOf('$("#btnHome").onclick = ()=> renderHome();') >= 0,
@@ -1449,7 +1450,7 @@ ok(PAGE_HTML.indexOf('id="btnHome"') >= 0 && PAGE_HTML.indexOf('$("#btnHome").on
 renderHome();
 ok(_view === "home" && el("#subjbar").innerHTML.indexOf("active") < 0,
    "首页: 从科目页回得来，回到的是无选中态");
-ok(el(".modbar").hidden === true, "首页: 回来的路上页签行也跟着收起（不会残留一条空带）");
+ok(el("#docBody").innerHTML.indexOf("data-mod=") < 0, "首页: 回来的路上模块 chips 也不残留");
 
 /* ④ 大题入口：点哪句就把科目切到哪边，并直接出题（一步到题） */
 const realLoadQ = loadQuestion; const loadBigCalls = [];
@@ -1505,13 +1506,19 @@ ok(pdActive === false && state.settings.subject === "sl",
    "快判布局: 去掉纸面重复入口后，仍可从顶栏进入申论");
 renderHome();
 
-/* ⑤ 顶栏结构：科目入口在第一行；第二行只在当前页面有题型入口时显示，快判形式与模块页签共用。 */
+/* ⑤ 顶栏结构：科目入口在第一行；模块与快判形式入口落进纸面 chips，顶栏只有一行。 */
 ok(/id="btnHome"[^>]*>练习台<\/button>\s*<span class="subjbar" id="subjbar">/.test(PAGE_HTML),
    "顶栏: 科目入口紧跟在品牌后面（同一行）");
-ok(/\.modbar\[hidden\]\{[^}]*display:none/.test(PAGE_HTML),
-   "顶栏: 页签行的 [hidden] 能盖住 .modbar 的 display:flex（不然 hidden 白设）");
-ok(PAGE_HTML.indexOf('$(".modbar").hidden = !tabs;') >= 0,
-   "顶栏: 没页签就把整行收起来（renderTabs 里一处判据）");
+ok(PAGE_HTML.indexOf('id="modbar"') < 0 && PAGE_HTML.indexOf(".modbar{") < 0,
+   "顶栏: 第二行页签带已整体撤掉（modbar 容器与样式都不在）");
+ok(PAGE_HTML.indexOf("--h-modbar") < 0 && renderTabs.toString().indexOf("modbar") < 0,
+   "顶栏: 题型行高度变量与 renderTabs 里的第二行渲染逻辑一并撤掉");
+ok(PAGE_HTML.indexOf("综合 · 智能出题") >= 0 && PAGE_HTML.indexOf("综合推送") < 0,
+   "灰字: 综合起始页的抬头口径是「综合 · 智能出题」（旧字样「综合推送」不留在源码里）");
+ok((function(){ state.settings.subject = "zy"; renderStart(); return el("#docBody").innerHTML; })().indexOf("data-mod=") >= 0
+   && (function(){ enterPD(); return el("#docBody").innerHTML; })().indexOf('class="pdforms"') >= 0,
+   "入口归一: 科目起始页有模块 chips、快判落地页有形式 chips（都不在顶栏）");
+pdActive = false; renderHome();   // 上面那条动过全局态，还原回首页，别把 pdActive 漏进后面的章节
 
 /* ⑤ 顶栏工具区（SPEC 3.2 桌面质感）：图标无框、悬浮才现文字，图标自身不带可见文字 */
 ["btnProfile","btnSettings","btnExport","btnImport"].forEach(id=>{
@@ -1783,10 +1790,10 @@ ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导
 ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
 
 /* ---- 陌生用户看得见的那些事：形式的说明不藏着、强项不穿红、备份有出处、提示能直接点到设置 ---- */
-ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PAGE_HTML.indexOf("${esc(PD_FORMS[id].desc)}") >= 0,
-   "快判顶部题型行: 三类形式的一句话说明可见，不靠悬停");
-ok(PAGE_HTML.indexOf('class="tab pdtab" data-pdform="${id}"') >= 0,
-   "快判顶部题型行: 单形式入口沿用统一页签行");
+ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PAGE_HTML.indexOf('data-pdform="${id}"') >= 0,
+   "快判落地页: 三类形式各有一个 chips 入口（形式说明保留在 PD_FORMS 数据里）");
+ok(PAGE_HTML.indexOf(".pdtab") < 0 && PAGE_HTML.indexOf('class="tab ') < 0,
+   "快判布局: 顶部页签行已撤，单形式入口不再用 .tab 样式");
 ok(PAGE_HTML.indexOf(".mrow .mweak.good{color:var(--success);}") >= 0 && PAGE_HTML.indexOf('class="mweak${head? head.cls : ""}"') >= 0,
    "画像: 强项不再与短板共用红色");
 ok(PAGE_HTML.indexOf('id="btnExport2"') >= 0 && PAGE_HTML.indexOf('id="btnImport2"') >= 0 && PAGE_HTML.indexOf("换电脑前先「导出备份」") >= 0,
@@ -1804,7 +1811,8 @@ ok(PAGE_HTML.indexOf("会挑你最弱的模块") < 0 && PAGE_HTML.indexOf("提�
 ok(PAGE_HTML.indexOf("写得太少了：至少写满一段再交卷") >= 0 && PAGE_HTML.indexOf("～") < 0, "文案: 交卷提示去掉语气词");
 ok(TOURS.pd.every(s=>s.text.indexOf("题型") < 0) && TOURS.pd[0].text.indexOf("形式") >= 0 && TOURS.pd[3].text.indexOf("形式") >= 0,
    "文案: 快判统一说「形式」，不再混用「题型」");
-ok(PAGE_HTML.indexOf("或只练一种形式") >= 0, "文案: 快判落地页与引导同口径");
+ok(TOURS.pd[1].text.indexOf("只练一种形式") >= 0 && PAGE_HTML.indexOf('data-pdform="${id}"') >= 0,
+   "文案: 快判落地页的单形式 chips 与引导同口径");
 
 /* ---- 在途请求：换页与进快判都要作废在途请求，旧结果不许回来顶掉当前页 ---- */
 ok(tabClick.toString().indexOf("reqSeq++") >= 0 && enterPD.toString().indexOf("reqSeq++") >= 0,
@@ -2234,7 +2242,7 @@ ok(_lqSrc.indexOf("entryBlocked()") >= 0 && _lqSrc.indexOf("entryBlocked()") < _
 ok(startSmart.toString().indexOf("entryBlocked()") >= 0 && startSubjectTask.toString().indexOf("entryBlocked()") >= 0,
    "没 Key 不进加载态: 首页大题与科目页红按钮先判，不切科目也不点灯");
 ok(startSubjectTask.toString().indexOf("entryBlocked()") < startSubjectTask.toString().indexOf("pdActive = false"),
-   "没 Key 不进加载态: 先判再动状态（不然人被挪到科目页，抬头还报「综应A · 综合推送」）");
+   "没 Key 不进加载态: 先判再动状态（不然人被挪到科目页，当前抬头还被换掉）");
 const _eb = entryBlocked.toString();
 ok(_eb.indexOf("s.apiKey && s.model") >= 0 && _eb.indexOf("OPEN_SETTINGS_BTN") >= 0 && _eb.indexOf("banner(") >= 0,
    "没 Key 不进加载态: 提示里带「打开设置」的去路，且模型没选也拦");
@@ -2253,12 +2261,11 @@ pdRound.sample = false;
 ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 真轮没跑过时仍走原空态（不把话说过头）");
 pdRound = null; state.history = _histKeep;
 
-/* 19.10 顶栏与纸面间距：页签栏有内容时自然占位，没有内容时隐藏；纸面与真实顶栏始终间隔 24px。 */
+/* 19.10 顶栏与纸面间距：纸面与真实顶栏始终间隔 24px（第二行已撤，不用任何空白补位）。 */
 ok(renderTabs.toString().indexOf("gap-modbar") < 0 && PAGE_HTML.indexOf(".wrap.gap-modbar") < 0
    && /\.wrap\{[^}]*margin:24px auto 56px/.test(PAGE_HTML),
-   "顶栏: 不用额外空白补题型行高度，纸面统一距真实顶栏 24px");
-ok(PAGE_HTML.indexOf("--h-modbar:44px") >= 0 && PAGE_HTML.indexOf("height:var(--h-modbar)") >= 0,
-   "顶栏: 题型行高度只在 --h-modbar 定义一处");
+   "顶栏: 不用额外空白补题型入口行高度，纸面统一距真实顶栏 24px");
+ok(PAGE_HTML.indexOf("--h-modbar") < 0, "顶栏: 题型行高度变量已随第二行撤掉");
 /* 首页文号跟着抬头走：首页不属于任何科目，落款不能挂某个科目的前缀 */
 renderHome();
 const homeNo = el("#docNo").textContent;
@@ -2319,9 +2326,8 @@ ok(TOURS.zy[0].sel === "#btnSmart" && TOURS.zy.length === 4 && tourSteps("zy").l
 state.settings.apiKey = "";
 renderPDLanding();
 const pdLandNoKey = el("#docBody").innerHTML;
-ok(pdLandNoKey.indexOf("先试一轮示例题（不用 Key）") >= 0 && pdLandNoKey.indexOf("开始一轮综合快判") < 0
-   && pdLandNoKey.indexOf("（也是内置示例题）") >= 0,
-   "快判落地页/没 Key: 按钮与分组都如实写成内置示例题（点了它拿到的就是内置题，别写得像真出题）");
+ok(pdLandNoKey.indexOf("先试一轮示例题（不用 Key）") >= 0 && pdLandNoKey.indexOf("开始一轮综合快判") < 0,
+   "快判落地页/没 Key: 主按钮如实写成内置示例题（点了它拿到的就是内置题，别写得像真出题）");
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
 renderPDLanding();
 const pdLandKey = el("#docBody").innerHTML;
