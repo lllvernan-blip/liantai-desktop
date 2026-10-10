@@ -27,7 +27,7 @@
     --warn:#b45309;      /* 部分命中 */
     /* 控件高度：同一行里的按钮 / 输入框 / 胶囊不再高低不齐 */
     --h-ctl:36px; --h-ctl-sm:30px;
-    --h-modbar:44px;   /* 题型页签行的实测高度：它出不出场，纸面位置都得一样（靠 .wrap.gap-modbar 补） */
+    --h-modbar:44px;   /* 题型入口行高度 */
     /* 语义别名：同一个 hex 只在 :root 出现一次，改一处即全站生效 */
     --line-strong:#8f8b81;   /* 3.3:1 —— 表单控件的可辨识边界（分隔线不受 3:1 约束，控件边界受） */
     --text-disabled:#9a968d; /* 2.9:1 —— placeholder 与禁用文字（门槛 2:1） */
@@ -91,16 +91,19 @@ html,body{margin:0;padding:0;}
   .toolbar button.brand{border:0;background:transparent;padding:0;min-height:26px;font-size:15px;line-height:1.2;}
   .toolbar button.brand:hover{background:transparent;color:var(--gov-red-dark);}
   .spacer{flex:1 1 auto;}
-  /* 页签行（2026-10-08 改）：只在**真有题型页签**时占一行，没有就整行收起（首页、快判轨）。
-     以前科目按钮也住在这一行，于是它永远在；可那行右边一大半是空的，首页看着就是白扔一行。
-     现在科目按钮跟品牌同一行，锁高的理由（判别轨不渲染页签会跳）也不存在了。 */
+  /* 第二行只显示当前位置可用的题型入口：科目页显示模块，快判落地页显示三种快判形式；其他页面收起。 */
   .modbar{display:flex;align-items:center;gap:4px;padding:0 max(14px,calc((100% - 880px)/2 + 14px));border-top:1px solid var(--line);height:var(--h-modbar);box-sizing:border-box;}
   .modbar[hidden]{display:none;}
+  .modbar>#modbar{display:flex;align-items:center;gap:4px;flex:1;min-width:0;height:100%;}
   .tab{padding:11px 16px;cursor:pointer;border:none;background:transparent;font-family:var(--hei);font-size:14px;color:var(--muted);border-bottom:2px solid transparent;border-radius:0;transition:background .15s ease,color .15s ease,border-color .15s ease;}
   .tab:hover{background:var(--wash-3);}
   /* 当前模块：底部红线 + 淡红底。不加粗（加粗会把页签宽度撑变，又造成一次小位移） */
   .tab.active{color:var(--ink);border-bottom-color:var(--gov-red);background:var(--red-wash);}
   .tab.active:hover{background:var(--red-wash-2);}
+  .pdtab{flex:1 1 0;min-width:0;height:100%;padding:1px 10px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;line-height:1.2;}
+  .pdtab-name{font-size:14px;line-height:1.2;color:var(--muted);}
+  .pdtab-desc{font-size:12px;line-height:1;color:var(--muted-2);}
+  .pdtab:hover .pdtab-name{color:var(--gov-red);}
   /* 科目入口跟品牌同一行（2026-10-08）：它原来独占顶栏第二行，而那一行里它是唯一的住客 */
   .subjbar{display:flex;align-items:center;gap:6px;margin-left:14px;}
   .subjbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
@@ -109,20 +112,17 @@ html,body{margin:0;padding:0;}
   .subjbtn.active:hover{background:var(--red-wash-2);}
   .subjdiv{width:1px;height:18px;background:var(--line);margin:0 1px;}   /* 快判不是科目：它与科目之间用一道细线分开（2026-10-07「快判往上提」） */
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
-/* 快判落地页：三层——主行动（大红按钮）→ 一行细分入口 → 可选设置（主题）。
-   高度是硬要求：startbox 下限 440px，内容一旦超出，整页就比别的页高，切页时文档高度变化会把红头推上去。 */
-/* 三种形式的说明直接写在名字下面：只挂在 title 上，鼠标不悬停就看不到，陌生用户根本不会去悬停 */
+/* 快判落地页：主行动 → 顶部形式入口 → 默认收起的主题设置。 */
 .pdforms{margin-top:18px;}
 .pdformslabel{font-size:13px;color:var(--muted);}
-.pdformgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px;}
-.pdform{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;padding:9px 12px;background:none;border:1px solid var(--line);border-radius:var(--r-ctl);cursor:pointer;}
-.pdform:hover{border-color:var(--gov-red);background:var(--wash);}
-.pdform b{font-size:14px;font-weight:600;color:var(--ink);}
-.pdform span{font-size:12px;color:var(--muted);line-height:1.5;}
-.pdsetup{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
-.pdoptlabel{font-size:13px;color:var(--muted);}
-.pdsetup .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;max-width:700px;}
-.pdsetup .chip{padding:4px 8px;font-size:13px;}
+.pdthemes{margin:20px auto 0;border-top:1px solid var(--line);width:100%;max-width:700px;text-align:left;}
+.pdthemes>summary{display:flex;align-items:center;min-height:36px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13px;color:var(--muted);}
+.pdthemes>summary::-webkit-details-marker{display:none;}
+.pdthemes>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);}
+.pdthemes[open]>summary::after{content:"▾";}
+.pdthemebody{padding:0 0 4px;text-align:center;}
+.pdthemes .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;max-width:700px;}
+.pdthemes .chip{padding:4px 8px;font-size:13px;}
   .chip{border:1px solid var(--line);background:var(--ctl);padding:6px 12px;cursor:pointer;font-size:13px;border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
 .model-item{display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
@@ -130,10 +130,6 @@ html,body{margin:0;padding:0;}
   .chip small{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}   /* 不写 font-size 就会按浏览器的 smaller 算：13px × 0.833 = 10.8px，六档之外的野字号 */
 
   .wrap{max-width:880px;margin:24px auto 56px;padding:0 14px;}
-  /* 页签行不存在时（首页 / 快判轨）把它那 44px 还给纸面上方的空白：纸面位置全程不动，
-     跳的只是头顶留白。
-     不要用 .topbar 补高度——那会在顶上留一条带边框的空带子，等于白占一行。 */
-  .wrap.gap-modbar{margin-top:calc(24px + var(--h-modbar));}
   .doc{background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);padding:40px 54px 56px;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 10px;}
@@ -141,7 +137,7 @@ html,body{margin:0;padding:0;}
   .redline .bar{flex:1;height:2px;background:var(--gov-red);}
   /* 抬头下的最后一行：左边报「在哪」，右边报文号，同一行收掉——原先各自占一行，中间空出一大截 */
   .docmeta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:8px 2px 6px;}
-  .docno{font-family:var(--fangsong);font-size:14px;text-align:right;}
+  .docno{font-family:var(--fangsong);font-size:14px;text-align:right;margin-left:auto;}
   .modlabel{font-family:var(--hei);font-size:13px;color:var(--muted);letter-spacing:1px;}
 
   /* 起始区 —— 醒目主入口 */
@@ -152,6 +148,10 @@ html,body{margin:0;padding:0;}
   .startbox .big{min-width:320px;}
   /* 起始区的主行动再抬高一级：纸面上只有它一件事，就让它占得住地方 */
   .startbox .primary.big{padding:16px 54px;}
+  .start-flow{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:8px;margin:26px auto 0;font-size:13px;}
+  .start-flow-label{color:var(--muted);}
+  .start-flow-steps{font-family:var(--hei);color:var(--ink);}
+  .start-flow-steps .arrow{padding:0 5px;color:var(--muted-2);}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
@@ -563,7 +563,7 @@ html,body{margin:0;padding:0;}
     <input type="file" id="fileImport" accept="application/json" style="display:none">
   </div>
   <div class="modbar">
-    <span id="modbar"></span>
+    <div id="modbar"></div>
   </div>
 </header>
 
@@ -1960,18 +1960,17 @@ function renderTabs(){
       switchSubject(b.dataset.s);
     });
   }
-  // 判别轨模式：不渲染综应/申论的模块页签（两种练习形式不混排）。
-  // 「综合」不设页签：点具体题型就推那个题型；不选题型（起始页）就是综合智能推送——两件事不该有两个入口。
-  // 首页不摆任何科目的页签：没选科目就先不报范围（同一个理由：不谎报「你在哪」）
-  const tabs = (pdActive || home)? "" :
-    moduleKeysOf(subj).map(k=>`<button class="tab${k===tabActiveKey?" active":""}" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
+  // 快判落地页显示三种单形式入口，点击即开始对应练习轮；进行中的轮次隐藏这些入口。
+  // 综合快判仍由纸面主按钮开始；首页不预选科目或题型。
+  const pdForms = pdActive && !pdRound;
+  const tabs = pdForms
+    ? PD_FORM_ORDER.map(id=>`<button class="tab pdtab" data-pdform="${id}"><span class="pdtab-name">${PD_FORMS[id].name}</span><span class="pdtab-desc">${esc(PD_FORMS[id].desc)}</span></button>`).join("")
+    : (pdActive || home)? ""
+      : moduleKeysOf(subj).map(k=>`<button class="tab${k===tabActiveKey?" active":""}" data-k="${k}" title="查看并练习这个模块">${MODULES[k].name}</button>`).join("");
   $("#modbar").innerHTML = tabs;
-  // 没有页签就整行收起（首页、快判轨）。以前这行留着、只住着三个科目按钮，右边一路空到窗口边——
-  // 一条横带为了三个按钮占掉 47px——没页签时整行收起。
   $(".modbar").hidden = !tabs;
-  // 页签行不存在时，把它那 44px 还给纸面上方的空白：两种页面的纸面起点一模一样，不跳（见 .wrap.gap-modbar）
-  const wrapEl = document.querySelector(".wrap"); if(wrapEl) wrapEl.classList.toggle("gap-modbar", !tabs);
-  if(!pdActive && !home) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
+  if(pdForms) $("#modbar").querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
+  else if(!pdActive && !home) $("#modbar").querySelectorAll(".tab").forEach(b=> b.onclick = ()=> tabClick(b.dataset.k));
 }
 function switchSubject(id){
   const fromPD = pdActive; pdActive = false;   // 从判别轨回到作答轨：先退出判别模式（同科目也照走，恢复原页签）
@@ -2083,6 +2082,8 @@ function showLoading(t, tail){
 function startBoxHtml(rf){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
+  const flow = curSubject() === "sl"? ["学习卡","读材料找点","一稿","批改"] : ["学习卡","作答","批改"];
+  const flowHtml = flow.map((step,i)=>`${i? `<span class="arrow" aria-hidden="true">→</span>`:""}<span>${step}</span>`).join("");
   const bigs = SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("");
   // 纸面上不再写标题（上面「开始今天的练习」、下面「开始综应练习」，同一个意思写两遍）：
   // 抬头已经报了「你在哪」，纸面上再写一遍「开始…」就是同一句话写两次——主行动自己就是标题。
@@ -2098,7 +2099,7 @@ function startBoxHtml(rf){
              点了就是开设置页；"不用 Key 也能练"那条路写在引导里，不在纸面上抢位。 */
           : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`)}</div>
     ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
-    <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>` : ""}
+    <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>` : `<div class="start-flow"><span class="start-flow-label">练习流程</span><span class="start-flow-steps">${flowHtml}</span></div>`}
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
 }
@@ -2168,10 +2169,10 @@ const TOURS = {
     { sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
   ],
   pd:[
-    // 先讲主行动，再讲细分入口：先讲模块页签会把不打算挑题型的人往手动选题带，正与「不选题型也能练」相反
+    // 先讲综合快判，再讲单形式入口：主行动先出现，避免把新用户直接引到选择。
     { sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。" },
-    { sel:".pdforms", text:"只练一种形式就点这里，一轮同样是 5 题。" },
-    { sel:".pdsetup .pdoptlabel", text:"填了主题，一轮的题都围绕它出。" },
+    { sel:".modbar", text:"只练一种形式就点这里，一轮同样是 5 题。" },
+    { sel:".pdthemes>summary", text:"填了主题，一轮的题都围绕它出。" },
     { sel:"#btnProfile", text:"三种快判形式的正确率，分别记在「我的画像」里。" },
     { sel:"#btnSettings", text:"真出题要用 API Key（示例题不用），申请方法见设置页。" },
   ],
@@ -2707,7 +2708,7 @@ function sysPD(){ return "你是公考判别训练的命题助手。只输出 JS
 function enterPD(){
   reqSeq++;   // 同上：进快判也作废在途请求，否则回来的综应题会盖在快判页上
   pdActive = true;
-  tabActiveKey = null;   // 判别轨不是题型：页签全灭（这一栏高度靠 CSS min-height 锁住，不会跳）
+  tabActiveKey = null;   // 快判形式入口是直接练习，不标记为当前题型
   renderTabs(); renderHeader(); renderPDLanding();
   revealDocHeading();    // 只在红头真被盖住时才滚（见该函数注释）
 }
@@ -2863,22 +2864,18 @@ function renderPDLanding(){
     <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">${noKey? "先试一轮示例题（不用 Key）" : "开始一轮综合快判"}</button></div>
     <div class="pdforms">
       <div class="pdformslabel">或只练一种形式${noKey? "（也是内置示例题）" : ""}</div>
-      <div class="pdformgrid">${PD_FORM_ORDER.map(id=>`<button class="pdform" data-pdform="${id}"><b>${PD_FORMS[id].name}</b><span>${esc(PD_FORMS[id].desc)}</span></button>`).join("")}</div>
     </div>
-    <div class="pdsetup">
-      <div class="pdoptlabel">主题（可留空，随机出题）</div>
-      <input type="text" id="pdTheme" placeholder="如：养老服务" style="margin:7px auto 0;max-width:420px">
-      <div class="subtypechips" style="margin:9px auto 0;max-width:700px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
-    </div>
-    <div class="pdsetup">
-      <div class="pdoptlabel">想做整篇大题</div>
-      <div class="actions" style="justify-content:center;margin-top:9px">${SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("")}</div>
-    </div>
+    <details class="pdthemes">
+      <summary>自选主题（可选，留空随机）</summary>
+      <div class="pdthemebody">
+        <input type="text" id="pdTheme" placeholder="如：养老服务" style="margin:7px auto 0;max-width:420px">
+        <div class="subtypechips" style="margin:9px auto 0;max-width:700px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
+      </div>
+    </details>
   </div>`;
   docBody.innerHTML = html; renderHeader();
   paintFab();
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
-  docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));   // 在快判里也能直接拐去练大题
   docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
   docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
   maybeTour("pd");
@@ -2964,7 +2961,7 @@ async function genPDRound(form, theme){
     const items = sanitizePDItems(data && data.items, form);
     if(!items.length) throw {code:"JSON"};
     pdRound = { form, theme, items, idx:0, correct:0, done:false };
-    renderPDRound();
+    renderTabs(); renderPDRound();
   }catch(e){
     if(mySeq !== reqSeq) return;
     handleErr(e, true);            // 失败只提示，不清界面：回到出题前的现场

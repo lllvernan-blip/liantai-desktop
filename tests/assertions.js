@@ -1119,13 +1119,24 @@ ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn active"
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
    "快判: 进入后高亮快判按钮、作答轨科目按钮不高亮");
 ok(el("#modLabel").textContent === "", "快判: 落地页灰字空着（轨名由页签和文号说，不重复）");
-ok(el("#modbar").innerHTML.indexOf("公文写作") < 0 && el("#modbar").innerHTML.indexOf("综合") < 0,
-   "快判: 不渲染综应/申论的模块页签");
+ok(PD_FORM_ORDER.every(id=> el("#modbar").innerHTML.indexOf(`data-pdform="${id}"`) >= 0
+   && el("#modbar").innerHTML.indexOf(PD_FORMS[id].name) >= 0
+   && el("#modbar").innerHTML.indexOf(PD_FORMS[id].desc) >= 0)
+   && el(".modbar").hidden === false,
+   "快判布局: 三种形式及说明占据顶部题型行");
+ok(renderTabs.toString().indexOf('startPDRound(b.dataset.pdform)') >= 0,
+   "快判布局: 顶部形式入口直接开始对应练习轮");
+ok(el("#modbar").innerHTML.indexOf("公文写作") < 0 && el("#modbar").innerHTML.indexOf("贯彻执行") < 0,
+   "快判: 顶部不混入综应/申论模块页签");
 const pdLand = el("#docBody").innerHTML;
-ok(PD_FORM_ORDER.every(id=> pdLand.indexOf(PD_FORMS[id].name) >= 0) && pdLand.indexOf("开始") >= 0,
-   "快判: 落地页三种形式各有说明与开始入口");
-ok(pdLand.indexOf("综合快判") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0,
-   "快判: 落地页给「综合快判」一个窗口（三种形式混在一轮），单练入口仍在");
+ok(pdLand.indexOf("开始") >= 0 && PD_FORM_ORDER.every(id=> pdLand.indexOf(PD_FORMS[id].name) < 0),
+   "快判: 综合快判保留纸面主入口，单形式名称不在纸面重复");
+ok(pdLand.indexOf('<details class="pdthemes">') >= 0 && pdLand.indexOf("自选主题（可选，留空随机）") >= 0
+   && pdLand.indexOf('data-pdtopic=') >= 0 && pdLand.indexOf('data-big=') < 0,
+   "快判布局: 主题选择收进折叠区，主题选项保留，纸面不重复摆科目入口");
+ok(pdLand.indexOf("综合快判") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0
+   && pdLand.indexOf("或只练一种形式") >= 0,
+   "快判: 纸面主入口开始综合轮，单形式入口在顶部题型行");
 switchSubject("sl");
 ok(pdActive === false && el("#modbar").innerHTML.indexOf("贯彻执行") >= 0 && el("#modbar").innerHTML.indexOf("公文写作") < 0,
    "快判: 从快判切申论，作答轨页签正常恢复");
@@ -1296,6 +1307,9 @@ ok(subjStart.indexOf('class="primary big" id="btnSetup">先填 API Key') >= 0
    "科目页（没填 Key）: 红按钮改说「先填 API Key」——出题这条路当下走不通，就不说「开始练习」");
 ok(subjStart.indexOf("开始快判") < 0 && subjStart.indexOf('id="btnSample"') < 0,
    "科目页: 不出现「开始快判」，也不放示例轮（那是快判的事）");
+const zyFlowOrder = ["练习流程","学习卡","作答","批改"].map(s=> subjStart.indexOf(s));
+ok(zyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > zyFlowOrder[i-1])),
+   "综应A布局: 主按钮下预览真实流程，顺序为学习卡→作答→批改");
 ok(subjStart.indexOf("data-big") < 0,
    "科目页: 不放两句大题——点它们和点红按钮是同一个动作（startSmart）");
 ok(el("#subjbar").innerHTML.indexOf("快判") >= 0,
@@ -1307,8 +1321,12 @@ ok(el("#modalSettings").hidden === false,
    "科目页（没填 Key）: 那颗按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
 closeModals();
 state.settings.subject = "sl"; renderStart();
-ok(el("#docBody").innerHTML.indexOf('id="btnSetup">先填 API Key') >= 0,
+const slNoKeyStart = el("#docBody").innerHTML;
+ok(slNoKeyStart.indexOf('id="btnSetup">先填 API Key') >= 0,
    "科目页（没填 Key）: 换到申论也是同一个形态，不为某个科目开特例");
+const slNoKeyFlowOrder = ["练习流程","学习卡","读材料找点","一稿","批改"].map(s=> slNoKeyStart.indexOf(s));
+ok(slNoKeyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > slNoKeyFlowOrder[i-1])),
+   "申论布局（没填 Key）: 仍预览真实的学习卡→读材料找点→一稿→批改流程");
 
 /* ②c 填了 Key 的科目首页：红按钮回到本科目的主行动 */
 state.settings.apiKey = "sk-test"; state.settings.subject = "zy"; renderStart();
@@ -1317,8 +1335,12 @@ ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnSmart">开始综
 ok(el("#btnSmart").onclick === startSmart && el("#btnQuick").onclick !== startSmart,
    "科目页（填了 Key）: 红按钮接的是 startSmart（与「练一道综应大题」同一个动作，不是快判那条）");
 state.settings.subject = "sl"; renderStart();
-ok(el("#docBody").innerHTML.indexOf('id="btnSmart">开始申论练习') >= 0,
+const slStart = el("#docBody").innerHTML;
+ok(slStart.indexOf('id="btnSmart">开始申论练习') >= 0,
    "科目页（填了 Key）: 换到申论，红按钮跟着换名（开始申论练习）");
+const slFlowOrder = ["练习流程","学习卡","读材料找点","一稿","批改"].map(s=> slStart.indexOf(s));
+ok(slFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > slFlowOrder[i-1])),
+   "申论布局（填了 Key）: 流程预览包含读材料找点和一稿");
 state.settings.apiKey = ""; state.settings.subject = "zy";
 // 一键出题不能带着空主题走：起始页没有 #pdTheme 输入框，pdThemeValue 得退到随机主题
 const startThemes = Array.from({length: 20}, ()=> pdThemeValue());
@@ -1472,22 +1494,18 @@ ok(el("#docBody").innerHTML.indexOf("快判 · 从材料里做判断") < 0
    "废话精简: 快判落地页两行并一行（抬头已写着「快判」，纸面上不再重复标题）");
 renderHome();
 
-/* ⑤ 快判页里也能拐去大题（从快判落地页也能直接拐去对应科目的那一句） */
+/* ⑤ 快判页不重复摆科目大题入口；科目仍从顶栏切换。 */
 state.settings.subject = "zy";
 enterPD();
 const pdLandBig = el("#docBody").innerHTML;
-ok(pdLandBig.indexOf('data-big="zy"') >= 0 && pdLandBig.indexOf('data-big="sl"') >= 0 && pdLandBig.indexOf("想做整篇大题") >= 0,
-   "快判落地页: 给出两句大题入口（各自点名科目）");
-const loadBigCalls2 = [];
-loadQuestion = async (k, st)=>{ loadBigCalls2.push([k, st]); };
-startSubjectTask("sl");
-ok(pdActive === false && state.settings.subject === "sl" && loadBigCalls2.length === 1,
-   "大题入口: 从快判拐去大题会退出判别轨（抬头与页签回到作答轨）");
-loadQuestion = realLoadQ;
+ok(pdLandBig.indexOf('data-big=') < 0 && pdLandBig.indexOf("想做整篇大题") < 0,
+   "快判布局: 移除与顶栏重复的两句大题入口");
+switchSubject("sl");
+ok(pdActive === false && state.settings.subject === "sl",
+   "快判布局: 去掉纸面重复入口后，仍可从顶栏进入申论");
 renderHome();
 
-/* ⑤ 顶栏不留空行（第二行只装着三个胶囊、右边一路空到窗口边）
-   科目入口搬到品牌那一行；页签行只在真有页签时才占位。 */
+/* ⑤ 顶栏结构：科目入口在第一行；第二行只在当前页面有题型入口时显示，快判形式与模块页签共用。 */
 ok(/id="btnHome"[^>]*>练习台<\/button>\s*<span class="subjbar" id="subjbar">/.test(PAGE_HTML),
    "顶栏: 科目入口紧跟在品牌后面（同一行）");
 ok(/\.modbar\[hidden\]\{[^}]*display:none/.test(PAGE_HTML),
@@ -1754,8 +1772,9 @@ ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不�
 
 /* ---- 陌生用户看得见的那些事：形式的说明不藏着、强项不穿红、备份有出处、提示能直接点到设置 ---- */
 ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PAGE_HTML.indexOf("${esc(PD_FORMS[id].desc)}") >= 0,
-   "快判落地页: 三类形式一句话说清是干什么的，不靠悬停");
-ok(PAGE_HTML.indexOf('data-pdform="${id}" title=') < 0, "快判落地页: 不再只把说明挂在 title 上");
+   "快判顶部题型行: 三类形式的一句话说明可见，不靠悬停");
+ok(PAGE_HTML.indexOf('class="tab pdtab" data-pdform="${id}"') >= 0,
+   "快判顶部题型行: 单形式入口沿用统一页签行");
 ok(PAGE_HTML.indexOf(".mrow .mweak.good{color:var(--success);}") >= 0 && PAGE_HTML.indexOf('class="mweak${head? head.cls : ""}"') >= 0,
    "画像: 强项不再与短板共用红色");
 ok(PAGE_HTML.indexOf('id="btnExport2"') >= 0 && PAGE_HTML.indexOf('id="btnImport2"') >= 0 && PAGE_HTML.indexOf("换电脑前先「导出备份」") >= 0,
@@ -2222,14 +2241,12 @@ pdRound.sample = false;
 ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 真轮没跑过时仍走原空态（不把话说过头）");
 pdRound = null; state.history = _histKeep;
 
-/* 19.10 顶栏跳高（页签行只在科目页出现，三种页面的纸面起点要保持不动）
-   页签行只在科目页出现，纸面原来会跟着往下走 44px；现在那 44px 由纸面上方的空白吸收，
-   两种页面的纸面起点一模一样（不能用 .topbar 补高——那会留一条带边框的空带子，正是要避免的浪费）。 */
-ok(renderTabs.toString().indexOf('toggle("gap-modbar"') >= 0
-   && /\.wrap\.gap-modbar\{[^}]*--h-modbar/.test(PAGE_HTML),
-   "顶栏: 页签行不出场时用纸面上方的空白补回那 44px");
+/* 19.10 顶栏与纸面间距：页签栏有内容时自然占位，没有内容时隐藏；纸面与真实顶栏始终间隔 24px。 */
+ok(renderTabs.toString().indexOf("gap-modbar") < 0 && PAGE_HTML.indexOf(".wrap.gap-modbar") < 0
+   && /\.wrap\{[^}]*margin:24px auto 56px/.test(PAGE_HTML),
+   "顶栏: 不用额外空白补题型行高度，纸面统一距真实顶栏 24px");
 ok(PAGE_HTML.indexOf("--h-modbar:44px") >= 0 && PAGE_HTML.indexOf("height:var(--h-modbar)") >= 0,
-   "顶栏: 页签行的高度只在一处定（--h-modbar），不出场时补的就是这个数");
+   "顶栏: 题型行高度只在 --h-modbar 定义一处");
 /* 首页文号跟着抬头走：首页不属于任何科目，落款不能挂某个科目的前缀 */
 renderHome();
 const homeNo = el("#docNo").textContent;
