@@ -326,6 +326,8 @@ function createWindow() {
     height: 900,
     title: '练习台',
     autoHideMenuBar: true,
+    // macOS 无边框标题栏（SPEC 3.2）：顶栏融入窗口壳，页面侧用 .shell-mac 给红绿灯让位；Windows 忽略此选项
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#ffffff',
     show: true,
     webPreferences: {

@@ -1115,9 +1115,9 @@ ok(el("#subjbar").innerHTML.indexOf("快判") >= 0 && el("#subjbar").innerHTML.i
 switchSubject("zy");
 ok(el("#modbar").innerHTML.indexOf("公文写作") >= 0, "快判: 切回作答轨后模块页签照旧（综应A）");
 enterPD();
-ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0
+ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn icon active" data-s="__pd"') >= 0
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
-   "快判: 进入后高亮快判按钮、作答轨科目按钮不高亮");
+   "快判: 进入后高亮快判按钮（图标版）、作答轨科目按钮不高亮");
 ok(el("#modLabel").textContent === "", "快判: 落地页灰字空着（轨名由页签和文号说，不重复）");
 ok(PD_FORM_ORDER.every(id=> el("#modbar").innerHTML.indexOf(`data-pdform="${id}"`) >= 0
    && el("#modbar").innerHTML.indexOf(PD_FORMS[id].name) >= 0
@@ -1359,7 +1359,7 @@ const sampleDoc = el("#docBody").innerHTML;
 ok(sampleDoc.indexOf("material") >= 0 && sampleDoc.indexOf("pdopt") >= 0 && sampleDoc.indexOf("示例题") >= 0,
    "示例轮: 一进来就是第一道题（材料 + 选项 + 示例标注），不再先过落地页");
 ok(el("#modbar").innerHTML === "" && el(".modbar").hidden === true
-   && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="__pd"') >= 0,
+   && el("#subjbar").innerHTML.indexOf('class="subjbtn icon active" data-s="__pd"') >= 0,
    "示例轮: 从起始页直进去也进快判态（页签全灭、那行也跟着收起、快判按钮高亮）");
 
 /* ④ 示例题本身：与模型返回同形，且过同一道 sanitizePDItems 关 */
@@ -1512,6 +1512,18 @@ ok(/\.modbar\[hidden\]\{[^}]*display:none/.test(PAGE_HTML),
    "顶栏: 页签行的 [hidden] 能盖住 .modbar 的 display:flex（不然 hidden 白设）");
 ok(PAGE_HTML.indexOf('$(".modbar").hidden = !tabs;') >= 0,
    "顶栏: 没页签就把整行收起来（renderTabs 里一处判据）");
+
+/* ⑤ 顶栏工具区（SPEC 3.2 桌面质感）：图标无框、悬浮才现文字，图标自身不带可见文字 */
+["btnProfile","btnSettings","btnExport","btnImport"].forEach(id=>{
+  const m = PAGE_HTML.match(new RegExp('<button class="iconbtn" id="' + id + '"[^>]*>([\\s\\S]*?)</button>'));
+  ok(m && m[0].indexOf('aria-label=') >= 0 && m[0].indexOf('data-tip="') >= 0
+     && m[0].indexOf('<svg') >= 0 && !/>[^<\s][^<]*</.test(m[0].replace(/<svg[\s\S]*?<\/svg>/, "")),
+     "顶栏: " + id + " 是带悬浮提示与无障碍名的图标按钮（不靠裸文字）");
+});
+ok(PAGE_HTML.indexOf('class="foot"') < 0,
+   "顶栏: 页脚式说明行不进主界面（数据仅存本地说在设置页，SPEC 3.2）");
+ok(PAGE_HTML.indexOf('border-radius:var(--r-card)') >= 0,
+   "质感: 弹层卡片走统一大圆角 token（SPEC 3.2）");
 
 /* 13 节用完 PD 出题桩就把真身装回去：
    以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
