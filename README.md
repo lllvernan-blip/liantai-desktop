@@ -37,11 +37,10 @@ mac 版**没有 Apple 开发者证书**，所以不签名、不公证，也不�
 | `app/index.html` | **应用本体**（单文件 HTML + CSS + JS，零依赖）；业务代码改这里 |
 | `tests/` | 零依赖自检：从 `app/index.html` 抽取唯一 `<script>`，配合 DOM 桩在 Node 里跑 |
 | `题型规范.md` | 各模块子类型与评分维度的数值依据（改 `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 必须同步它） |
-| `docs/` | 协作规则的细节层：`界面规范.md`（质感与排版）、`验证与取景器.md`（探针 / 漂移 / 取景器）、`发布与更新.md`（发布流程 / 验包 / 卡点）——`AGENTS.md` 各节都指向这里 |
+| `docs/` | 协作规则的细节层：`界面规范.md`（质感与排版）、`验证与取景器.md`（探针 / 漂移）、`发布与更新.md`（发布流程 / 验包 / 卡点）——`AGENTS.md` 各节都指向这里 |
 | `打包.bat` | 双击自助出包（Windows）：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
-| `打包-mac.command` | 双击自助出包（macOS）：重做图标 → 跑 `npm run dist:mac`，完成后自动打开 `dist/` |
 | `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
-| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`shot.mjs` + `scenes-ui.mjs` 是取景器（真渲染截图），`shot-app.cjs` 是它的客观规则，`cmp-shots.mjs` 比对两轮截图，`drift.mjs` 量阅卷漂移 |
+| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
@@ -60,7 +59,7 @@ npm run dist
 
 或者直接双击 `打包.bat`。打包器要从网上拉组件，网络不顺时会卡在这一步；手动跑 `npm run dist` 遇到下载失败，先把组件下载地址换成国内源（`ELECTRON_MIRROR` 与 `ELECTRON_BUILDER_BINARIES_MIRROR` 两个环境变量）再试。
 
-macOS 上同理：`npm install && npm start` 可以开发运行；出成品用 `npm run dist:mac`（或双击 `打包-mac.command`）。**mac 版只能在 mac 上打**（Windows 上跑不了 `--mac`），`dist:mac` 已经内置了 npmmirror 的组件源。
+macOS 上同理：`npm install && npm start` 可以开发运行；出成品用 `npm run dist:mac`。**mac 版只能在 mac 上打**（Windows 上跑不了 `--mac`），`dist:mac` 已经内置了 npmmirror 的组件源。
 
 发布新版本（先改 `package.json` 里的 `version`，再一键传上 GitHub Release）：
 
