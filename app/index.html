@@ -112,7 +112,7 @@ html,body{margin:0;padding:0;}
   .subjbtn.icon.active{border-color:transparent;background:var(--red-wash);color:var(--gov-red);}
   .subjbtn.icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
   /* mac 无边框标题栏：左边给红绿灯让位；上下边距让这行内容的正中对准圆点中心（距顶约 20px） */
-  .shell-mac .toolbar{padding-left:84px;padding-top:5px;padding-bottom:13px;}
+  .shell-mac .toolbar{padding-left:84px;padding-top:7px;padding-bottom:11px;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
 /* 快判落地页：主行动 → 顶部形式入口 → 默认收起的主题设置。 */
 .pdforms{margin-top:18px;}
@@ -218,7 +218,7 @@ html,body{margin:0;padding:0;}
   .csec.pit>h4::before{background:var(--warn);}
   .clist-pit>li::before{color:var(--warn);}
   /* 「我的笔记」是卡的脚：与上面内容隔开（顶线 + 更大间距），不参与卡的正文节奏 */
-  .card-body h4.noteh{margin-top:26px;padding-top:12px;border-top:1px solid var(--line);}
+  .card-body h4.noteh{margin-top:18px;padding-top:12px;border-top:1px solid var(--line);}
   /* 样例 / 框架 / 提纲一类文本块：只留一道左缘细线，不再自成一框——框留给它所在的学习卡，
      否则卡里套盒（2026-09-23）。白底也去掉：卡里的洗底色上再铺一层近白块，等于又画一遍边界 */
   .tpl{background:transparent;border:0;border-left:2px solid var(--bar);padding:2px 0 2px 12px;font-size:14px;white-space:pre-wrap;color:var(--ink);}
@@ -228,7 +228,7 @@ html,body{margin:0;padding:0;}
      分法是按意思分的：左栏「怎么答」（解题要点 + 答题框架），右栏「注意什么」（常见失分点 + 示例）。
      条目在 342px 宽的栏里占宽约八成，比单栏全宽下一行只占四成看着满。 */
   .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:30px 28px;align-items:start;}
-  .cardcol>.csec+.csec{margin-top:30px;}
+  .cardcol>.csec+.csec{margin-top:24px;}
   .cardcols .csec:first-child>h4{margin-top:0;}   /* 每栏第一节紧贴卡头，不再多让 20px */
   .drawer .cardcols{grid-template-columns:1fr;}   /* 抽屉只有 430px，两栏会挤 */
 
@@ -344,7 +344,7 @@ html,body{margin:0;padding:0;}
   .tour-tip .tstep{font-size:12px;color:var(--muted-2);font-variant-numeric:tabular-nums;margin-bottom:4px;}
   .tour-tip .tacts{display:flex;gap:8px;align-items:center;margin-top:10px;}
   .tour-tip .tourskip{margin-left:auto;color:var(--muted-2);}
-  .noteedit{width:100%;min-height:110px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  .noteedit{width:100%;min-height:84px;resize:vertical;font-family:var(--fangsong);font-size:14px;line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
   .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:13px;padding:8px 12px;list-style:none;color:var(--muted);font-weight:600;}
@@ -853,6 +853,7 @@ const DEFAULT_STATE = {
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
              apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", markColor:"#a7f3d0",
              timeLimit:0,   // 作答限时的默认值（分钟，0 = 不限）：选过一次，下一题按同样时长起
+             keyNoticeDismissed:false,   // 首页欢迎条的「关闭」：点了就不再弹，填上 Key 保存后复位
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
   tut:{ seq:0, done:false },   // seq = 一条引导序列的游标（原始索引，指向下一个未消费的步骤）；done = 序列已完结
@@ -1875,7 +1876,7 @@ function expSourceLabel(e){
 }
 // 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
 function experienceListHtml(){
-  if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。</div>`;
+  if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。练完一轮、批改后自动归档，先去练一轮。</div>`;
   return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 function wireExperiences(){
@@ -2945,8 +2946,8 @@ function renderPDRound(){
   const it = r.items[r.idx];
   const head = `主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题`;
   let html = `<div class="qtop"><span class="hint">${head}</span></div>`;
-  // 快判和大题的关系写在练习页首行：这一屏练的辨认动作，就是申论/综应小题的入口动作
-  html += `<p class="hint" style="margin:6px 0 10px">快判练的是从材料里辨认说法，申论和综应的小题练的是同一个动作。</p>`;
+  // 快判和大题的关系只写在第一题首行：同一句话不在每道题上反复出现
+  if(r.idx === 0) html += `<p class="hint" style="margin:6px 0 10px">快判练的是从材料里辨认说法，申论和综应的小题练的是同一个动作。</p>`;
   html += `<div class="material"><div class="label">材料节选</div>${esc(it.context)}</div>`;
   html += `<div class="require" style="margin-top:12px"><b style="min-width:auto">题干：</b>${esc(it.stem)}</div>`;
   html += `<div class="pdopts">` + it.options.map((o,i)=>{
@@ -2990,8 +2991,6 @@ function renderPDSummary(){
     ? "答错的集中在：" + esc(trapStr) + "——下次出题会在这些辨析点上再考你。"
     : (r.form === PD_MIX? "全对——三种形式的辨析点你都站得住。" : "全对——这个形式的辨析点你站得稳。");
   html += `<p class="hint" style="margin:14px 0 0">${trapLine}</p>`;
-  // 快判和大题的关系也写在小结里：快判练的「从材料里辨认说法」，正是申论/综应小题的同一个动作
-  html += `<p class="hint" style="margin:10px 0 0">快判练的是从材料里辨认说法——申论和综应的小题，吃的就是这个动作。</p>`;
   html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div></div>`;
   docBody.innerHTML = html; renderHeader();
   paintFab();
@@ -4164,6 +4163,7 @@ function profileExpHtml(){
 }
 function profileHistHtml(){
   const histAll = state.history.length;
+  if(!histAll) return PROF_BACK + `<div class="sec-title">练习记录</div><div class="hint">还没有练习记录。回首页或科目页练一道，批改完就记在这里。</div>`;
   const histShown = state.history.slice(0, histLimit);
   let html = PROF_BACK + `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
   for(const h of histShown){
@@ -4361,7 +4361,7 @@ function saveSettings(){
   else {
     // 刚填上 Key：首页那条「填上 API Key 就能开始练」当场收掉。以前它要重启才消失——
     // 人都填完了还挂在顶上说「还没填」，等于系统没听见他刚才干了什么。
-    if(!hadKey) renderStartNotices();
+    if(!hadKey){ state.settings.keyNoticeDismissed = false; renderStartNotices(); }   // 刚填上 Key：复位关闭标记（下次没 Key 时欢迎条照常出现）
     if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
   }
 }
@@ -4809,7 +4809,7 @@ function renderUpdateNote(){
   const canInstall = s.phase === "downloaded";
   const showLink = !!s.releasesUrl;
   const bc = $("#btnCheckUpdate"); if(bc){ bc.hidden = !canCheck; bc.disabled = s.phase === "checking"; }
-  const bp = $("#btnPullUpdate"); if(bp){ bp.hidden = !canPull; bp.disabled = false; bp.textContent = "更新到 v" + (s.latestVersion||""); }
+  const bp = $("#btnPullUpdate"); if(bp){ bp.hidden = !canPull || !s.latestVersion; bp.disabled = false; bp.textContent = "更新到 v" + (s.latestVersion||""); }   // 没有版本号就不亮按钮：不给「更新到 v」残句
   const bi = $("#btnInstallUpdate"); if(bi) bi.hidden = !canInstall;
   const bl = $("#btnOpenReleases"); if(bl) bl.hidden = !showLink;
 }
@@ -4819,8 +4819,9 @@ function renderUpdateNote(){
 function updateNoticeHtml(s){
   if(!s || !s.supported) return "";
   if(s.autoDownload === false && s.phase === "available"){
-    return "发现新版本 v" + esc(s.latestVersion||"") + "。" +
-      '<button class="linkbtn" id="bnrUpdate">更新到 v' + esc(s.latestVersion||"") + '</button>';
+    if(!s.latestVersion) return "";   // 拿不到版本号就不渲染：横幅上不许出现「更新到 v」这种残句
+    return "发现新版本 v" + esc(s.latestVersion) + "。" +
+      '<button class="linkbtn" id="bnrUpdate">更新到 v' + esc(s.latestVersion) + '</button>';
   }
   if(s.autoDownload === false && s.phase === "downloaded"){
     return "新版本 v" + esc(s.latestVersion||"") + " 已下载好。" + '<button class="linkbtn" id="bnrInstall">重启并更新</button>';
@@ -4915,8 +4916,11 @@ function renderStartNotices(){
   const un = updateNoticeHtml(updateInfo);
   if(un) notices.push(un);
   if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
-  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能练大题与快判。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
+  // 欢迎条自带「关闭」：不想要这条的人当场就能收掉（小更新提示、预览窗警告不受它影响，照旧）
+  if(!state.settings.apiKey && !state.settings.keyNoticeDismissed) notices.push("欢迎。填上 API Key 就能练大题与快判。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN + '<button class="linkbtn" id="btnKeyNoticeOff">关闭</button>');
   banner(notices.length? notices.join("<br>") : "");
+  const kn = $("#btnKeyNoticeOff");
+  if(kn) kn.onclick = ()=>{ state.settings.keyNoticeDismissed = true; save(); renderStartNotices(); };
 }
 
 /* ============ 初始化 ============ */

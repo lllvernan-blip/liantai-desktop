@@ -1384,14 +1384,22 @@ ok(el("#docBody").innerHTML.indexOf("material") >= 0 && el("#docBody").innerHTML
    && el("#docBody").innerHTML.indexOf("主题「测试主题」") >= 0,
    "快判练习页: 一进来就是第一道题（材料 + 选项 + 主题标注）");
 ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") >= 0,
-   "关系说明: 快判练习页说明它和大题的关系");
+   "关系说明: 快判练习页第一题说明它和大题的关系");
+/* 关系说明只在第一题出现：其余题不复读（同一意思不写两遍） */
+pdRound.items.push(Object.assign({}, pdFakeItem, { stem:"第二题：下列哪项说法与材料相符？" }));
+pdRound.idx = 1;
+renderPDRound();
+ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") < 0 && el("#docBody").innerHTML.indexOf("第 2/2 题") >= 0,
+   "关系说明: 第二题不再复读关系说明");
+pdRound.items.pop(); pdRound.idx = 0;
+renderPDRound();
 pdResolve(0); pdNext();
 ok(pdRound.done === true && state.history.length === histBeforePd + 1 && localStorage.getItem("gw_history") !== lsBeforePd
    && el("#docBody").innerHTML.indexOf("本轮小结") >= 0,
    "快判小结: 答完照常出小结并计入练习记录");
-ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") >= 0
+ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") < 0
    && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("换个形式") >= 0,
-   "关系说明: 小结点也说明关系，收尾按钮是「再来一轮 / 换个形式」");
+   "关系说明: 小结不再复读关系，收尾按钮是「再来一轮 / 换个形式」");
 ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考你") >= 0,
    "快判小结: 答错的承诺「下次再考你」（记录已入账，那条链能兑得现）");
 state.history = state.history.filter(h=> h.track !== "pd"); saveHistory();
@@ -1682,6 +1690,11 @@ ok(updateNoteText(updateInfo).indexOf("发现新版本 v0.0.16") >= 0 && updateN
    "更新: 查到新版时说清「点哪个按钮、它自己下」，不是让他自己去网页找");
 ok(el("#btnPullUpdate").hidden === false && el("#btnPullUpdate").textContent === "更新到 v0.0.16",
    "更新: 有新版就给「更新到 v0.0.16」按钮（点了壳才开始拉）");
+/* 拿不到版本号就不渲染：横幅与按钮上都不许出现「更新到 v」残句 */
+__updatePush(Object.assign({}, __macBase, { phase:"available", latestVersion:"" }));
+ok(el("#bannerSlot").innerHTML.indexOf("发现新版本") < 0 && el("#btnPullUpdate").hidden === true,
+   "更新: 拿不到版本号就不出提示、不亮按钮（不出「更新到 v」残句）");
+__updatePush(Object.assign({}, __macBase, { phase:"available", latestVersion:"0.0.16" }));
 ok(el("#btnCheckUpdate").hidden === true, "更新: 待下载时不再并排一个「检查更新」");
 ok(el("#bannerSlot").innerHTML.indexOf("发现新版本 v0.0.16") >= 0 && el("#bannerSlot").innerHTML.indexOf("bnrUpdate") >= 0,
    "更新: 首页同时出一条小提示，里面直接带「更新」按钮");
@@ -1725,14 +1738,23 @@ delete globalThis.window;
 const __baseBefore = state.settings.baseUrl;
 const __realFetch = globalThis.fetch;   // 15.7 要让 saveSettings 里的拉模型请求注定失败：先留一份真的，事后还回去
 state.settings.apiKey = "";
+state.settings.keyNoticeDismissed = false;
 renderStartNotices();
-ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") >= 0,
+ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") >= 0 && el("#bannerSlot").innerHTML.indexOf("btnKeyNoticeOff") >= 0,
    "提示: 没填 Key 时，首页的欢迎提示如实只讲填 Key（示例轮已下线，不再说「不用 Key 也能练」）");
+/* 欢迎条可关：点「关闭」当场收掉这条，之后没 Key 也不再弹；其他提示（小更新/预览窗警告）不受它影响 */
+el("#btnKeyNoticeOff").onclick();
+ok(state.settings.keyNoticeDismissed === true && el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") < 0
+   && el("#bannerSlot").innerHTML.indexOf("btnKeyNoticeOff") < 0,
+   "提示: 欢迎条点「关闭」当场收掉，之后没 Key 也不再弹（其他提示照旧）");
+ok(DEFAULT_STATE.settings.keyNoticeDismissed === false,
+   "提示: 关闭标记有默认值（老数据经 load 的 settings 合并自动补上 false）");
 globalThis.fetch = () => Promise.reject(new Error("net down"));
 el("#setKey").value = "sk-test-key";
 saveSettings();
 ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能开始练") < 0, "提示: 填完 Key 保存后当场收掉，不用重启");
 ok(state.settings.apiKey === "sk-test-key", "提示: 保存真的写进了 settings（提示不是靠碰巧消失的）");
+ok(state.settings.keyNoticeDismissed === false, "提示: 刚填上 Key 保存后，关闭标记复位（下次没 Key 欢迎条照常出现）");
 globalThis.fetch = __realFetch;
 state.settings.baseUrl = __baseBefore;
 
@@ -2354,6 +2376,19 @@ ok(save.toString().indexOf("return true") >= 0 && save.toString().indexOf("retur
 ok(saveSettings.toString().indexOf("saved? \"已保存 ✓\"") >= 0
    && saveSettings.toString().indexOf("没保存上") >= 0,
    "保存: 存储写满时设置页不写「已保存 ✓」（同一屏的 banner 已在报「未能保存」，两边不能打架）");
+/* ---- 空态给去处 + 学习卡页收紧（阶段 5 修包）---- */
+state.experiences = [];
+ok(experienceListHtml().indexOf("先去练一轮") >= 0,
+   "空态: 经验页 0 条时指去处（练完一轮批改后自动归档，先去练一轮）");
+state.history = [];
+const __histEmpty = profileHistHtml();
+ok(__histEmpty.indexOf("还没有练习记录") >= 0 && __histEmpty.indexOf("<table") < 0,
+   "空态: 记录页 0 条时给一句去处，不摆空表格");
+state.history = [{ ts: Date.now(), module:"zy.gongwen", subtype:"通知", grade:{ total:70, scores:{} } }];
+ok(profileHistHtml().indexOf("<table") >= 0, "空态: 有记录时记录页照常摆表格");
+ok(PAGE_HTML.indexOf(".noteedit{width:100%;min-height:84px") >= 0 && PAGE_HTML.indexOf(".card-body h4.noteh{margin-top:18px") >= 0
+   && PAGE_HTML.indexOf(".cardcol>.csec+.csec{margin-top:24px") >= 0,
+   "学习卡页: 笔记框/标题/分节间距收紧（整卡目标 ≤900 可视高）");
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
