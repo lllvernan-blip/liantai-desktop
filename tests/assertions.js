@@ -1766,26 +1766,36 @@ ok(PAGE_HTML.includes("还没有 API Key？四步拿到"), "设置页: 无 Key �
 ok(PAGE_HTML.includes("platform.deepseek.com") && PAGE_HTML.includes("「API keys」"), "设置页: 教程含 DeepSeek 平台地址与创建入口");
 ok(PAGE_HTML.indexOf("kh.open = !state.settings.apiKey") >= 0, "设置页: 无 Key 时自动展开教程，有 Key 保持折叠");
 
-/* ---- 使用引导：聚光式分步引导，三科目各一套，看过即记，设置可重置 ---- */
-ok(TOURS && TOURS.pd.length >= 4 && TOURS.zy.length >= 4 && TOURS.sl.length >= 4, "使用引导: 三个科目都配置了分步引导");
-ok(TOURS.pd.every(s=>s.sel && s.text) && TOURS.zy.every(s=>s.sel && s.text) && TOURS.sl.every(s=>s.sel && s.text), "使用引导: 每一步都有目标元素与说明文字");
+/* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组 home→pd→zy→sl，随屏接续，设置可重置 ---- */
+ok(Array.isArray(TUT_SEQ) && TUT_SEQ.length > 0 && TUT_SEQ.every(s=> s.scr && s.sel && s.text),
+   "使用引导: 每一步都写明在哪一屏、落点元素与说明文字");
+ok(["home","pd","zy","sl"].every(k=> TUT_SEQ.some(s=> s.scr === k)) && TUT_SEQ[0].scr === "home",
+   "使用引导: 四个屏都有组，home 在最前（打开软件第一屏就是它）");
+const tutGrpFirst = k => TUT_SEQ.find(s=> s.scr === k);
+ok(tutGrpFirst("home").sel === "#btnQuick" && tutGrpFirst("pd").sel === ".startbox .primary.big"
+   && tutGrpFirst("zy").sel === "#btnSmart" && tutGrpFirst("sl").sel === "#btnSmart",
+   "使用引导: 每组先讲主行动（首页快判按钮 / 快判页综合快判 / 科目页红按钮）");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
-ok(TOURS.zy.some(s=> s.sel === "#btnSmart") && TOURS.sl.some(s=> s.sel === "#btnSmart"),
-   "使用引导: 科目首页的红按钮（不选题型的综合入口）有说明");
-ok(TOURS.home[0].sel === "#btnQuick" && TOURS.home[1].sel === "[data-big='zy']" && TOURS.zy[0].sel === "#btnSmart" && TOURS.sl[0].sel === "#btnSmart" && TOURS.pd[0].sel === ".startbox .primary.big",
-   "使用引导: 首页先讲快判、再讲两句大题；科目页只讲本科目的主行动");
-ok(TOURS.home.every(s=>s.sel && s.text) && TOURS.home.length >= 3,
-   "使用引导: 首页单独一套（打开软件就落在这里，第一套引导是它）");
+ok(DEFAULT_STATE.tut && DEFAULT_STATE.tut.seq === 0 && DEFAULT_STATE.tut.done === false && DEFAULT_STATE.tutVersion === 3,
+   "使用引导: state.tut 是 { seq, done }（seq=游标，done=序列已完结），tutVersion=3");
+ok(migrateTut({ home:true, zy:false, sl:false, pd:false }).done === true
+   && migrateTut({ home:false, zy:false, sl:false, pd:false }).done === false
+   && migrateTut(undefined).seq === 0 && migrateTut(null).done === false,
+   "使用引导: 迁移——旧四标记里看过任何一套 → done:true（老用户不再被弹），全没看过 → 从头播");
+ok(openModal.toString().indexOf("tourPause()") >= 0 && closeModals.toString().indexOf("tourResume()") >= 0,
+   "使用引导: 弹层打开时引导暂歇、关掉恢复（气泡不叠在弹层之上）");
 ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
    && renderPDLanding.toString().indexOf('_view = "pd"') >= 0 && renderQuestion.toString().indexOf('_view = "q"') >= 0,
    "使用引导: 记录当前页面形态，重置后能判断能不能就地重播");
-ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到首页或快判页时会重新显示引导") >= 0,
-   "使用引导: 重置后当场重播（作答中不打断）");
+ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到首页、科目页或快判页时会重新显示引导") >= 0,
+   "使用引导: 重置后当场重播（作答中不打断；科目页现在也会弹，横幅不写窄）");
 ok(tourEnd.toString().indexOf("markSeen") >= 0 && PAGE_HTML.indexOf("tourEnd(false)") >= 0,
-   "使用引导: 中途被切走不算看过，下次进入还会播");
-ok(tourShow.toString().indexOf("tourPrev") >= 0 && tourShow.toString().indexOf("tour.i > 0") >= 0 && tourShow.toString().indexOf("tour.i--") >= 0,
-   "使用引导: 有上一步（第一步不显示），可回退重读");
+   "使用引导: 中途被切走不算完结也不推进游标（暂停），下次进入同屏再弹");
+ok(tourShow.toString().indexOf("tourPrev") >= 0 && tourShow.toString().indexOf("tour.i--") >= 0,
+   "使用引导: 有上一步（组内回退重读）");
+ok(maybeTour.toString().indexOf("steps[i0].raw > state.tut.seq") >= 0,
+   "使用引导: 跳屏落下的步骤不再回头补弹（游标只进不退）");
 ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导: 进入综应或申论科目时在综合起始页触发");
 ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
 
@@ -1809,9 +1819,10 @@ ok(PAGE_HTML.indexOf("使用指南") < 0 && PAGE_HTML.indexOf("分步使用引�
 ok(PAGE_HTML.indexOf("会挑你最弱的模块") < 0 && PAGE_HTML.indexOf("提交后 AI 按本模块维度评分") < 0,
    "文案: 不写「挑最弱」「按维度评分」这类机制");
 ok(PAGE_HTML.indexOf("写得太少了：至少写满一段再交卷") >= 0 && PAGE_HTML.indexOf("～") < 0, "文案: 交卷提示去掉语气词");
-ok(TOURS.pd.every(s=>s.text.indexOf("题型") < 0) && TOURS.pd[0].text.indexOf("形式") >= 0 && TOURS.pd[3].text.indexOf("形式") >= 0,
+const tutPdSteps = TUT_SEQ.filter(s=> s.scr === "pd");
+ok(tutPdSteps.every(s=>s.text.indexOf("题型") < 0) && tutPdSteps[0].text.indexOf("形式") >= 0 && tutPdSteps[3].text.indexOf("形式") >= 0,
    "文案: 快判统一说「形式」，不再混用「题型」");
-ok(TOURS.pd[1].text.indexOf("只练一种形式") >= 0 && PAGE_HTML.indexOf('data-pdform="${id}"') >= 0,
+ok(tutPdSteps[1].text.indexOf("只练一种形式") >= 0 && PAGE_HTML.indexOf('data-pdform="${id}"') >= 0,
    "文案: 快判落地页的单形式 chips 与引导同口径");
 
 /* ---- 在途请求：换页与进快判都要作废在途请求，旧结果不许回来顶掉当前页 ---- */
@@ -2311,17 +2322,20 @@ ok(el("#docBody").innerHTML.indexOf("这轮可能要一分钟。") >= 0,
    "出题等待页: 时间预期可以按场景给（第二行是参数，不是写死的）");
 // 引导：有 Key 讲「点这里开始」，没 Key 讲「先填 Key」——两套话都得跟当时真能做到的事对上
 state.settings.apiKey = "";
-const zyNoKey = tourSteps("zy"), slNoKey = tourSteps("sl"), homeNoKey = tourSteps("home");
-ok(zyNoKey[0].sel === "#btnSetup" && zyNoKey[0].text.indexOf("API Key") >= 0
-   && zyNoKey.every(s=> s.text.indexOf("直接点这里开始") < 0),
+const tutNoKeySteps = visibleSteps();
+const tutZyNoKey = tutNoKeySteps.find(s=> s.scr === "zy");
+ok(tutZyNoKey.sel === "#btnSetup" && tutZyNoKey.text.indexOf("API Key") >= 0
+   && tutNoKeySteps.every(s=> s.scr !== "zy" || s.text.indexOf("直接点这里开始") < 0),
    "引导/无 Key: 科目页第一步指纸面上那颗「先填 API Key」（他此刻真该点的那颗），不承诺「点了就能开始」");
-ok(zyNoKey.length === 3 && slNoKey.length === 3 && zyNoKey.every((s,i,a)=> a.findIndex(x=> x.sel === s.sel) === i),
-   "引导/无 Key: 末尾那步（也在讲 Key）去掉，同一个元素不在引导里讲两遍");
-ok(homeNoKey[1].text.indexOf("都要先填 API Key") >= 0 && homeNoKey[0].sel === "#btnQuick",
+ok(tutNoKeySteps.every(s=> !TUT_SEQ[s.raw].onlyKey) && tutNoKeySteps.length === TUT_SEQ.length - 2
+   && tutNoKeySteps.every(s=> !TUT_SEQ[s.raw].nk || s.text.indexOf("API Key") >= 0),
+   "引导/无 Key: onlyKey 的步整步跳过（科目页末尾讲 Key 的那步不再重复），nk 变体的文本讲 Key");
+ok(tutNoKeySteps[0].sel === "#btnQuick" && tutNoKeySteps[1].text.indexOf("都要先填 API Key") >= 0,
    "引导/无 Key: 首页仍先讲快判（那条真能走），大题那句改成「都要先填 API Key」");
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
-ok(TOURS.zy[0].sel === "#btnSmart" && TOURS.zy.length === 4 && tourSteps("zy").length === 4,
-   "引导/有 Key: 原样不动（还是 4 步，第一步指红按钮）");
+const tutKeySteps = visibleSteps();
+ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === i && s.sel === TUT_SEQ[i].sel),
+   "引导/有 Key: 序列原样（onlyKey 步在，nk 变体不生效；科目页还是 4 步、第一步指红按钮）");
 /* 19.12 入口标签得对应到真去处，产出反馈不能夸口（2026-10-08 再复查） */
 state.settings.apiKey = "";
 renderPDLanding();

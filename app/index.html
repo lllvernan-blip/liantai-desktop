@@ -855,8 +855,8 @@ const DEFAULT_STATE = {
              timeLimit:0,   // 作答限时的默认值（分钟，0 = 不限）：选过一次，下一题按同样时长起
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
-  tut:{ home:false, zy:false, sl:false, pd:false },
-  tutVersion:2,
+  tut:{ seq:0, done:false },   // seq = 一条引导序列的游标（原始索引，指向下一个未消费的步骤）；done = 序列已完结
+  tutVersion:3,
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
@@ -1054,8 +1054,9 @@ function load(){
     // 「最近练过的模块」也补前缀：不然切回科目时恢复不到上次的模块（裸键匹配不上任何模块）
     const lm = s.profile.lastModules.map(k=>migrateModuleKey(k));
     if(lm.join("|") !== s.profile.lastModules.join("|")){ s.profile.lastModules = lm; migrated = true; }
-    s.tut = Object.assign({ home:false, zy:false, sl:false, pd:false }, (s.tut && typeof s.tut === "object" && !Array.isArray(s.tut))? s.tut : {});
-    if(s.tutVersion !== DEFAULT_STATE.tutVersion){ s.tut = { home:false, zy:false, sl:false, pd:false }; s.tutVersion = DEFAULT_STATE.tutVersion; migrated = true; }
+    if(s.tutVersion !== DEFAULT_STATE.tutVersion){ s.tut = migrateTut(s.tut); s.tutVersion = DEFAULT_STATE.tutVersion; migrated = true; }
+    else if(!s.tut || typeof s.tut !== "object"){ s.tut = { seq:0, done:false }; migrated = true; }
+    else { s.tut.seq = (typeof s.tut.seq === "number" && s.tut.seq >= 0)? Math.floor(s.tut.seq) : 0; s.tut.done = !!s.tut.done; }
     // 迁移：练习记录从 gw_state 拆到 gw_history；写成功才清掉旧副本，失败则下轮再试
     let hist = loadHistory();
     if(Array.isArray(s.history) && s.history.length){
@@ -2011,10 +2012,12 @@ function openModal(id){
     box.setAttribute("tabindex","-1");
     if(typeof box.focus === "function"){ try{ box.focus({preventScroll:true}); }catch(e){} }
   }
+  tourPause();   // 引导暂歇：气泡不叠在弹层之上
 }
 function closeModals(){
   $("#modalSettings").hidden = true; $("#modalProfile").hidden = true;
   document.body.style.overflow = "";
+  tourResume();   // 弹层关掉，暂停中的引导就地恢复
   if(_focusBack && typeof _focusBack.focus === "function"){ try{ _focusBack.focus({preventScroll:true}); }catch(e){} }
   _focusBack = null;
 }
@@ -2148,75 +2151,100 @@ function renderStart(){
   maybeTour(curSubject());
 }
 
-/* ---- 使用引导：首次进入科目起始页时说明入口和练习流程；快判在自己的落地页说明规则。
-    走完或跳过即记「已看」；设置里可重置重新播放。页面被切走时就地结束。 ---- */
-const TOURS = {
-  // 首页（2026-10-08）：打开软件就在这里，所以第一套引导是它——先点快判，再告诉两句大题各去哪个科目
-  home:[
-    { sel:"#btnQuick", text:"点这里直接开始：从材料里挑出对的说法，点选即判，一轮 5 题。" },
-    { sel:"[data-big='zy']", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。" },
-    { sel:"#btnSample", text:"还没填 API Key，也能先试一轮示例题。" },
-    { sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
-  ],
-  pd:[
-    // 先讲综合快判，再讲单形式入口：主行动先出现，避免把新用户直接引到选择。
-    { sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。" },
-    { sel:".pdforms .chip[data-pdform]", text:"只练一种形式就点下面那排里的一个，一轮同样是 5 题。" },
-    { sel:".pdthemes>summary", text:"填了主题，一轮的题都围绕它出。" },
-    { sel:"#btnProfile", text:"三种快判形式的正确率，分别记在「我的画像」里。" },
-    { sel:"#btnSettings", text:"真出题要用 API Key（示例题不用），申请方法见设置页。" },
-  ],
-  zy:[
-    // 科目页的红按钮是本科目的主行动（快判常驻顶栏最左那颗胶囊，不在纸面上再放一个）
-    { sel:"#btnSmart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。" },
-    { sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
-    { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
-    { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
-  ],
-  sl:[
-    { sel:"#btnSmart", text:"点这里开始：先读材料划出要点，再归类成稿；交卷后按采分点逐条给分。" },
-    { sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
-    { sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
-    { sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。" },
-  ],
-};
-/* 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人，科目页第一句
-   原是「不选模块也可以，直接点这里开始」——他照做就被一句「出题和阅卷都要用 API Key」拦下来，
-   引导在承诺做不到的事；而且看这套引导的往往正是新人（没 Key 的人）。
-   所以没 Key 时：科目页第一步改指纸面上那颗「先填 API Key」（也就是他此刻真该点的那颗），
-   最后那一步（也在讲 Key）一并去掉——同一个元素讲两遍也是废话。 */
-const TOURS_NO_KEY = {
-  home: { 1: { text:"想练整篇：这两句各自去综应或申论，都要先填 API Key（快判不用）。" } },
-  zy:   { 0: { sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
-  sl:   { 0: { sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
-  pd:   {},   // 快判这套本来就讲到了 Key（「真出题要用 API Key（示例题不用）」），不用改
-};
-function tourSteps(sub){
-  const base = TOURS[sub];
-  if(!base) return null;
-  if(state.settings.apiKey) return base;
-  const ov = TOURS_NO_KEY[sub] || {};
-  const out = base.map((s,i)=> ov[i]? Object.assign({}, s, ov[i]) : s);
-  // 没 Key 的科目页：第一步已经把 Key 讲透，末尾那步也讲 Key，去掉
-  return (sub === "zy" || sub === "sl")? out.slice(0, out.length - 1) : out;
+/* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组：home → pd → zy → sl。
+   游标 state.tut.seq 指向下一个未消费的步骤：一组播完（点「知道了」）先收尾，后面屏幕的组
+   等首次进入再接着播；中途跳屏/被切走不回头补弹；跳过 = 整条序列完结，任何屏都不再自动弹。
+   设置里可重置重新播。气泡不叠在弹层之上：弹层打开时引导暂歇（见 tourPause/tourResume）。 ---- */
+const TUT_SEQ = [
+  // home：打开软件就落在这里，所以第一组是它——先点快判，再告诉两句大题各去哪个科目
+  { scr:"home", sel:"#btnQuick", text:"点这里直接开始：从材料里挑出对的说法，点选即判，一轮 5 题。" },
+  { scr:"home", sel:"[data-big='zy']", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。",
+    nk:{ text:"想练整篇：这两句各自去综应或申论，都要先填 API Key（快判不用）。" } },
+  { scr:"home", sel:"#btnSample", text:"还没填 API Key，也能先试一轮示例题。" },
+  { scr:"home", sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
+  // pd：先讲综合快判，再讲单形式入口：主行动先出现，避免把新用户直接引到选择。
+  // 快判这套本来就讲到了 Key（「真出题要用 API Key（示例题不用）」），没 Key 的话不用改
+  { scr:"pd", sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。" },
+  { scr:"pd", sel:".pdforms .chip[data-pdform]", text:"只练一种形式就点下面那排里的一个，一轮同样是 5 题。" },
+  { scr:"pd", sel:".pdthemes>summary", text:"填了主题，一轮的题都围绕它出。" },
+  { scr:"pd", sel:"#btnProfile", text:"三种快判形式的正确率，分别记在「我的画像」里。" },
+  { scr:"pd", sel:"#btnSettings", text:"真出题要用 API Key（示例题不用），申请方法见设置页。" },
+  // zy / sl：科目页的红按钮是本科目的主行动（快判常驻顶栏最左那颗胶囊，不在纸面上再放一个）。
+  // 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人照第一步做就被拦下来，
+  // 引导在承诺做不到的事；所以没 Key 时第一步改指纸面上那颗「先填 API Key」（nk），
+  // 末尾那步（也在讲 Key）整步去掉（onlyKey）——同一个元素讲两遍也是废话。
+  { scr:"zy", sel:"#btnSmart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。",
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+  { scr:"zy", sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
+  { scr:"zy", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
+  { scr:"zy", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
+  { scr:"sl", sel:"#btnSmart", text:"点这里开始：先读材料划出要点，再归类成稿；交卷后按采分点逐条给分。",
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+  { scr:"sl", sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
+  { scr:"sl", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
+  { scr:"sl", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
+];
+/* 旧版四标记（tutVersion ≤ 2 的 { home, zy, sl, pd }）→ 新游标结构：
+   老用户只要看过任何一套就不再被弹（done:true），一套都没看过才从头播。 */
+function migrateTut(t){
+  const o = (t && typeof t === "object" && !Array.isArray(t))? t : {};
+  return { seq:0, done: !!(o.home || o.zy || o.sl || o.pd) };
 }
-let tour = null;   // { sub, steps, i }
+/* 按当前 Key 有无给出可见步骤（带原始索引 raw）：没 Key 时 nk 变体替换 sel/text，onlyKey 的步整步跳过 */
+function visibleSteps(){
+  const hasKey = !!state.settings.apiKey;
+  const out = [];
+  TUT_SEQ.forEach((s, idx)=>{
+    if(!hasKey){ if(s.onlyKey) return; out.push({ raw:idx, scr:s.scr, sel:(s.nk && s.nk.sel) || s.sel, text:(s.nk && s.nk.text) || s.text }); }
+    else out.push({ raw:idx, scr:s.scr, sel:s.sel, text:s.text });
+  });
+  return out;
+}
+/* 步骤 i 所在组的末尾（同屏连续段）；maybeTour 与 tourShow 都用它找组边界 */
+function tourGroupEndAt(steps, i){
+  const scr = steps[i].scr;
+  let b = i;
+  while(b + 1 < steps.length && steps[b+1].scr === scr) b++;
+  return b;
+}
+function tourGroupStartAt(steps, i){
+  const scr = steps[i].scr;
+  let a = i;
+  while(a > 0 && steps[a-1].scr === scr) a--;
+  return a;
+}
+let tour = null;   // { steps(可见步骤数组，每步带 raw 原始索引), i(在 steps 里的下标), paused(弹层暂歇中) }
 // 当前页面形态：start（科目首页）| pd（快判页）| landing（模块落地页）| q（作答中）。
 // 只用于「重置使用说明后能不能当场重播」：在能播的页就地播，作答中不打断练习。
 let _view = "start";
-function maybeTour(sub){
-  if(state.tut[sub] || !TOURS[sub]) return;
-  const steps = tourSteps(sub);   // 没填 Key 时的话不一样（见 TOURS_NO_KEY）
-  if(!steps) return;
+function maybeTour(scr){
+  if(state.tut.done || _view === "q") return;
   setTimeout(()=>{
-    if(tour) return;                                            // 同时只播一套
-    // 这套引导的每一步都要有落点才播：页面被切走、或停在不完整的页面时既不播，也不算看过
-    if(!steps.every(s=> document.querySelector(s.sel))) return;
-    startTour(steps, sub);
+    if(state.tut.done) return;                                  // 序列已完结（走完或跳过）：任何屏都不再自动弹
+    if(tour){
+      // 还在播的引导：属于同一屏就让它继续（落点由 tourPlace 自查）；
+      // 页面换屏了（在播别的屏的组）= 就地暂停（不推进游标），这一屏的组另行接续
+      if(tour.steps[tour.i].scr === scr) return;
+      tourEnd(false);
+    }
+    const steps = visibleSteps();
+    // 当前屏的第一个未消费步骤；找不到就不播，游标不回退
+    let i0 = -1;
+    for(let k = 0; k < steps.length; k++){
+      if(steps[k].raw < state.tut.seq || steps[k].scr !== scr) continue;
+      i0 = k; break;
+    }
+    if(i0 < 0) return;
+    // 用户跳屏了：落下的步骤不再回头补弹，直接把游标推到这一步
+    if(steps[i0].raw > state.tut.seq){ state.tut.seq = steps[i0].raw; save(); }
+    // 这组引导的每一步都要有落点才播：页面被切走、或停在不完整的页面时既不播，也不消费
+    const gEnd = tourGroupEndAt(steps, i0);
+    for(let k = i0; k <= gEnd; k++){ if(!document.querySelector(steps[k].sel)) return; }
+    startTour(steps, i0);
   }, 350);
 }
-function startTour(steps, sub){
-  tour = { sub, steps, i:0 };
+function startTour(steps, idx){
+  tour = { steps, i:idx, paused:false };
   const hole = document.createElement("div"); hole.className = "tour-hole"; hole.id = "tourHole";
   const tip = document.createElement("div"); tip.className = "tour-tip"; tip.id = "tourTip";
   document.body.appendChild(hole); document.body.appendChild(tip);
@@ -2227,18 +2255,30 @@ function startTour(steps, sub){
 function tourShow(){
   if(!tour) return;
   const el = document.querySelector(tour.steps[tour.i].sel);
-  if(!el){ tourEnd(false); return; }   // 页面被切走：不算看过，下次进入再播
+  if(!el){ tourEnd(false); return; }   // 页面被切走：不算看过也不推进游标，下次进入同屏再弹
   el.scrollIntoView({ block:"center", behavior:"auto" });
   const tip = $("#tourTip");
   if(!tip){ tourEnd(); return; }
+  const gStart = tourGroupStartAt(tour.steps, tour.i), gEnd = tourGroupEndAt(tour.steps, tour.i);
   tip.style.display = "block";
-  tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(tour.steps[tour.i].text)}</div><div class="tacts">${tour.i > 0? `<button id="tourPrev">上一步</button>`:""}<button class="primary" id="tourNext">${tour.i===tour.steps.length-1? "完成":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
+  tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(tour.steps[tour.i].text)}</div><div class="tacts">${tour.i > gStart? `<button id="tourPrev">上一步</button>`:""}<button class="primary" id="tourNext">${tour.i===gEnd? "知道了":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
   const prev = $("#tourPrev");
   if(prev) prev.onclick = ()=>{
-    if(tour.i <= 0) return;
+    if(!tour) return;
+    if(tour.i <= tourGroupStartAt(tour.steps, tour.i)) return;   // 只在组内回退
     tour.i--; tourShow();
   };
-  $("#tourNext").onclick = ()=>{ if(tour.i + 1 >= tour.steps.length){ tourEnd(); return; } tour.i++; tourShow(); };
+  $("#tourNext").onclick = ()=>{
+    if(!tour) return;
+    const gEnd2 = tourGroupEndAt(tour.steps, tour.i);
+    if(tour.i < gEnd2){
+      tour.i++; state.tut.seq = tour.steps[tour.i].raw; save(); tourShow(); return;
+    }
+    // 组内最后一步（「知道了」）：本次播报到此为止；后面屏幕的组等首次进入再接着播
+    if(tour.i + 1 >= tour.steps.length){ tourEnd(); return; }   // 整条可见序列走完
+    state.tut.seq = tour.steps[tour.i + 1].raw;
+    tour = null; tourDetach(); save();
+  };
   $("#tourSkip").onclick = ()=> tourEnd();
   requestAnimationFrame(tourPlace);
 }
@@ -2292,14 +2332,29 @@ function tourPlace(){
   tip.style.left = left + "px";
   tip.style.top = top + "px";
 }
-// markSeen 为假时不算「看过」（走完或主动跳过才算）——中途被切走的那次，下次进入还会再播
+/* markSeen 为假 = 页面被切走/元素消失：不推进游标也不置 done（当前步下次进入同屏再弹）——这就是「暂停」。
+   走完最后一步或点「跳过引导」才是序列完结（done:true），任何屏都不再自动弹。 */
 function tourEnd(markSeen){
-  if(tour && state.tut && markSeen !== false) state.tut[tour.sub] = true;
+  if(tour && markSeen !== false) state.tut.done = true;
   tour = null;
+  tourDetach();
+  save();
+}
+function tourDetach(){
   ["#tourHole","#tourTip"].forEach(s=>{ const e=$(s); if(e) e.remove(); });
   window.removeEventListener("resize", tourPlace);
   window.removeEventListener("scroll", tourPlace, true);
-  save();
+}
+/* 弹层暂歇：.modal 的层级低于气泡，光靠 z-index 兑不了——弹层打开时藏起引导，关掉再恢复 */
+function tourPause(){
+  if(!tour || tour.paused) return;
+  tour.paused = true;
+  ["#tourHole","#tourTip"].forEach(s=>{ const e=$(s); if(e) e.style.display = "none"; });
+}
+function tourResume(){
+  if(!tour || !tour.paused) return;
+  tour.paused = false;
+  tourShow();   // 重摆当前步：顺带核落点还在不在，不在就走 tourEnd(false) 的暂停路
 }
 
 /* 模块落地页：点模块 chips 先到这里，看清子类型和自己的底子，点开始才调 AI */
@@ -5030,12 +5085,13 @@ renderChangelog();
   renderStartNotices();
   $("#setProvider").onchange = onProviderChange;
   $("#btnTutReset").onclick = ()=>{
-    state.tut = { home:false, zy:false, sl:false, pd:false };
+    if(tour) tourEnd(false);   // 若正播到一半（暂歇中）：旧播报作废，不推进游标，按重置后的序列重新来
+    state.tut = { seq:0, done:false };
     state.tutVersion = DEFAULT_STATE.tutVersion;
     save();
     closeModals();
-    // 重置后就地重播：首页/科目首页/快判页直接重渲一次让它当场出现；正在作答不打断，回首页时自然再播
-    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到首页或快判页时会重新显示引导。"); return; }
+    // 重置后就地重播：首页/科目首页/快判页直接重渲一次让它当场出现；正在作答不打断，这些屏都会再弹
+    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到首页、科目页或快判页时会重新显示引导。"); return; }
     if(pdActive) renderPDLanding(); else if(_view === "home") renderHome(); else renderStart();
   };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
