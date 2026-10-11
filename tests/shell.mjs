@@ -439,6 +439,10 @@ if (process.platform !== "darwin") {
                                      : "http://127.0.0.1:" + port + files.bodyPath),
       }],
     };
+    if (o.asList) files.api = [
+      { tag_name: "v0.0.99-draft", draft: true, assets: [] },   // draft：跳过不看
+      { tag_name: "v" + o.apiVersion, prerelease: true, assets: files.api.assets },
+    ];
     let quitCalled = 0;
     const { mod, restore } = loadUpdate({});
     mod.initUpdate({ log, isPackaged: true, currentVersion: o.currentVersion, platform: "darwin",
@@ -539,6 +543,16 @@ if (process.platform !== "darwin") {
     ok(refused && /没有权限/.test(c.mod.getStatus().error),
        "壳/mac: 目录不可写就当场拒绝换包（并说清下好的包在哪），不把应用白关一次");
     ok(c.quitCount() === 0, "壳/mac: 拒绝时不许动退出流程");
+    c.clean();
+  }
+
+  /* 6e. prerelease 也要能被 mac 链看见：mac 常发 prerelease，它不占 /releases/latest，
+      查列表才找得到；列表响应（数组）与单对象都要认 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", asList: true });
+    await c.mod.checkUpdate();
+    ok(c.mod.getStatus().phase === "available" && c.mod.getStatus().latestVersion === "0.0.16",
+       "壳/mac: prerelease 在列也能查到（mac 链按版本号说话，不依赖 /releases/latest）");
     c.clean();
   }
 }

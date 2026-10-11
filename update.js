@@ -529,7 +529,7 @@ function installUpdate() {
       任何一次失败都写进 <userData>/updates/install.log 的最后一行——脚本阶段没有界面可说话，
       下次启动 main.js 会读它并在首页说出来（见 macLastFailure）。
    4. 用户数据不动：只替换 .app 本体，练习记录 / Key / 草稿都在 userData 里，一个字节不碰。 */
-const MAC_API_DEFAULT = 'https://api.github.com/repos/lllvernan-blip/liantai-desktop/releases/latest';
+const MAC_API_DEFAULT = 'https://api.github.com/repos/lllvernan-blip/liantai-desktop/releases?per_page=15';   // 扫列表而不是 /releases/latest：mac 常发 prerelease，它不占 latest，查 latest 永远看不到
 const MAC_UA = 'liantai-desktop-updater';
 const MAC_HOST_OK = /^(github\.com|api\.github\.com|[a-z0-9-]+\.githubusercontent\.com)$/i;   // 官方域（api 与资产）
 const MAC_LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/i;                    // 自检用的假源
@@ -766,22 +766,33 @@ async function macCheckOnce() {
   setPhase(PHASE.CHECKING);
   try {
     const data = await macGetJson(mac.api);
-    const tag = String((data && (data.tag_name || data.name)) || '').replace(/^v/i, '').trim();
-    if (!/^\d+\.\d+\.\d+/.test(tag)) throw new Error('发布页没有可读的版本号');
-    if (cmpVersion(tag, status.currentVersion) <= 0) {
+    /* prerelease 也算数：mac 链是自实现的，按版本号说话，下的是 zip 不受签名限制。
+       Windows 的 electron-updater 走 /releases/latest，prerelease 不占 latest，两边互不干扰。 */
+    const list = Array.isArray(data)? data : [data];
+    let pendingTag = null, pendingAsset = null, newestTag = null;
+    for (const rel of list) {
+      if (!rel || rel.draft) continue;
+      const tag = String(rel.tag_name || rel.name || '').replace(/^v/i, '').trim();
+      if (!/^\d+\.\d+\.\d+/.test(tag)) continue;
+      if (!newestTag) newestTag = tag;
+      if (cmpVersion(tag, status.currentVersion) <= 0) continue;
+      const asset = macPickAsset(rel.assets || [], tag);
+      if (!asset) continue;   // 这条没带 mac 包（多半是另一端先建的 Release），看下一条
+      pendingTag = tag; pendingAsset = asset; break;
+    }
+    if (!pendingTag) {
       mac.pending = null;
       status.latestVersion = status.currentVersion;
       setPhase(PHASE.UP_TO_DATE, '已是最新（' + status.currentVersion + '）');
       schedule(PERIODIC_CHECK_MS);
       return snapshot();
     }
-    const asset = macPickAsset(data.assets, tag);
-    if (!asset) throw new Error('v' + tag + ' 没带适合本机的 mac 包');
-    const url = String(asset.browser_download_url || asset.url || '');
+    if (!pendingAsset) throw new Error('v' + newestTag + ' 没带适合本机的 mac 包');
+    const url = String(pendingAsset.browser_download_url || pendingAsset.url || '');
     macAssertUrl(url);   // 地址不合规就在“检查”这一步就说清，不留到下载时才炸
-    mac.pending = { version: tag, url: url, size: Number(asset.size) || 0, digest: String(asset.digest || '') };
-    status.latestVersion = tag;
-    setPhase(PHASE.AVAILABLE, 'v' + tag + ' 可用（点「更新到 v' + tag + '」开始下载）');
+    mac.pending = { version: pendingTag, url: url, size: Number(pendingAsset.size) || 0, digest: String(pendingAsset.digest || '') };
+    status.latestVersion = pendingTag;
+    setPhase(PHASE.AVAILABLE, 'v' + pendingTag + ' 可用（点「更新到 v' + pendingTag + '」开始下载）');
   } catch (err) {
     if (id === macAttempt) macFail('check', (err && err.message) || String(err));
   }
