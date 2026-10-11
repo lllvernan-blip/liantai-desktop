@@ -2355,11 +2355,12 @@ const pdLandKey = el("#docBody").innerHTML;
 ok(pdLandKey.indexOf("开始一轮综合快判") >= 0 && pdLandKey.indexOf("先试一轮示例题") < 0
    && pdLandKey.indexOf("也是内置示例题") < 0,
    "快判落地页/有 Key: 还是「开始一轮综合快判」（有 Key 时它就是真出题，标签照旧）");
-/* 示例题整块下线：池子、取题函数、入口与「不用 Key 也能练」的口径一律不留残留 */
+/* 示例题整块下线：池子、取题函数、入口与「不用 Key 也能练」的口径一律不留残留（CHANGELOG 是面向用户的历史记录，不在禁止范围） */
+const _pageNoLog = PAGE_HTML.slice(0, PAGE_HTML.indexOf("const CHANGELOG"));
 ok(PAGE_HTML.indexOf("PD_SAMPLE_ITEMS") < 0 && PAGE_HTML.indexOf("pdSampleItems") < 0
    && PAGE_HTML.indexOf("startPDSampleRound") < 0 && PAGE_HTML.indexOf("btnSample") < 0
-   && PAGE_HTML.indexOf("示例题") < 0 && PAGE_HTML.indexOf("不用 Key") < 0 && PAGE_HTML.indexOf("不用填") < 0,
-   "示例题下线: 页面不再有示例题池、示例入口与「不用 Key 也能练」的口径");
+   && _pageNoLog.indexOf("示例题") < 0 && _pageNoLog.indexOf("不用 Key") < 0 && _pageNoLog.indexOf("不用填") < 0,
+   "示例题下线: 页面不再有示例题池、示例入口与「不用 Key 也能练」的口径（CHANGELOG 除外）");
 state.settings.apiKey = "";
 renderStartNotices();
 ok(exportHelpText().indexOf("已生成备份") >= 0 && exportHelpText().indexOf("取消就等于没导出") >= 0
