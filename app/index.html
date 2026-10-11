@@ -93,9 +93,9 @@ html,body{margin:0;padding:0;}
   .spacer{flex:1 1 auto;}
   /* 科目入口跟品牌同一行（2026-10-08）：它原来独占顶栏第二行，而那一行里它是唯一的住客 */
   .subjbar{display:flex;align-items:center;gap:6px;margin-left:14px;}
-  .subjbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);font-family:var(--hei);font-size:13px;padding:5px 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
-  .subjbtn:hover{border-color:var(--gov-red);color:var(--gov-red);}
-  .subjbtn.active{background:var(--red-wash);border-color:var(--gov-red);color:var(--gov-red);}   /* 实心红只留给主行动：科目报「范围」，当前项由 chips 的红线报 */
+  .subjbtn{border:1px solid transparent;background:transparent;color:var(--muted);font-family:var(--hei);font-size:13px;padding:0 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
+  .subjbtn:hover{background:var(--wash-3);color:var(--ink);}
+  .subjbtn.active{background:var(--red-wash);color:var(--gov-red);}   /* 实心红只留给主行动：默认无框，激活才现淡红底（与快判图标、工具图标同一套语言） */
   .subjbtn.active:hover{background:var(--red-wash-2);}
   .subjdiv{width:1px;height:18px;background:var(--line);margin:0 1px;}   /* 快判不是科目：它与科目之间用一道细线分开（2026-10-07「快判往上提」） */
   /* 悬浮提示（SPEC 3.2）：图标无框，悬浮才现文字说明；纯 CSS，零依赖 */
@@ -107,7 +107,7 @@ html,body{margin:0;padding:0;}
   .toolbar .iconbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
   .toolbar .iconbtn:hover{background:var(--wash-3);color:var(--ink);}
   /* 快判的顶栏入口：与工具图标同一套无框语言；激活时红字淡红底 */
-  .subjbtn.icon{width:34px;padding:0;justify-content:center;border-color:transparent;background:transparent;}
+  .subjbtn.icon{width:34px;padding:0;justify-content:center;}
   .subjbtn.icon:hover{border-color:transparent;background:var(--wash-3);}
   .subjbtn.icon.active{border-color:transparent;background:var(--red-wash);color:var(--gov-red);}
   .subjbtn.icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
@@ -4698,6 +4698,10 @@ function handleErr(e, keepView){
 
 /* 更新日志：发版时在最上面加一条；纯静态不联网，走哪个更新源都能看。 */
 const CHANGELOG = [
+  ["0.0.19", "界面整体焕新：顶栏收成一行，模块与快判形式选择落进纸面"],
+  ["0.0.19", "新用户引导改为一条跟屏序列，可随时暂停或跳过"],
+  ["0.0.19", "内置示例题下线，没填 Key 时如实引导先填 Key"],
+  ["0.0.19", "API 提醒可以关闭了"],
   ["0.0.18", "抬头收成一行；申论全链与学习卡统一；更新与发版链加固"],
   ["0.0.17", "打开就能做快判，没填 Key 也能先试一轮"],
   ["0.0.16", "macOS 版可在应用内更新"],
