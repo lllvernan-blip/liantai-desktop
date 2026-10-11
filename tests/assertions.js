@@ -639,9 +639,8 @@ renderHome();
 ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
    && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
    && el("#docBody").innerHTML.indexOf('data-big="zy">练一道综应大题') >= 0
-   && el("#docBody").innerHTML.indexOf('data-big="sl">练一道申论大题') >= 0
-   && el("#docBody").innerHTML.indexOf('id="btnSample"') >= 0,
-   "起始页: 快判是第一入口（带一行小字），两句大题各自点名科目，另有示例题入口");
+   && el("#docBody").innerHTML.indexOf('data-big="sl">练一道申论大题') >= 0,
+   "起始页: 快判是第一入口（带一行小字），两句大题各自点名科目");
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
@@ -1276,7 +1275,7 @@ ok(el("#profileBody").innerHTML.indexOf("分组概括") >= 0 && el("#profileBody
 localStorage.clear();
 state.history = [];
 
-/* ============ 13.5 快判往上提（2026-10-07）：快判成第一入口 + 内置示例轮 ============ */
+/* ============ 13.5 快判成第一入口（示例题整块下线：无 Key 的主行动如实变成「先填 API Key」） ============ */
 
 /* ① 入口顺序：快判排在科目之前，且与科目之间有一道分隔 */
 renderTabs();
@@ -1285,20 +1284,29 @@ ok(sbUp.indexOf("快判") >= 0 && sbUp.indexOf("快判") < sbUp.indexOf("综应A
    "快判往上提: 科目栏里快判排在科目之前");
 ok(sbUp.indexOf('class="subjdiv"') >= 0, "快判往上提: 快判与科目之间有一道分隔（它不是第三个科目）");
 
-/* ② 首页：大红按钮是快判，大题退成描边第二按钮，另有示例入口
+/* ② 首页：没填 Key 时红按钮如实说「先填 API Key」，两句大题各自点名科目；填了 Key 红按钮是「开始快判」
      （这两句曾经连科目首页也照抄一份，结果综应A 里最大的红按钮写着「开始快判」） */
 const apiKeyBeforeUp = state.settings.apiKey;   // 后面几步要改 Key：用完原样还回去（14.11 那条要验「导入不动本机 Key」）
 state.settings.apiKey = "";
 renderHome();
 const startUp = el("#docBody").innerHTML;
-ok(startUp.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
-   && startUp.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0,
-   "快判往上提: 首页最大的红按钮是「开始快判」，下面一行小字");
+ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
+   && startUp.indexOf("开始快判") < 0 && startUp.indexOf("btnSample") < 0,
+   "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快判」");
+el("#btnSetup").onclick();
+ok(el("#modalSettings").hidden === false,
+   "首页（没填 Key）: 那颗按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
+closeModals();
 ok(startUp.indexOf('data-big="zy">练一道综应大题') >= 0 && startUp.indexOf('data-big="sl">练一道申论大题') >= 0
    && startUp.indexOf("练一道大题（综应 / 申论）") < 0,
    "快判往上提: 两句大题各自点名科目，不再写含糊的「综应 / 申论」");
-ok(startUp.indexOf('id="btnSample"') >= 0 && startUp.indexOf("先试一轮示例题（不用填 Key）") >= 0,
-   "快判往上提: 首页给示例轮一个小入口，并写明不用填 Key");
+state.settings.apiKey = "sk-test";
+renderHome();
+ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
+   && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
+   && el("#docBody").innerHTML.indexOf("btnSample") < 0,
+   "快判往上提: 首页填了 Key 时红按钮是「开始快判」，下面一行小字（示例题入口已下线）");
+state.settings.apiKey = "";
 /* ②b 科目首页（综应A / 申论）：红按钮是本科目的主行动，快判不在纸面上抢红
      （快判入口常驻顶栏最左那颗胶囊，科目页再放一遍就是同一条路开两个门） */
 state.settings.subject = "zy"; renderStart();
@@ -1306,8 +1314,8 @@ const subjStart = el("#docBody").innerHTML;
 ok(subjStart.indexOf('class="primary big" id="btnSetup">先填 API Key') >= 0
    && subjStart.indexOf("data-start=\"subj\"") >= 0,
    "科目页（没填 Key）: 红按钮改说「先填 API Key」——出题这条路当下走不通，就不说「开始练习」");
-ok(subjStart.indexOf("开始快判") < 0 && subjStart.indexOf('id="btnSample"') < 0,
-   "科目页: 不出现「开始快判」，也不放示例轮（那是快判的事）");
+ok(subjStart.indexOf("开始快判") < 0,
+   "科目页: 不出现「开始快判」（快判是顶栏最左那颗胶囊的事）");
 const zyFlowOrder = ["练习流程","学习卡","作答","批改"].map(s=> subjStart.indexOf(s));
 ok(zyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > zyFlowOrder[i-1])),
    "综应A布局: 主按钮下预览真实流程，顺序为学习卡→作答→批改");
@@ -1348,79 +1356,47 @@ const startThemes = Array.from({length: 20}, ()=> pdThemeValue());
 ok(startThemes.every(t=> PD_TOPICS.indexOf(t) >= 0),
    "快判往上提: 起始页没主题输入框时退回随机主题（不会带着空主题出题）");
 
-/* ③ 一键到题：没 Key 点「开始快判」直接进示例轮（不报错、不调 AI） */
-const pdStubPrev = callLLM; let sampleCalls = 0;
-callLLM = async (...a)=>{ sampleCalls++; return pdStubPrev(...a); };
-startPDRound(PD_MIX);
-ok(pdActive === true && !!pdRound && pdRound.sample === true && sampleCalls === 0,
-   "示例轮: 没填 Key 点「开始快判」直接进示例轮，不报错也不调 AI");
-ok(pdRound.items.length === PD_ROUND_SIZE && pdRound.idx === 0,
-   "示例轮: 一轮 5 题，开局停在第 1 题");
-const sampleDoc = el("#docBody").innerHTML;
-ok(sampleDoc.indexOf("material") >= 0 && sampleDoc.indexOf("pdopt") >= 0 && sampleDoc.indexOf("示例题") >= 0,
-   "示例轮: 一进来就是第一道题（材料 + 选项 + 示例标注），不再先过落地页");
-ok(el("#docBody").innerHTML.indexOf("data-mod=") < 0
-   && el("#subjbar").innerHTML.indexOf('class="subjbtn icon active" data-s="__pd"') >= 0,
-   "示例轮: 从起始页直进去也进快判态（纸面换成判别题、不挂模块 chips、快判按钮高亮）");
-
-/* ④ 示例题本身：与模型返回同形，且过同一道 sanitizePDItems 关 */
-ok(sanitizePDItems(PD_SAMPLE_ITEMS, PD_MIX).length === PD_ROUND_SIZE,
-   "示例题: 池子里的题结构完整，能过 sanitizePDItems（与模型返回同一道关）");
-ok(PD_SAMPLE_ITEMS.every(it=> PD_FORM_ORDER.indexOf(it.form) >= 0 && it.context.length >= 60
-   && it.stem && it.options.length >= 2 && it.answer >= 0 && it.answer < it.options.length && it.trap && it.explain),
-   "示例题: 形式 / 材料 / 题干 / 选项 / 答案 / 辨析点 / 解析齐备");
-ok(new Set(PD_SAMPLE_ITEMS.map(it=> it.form)).size === 3,
-   "示例题: 三种形式都露面（一轮就让人看清快判练的三件事）");
-ok(PD_SAMPLE_ITEMS.every(it=> sanitizePDItems([it], it.form).length === 1),
-   "示例题: 逐题过一遍 sanitizePDItems（去重后选项仍 >=2、答案下标仍指得对——不对的题会被整题丢掉）");
-ok(PD_FORM_ORDER.every(f=> PD_SAMPLE_ITEMS.filter(it=> it.form === f).length >= PD_ROUND_SIZE),
-   "示例题: 每种形式都够凑一轮（不够就只能拿混合轮顶包：点了 A 得到 B，已改成按形式取题）");
-// 单形式轮：点了哪个形式就出哪个形式，抬头/纸面也跟着报那个形式（不能冒充综合快判）
-startPDSampleRound("group-summarize");
-ok(pdRound.form === "group-summarize" && pdRound.items.length === PD_ROUND_SIZE
-   && pdRound.items.every(it=> it.form === "group-summarize"),
-   "示例轮/单形式: 点「分组概括」就给分组概括的 5 道（不再给三种混着来）");
-ok(el("#modLabel").textContent.indexOf("分组概括") >= 0
-   && el("#docBody").innerHTML.indexOf("示例题（分组概括，不调用 AI）") >= 0,
-   "示例轮/单形式: 抬头与纸面都如实报这个形式");
-startPDRound("expression-compare");
-ok(pdRound.form === "expression-compare" && pdRound.items.every(it=> it.form === "expression-compare"),
-   "示例轮/单形式: 没填 Key 时点形式卡片，走到底也拿这个形式（入口那一跳不能把形式丢掉）");
-startPDSampleRound();
-ok(pdRound.form === PD_MIX && new Set(pdRound.items.map(it=> it.form)).size === 3,
-   "示例轮/综合: 不传形式时仍是三种混着来的一轮（首页那个「先试一轮示例题」走这条）");
-
-/* ⑤ 判分与小结走同一套，但「不落账」 */
-const histBeforeSample = state.history.length;
-const lsBeforeSample = localStorage.getItem("gw_history");
-for(let i=0;i<5;i++){ pdResolve(0); if(!pdRound.done) pdNext(); }
-ok(pdRound.done === true && el("#docBody").innerHTML.indexOf("本轮小结") >= 0
-   && el("#docBody").innerHTML.indexOf("本轮小结 · ") < 0,
-   "示例轮: 答完 5 题照常出小结（与真轮同一屏；形式名不再写第二遍）");
-ok(state.history.length === histBeforeSample && localStorage.getItem("gw_history") === lsBeforeSample,
-   "示例轮: 不计入练习记录（画像不被这 5 道固定题拖着走）");
-ok(el("#docBody").innerHTML.indexOf("再做一遍示例题") >= 0 && el("#docBody").innerHTML.indexOf("看快判的其他形式") >= 0,
-   "示例轮: 小结给「再做一遍」与「看其他形式」，不给 AI 出题的「再来一轮」");
-ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考你") < 0
-   && el("#docBody").innerHTML.indexOf("这几类就是快判最常考的辨析点") >= 0,
-   "示例轮: 不承诺「下次再考你」（示例题不入账，那条链也无从兜现）");
-ok(el("#bannerSlot").innerHTML.indexOf("想看新题，去设置里填一个 API Key") >= 0
-   && el("#bannerSlot").innerHTML.indexOf("bnrOpenSettings") >= 0,
-   "示例轮: 跑完才提示填 Key，提示里能直接点进设置");
-
-/* ⑥ 与大题的关系：练习页与小结点各一句 */
-ok(sampleDoc.indexOf("快判练的是从材料里辨认说法") >= 0 && el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") >= 0,
-   "关系说明: 快判练习页与小结点都说明它和大题的关系");
-
-/* ⑦ 填了 Key 就照常走 AI：别让示例轮的兜底把真出题也拦下 */
-state.settings.apiKey = "sk-test";
+/* ③ 一键到题：填了 Key 点「开始快判」直接进 AI 出题；没 Key 被 entryBlocked 拦在原地（不进加载态、不调 AI） */
+const pdStubPrev = callLLM; let pdCalls = 0;
+callLLM = async (...a)=>{ pdCalls++; return pdStubPrev(...a); };
 const realGenPD = genPDRound; const genCalls = [];
 genPDRound = async (form, theme)=>{ genCalls.push([form, theme]); };
+state.settings.apiKey = "sk-test";
 startPDRound(PD_MIX);
-ok(genCalls.length === 1 && genCalls[0][0] === PD_MIX && sampleCalls === 0,
-   "示例轮: 填了 Key 就照常出题，不抢 AI 的活");
-genPDRound = realGenPD; callLLM = pdStubPrev;
-pdActive = false; pdRound = null; pdForm = null; state.settings.apiKey = apiKeyBeforeUp;
+ok(genCalls.length === 1 && genCalls[0][0] === PD_MIX && pdCalls === 0,
+   "快判: 填了 Key 点「开始快判」直接进 AI 出题");
+state.settings.apiKey = "";
+startPDRound(PD_MIX);
+ok(genCalls.length === 1 && pdCalls === 0 && pdRound === null,
+   "快判: 没填 Key 点快判被 entryBlocked 拦在原地（不出题、不调 AI、不换屏）");
+
+genPDRound = realGenPD;
+
+/* ④ 判分与小结：手工装一轮真渲染走完（不调 AI），练习页 / 小结 / 入账都照真轮走 */
+const histBeforePd = state.history.length;
+const lsBeforePd = localStorage.getItem("gw_history");
+const pdFakeItem = { form:"fact-select", context:"某县 2024 年起在乡镇开办乡村夜校，运行经费由县财政拨付，主要面向返乡青年。", stem:"下列关于该县乡村夜校的说法，哪一项准确？",
+  options:["面向全县所有青年开放", "课程由县农业农村局与本地职业学校共同设计"], answer:1, trap:"改范围", explain:"解析。" };
+pdActive = true; pdForm = "fact-select";
+pdRound = { form:"fact-select", theme:"测试主题", items:[pdFakeItem], idx:0, correct:0, done:false };
+renderPDRound();
+ok(el("#docBody").innerHTML.indexOf("material") >= 0 && el("#docBody").innerHTML.indexOf("pdopt") >= 0
+   && el("#docBody").innerHTML.indexOf("主题「测试主题」") >= 0,
+   "快判练习页: 一进来就是第一道题（材料 + 选项 + 主题标注）");
+ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") >= 0,
+   "关系说明: 快判练习页说明它和大题的关系");
+pdResolve(0); pdNext();
+ok(pdRound.done === true && state.history.length === histBeforePd + 1 && localStorage.getItem("gw_history") !== lsBeforePd
+   && el("#docBody").innerHTML.indexOf("本轮小结") >= 0,
+   "快判小结: 答完照常出小结并计入练习记录");
+ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") >= 0
+   && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("换个形式") >= 0,
+   "关系说明: 小结点也说明关系，收尾按钮是「再来一轮 / 换个形式」");
+ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考你") >= 0,
+   "快判小结: 答错的承诺「下次再考你」（记录已入账，那条链能兑得现）");
+state.history = state.history.filter(h=> h.track !== "pd"); saveHistory();
+pdActive = false; pdRound = null; pdForm = null; state.settings.apiKey = apiKeyBeforeUp; callLLM = pdStubPrev;
+
 
 /* ============ 13.6 首页（谁都没选）与两句大题各自点名科目 ============ */
 
@@ -1750,9 +1726,8 @@ const __baseBefore = state.settings.baseUrl;
 const __realFetch = globalThis.fetch;   // 15.7 要让 saveSettings 里的拉模型请求注定失败：先留一份真的，事后还回去
 state.settings.apiKey = "";
 renderStartNotices();
-ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与真快判") >= 0
-   && el("#bannerSlot").innerHTML.indexOf("还没填也能先跑一轮内置示例题") >= 0,
-   "提示: 没填 Key 时，首页的欢迎提示把「不用 Key 也能先跑一轮示例题」一并说清（口径跟着 0.0.17 的快判示例轮改）");
+ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") >= 0,
+   "提示: 没填 Key 时，首页的欢迎提示如实只讲填 Key（示例轮已下线，不再说「不用 Key 也能练」）");
 globalThis.fetch = () => Promise.reject(new Error("net down"));
 el("#setKey").value = "sk-test-key";
 saveSettings();
@@ -2260,17 +2235,12 @@ ok(_eb.indexOf("s.apiKey && s.model") >= 0 && _eb.indexOf("OPEN_SETTINGS_BTN") >
 ok(renderPDSummary.toString().indexOf("本轮小结 · ") < 0,
    "快判小结: 纸面不再把形式名写第二遍（抬头已报「快判 · 综合快判」）");
 
-/* 19.9 示例轮不入账，但也不许装作没发生（2026-10-08 复查）
-   现场：刚跑完一轮示例题的人点开画像的「快判」页，看到「还没练过快判。点科目栏的「快判」开一轮。」——
-   他 30 秒前刚练了 5 题，界面还把他往刚做过的事上推。 */
+/* 19.9 画像/快判空态：没练过就照直说（示例轮回声已随示例题下线一起删掉） */
 const _histKeep = state.history.slice();
 state.history = [];
-pdRound = { form: PD_MIX, theme: "示例题", idx: 5, correct: 2, done: true, sample: true, items: [] };
-ok(profilePdHtml().indexOf("示例题") >= 0 && profilePdHtml().indexOf("还没练过快判") < 0,
-   "画像/快判: 刚跑完示例轮不写「还没练过」，而是说清「示例题不计入统计」");
-pdRound.sample = false;
-ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 真轮没跑过时仍走原空态（不把话说过头）");
-pdRound = null; state.history = _histKeep;
+pdRound = null;
+ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 没练过就写「还没练过快判」");
+state.history = _histKeep;
 
 /* 19.10 顶栏与纸面间距：纸面与真实顶栏始终间隔 24px（第二行已撤，不用任何空白补位）。 */
 ok(renderTabs.toString().indexOf("gap-modbar") < 0 && PAGE_HTML.indexOf(".wrap.gap-modbar") < 0
@@ -2330,8 +2300,15 @@ ok(tutZyNoKey.sel === "#btnSetup" && tutZyNoKey.text.indexOf("API Key") >= 0
 ok(tutNoKeySteps.every(s=> !TUT_SEQ[s.raw].onlyKey) && tutNoKeySteps.length === TUT_SEQ.length - 2
    && tutNoKeySteps.every(s=> !TUT_SEQ[s.raw].nk || s.text.indexOf("API Key") >= 0),
    "引导/无 Key: onlyKey 的步整步跳过（科目页末尾讲 Key 的那步不再重复），nk 变体的文本讲 Key");
-ok(tutNoKeySteps[0].sel === "#btnQuick" && tutNoKeySteps[1].text.indexOf("都要先填 API Key") >= 0,
-   "引导/无 Key: 首页仍先讲快判（那条真能走），大题那句改成「都要先填 API Key」");
+const tutHomeNoKey = tutNoKeySteps.filter(s=> s.scr === "home");
+ok(tutHomeNoKey.length === 3 && tutHomeNoKey[0].sel === "#btnSetup"
+   && tutHomeNoKey[0].text.indexOf("API Key") >= 0,
+   "引导/无 Key: home 组 3 步，第一步指那颗「先填 API Key」，如实讲填 Key");
+ok(tutNoKeySteps.every(s=> s.text.indexOf("不填 Key 也能练") < 0),
+   "引导/无 Key: 不再说「不填 Key 也能练」（快判出题也要 Key 了）");
+ok(tutNoKeySteps.every(s=> s.scr !== "pd" || s.text.indexOf("示例") < 0)
+   && TUT_SEQ.every(s=> s.text.indexOf("示例题") < 0 && (!s.nk || s.nk.text.indexOf("示例题") < 0)),
+   "引导: 快判页与全部引导步骤都不再有示例题的口径");
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
 const tutKeySteps = visibleSteps();
 ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === i && s.sel === TUT_SEQ[i].sel),
@@ -2340,14 +2317,27 @@ ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === 
 state.settings.apiKey = "";
 renderPDLanding();
 const pdLandNoKey = el("#docBody").innerHTML;
-ok(pdLandNoKey.indexOf("先试一轮示例题（不用 Key）") >= 0 && pdLandNoKey.indexOf("开始一轮综合快判") < 0,
-   "快判落地页/没 Key: 主按钮如实写成内置示例题（点了它拿到的就是内置题，别写得像真出题）");
+ok(pdLandNoKey.indexOf('id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
+   && pdLandNoKey.indexOf("开始一轮综合快判") < 0 && pdLandNoKey.indexOf("data-pdform") >= 0,
+   "快判落地页/没 Key: 主按钮如实写成「先填 API Key」，三形式 chips 保留");
+el("#btnSetup").onclick();
+ok(el("#modalSettings").hidden === false,
+   "快判落地页/没 Key: 主按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
+closeModals();
+startPDRound("fact-select");
+ok(el("#bannerSlot").innerHTML.indexOf("出题和阅卷都要用 API Key") >= 0 && pdRound === null,
+   "快判落地页/没 Key: 点形式 chips 被 entryBlocked 拦在原地（不出题、不进加载态）");
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
 renderPDLanding();
 const pdLandKey = el("#docBody").innerHTML;
-ok(pdLandKey.indexOf("开始一轮综合快判") >= 0 && pdLandKey.indexOf("先试一轮示例题（不用 Key）") < 0
+ok(pdLandKey.indexOf("开始一轮综合快判") >= 0 && pdLandKey.indexOf("先试一轮示例题") < 0
    && pdLandKey.indexOf("也是内置示例题") < 0,
    "快判落地页/有 Key: 还是「开始一轮综合快判」（有 Key 时它就是真出题，标签照旧）");
+/* 示例题整块下线：池子、取题函数、入口与「不用 Key 也能练」的口径一律不留残留 */
+ok(PAGE_HTML.indexOf("PD_SAMPLE_ITEMS") < 0 && PAGE_HTML.indexOf("pdSampleItems") < 0
+   && PAGE_HTML.indexOf("startPDSampleRound") < 0 && PAGE_HTML.indexOf("btnSample") < 0
+   && PAGE_HTML.indexOf("示例题") < 0 && PAGE_HTML.indexOf("不用 Key") < 0 && PAGE_HTML.indexOf("不用填") < 0,
+   "示例题下线: 页面不再有示例题池、示例入口与「不用 Key 也能练」的口径");
 state.settings.apiKey = "";
 renderStartNotices();
 ok(exportHelpText().indexOf("已生成备份") >= 0 && exportHelpText().indexOf("取消就等于没导出") >= 0

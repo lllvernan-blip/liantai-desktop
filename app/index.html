@@ -2064,13 +2064,14 @@ function showLoading(t, tail){
 }
 
 /* 起始页的正文两种形态共用一套：home（没选任何科目）与 start（在一个科目里）。
-   红按钮是快判；下面两句大题各自点名科目——原来写「练一道大题（综应 / 申论）」，实际去的是「上次练的
-   科目」，标签含糊（「综应 / 申论」那种写法读不出到底去哪一科）；示例题入口给没填 Key 的人。 */
+   红按钮是本科目 / 快判的主行动；下面两句大题各自点名科目——原来写「练一道大题（综应 / 申论）」，
+   实际去的是「上次练的科目」，标签含糊（「综应 / 申论」那种写法读不出到底去哪一科）。 */
 /* 起始页两种形态（2026-10-08 分开）：
    · 首页（`_view === "home"`，没选科目）：红按钮是「开始快判」——打开软件第一眼就能练，快判最轻；
-     随后两句大题各自点名科目，再加一个示例题入口。
+     随后两句大题各自点名科目。
    · 科目首页（综应A / 申论）：红按钮是**本科目的主行动**（走 `startSmart`）。快判不在这里抢红：
-     它不是科目内容，是另一种练法，入口常驻顶栏最左那颗「快判」，在科目页里再放一遍就是同一条路开两个门。 */
+     它不是科目内容，是另一种练法，入口常驻顶栏最左那颗「快判」，在科目页里再放一遍就是同一条路开两个门。
+   两处没填 Key 时红按钮一律换成「先填 API Key」：出题这条路当下走不通，红按钮就带他去真能走的那一步。 */
 function startBoxHtml(rf){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
@@ -2085,14 +2086,13 @@ function startBoxHtml(rf){
   return `<div class="startbox" data-start="${home? "home":"subj"}">
     ${home? `<p class="hint" style="text-align:center;margin:0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>` : ""}
     <div class="actions" style="justify-content:center;margin:${home? "12px":"0"} 0 0">${home
-      ? `<button class="primary big" id="btnQuick">开始快判</button>`
+      ? (state.settings.apiKey
+          ? `<button class="primary big" id="btnQuick">开始快判</button>`
+          : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`)
       : (state.settings.apiKey
           ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
-          /* 没 Key 的人：出题这条路当下走不通，红按钮就不该说「开始练习」——换成他此刻真能做的事，
-             点了就是开设置页；"不用 Key 也能练"那条路写在引导里，不在纸面上抢位。 */
           : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`)}</div>
-    ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>
-    <div class="actions" style="justify-content:center;margin-top:12px"><button class="linkbtn" id="btnSample">${state.settings.apiKey? "先试一轮示例题" : "先试一轮示例题（不用填 Key）"}</button></div>` : `<div class="start-flow"><span class="start-flow-label">练习流程</span><span class="start-flow-steps">${flowHtml}</span></div>
+    ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>` : `<div class="start-flow"><span class="start-flow-label">练习流程</span><span class="start-flow-steps">${flowHtml}</span></div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>`}
     ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
@@ -2101,8 +2101,7 @@ function wireStartBox(){
   // 两种起始页各有自己的红按钮，各自都可能不在：取不到就跳过
   const q = $("#btnQuick"); if(q) q.onclick = ()=> startPDRound(PD_MIX);
   const sm = $("#btnSmart"); if(sm) sm.onclick = startSmart;
-  const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时科目页那颗：说了「先填 Key」就真把人送到设置页
-  const sp = $("#btnSample"); if(sp) sp.onclick = ()=> startPDSampleRound();
+  const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时起始页那颗：说了「先填 Key」就真把人送到设置页
   docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));
   docBody.querySelectorAll("[data-mod]").forEach(b=> b.onclick = ()=> tabClick(b.dataset.mod));
   const br = $("#btnResume");
@@ -2157,29 +2156,30 @@ function renderStart(){
    设置里可重置重新播。气泡不叠在弹层之上：弹层打开时引导暂歇（见 tourPause/tourResume）。 ---- */
 const TUT_SEQ = [
   // home：打开软件就落在这里，所以第一组是它——先点快判，再告诉两句大题各去哪个科目
-  { scr:"home", sel:"#btnQuick", text:"点这里直接开始：从材料里挑出对的说法，点选即判，一轮 5 题。" },
+  { scr:"home", sel:"#btnQuick", text:"点这里直接开始：从材料里挑出对的说法，点选即判，一轮 5 题。",
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key，出题和阅卷都要；填好就能开练。" } },
   { scr:"home", sel:"[data-big='zy']", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。",
-    nk:{ text:"想练整篇：这两句各自去综应或申论，都要先填 API Key（快判不用）。" } },
-  { scr:"home", sel:"#btnSample", text:"还没填 API Key，也能先试一轮示例题。" },
+    nk:{ text:"想练整篇：这两句各自去综应或申论，都要先填 API Key。" } },
   { scr:"home", sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
   // pd：先讲综合快判，再讲单形式入口：主行动先出现，避免把新用户直接引到选择。
-  // 快判这套本来就讲到了 Key（「真出题要用 API Key（示例题不用）」），没 Key 的话不用改
-  { scr:"pd", sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。" },
+  // 没 Key 时主行动那颗是「先填 API Key」，nk 变体如实讲填 Key
+  { scr:"pd", sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。",
+    nk:{ text:"点这里填 API Key，出题和阅卷都要；填好就能开练。" } },
   { scr:"pd", sel:".pdforms .chip[data-pdform]", text:"只练一种形式就点下面那排里的一个，一轮同样是 5 题。" },
   { scr:"pd", sel:".pdthemes>summary", text:"填了主题，一轮的题都围绕它出。" },
   { scr:"pd", sel:"#btnProfile", text:"三种快判形式的正确率，分别记在「我的画像」里。" },
-  { scr:"pd", sel:"#btnSettings", text:"真出题要用 API Key（示例题不用），申请方法见设置页。" },
+  { scr:"pd", sel:"#btnSettings", text:"真出题要用 API Key，申请方法见设置页。" },
   // zy / sl：科目页的红按钮是本科目的主行动（快判常驻顶栏最左那颗胶囊，不在纸面上再放一个）。
   // 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人照第一步做就被拦下来，
   // 引导在承诺做不到的事；所以没 Key 时第一步改指纸面上那颗「先填 API Key」（nk），
   // 末尾那步（也在讲 Key）整步去掉（onlyKey）——同一个元素讲两遍也是废话。
   { scr:"zy", sel:"#btnSmart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。",
-    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）。" } },
   { scr:"zy", sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
   { scr:"zy", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
   { scr:"zy", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
   { scr:"sl", sel:"#btnSmart", text:"点这里开始：先读材料划出要点，再归类成稿；交卷后按采分点逐条给分。",
-    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）；只想先上手，去顶栏最左那颗「快判」，不填 Key 也能练。" } },
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）。" } },
   { scr:"sl", sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
   { scr:"sl", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
   { scr:"sl", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
@@ -2393,15 +2393,15 @@ function renderModuleLanding(k){
 /* 出题前的入口闸（2026-10-08 复查发现的会说谎）：没填 Key 时点「练一道综应大题」，界面会先演一遍
    「AI 正在为「公文写作 · 通报」准备学习卡与仿真题…」再报错——明知走不通，却先答应了一声；
    而且那句大题是「先切科目再出题」，人还被从首页拽进综应A（文号变成「综应A〔2026〕…」），他却什么都没练到。
-   现在三条出题路（首页两句大题 / 科目页红按钮 / 模块落地页的胶囊与「开始练习」）都先过这里：
-   原地提示，不切科目、不点灯、不进加载态。快判不用 Key，示例轮照走。 */
+   现在出题路（首页两句大题 / 起始页与快判页红按钮 / 模块落地页的胶囊与「开始练习」）都先过这里：
+   原地提示，不切科目、不点灯、不进加载态。快判与出题同规：没 Key 也停在原地。 */
 function entryBlocked(){
   const s = state.settings;
   if(s.apiKey && s.model) return false;
-  // 「不用 Key 也能先试一轮快判示例题」只对没 Key 的人说：他本来就有 Key、只是没选模型，这句是废话
+  // 没 Key 与没选模型是两件事，各说各的实话
   banner((s.apiKey
     ? "还没选定模型：到设置页点「拉取模型列表」，点一个真实存在的名字，选好就能开始。"
-    : "出题和阅卷都要用 API Key，选服务商、填好即可开始。不用 Key 也能先试一轮快判示例题。") + OPEN_SETTINGS_BTN);
+    : "出题和阅卷都要用 API Key，选服务商、填好即可开始。") + OPEN_SETTINGS_BTN);
   return true;
 }
 async function startSmart(){
@@ -2630,107 +2630,6 @@ const PD_FORMS = {
 };
 const PD_FORM_ORDER = ["fact-select","group-summarize","expression-compare"];
 const PD_TOPICS = ["基层治理","乡村振兴","政务服务","生态环保","科技创新","就业服务","养老托育","文化传承","城市更新","应急管理"];
-/* 内置示例轮（2026-10-07「快判往上提」第二步）：没填 API Key 的人点「开始快判」先跑这 5 题——
-   不联网、不花钱，两分钟里就看明白快判在练什么；真出题仍然走 AI。
-   每条都与模型返回同形（form / context / stem / options / answer / trap / explain），并过同一道
-   sanitizePDItems 关：示例轮和真轮走完全相同的渲染与判分路径，不给示例另开一条代码分支。
-   正确项必须在材料里有逐字出处，干扰项只从 PD_FORMS 里写明的那几类里造（改范围 / 目标说成结果 /
-   以偏概全 / 抹掉限定语）——示例题是别人的第一个样例，错得不干净比不出题更坏。 */
-const PD_SAMPLE_ITEMS = [
-  { form:"fact-select",
-    context:"某县 2024 年起在 12 个乡镇试点开办「乡村夜校」，运行经费由县财政按每所每年 3 万元拨付，课程由县农业农村局与本地职业学校共同设计，主要面向 45 岁以下的返乡青年。截至 2025 年 6 月，全县已开办夜校 18 所，累计上课 640 课时，参加学习的返乡青年 1120 人次。",
-    stem:"下列关于该县乡村夜校的说法，哪一项准确？",
-    options:["夜校面向全县所有返乡青年开放", "课程由县农业农村局与本地职业学校共同设计"],
-    answer:1, trap:"改范围",
-    explain:"材料写的是「主要面向 45 岁以下的返乡青年」，说成「所有返乡青年」就把范围放大了；正确项在材料里有逐字出处。" },
-  { form:"fact-select",
-    context:"某市 2025 年在城东区试点开办「社区食堂」，由街道办事处提供场地，引入第三方餐饮企业运营，对 60 岁以上老人每餐补贴 4 元。试运行半年，日均供餐 900 份，其中老年餐 620 份。街道办表示，待试点满一年后将评估是否扩大到其他城区。",
-    stem:"下列关于该市社区食堂的说法，哪一项准确？",
-    options:["试点满一年后，社区食堂将扩大到其他城区", "由街道办事处提供场地，第三方餐饮企业运营"],
-    answer:1, trap:"目标说成结果",
-    explain:"材料说「将评估是否扩大」，到这还只是待评估的打算；说成「将扩大」，就把没定的事说成了定局。" },
-  { form:"group-summarize",
-    context:"某镇推进人居环境整治：一是把 46 处闲置宅基地改建成小菜园、小果园，由村集体统一管理；二是把撤并后空置的村小学改造成日间照料中心，由镇卫生院每周派医生坐诊；三是把废弃多年的粮站改造成村民议事厅，每月固定开两次议事会。",
-    stem:"上述做法可以概括为哪一条？",
-    options:["把闲置、废弃的场地重新利用起来", "把腾出来的场地用于养老服务"],
-    answer:0, trap:"以偏概全",
-    explain:"三件事都是把闲置或废弃的场地改作新用途；只拿「养老服务」来概括，就把另外两件漏在了外面。" },
-  { form:"group-summarize",
-    context:"某县推进政务服务改革：一是在 23 个村（社区）设置代办点，群众办事由代办员跑腿；二是把 71 项高频事项的材料清单压减成一张表单，同样的材料只交一次；三是开通线上「一件事」专区，营业执照、食品经营许可等 5 个事项可一次申请、并联办理。",
-    stem:"上述做法可以概括为哪一条？",
-    options:["从跑动、材料、环节上给群众办事减负", "把政务服务窗口搬到村和社区里"],
-    answer:0, trap:"以偏概全",
-    explain:"代办点减的是跑动，一张表单减的是材料，并联办理减的是环节；只写「窗口搬到村里」，就只覆盖了第一件。" },
-  { form:"expression-compare",
-    context:"某市 2025 年启动老旧小区加装电梯工作，计划三年内完成 300 个单元的加装；截至年底已加装 96 个单元，涉及居民 2100 余户。市住建局表示，对低楼层住户的补偿方案仍在征求意见，尚未定稿。",
-    stem:"下列对材料中补偿方案的改写，哪一项改变了原意？",
-    options:["低楼层住户的补偿方案仍在征求意见，暂未定稿", "低楼层住户的补偿方案已随加装计划一并确定"],
-    answer:1, trap:"抹掉限定语",
-    explain:"材料说「仍在征求意见，尚未定稿」，说成「已随计划一并确定」就把没定的事说定了——这类题先盯限定语。" },
-  /* —— 每种形式各 5 道（2026-10-08 补）——
-     原来只有 5 道（2 + 2 + 1），所以没填 Key 的人点「只练事实选择」也只能拿到三种混着来的一轮：
-     点了 A 得到 B。现在每种形式都够凑一轮，那个形式就出那个形式（见 pdSampleItems）。 */
-  { form:"fact-select",
-    context:"某市 2025 年推进居家适老化改造，由市财政按每户最高 3000 元标准补助，改造内容包括卫生间防滑扶手、床边护栏与紧急呼叫装置。首批改造覆盖 1200 户，其中独居老人家庭 460 户。市民政局表示，第二批改造对象将优先从低保、特困老人家庭中确定。",
-    stem:"下列关于该市居家适老化改造的说法，哪一项准确？",
-    options:["改造内容包括卫生间防滑扶手、床边护栏与紧急呼叫装置", "首批改造的 1200 户全部是独居老人家庭"],
-    answer:0, trap:"改范围",
-    explain:"首批 1200 户里独居老人家庭是 460 户，说成「全部都是」就把范围改了；数字多的题干先回材料对一遍。" },
-  { form:"fact-select",
-    context:"某区 2025 年开展「订单式」技能培训：先由人社部门收集辖区企业用工需求，再委托职业院校按需开班，学员结业后与企业双向选择。全年开班 26 期，培训 1430 人次，其中 812 人与企业签订劳动合同。",
-    stem:"下列关于该区技能培训的说法，哪一项准确？",
-    options:["学员结业后由企业统一安排上岗", "先收集企业用工需求，再委托职业院校按需开班"],
-    answer:1, trap:"改关系",
-    explain:"材料写「结业后与企业双向选择」，说成「统一安排上岗」就把关系改了——双向选择不等于包分配。" },
-  { form:"fact-select",
-    context:"某县 2024 年起推行「河长＋民间河长」机制，为 37 条乡镇河道各配 1 名村级河长和 2 名志愿护河员。护河员每周巡河不少于 2 次，发现问题通过手机端上报，由县河长办在 3 个工作日内转办。机制推行两年，河道垃圾清运量同比下降 41%。",
-    stem:"下列关于该县护河机制的说法，哪一项准确？",
-    options:["护河员发现问题通过手机端上报，由县河长办转办", "护河员每周巡河不少于 5 次"],
-    answer:0, trap:"改数量时限",
-    explain:"材料写的是每周不少于 2 次，说成 5 次就是改了数量；时间、数量类的干扰项最容易看着眼熟就选。" },
-  { form:"group-summarize",
-    context:"某街道推行矛盾纠纷「一站式」化解：一是把司法所、派出所、人民调解委员会集中到一个大厅办公；二是社区网格员每月入户排查一次，苗头问题当天上报；三是对已化解的案件在 30 天内回访，防止反复。",
-    stem:"上述做法可以概括为哪一条？",
-    options:["把调解力量集中到一个大厅办公", "从力量整合、前端排查到事后回访，把矛盾化解串成一条线"],
-    answer:1, trap:"以偏概全",
-    explain:"集中办公只是第一件，排查上报与回访同样占篇幅；只取一件就漏了另两件，这是概括题最常见的错。" },
-  { form:"group-summarize",
-    context:"某县整治农村人居环境：一是每村配 2 名保洁员，工资由县财政和村集体各承担一半；二是建 18 座垃圾中转站，垃圾由县里统一清运；三是把「门前三包」写进村规民约，每季度评一次星级卫生户。",
-    stem:"上述做法可以概括为哪一条？",
-    options:["配齐保洁员、建好中转站，农村环境就能长效保持", "从人员、设施到群众参与三方面同时下手"],
-    answer:1, trap:"混类",
-    explain:"后半句把「做了什么」与「就能怎样」并成一条，成绩变承诺；概括只归做法，不发结论，更不能下绝对化断言。" },
-  { form:"group-summarize",
-    context:"某市开展燃气安全隐患整治：一是为 4.2 万户老旧小区居民免费更换橡胶软管；二是要求餐饮商户每月自查一次并上传照片；三是对整改不到位的商户，由燃气公司先停气、再督促整改。",
-    stem:"上述做法可以概括为哪一条？",
-    options:["既换硬件、也抓自查，还给整改加上了硬约束", "全面加强燃气行业管理"],
-    answer:0, trap:"层级错位",
-    explain:"「加强行业管理」宽到没落在材料给的三个动作上；概括要贴着材料的做法写，不能换成一个大词。" },
-  { form:"expression-compare",
-    context:"某县 2024 年为 86 个行政村接通宽带，平均每村接入 12 户。县里计划 2025 年把接入率再提高 10 个百分点，并组织 200 名村民参加电商培训。",
-    stem:"下列对该县宽带的改写，哪一项改变了原意？",
-    options:["每个村都至少有 12 户用上了宽带", "86 个行政村已接通宽带，平均每村接入 12 户"],
-    answer:0, trap:"平均数说成人人如此",
-    explain:"「平均每村 12 户」是总账，落到单个村可以低于 12；说成「每村都至少有 12 户」就把平均数当成了下限。" },
-  { form:"expression-compare",
-    context:"某市 2025 年修订防汛应急预案，把预警响应分为四级，并要求各区在汛前完成一次实战演练。截至 5 月底，已有 7 个区完成演练，其余 2 个区计划 6 月中旬前完成。",
-    stem:"下列对该市演练进展的改写，哪一项改变了原意？",
-    options:["已有 7 个区完成演练，其余 2 个区计划 6 月中旬前完成", "全市各区均已在汛前完成实战演练"],
-    answer:1, trap:"抹掉限定语",
-    explain:"「已有 7 个区完成」被抹成「各区均已」，范围与时间都被抹平；看见「均已、全部」先回材料找限定语。" },
-  { form:"expression-compare",
-    context:"某村 2023 年成立劳务合作社，承接周边 3 个村的道路养护与绿化管护业务，两年累计为村集体增收 46 万元。合作社现有社员 78 人，其中脱贫户 21 人。",
-    stem:"下列对该村劳务合作社的改写，哪一项改变了原意？",
-    options:["承接周边 3 个村的养护业务，两年为村集体增收 46 万元", "合作社两年增收 46 万元，带动了周边村的道路养护"],
-    answer:1, trap:"并列改成因果",
-    explain:"材料里是承接养护业务带来了增收，不是增收带动了养护——把先后、因果关系写反是改写题常用的偷换。" },
-  { form:"expression-compare",
-    context:"某高新区计划三年内把规上工业企业研发机构覆盖率提高到 60%，2025 年已建成 24 个企业研发中心，首批 8 个已投入使用。",
-    stem:"下列对该高新区研发机构的改写，哪一项改变了原意？",
-    options:["研发机构覆盖率已达到 60%，首批 24 个研发中心全部投用", "计划三年内把研发机构覆盖率提高到 60%，2025 年已建成 24 个研发中心"],
-    answer:0, trap:"目标说成结果",
-    explain:"「计划三年内提高到 60%」是目标，「首批 8 个已投用」是结果；把目标和数字一并说成完成，是最常考的坑。" },
-];
 // 散文口径（pdOptWord）与 JSON 示例（pdOptSample）都从 optCount 生成，所以个数只有一处可以改
 function pdOptWord(f){ const n = f.optCount; return Array.isArray(n)? `${n[0]}-${n[1]} 个选项` : `固定 ${n} 个选项`; }
 function pdOptSample(f){
@@ -2901,13 +2800,12 @@ function renderPDLanding(){
   pdForm = null; pdRound = null;
   renderTabs();
   const recent = pdRecentTheme();
-  // 没填 Key 的入口标签得对应到真去处（2026-10-08 复查）：他点「开始一轮综合快判」拿到的是内置示例题，
-  // 按钮却写得跟真出题一样——「点了 A 得到 B」的那一半。示例题池 15 道，单形式也够一轮（见 pdSampleItems）。
-  const noKey = !state.settings.apiKey;
-  // 抬头已经写着「快判」了，纸面上不再重复一遍标题；这一行只讲怎么玩（5 题 / 点选即判）
+  // 主行动跟着 Key 走：有 Key 是真出题（点了 A 得到 B）；没 Key 出题这条路走不通，按钮就带他去填 Key
   let html = `<div class="startbox">
     <p style="margin:0">从材料里做判断，一轮 5 题，点选即判。</p>
-    <div class="actions" style="justify-content:center;margin:16px 0 0"><button class="primary big" data-pdform="${PD_MIX}">${noKey? "先试一轮示例题（不用 Key）" : "开始一轮综合快判"}</button></div>
+    <div class="actions" style="justify-content:center;margin:16px 0 0">${state.settings.apiKey
+      ? `<button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button>`
+      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>`<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}</button>`).join("")}</div></div>
     <details class="pdthemes">
       <summary>自选主题（可选，留空随机）</summary>
@@ -2919,6 +2817,7 @@ function renderPDLanding(){
   </div>`;
   docBody.innerHTML = html; renderHeader();
   paintFab();
+  const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时那颗主按钮：说了「先填 Key」就真把人送到设置页
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
   docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
   docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
@@ -2930,40 +2829,8 @@ function pdThemeValue(){
   return t || PD_TOPICS[Math.floor(Math.random()*PD_TOPICS.length)];
 }
 function startPDRound(form){
-  // 没填 Key 的人点「开始快判」不挨报错：直接跑内置示例轮，跑完再提示填 Key。有 Key 就照常出题。
-  // 点了哪个形式就把那个形式传下去（不传就会拿混合轮顶包，点了 A 得到 B）
-  if(!state.settings.apiKey){ startPDSampleRound(form); return; }
-  if(entryBlocked()) return;   // 有 Key 但没选模型：同上，不能先演一遍「AI 正在出快判题」（2026-10-08 复查）
+  if(entryBlocked()) return;   // 没 Key / 没选模型都停在原地：不进加载态，也不先把人挪去别的屏
   genPDRound(form, pdThemeValue());
-}
-/* 示例轮：把写死的题装进一轮，走与 AI 出题完全相同的渲染与判分路径（只有「不落账」和收尾按钮不同）。
-   点了哪个形式就出哪个形式——原来只有 5 道题、不管点哪个都给三种混着来的一轮，
-   点了 A 得到 B（早先按混合池取题，已改成按点的那一个形式取）。现在每种形式各 5 道，单形式轮拿的就是那个形式。 */
-function pdSampleItems(form){
-  if(form !== PD_MIX && PD_FORM_ORDER.indexOf(form) >= 0){
-    const same = PD_SAMPLE_ITEMS.filter(it=> it.form === form);
-    if(same.length >= 2) return sanitizePDItems(same, form);
-  }
-  // 综合轮（或某个形式题不够）：三种轮着取，混着来——与真轮同一口径，不分块
-  const byForm = PD_FORM_ORDER.map(f=> PD_SAMPLE_ITEMS.filter(it=> it.form === f));
-  const mix = [];
-  for(let i = 0; mix.length < PD_ROUND_SIZE; i++){
-    const round = byForm.map(list=> list[i]).filter(Boolean);
-    if(!round.length) break;
-    for(const it of round){ if(mix.length >= PD_ROUND_SIZE) break; mix.push(it); }
-  }
-  return sanitizePDItems(mix, PD_MIX);
-}
-function startPDSampleRound(form){
-  const rform = (PD_FORM_ORDER.indexOf(form) >= 0)? form : PD_MIX;
-  const items = pdSampleItems(rform);
-  if(items.length < 2) return;   // 写死的题都不成形，说明代码坏了：宁可不进，也不给一轮空题
-  banner("");
-  pdActive = true;               // 从起始页直进快判：抬头、科目栏都要跟走「快判」入口时一致
-  pdForm = rform;                // 抬头如实报这一轮的形式（单形式轮不再冒充「综合快判」）
-  _view = "pd";
-  pdRound = { form:rform, theme:"示例题", items, idx:0, correct:0, done:false, sample:true };
-  renderTabs(); renderPDRound();
 }
 // 出题：一轮 5 道同形式判别题，沿用 callLLM（流式等待页 + reqSeq 守卫 + handleErr 失败保留现场）
 async function genPDRound(form, theme){
@@ -3063,8 +2930,6 @@ function pdNext(){
 function pdFinish(){
   const r = pdRound; if(!r || r.done) return;
   r.done = true;
-  // 示例轮是写死的固定题：入账会把画像的正确率永远拖着这 5 题走，所以只小结、不记练习记录
-  if(r.sample){ renderPDSummary(); return; }
   // 判别轨记录带 track:'pd'（区分于作答轨）；只写 gw_history，不写 dims、不进 lastModules、不触发经验提炼
   state.history.unshift({ ts:Date.now(), track:"pd", form:r.form, theme:r.theme,
     items:r.items.map(it=>({ form:it.form||r.form, stem:it.stem, options:it.options, answer:it.answer, picked:it.done? it.picked : null, ok:!!it.ok, trap:it.trap||"", explain:it.explain||"" })),
@@ -3077,13 +2942,8 @@ function renderPDRound(){
   const r = pdRound;
   if(!r || !PD_FORMS[r.form]){ renderPDLanding(); return; }
   pdForm = r.form;
-  const f = PD_FORMS[r.form];
   const it = r.items[r.idx];
-  // 示例轮报「示例题」而不是主题：它不是按主题出的，别拿一个假主题糊上去；
-  // 单形式轮把形式写进来（与抬头一致），综合轮才说「三种形式混着来」
-  const head = r.sample
-    ? `${r.form === PD_MIX? "示例题（三种形式混着来，不调用 AI）" : "示例题（" + f.name + "，不调用 AI）"} · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题`
-    : `主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题`;
+  const head = `主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题`;
   let html = `<div class="qtop"><span class="hint">${head}</span></div>`;
   // 快判和大题的关系写在练习页首行：这一屏练的辨认动作，就是申论/综应小题的入口动作
   html += `<p class="hint" style="margin:6px 0 10px">快判练的是从材料里辨认说法，申论和综应的小题练的是同一个动作。</p>`;
@@ -3126,25 +2986,17 @@ function renderPDSummary(){
   const traps = {};
   for(const x of misses){ const t = x.it.trap || "其他"; traps[t] = (traps[t]||0)+1; }
   const trapStr = Object.keys(traps).map(t=>`${t}（${traps[t]}题）`).join("、");
-  // 「下次出题会再考你」是真承诺（weakTraps 那条链），但示例题不入账，也就无从兑现——那里换个说法
   const trapLine = misses.length
-    ? "答错的集中在：" + esc(trapStr) + (r.sample? "——这几类就是快判最常考的辨析点。" : "——下次出题会在这些辨析点上再考你。")
+    ? "答错的集中在：" + esc(trapStr) + "——下次出题会在这些辨析点上再考你。"
     : (r.form === PD_MIX? "全对——三种形式的辨析点你都站得住。" : "全对——这个形式的辨析点你站得稳。");
   html += `<p class="hint" style="margin:14px 0 0">${trapLine}</p>`;
   // 快判和大题的关系也写在小结里：快判练的「从材料里辨认说法」，正是申论/综应小题的同一个动作
   html += `<p class="hint" style="margin:10px 0 0">快判练的是从材料里辨认说法——申论和综应的小题，吃的就是这个动作。</p>`;
-  if(r.sample){
-    html += `<p class="hint" style="margin:10px 0 0">示例题不计入练习记录。</p>`;
-    html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再做一遍示例题</button><button class="big" id="pdSwitch">看快判的其他形式</button></div></div>`;
-  } else {
-    html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div></div>`;
-  }
+  html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div></div>`;
   docBody.innerHTML = html; renderHeader();
   paintFab();
-  $("#pdAgain").onclick = r.sample? ()=> startPDSampleRound(r.form) : ()=> genPDRound(r.form, r.theme);
+  $("#pdAgain").onclick = ()=> genPDRound(r.form, r.theme);
   $("#pdSwitch").onclick = renderPDLanding;
-  // 跑完才提 Key：没填的人这时才知道「新题要 Key」，进门时不会被一句报错先劈头盖脸
-  if(r.sample) banner(state.settings.apiKey? "" : "示例题是内置的，不调用 AI。想看新题，去设置里填一个 API Key。" + OPEN_SETTINGS_BTN);
 }
 
 /* ============ 申论训练链：生命周期 ============ */
@@ -4293,11 +4145,7 @@ function profilePdHtml(){
   const pds = pdFormStats(), ts = pdTrapStats();
   let html = PROF_BACK + `<div class="sec-title">快判（只看正确率，不计入维度画像）</div>`;
   if(!PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
-    // 刚跑完示例轮的人不该被告知「还没练过」——他 30 秒前刚练了 5 题（2026-10-08 复查）。
-    // 示例轮不入账是故意的（不能让内置题污染正确率），那就把这件事说出来，而不是假装没发生。
-    return html + ((pdRound && pdRound.sample && pdRound.done)
-      ? `<div class="hint">刚才那轮是示例题（内置题，不计入统计）。填上 API Key 就能开真轮，正确率与辨析点都会记在这里。</div>`
-      : `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`);
+    return html + `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
   }
   html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
     const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
@@ -5067,7 +4915,7 @@ function renderStartNotices(){
   const un = updateNoticeHtml(updateInfo);
   if(un) notices.push(un);
   if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
-  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能练大题与真快判；还没填也能先跑一轮内置示例题。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
+  if(!state.settings.apiKey) notices.push("欢迎。填上 API Key 就能练大题与快判。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN);
   banner(notices.length? notices.join("<br>") : "");
 }
 
