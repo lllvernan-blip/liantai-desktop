@@ -1124,67 +1124,20 @@ current = null;
 
 /* ============ 13. 快判（第三入口）：事实选择 / 分组概括 / 表达比较 ============ */
 
-/* ① 入口：科目栏第三个按钮，进入快判落地页；作答轨两科目不受影响 */
+/* ① 入口唯一：快判只有首页红按钮（2026-10-12 拍板「只留主页这一个入口」），落地页/形式选择/自选主题整块撤 */
 renderTabs();
-ok(el("#subjbar").innerHTML.indexOf("快判") >= 0 && el("#subjbar").innerHTML.indexOf('data-s="__pd"') >= 0,
-   "快判: 科目栏有第三入口");
+ok(el("#subjbar").innerHTML.indexOf("快判") < 0 && el("#subjbar").innerHTML.indexOf('data-s="__pd"') < 0
+   && el("#subjbar").innerHTML.indexOf("subjdiv") < 0,
+   "快判: 顶栏没有快判入口——科目栏只剩综应A/申论");
 switchSubject("zy");
-ok(el("#docBody").innerHTML.indexOf('data-mod="zy.gongwen"') >= 0, "快判: 切回作答轨后模块 chips 照旧（综应A）");
-enterPD();
-ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn icon active" data-s="__pd"') >= 0
-   && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
-   "快判: 进入后高亮快判按钮（图标版）、作答轨科目按钮不高亮");
-ok(el("#modLabel").textContent === "", "快判: 落地页灰字空着（轨名由科目栏和文号说，不重复）");
-let pdLand = el("#docBody").innerHTML;
-ok(PD_FORM_ORDER.every(id=> pdLand.indexOf(`data-pdform="${id}"`) >= 0
-   && pdLand.indexOf(PD_FORMS[id].name) >= 0)
-   && pdLand.indexOf('class="pdforms"') >= 0,
-   "快判布局: 三种形式入口以 chips 摆在纸面一排");
-ok(renderPDLanding.toString().indexOf('startPDRound(b.dataset.pdform)') >= 0,
-   "快判布局: 单形式 chips 直接开始对应练习轮");
-ok(pdLand.indexOf("公文写作") < 0 && pdLand.indexOf("贯彻执行") < 0,
-   "快判: 落地页不混入综应/申论模块 chips");
-const _pdKeyKeep = state.settings.apiKey;
-state.settings.apiKey = "sk-assert0key0000000000000000000";
-renderPDLanding();
-const pdLandKeyed = el("#docBody").innerHTML;
-ok(pdLandKeyed.indexOf('id="btnPdStart">开始快判') >= 0 && pdLandKeyed.indexOf("data-pdform") >= 0,
-   "快判: 有 Key 时落地页同骨架——说明句下红按钮「开始快判」，形式 chips 次级行保留");
-state.settings.apiKey = "";
-renderPDLanding();
-ok(el("#docBody").innerHTML.indexOf('id="btnSetup"') >= 0
-   && el("#docBody").innerHTML.indexOf('id="btnPdStart"') < 0,
-   "快判: 没 Key 时落地页主行动位是「先填 API Key」，不出现出题按钮");
-state.settings.apiKey = _pdKeyKeep;
-renderPDLanding();
-pdLand = el("#docBody").innerHTML;
-ok(pdLand.indexOf('<details class="pdthemes">') >= 0 && pdLand.indexOf("自选主题（可选，留空随机）") >= 0
-   && pdLand.indexOf('data-pdtopic=') >= 0 && pdLand.indexOf('data-big=') < 0,
-   "快判布局: 主题选择收进折叠区，主题选项保留，纸面不重复摆科目入口");
-ok(pdLand.indexOf('data-pdform="' + PD_MIX + '"') < 0 && pdLand.indexOf('class="pdforms"') >= 0,
-   "快判: 落地页不再摆综合轮——综合快判与首页主行动二选一，不重复摆");
-
-/* 快判首轮页内说明（SPEC 4.2）：一次性、可收口，不进引导序列；说明在时同义的一行让位 */
-state.pdIntroSeen = false; renderPDLanding();
-let _pi = el("#docBody").innerHTML;
-ok(_pi.indexOf('id="pdIntro"') >= 0 && _pi.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0
-   && _pi.indexOf('id="pdIntroOk"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;display:none"') >= 0,
-   "快判/首轮说明: 没看过时说明出现，同义的常驻一行不上屏（同一个意思不写两遍）");
-el("#pdIntroOk").onclick();
-ok(state.pdIntroSeen === true && el("#pdIntro").style.display === "none" && el("#pdWhat").style.display === "",
-   "快判/首轮说明: 「知道了」置 seen 并就地收掉，让位给常驻一行");
-renderPDLanding();
-_pi = el("#docBody").innerHTML;
-ok(_pi.indexOf('id="pdIntro" style="display:none"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;"') >= 0,
-   "快判/首轮说明: 看过后再进落地页，说明收起、常驻一行在（不常驻解释文案）");
-state.pdIntroSeen = false; renderPDLanding();   // 恢复现场：后面还有依赖落地页形状的断言
-
-switchSubject("sl");
-ok(pdActive === false && el("#docBody").innerHTML.indexOf("贯彻执行") >= 0 && el("#docBody").innerHTML.indexOf("公文写作") < 0,
-   "快判: 从快判切申论，作答轨模块 chips 正常恢复");
-switchSubject("zy");
-ok(el("#docBody").innerHTML.indexOf("公文写作") >= 0 && el("#subjbar").innerHTML.indexOf("快判") >= 0,
-   "快判: 切回综应A，模块 chips 齐全且快判入口仍在");
+ok(el("#docBody").innerHTML.indexOf('data-mod="zy.gongwen"') >= 0, "快判: 作答轨模块 chips 照旧（综应A）");
+ok(PAGE_HTML.indexOf("renderPDLanding") < 0 && PAGE_HTML.indexOf("enterPD") < 0
+   && PAGE_HTML.indexOf("pdIntroSeen") < 0 && PAGE_HTML.indexOf("自选主题") < 0,
+   "快判: 落地页函数、一次性说明与自选主题的代码零残留");
+ok(startPDRound.toString().indexOf("pdActive = true") >= 0 && startPDRound.toString().indexOf("genPDRound(form") >= 0,
+   "快判: startPDRound 进判别轨并直接出题（首页红按钮一线直达，无中间页）");
+ok(PD_FORMS[PD_MIX] && PD_FORM_ORDER.every(id=> PD_FORMS[id] && PD_FORMS[id].spec),
+   "快判引擎: PD_MIX 综合判别保留，三种形式的出题规范保留（混在一轮里出，不再单挑）");
 
 /* ①b 返回综合：再点当前科目按钮 = 回起始页，不用绕道切科目再切回来 */
 renderModuleLanding("zy.gongwen");
@@ -1256,8 +1209,8 @@ const pdLMBefore = state.profile.lastModules.length;
 state.history = [];
 pdNext();   // 最后一题 → 收卷
 ok(pdRound.done === true && el("#docBody").innerHTML.indexOf("本轮小结") >= 0
-   && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("换个形式") >= 0,
-   "轮次: 收卷后一屏小结，含再来一轮 / 换个形式");
+   && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("回首页") >= 0,
+   "轮次: 收卷后一屏小结，含再来一轮 / 回首页");
 ok(state.history.length === 1 && state.history[0].track === "pd" && state.history[0].form === "fact-select"
    && state.history[0].theme === "测试" && state.history[0].correct === 1 && state.history[0].total === 2,
    "轮次: 记录写入 history（track/form/theme/correct/total）");
@@ -1319,12 +1272,11 @@ state.history = [];
 
 /* ============ 13.5 快判成第一入口（示例题整块下线：无 Key 的主行动如实变成「先填 API Key」） ============ */
 
-/* ① 入口顺序：快判排在科目之前，且与科目之间有一道分隔 */
+/* ① 入口顺序：快判无顶栏入口（唯一入口在首页红按钮），科目栏只剩科目 */
 renderTabs();
 const sbUp = el("#subjbar").innerHTML;
-ok(sbUp.indexOf("快判") >= 0 && sbUp.indexOf("快判") < sbUp.indexOf("综应A"),
-   "快判往上提: 科目栏里快判排在科目之前");
-ok(sbUp.indexOf('class="subjdiv"') >= 0, "快判往上提: 快判与科目之间有一道分隔（它不是第三个科目）");
+ok(sbUp.indexOf("快判") < 0 && sbUp.indexOf("subjdiv") < 0,
+   "快判往上提(已收拢): 科目栏无快判入口与分隔线");
 
 /* ② 首页：没填 Key 时红按钮如实说「先填 API Key」，两句大题各自点名科目；填了 Key 红按钮是「开始快判」
      （这两句曾经连科目首页也照抄一份，结果综应A 里最大的红按钮写着「开始快判」） */
@@ -1367,8 +1319,8 @@ ok(zyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > zyFlowOrder[i-1])),
    "综应A布局: 主按钮下预览真实流程，顺序为学习卡→作答→批改");
 ok(subjStart.indexOf("data-big") < 0,
    "科目页: 不放两句大题——点它们和点红按钮是同一个动作（startSmart）");
-ok(el("#subjbar").innerHTML.indexOf("快判") >= 0,
-   "科目页: 快判仍从顶栏最左那颗胶囊进（入口没被藏掉）");
+ok(el("#subjbar").innerHTML.indexOf("快判") < 0,
+   "科目页: 顶栏无快判入口（快判只从首页红按钮进）");
 ok(el("#btnSetup").onclick !== startSmart,
    "科目页（没填 Key）: 红按钮接的不是出题那条路（它此刻走不通）");
 el("#btnSetup").onclick();
@@ -1444,8 +1396,8 @@ ok(pdRound.done === true && state.history.length === histBeforePd + 1 && localSt
    && el("#docBody").innerHTML.indexOf("本轮小结") >= 0,
    "快判小结: 答完照常出小结并计入练习记录");
 ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") < 0
-   && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("换个形式") >= 0,
-   "关系说明: 小结不再复读关系，收尾按钮是「再来一轮 / 换个形式」");
+   && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("回首页") >= 0,
+   "关系说明: 小结不再复读关系，收尾按钮是「再来一轮 / 回首页」");
 ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考你") >= 0,
    "快判小结: 答错的承诺「下次再考你」（记录已入账，那条链能兑得现）");
 state.history = state.history.filter(h=> h.track !== "pd"); saveHistory();
@@ -1523,21 +1475,17 @@ renderModuleLanding("zy.duice");
 ok(el("#docBody").innerHTML.indexOf("针对问题提出解决措施") >= 0
    && el("#docBody").innerHTML.indexOf("<h2>") < 0,
    "废话精简: 真在描述「这是什么」的 note（提出对策）还留着，只去掉重复的标题");
-renderPDLanding();
-ok(el("#docBody").innerHTML.indexOf("快判 · 从材料里做判断") < 0
-   && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，点选即判。") >= 0,
-   "废话精简: 快判落地页两行并一行（抬头已写着「快判」，纸面上不再重复标题）");
 renderHome();
 
-/* ⑤ 快判页不重复摆科目大题入口；科目仍从顶栏切换。 */
+/* ⑤ 首页是快判唯一入口；科目仍从顶栏切换。 */
 state.settings.subject = "zy";
-enterPD();
-const pdLandBig = el("#docBody").innerHTML;
-ok(pdLandBig.indexOf('data-big=') < 0 && pdLandBig.indexOf("想做整篇大题") < 0,
-   "快判布局: 移除与顶栏重复的两句大题入口");
+renderHome();
+const homeOnly = el("#docBody").innerHTML;
+ok(homeOnly.indexOf('id="btnQuick"') >= 0 && homeOnly.indexOf('data-pdform') < 0 && homeOnly.indexOf("换个形式") < 0,
+   "快判布局: 首页红按钮是唯一快判入口，纸面无形式选择残留");
 switchSubject("sl");
 ok(pdActive === false && state.settings.subject === "sl",
-   "快判布局: 去掉纸面重复入口后，仍可从顶栏进入申论");
+   "快判布局: 仍可从顶栏进入申论");
 renderHome();
 
 /* ⑤ 顶栏结构：科目入口在第一行；模块与快判形式入口落进纸面 chips，顶栏只有一行。 */
@@ -1549,9 +1497,8 @@ ok(PAGE_HTML.indexOf("--h-modbar") < 0 && renderTabs.toString().indexOf("modbar"
    "顶栏: 题型行高度变量与 renderTabs 里的第二行渲染逻辑一并撤掉");
 ok(PAGE_HTML.indexOf("综合 · 智能出题") >= 0 && PAGE_HTML.indexOf("综合推送") < 0,
    "灰字: 综合起始页的抬头口径是「综合 · 智能出题」（旧字样「综合推送」不留在源码里）");
-ok((function(){ state.settings.subject = "zy"; renderStart(); return el("#docBody").innerHTML; })().indexOf("data-mod=") >= 0
-   && (function(){ enterPD(); return el("#docBody").innerHTML; })().indexOf('class="pdforms"') >= 0,
-   "入口归一: 科目起始页有模块 chips、快判落地页有形式 chips（都不在顶栏）");
+ok((function(){ state.settings.subject = "zy"; renderStart(); return el("#docBody").innerHTML; })().indexOf("data-mod=") >= 0,
+   "入口归一: 科目起始页有模块 chips（不在顶栏）；快判无单独落地页，入口只在首页红按钮");
 pdActive = false; renderHome();   // 上面那条动过全局态，还原回首页，别把 pdActive 漏进后面的章节
 
 /* ⑤ 顶栏工具区（SPEC 3.2 桌面质感）：图标无框、悬浮才现文字，图标自身不带可见文字 */
@@ -1604,7 +1551,7 @@ showLoading("");
 state.flows = []; _flowId = null; current = null;
 state.settings.subject = "sl"; renderTabs();
 const swFlow = ensureFlow("sl.guina", "概括问题", { background:"切科题目材料。", requirements:"r" }, []);
-enterPD();
+pdActive = true;   // 模拟快判一轮进行中（入口已归首页，这里只验「判别轨中点科目」的收口规则）
 switchSubject("sl");
 ok(pdActive === false && swFlow.closedAt == null && _flowId === swFlow.id,
    "切科目: 从快判点回当前科目，进行中的申论链不被收口");
@@ -1846,9 +1793,9 @@ ok(migrateTut({ home:true, zy:false, sl:false, pd:false }).done === true
 ok(openModal.toString().indexOf("tourPause()") >= 0 && closeModals.toString().indexOf("tourResume()") >= 0,
    "使用引导: 弹层打开时引导暂歇、关掉恢复（气泡不叠在弹层之上）");
 ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
-   && renderPDLanding.toString().indexOf('_view = "pd"') >= 0 && renderQuestion.toString().indexOf('_view = "q"') >= 0,
+   && renderQuestion.toString().indexOf('_view = "q"') >= 0,
    "使用引导: 记录当前页面形态，重置后能判断能不能就地重播");
-ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到首页、科目页或快判页时会重新显示引导") >= 0,
+ok(PAGE_HTML.indexOf("state.tutVersion = DEFAULT_STATE.tutVersion") >= 0 && PAGE_HTML.indexOf("回到首页或科目页时会重新显示引导") >= 0,
    "使用引导: 重置后当场重播（作答中不打断；科目页现在也会弹，横幅不写窄）");
 ok(tourEnd.toString().indexOf("markSeen") >= 0 && PAGE_HTML.indexOf("tourEnd(false)") >= 0,
    "使用引导: 中途被切走不算完结也不推进游标（暂停），下次进入同屏再弹");
@@ -1860,8 +1807,8 @@ ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导
 ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
 
 /* ---- 陌生用户看得见的那些事：形式的说明不藏着、强项不穿红、备份有出处、提示能直接点到设置 ---- */
-ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PAGE_HTML.indexOf('data-pdform="${id}"') >= 0,
-   "快判落地页: 三类形式各有一个 chips 入口（形式说明保留在 PD_FORMS 数据里）");
+ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PD_FORMS[PD_MIX].spec.indexOf("form 字段") >= 0,
+   "快判引擎: 三类形式的规范与说明保留在 PD_FORMS 数据里（综合轮混着出题仍依赖它们）");
 ok(PAGE_HTML.indexOf(".pdtab") < 0 && PAGE_HTML.indexOf('class="tab ') < 0,
    "快判布局: 顶部页签行已撤，单形式入口不再用 .tab 样式");
 ok(PAGE_HTML.indexOf(".mrow .mweak.good{color:var(--success);}") >= 0 && PAGE_HTML.indexOf('class="mweak${head? head.cls : ""}"') >= 0,
@@ -1880,16 +1827,13 @@ ok(PAGE_HTML.indexOf("会挑你最弱的模块") < 0 && PAGE_HTML.indexOf("提�
    "文案: 不写「挑最弱」「按维度评分」这类机制");
 ok(PAGE_HTML.indexOf("写得太少了：至少写满一段再交卷") >= 0 && PAGE_HTML.indexOf("～") < 0, "文案: 交卷提示去掉语气词");
 ok(TUT_SEQ.every(s=> s.scr !== "pd") && TUT_SEQ.every(s=> s.text.indexOf("题型") < 0),
-   "文案: 快判不进引导序列（首轮用法归页内一次性说明），引导与全部步骤不说「题型」");
-ok(PAGE_HTML.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0 && PAGE_HTML.indexOf('id="pdIntroOk"') >= 0,
-   "快判/首轮说明: 页内一次性说明存在，带「知道了」收口（SPEC 4.2）");
-ok(renderPDLanding.toString().indexOf("pdIntroSeen") >= 0 && renderPDLanding.toString().indexOf('id="pdIntro"') >= 0
-   && startPDRound.toString().indexOf("state.pdIntroSeen = true") >= 0,
-   "快判/首轮说明: 说明与 pdIntroSeen 联动，startPDRound 也置 seen（练过一轮同样不再出现）");
+   "文案: 快判不进引导序列，引导与全部步骤不说「题型」");
+ok(PAGE_HTML.indexOf("快判一轮 5 题") < 0 && PAGE_HTML.indexOf('id="pdIntroOk"') < 0 && PAGE_HTML.indexOf('id="pdWhat"') < 0,
+   "快判/首轮说明: 随落地页一并撤，页面无残留口径");
 
 /* ---- 在途请求：换页与进快判都要作废在途请求，旧结果不许回来顶掉当前页 ---- */
-ok(tabClick.toString().indexOf("reqSeq++") >= 0 && enterPD.toString().indexOf("reqSeq++") >= 0,
-   "在途请求: 换页与进快判都作废在途请求");
+ok(tabClick.toString().indexOf("reqSeq++") >= 0 && genPDRound.toString().indexOf("++reqSeq") >= 0,
+   "在途请求: 换页与快判出题都作废在途请求");
 ok(submitAnswer.toString().indexOf("Array.isArray(g.hits)") >= 0, "批改: 采分点不是数组时先夹平再渲染");
 
 /* ---- 计分口径一字不动：hits 形状不对就等同没有采分点，交回维度分折算 ---- */
@@ -2410,24 +2354,24 @@ ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === 
    "引导/有 Key: 序列原样（onlyKey 步在，nk 变体不生效；科目页还是 4 步、第一步指红按钮）");
 /* 19.12 入口标签得对应到真去处，产出反馈不能夸口（2026-10-08 再复查） */
 state.settings.apiKey = "";
-renderPDLanding();
-const pdLandNoKey = el("#docBody").innerHTML;
-ok(pdLandNoKey.indexOf('id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
-   && pdLandNoKey.indexOf('id="btnPdStart"') < 0 && pdLandNoKey.indexOf("data-pdform") >= 0,
-   "快判落地页/没 Key: 主按钮如实写成「先填 API Key」，三形式 chips 保留");
+renderHome();
+const pdHomeNoKey = el("#docBody").innerHTML;
+ok(pdHomeNoKey.indexOf('id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
+   && pdHomeNoKey.indexOf('id="btnQuick"') < 0,
+   "快判入口/没 Key: 首页主按钮如实写成「先填 API Key」，不出现出题按钮");
 el("#btnSetup").onclick();
 ok(el("#modalSettings").hidden === false,
-   "快判落地页/没 Key: 主按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
+   "快判入口/没 Key: 主按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
 closeModals();
-startPDRound("fact-select");
-ok(el("#bannerSlot").innerHTML.indexOf("出题和阅卷都要用 API Key") >= 0 && pdRound === null,
-   "快判落地页/没 Key: 点形式 chips 被 entryBlocked 拦在原地（不出题、不进加载态）");
+startPDRound(PD_MIX);
+ok(el("#bannerSlot").innerHTML.indexOf("出题和阅卷都要用 API Key") >= 0 && pdRound === null && pdActive === false,
+   "快判入口/没 Key: 被 entryBlocked 拦在原地（不出题、不进判别轨）");
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
-renderPDLanding();
-const pdLandKey = el("#docBody").innerHTML;
-ok(pdLandKey.indexOf('id="btnPdStart">开始快判') >= 0
-   && pdLandKey.indexOf("先试一轮示例题") < 0 && pdLandKey.indexOf("也是内置示例题") < 0,
-   "快判落地页/有 Key: 红按钮「开始快判」在说明句下，形式 chips 次级行；示例题残留为零");
+renderHome();
+const pdHomeKey = el("#docBody").innerHTML;
+ok(pdHomeKey.indexOf('id="btnQuick">开始快判') >= 0
+   && pdHomeKey.indexOf("先试一轮示例题") < 0 && pdHomeKey.indexOf("也是内置示例题") < 0,
+   "快判入口/有 Key: 首页红按钮「开始快判」是唯一入口；示例题残留为零");
 /* 示例题整块下线：池子、取题函数、入口与「不用 Key 也能练」的口径一律不留残留（CHANGELOG 是面向用户的历史记录，不在禁止范围） */
 const _pageNoLog = PAGE_HTML.slice(0, PAGE_HTML.indexOf("const CHANGELOG"));
 ok(PAGE_HTML.indexOf("PD_SAMPLE_ITEMS") < 0 && PAGE_HTML.indexOf("pdSampleItems") < 0

@@ -100,8 +100,7 @@ html,body{margin:0;padding:0;}
   .subjbtn:hover{background:var(--wash-3);color:var(--ink);}
   .subjbtn.active{background:var(--red-wash);color:var(--gov-red);}   /* 实心红只留给主行动：默认无框，激活才现淡红底（与快判图标、工具图标同一套语言） */
   .subjbtn.active:hover{background:var(--red-wash-2);}
-  .subjdiv{width:1px;height:18px;background:var(--line);margin:0 1px;}   /* 快判不是科目：它与科目之间用一道细线分开（2026-10-07「快判往上提」） */
-  /* 悬浮提示（SPEC 3.2）：图标无框，悬浮才现文字说明；纯 CSS，零依赖 */
+    /* 悬浮提示（SPEC 3.2）：图标无框，悬浮才现文字说明；纯 CSS，零依赖 */
   [data-tip]{position:relative;}
   [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);right:-4px;background:var(--ink);color:#fffdf8;font-size:12px;line-height:1;padding:6px 9px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-2px);transition:opacity .12s ease .18s,transform .12s ease .18s;z-index:40;}
   [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translateY(0);}
@@ -125,14 +124,7 @@ html,body{margin:0;padding:0;}
 .start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--ink-faint);background:transparent;}
 .start-entry .pdforms .chip[data-mod].on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
 .start-entry .pdforms:has([data-mod]){margin-top:24px;}   /* 模块切换行紧跟主按钮，全站 24 档 */
-.pdthemes{margin:24px auto 0;border-top:1px solid var(--line);width:100%;max-width:680px;text-align:left;}
-.pdthemes>summary{display:flex;align-items:center;min-height:36px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13px;color:var(--muted);}
-.pdthemes>summary::-webkit-details-marker{display:none;}
-.pdthemes>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);}
-.pdthemes[open]>summary::after{content:"▾";}
 .pdthemebody{padding:0 0 4px;text-align:center;}
-.pdthemes .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;max-width:680px;}
-.startbox .pdthemes .chip{padding:4px 8px;font-size:13px;}   /* 主题 chips 收在折叠区里，保持小一号（比 .startbox .chip 更专，隔开距离） */
   .chip{border:1px solid var(--line);background:var(--ctl);padding:6px 12px;cursor:pointer;font-size:13px;border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
 .model-item{display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
@@ -918,7 +910,6 @@ const DEFAULT_STATE = {
   profile:{ modules:{}, lastModules:[] },
   tut:{ seq:0, done:false },   // seq = 一条引导序列的游标（原始索引，指向下一个未消费的步骤）；done = 序列已完结
   tutVersion:3,
-  pdIntroSeen:false,   // 快判落地页的一次性首轮说明（SPEC 4.2）：看过「知道了」或练过一轮就不再出现
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
@@ -1991,8 +1982,8 @@ function renderHeader(){
   // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字（申论轨写「申论」、快判轨写「快判」、综应轨写「综应A」）。
   // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
   // 前缀既已跟着抬头推出来，设置里的「文号前缀」就成了死开关，一并撤掉（规矩：界面不许有一个不起作用的控件）。
-  const pfx = (_view === "home")? "练习台"
-            : ((pdActive || _view === "pd")? "快判" : SUBJECTS[curSubject()].name);
+  const pfx = (_view === "home" && !pdActive)? "练习台"
+            : (pdActive? "快判" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
   if(_view === "home"){  // 首页不属于任何科目：文号已带着「练习台」，灰字不再重复，只报「首页」
     $("#modLabel").textContent = "首页";
@@ -2008,20 +1999,14 @@ function renderHeader(){
   $("#modLabel").textContent = mn + ((current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
 }
 function renderTabs(){
-  // 模块与快判形式的入口都在纸面 chips 上（startBoxHtml / renderModuleLanding / renderPDLanding），
-  // 顶栏只剩科目栏；模块落地页当前模块的高亮由 renderModuleLanding 自己标 on 类。
-  // 判别轨（__pd）不是第三个科目，是另一种练习形式：入口挂在科目栏末尾，点进落地页
+  // 模块入口都在纸面 chips 上（startBoxHtml / renderModuleLanding），顶栏只剩科目栏。
+  // 快判没有顶栏入口：唯一的入口是首页红按钮（2026-10-12 拍板「只留主页这一个入口」，落地页与形式选择一并撤）。
   const subj = curSubject();
   const home = (_view === "home");   // 首页谁都没选：不点灯，也不摆某个科目的模块 chips
   const sb = $("#subjbar");
   if(sb){
-    // 快判排在科目之前（2026-10-07「快判往上提」）：它不是第三个科目，是另一种练法，所以先出现、
-    // 再用一道竖线跟科目分开——位置与那道线都在说「这里不是选范围，是选怎么练」。
-    sb.innerHTML = `<button class="subjbtn icon${pdActive?" active":""}" data-s="__pd" aria-label="快判 · 看材料点答案，立刻对错" data-tip="快判 · 一轮 5 题点选即判"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.2 3.5 6.8 13.2h4.4l-1.4 7.3 6.4-9.7h-4.4l1.4-7.3z"/></svg></button>`
-      + `<span class="subjdiv" aria-hidden="true"></span>`
-      + SUBJECT_ORDER.map(id=>`<button class="subjbtn${!pdActive && !home && id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("");
+    sb.innerHTML = SUBJECT_ORDER.map(id=>`<button class="subjbtn${!pdActive && !home && id===subj?" active":""}" data-s="${id}" title="${esc(SUBJECTS[id].note)}">${esc(SUBJECTS[id].name)}</button>`).join("");
     sb.querySelectorAll(".subjbtn").forEach(b=> b.onclick = ()=>{
-      if(b.dataset.s === "__pd") return enterPD();
       if(b.dataset.s === curSubject() && !pdActive) return backToStart();   // 再点当前科目 = 直接回综合，不用绕道切别的科目
       switchSubject(b.dataset.s);
     });
@@ -2229,7 +2214,6 @@ const TUT_SEQ = [
   { scr:"home", sel:"[data-big='zy']", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。",
     nk:{ text:"想练整篇：这两句各自去综应或申论，都要先填 API Key。" } },
   { scr:"home", sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
-  // 快判不进引导序列（SPEC 4.2）：首轮用法由落地页那条一次性页内说明交代（state.pdIntroSeen，见 renderPDLanding）。
   // zy / sl：科目页的红按钮是本科目的主行动（快判常驻顶栏最左那颗胶囊，不在纸面上再放一个）。
   // 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人照第一步做就被拦下来，
   // 引导在承诺做不到的事；所以没 Key 时第一步改指纸面上那颗「先填 API Key」（nk），
@@ -2712,12 +2696,6 @@ ${formLine}    "context":"材料节选 120-200 字（贴近所给主题，有场
 }`; }
 function sysPD(){ return "你是公考判别训练的命题助手。只输出 JSON，不要 markdown 代码块，不要任何解释。"; }
 
-function enterPD(){
-  reqSeq++;   // 同上：进快判也作废在途请求，否则回来的综应题会盖在快判页上
-  pdActive = true;
-  renderTabs(); renderHeader(); renderPDLanding();
-  revealDocHeading();    // 只在红头真被盖住时才滚（见该函数注释）
-}
 // 判别轨的经验注入：不按模块取（判别轨不属于任何科目），按主题相关性取——title/body 命中主题词的优先，不足用最近未停用的补，最多 3 条
 function pdExperienceBlock(theme){
   const all = (state.experiences||[]).filter(e=> e && !e.disabled);
@@ -2726,12 +2704,6 @@ function pdExperienceBlock(theme){
   const hit = kw? all.filter(e=> (e.title||"").indexOf(kw) >= 0 || (e.body||"").indexOf(kw) >= 0) : [];
   const rest = all.filter(e=> hit.indexOf(e) < 0);
   return hit.concat(rest).slice(0,3).map(e=>({ type:e.type, title:e.title, body:e.body }));
-}
-function pdRecentTheme(){
-  for(const h of state.history){
-    if(h && h.track !== "pd" && h.question && typeof h.question.background === "string" && h.question.background.trim()) return h.question.background;
-  }
-  return "";
 }
 /* 主观题错因标签：把每次批改的失分归到有限几类，才能跨次累加——「没答落款」与「漏写日期」得算成一类，
    不然每一次都是新错处，统计永远到不了阈值，画像也就画不出「一直栽在同一类上」。
@@ -2856,58 +2828,12 @@ function pdFormStats(){
   }
   return { st, mixRounds };
 }
-function renderPDLanding(){
-  _view = "pd";
-  pdForm = null; pdRound = null;
-  renderTabs();
-  const recent = pdRecentTheme();
-  // 主行动跟着 Key 走：有 Key 是真出题（点了 A 得到 B）；没 Key 出题这条路走不通，按钮就带他去填 Key
-  // 首轮用法由这条一次性页内说明讲（SPEC 4.2，state.pdIntroSeen）：说明在时常驻一行让位（同一个意思不写两遍），
-  // 「知道了」或练过一轮后说明收起、常驻一行回来——纸面第一行始终有「这是什么」。
-  const intro = !state.pdIntroSeen;
-  // 落地页与综应/申论同骨架：说明句 → 红按钮（综合快判 PD_MIX）→ 形式 chips（次级，带正确率小字）→ 自选主题。
-  // 说明句写「快判是什么」配红按钮；chips 是挑形式，跟在按钮后面不抢红。
-  const fst = pdFormStats().st;
-  let html = `<div class="startbox start-entry">
-    <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
-    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">从材料里挑出对的说法，一轮 5 题，点选即判。</p>
-    <div class="actions">${state.settings.apiKey
-      ? `<button class="primary big" id="btnPdStart">开始快判</button>`
-      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
-    <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>{
-      const t = fst[id] || {q:0,c:0};
-      return `<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}${t.q? ` <small>${Math.round(t.c/t.q*100)}%·${t.q}题</small>`:""}</button>`;
-    }).join("")}</div></div>
-    ${state.settings.apiKey? "" : `<div class="actions"><button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button></div>`}
-    <details class="pdthemes">
-      <summary>自选主题（可选，留空随机）</summary>
-      <div class="pdthemebody">
-        <input type="text" id="pdTheme" placeholder="如：养老服务" style="margin:7px auto 0;max-width:420px">
-        <div class="subtypechips" style="margin:9px auto 0;max-width:680px">${PD_TOPICS.map(t=>`<button class="chip" data-pdtopic="${t}">${t}</button>`).join("")}${recent? `<button class="chip" data-pdrecent="1" title="从最近练过的作答题材料延伸">延伸上次作答材料</button>`:""}</div>
-      </div>
-    </details>
-  </div>`;
-  docBody.innerHTML = html; renderHeader();
-  paintFab();
-  const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时那颗主按钮：说了「先填 Key」就真把人送到设置页
-  const ps = $("#btnPdStart"); if(ps) ps.onclick = ()=> startPDRound(PD_MIX);       // 红按钮 = 综合快判一轮；形式 chips 在下面自己接线
-  const iok = $("#pdIntroOk");
-  if(iok) iok.onclick = ()=>{ state.pdIntroSeen = true; save();
-    const n = $("#pdIntro"); if(n) n.style.display = "none";
-    const p = $("#pdWhat"); if(p) p.style.display = ""; };
-  docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
-  docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
-  docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
-  maybeTour("pd");
-}
-function pdThemeValue(){
-  const inp = $("#pdTheme");
-  const t = inp? inp.value.trim() : "";
-  return t || PD_TOPICS[Math.floor(Math.random()*PD_TOPICS.length)];
+function pdThemeValue(){   // 主题从 PD_TOPICS 随机取（不再提供自选）
+  return PD_TOPICS[Math.floor(Math.random()*PD_TOPICS.length)];
 }
 function startPDRound(form){
   if(entryBlocked()) return;   // 没 Key / 没选模型都停在原地：不进加载态，也不先把人挪去别的屏
-  if(!state.pdIntroSeen){ state.pdIntroSeen = true; save(); }   // 练过一轮也算看过：首轮说明从此不再出现（SPEC 4.2）
+  pdActive = true;
   genPDRound(form, pdThemeValue());
 }
 // 出题：一轮 5 道同形式判别题，沿用 callLLM（流式等待页 + reqSeq 守卫 + handleErr 失败保留现场）
@@ -2954,7 +2880,7 @@ async function genPDRound(form, theme){
     if(mySeq !== reqSeq) return;
     handleErr(e, true);            // 失败只提示，不清界面：回到出题前的现场
     pdForm = prevForm;
-    if(pdRound) renderPDRound(); else renderPDLanding();
+    if(pdRound) renderPDRound(); else renderHome();
   }
   finally{ clearInterval(tick); }
 }
@@ -3018,7 +2944,7 @@ function pdFinish(){
 }
 function renderPDRound(){
   const r = pdRound;
-  if(!r || !PD_FORMS[r.form]){ renderPDLanding(); return; }
+  if(!r || !PD_FORMS[r.form]){ renderHome(); return; }
   pdForm = r.form;
   const it = r.items[r.idx];
   const head = `主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题`;
@@ -3068,11 +2994,11 @@ function renderPDSummary(){
     ? "答错的集中在：" + esc(trapStr) + "——下次出题会在这些辨析点上再考你。"
     : (r.form === PD_MIX? "全对——三种形式的辨析点你都站得住。" : "全对——这个形式的辨析点你站得稳。");
   html += `<p class="hint" style="margin:14px 0 0">${trapLine}</p>`;
-  html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdSwitch">换个形式</button></div></div>`;
+  html += `<div class="actions" style="justify-content:center;margin-top:18px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdHome">回首页</button></div></div>`;
   docBody.innerHTML = html; renderHeader();
   paintFab();
   $("#pdAgain").onclick = ()=> genPDRound(r.form, r.theme);
-  $("#pdSwitch").onclick = renderPDLanding;
+  $("#pdHome").onclick = ()=>{ pdActive = false; renderHome(); };
 }
 
 /* ============ 申论训练链：生命周期 ============ */
@@ -5037,8 +4963,8 @@ renderChangelog();
     save();
     closeModals();
     // 重置后就地重播：首页/科目首页/快判页直接重渲一次让它当场出现；正在作答不打断，这些屏都会再弹
-    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到首页、科目页或快判页时会重新显示引导。"); return; }
-    if(pdActive) renderPDLanding(); else if(_view === "home") renderHome(); else renderStart();
+    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到首页或科目页时会重新显示引导。"); return; }
+    if(pdActive && pdRound && !pdRound.done) renderPDRound(); else if(_view === "home") renderHome(); else renderStart();
   };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
