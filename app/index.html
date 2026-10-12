@@ -2865,12 +2865,15 @@ function renderPDLanding(){
   // 首轮用法由这条一次性页内说明讲（SPEC 4.2，state.pdIntroSeen）：说明在时常驻一行让位（同一个意思不写两遍），
   // 「知道了」或练过一轮后说明收起、常驻一行回来——纸面第一行始终有「这是什么」。
   const intro = !state.pdIntroSeen;
-  // 综合混着练的入口只在首页（btnQuick）：这里再摆一颗一模一样的大按钮，两处就重复了（2026-10-12 去重定稿）。
-  // 落地页的价值是「挑一种形式/主题」：chips 就是行动，点了直接开练，带各自底子小字；没 Key 时主行动位仍是先填 Key。
+  // 落地页与综应/申论同骨架：说明句 → 红按钮（综合快判 PD_MIX）→ 形式 chips（次级，带正确率小字）→ 自选主题。
+  // 说明句写「快判是什么」配红按钮；chips 是挑形式，跟在按钮后面不抢红。
   const fst = pdFormStats().st;
   let html = `<div class="startbox start-entry">
-    <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判；综合混着练在首页。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
-    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">挑一种形式，点了直接开练。</p>
+    <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
+    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">从材料里挑出对的说法，一轮 5 题，点选即判。</p>
+    <div class="actions">${state.settings.apiKey
+      ? `<button class="primary big" id="btnPdStart">开始快判</button>`
+      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>{
       const t = fst[id] || {q:0,c:0};
       return `<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}${t.q? ` <small>${Math.round(t.c/t.q*100)}%·${t.q}题</small>`:""}</button>`;
@@ -2887,6 +2890,7 @@ function renderPDLanding(){
   docBody.innerHTML = html; renderHeader();
   paintFab();
   const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时那颗主按钮：说了「先填 Key」就真把人送到设置页
+  const ps = $("#btnPdStart"); if(ps) ps.onclick = ()=> startPDRound(PD_MIX);       // 红按钮 = 综合快判一轮；形式 chips 在下面自己接线
   const iok = $("#pdIntroOk");
   if(iok) iok.onclick = ()=>{ state.pdIntroSeen = true; save();
     const n = $("#pdIntro"); if(n) n.style.display = "none";
