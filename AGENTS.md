@@ -109,6 +109,9 @@
 ## 端口与存储（桌面壳）
 
 - 本地 http 源**必须固定端口**（`main.js` 的 `PREFERRED_PORT`）：`localStorage` 按 origin（含端口）分区，随机端口会让用户的设置、记录、草稿在重启后「消失」。改端口策略等于改所有用户的存储位置，属破坏性变更。
+- **三个边界策略写在 `shell-policy.js`**（主进程 require 它，`tests/shell.mjs` 纯代码验它）：① **窗口内导航只放行本源**（`isOwnUrl`：`127.0.0.1` + 当前端口，按「源」比而非字符串前缀——前缀会把 `:187431` 也算自家），外部链接交系统浏览器；② **每个请求过 Host 校验**（`hostAllowed`：必须就是本源）——DNS rebinding 下攻击者的域解析到 127.0.0.1，Origin 可能没有、Host 一定写着他的域名，这一道比 Origin 靠得住；③ **Origin 校验**（`originAllowed`）**不带 Origin 的请求必须放行**：页面自己 fetch 同源 GET 不发 Origin，一刀切只会拒掉自己的轮询；改动作的路由另有 `x-liantai` 头把关，两道合起来才成立。
+- **渲染进程带 CSP**（`cspFor`，由本地服务下发响应头，非页面里的 `<meta>`）：`default-src 'none'`、`object-src 'none'`、`base-uri 'none'`、`frame-ancestors 'none'`；`script-src` **只认 nonce**（不给 `'self'` 也不给 `'unsafe-inline'`，所以连外部脚本都加载不了），HTML 下发时用 `injectNonce()` 给内联 `<script>` 打上本次 nonce——认不出标签就退回宽松策略并记日志，**宁可松一格不能白屏**；`style-src` 必须留 `'unsafe-inline'`（界面大量用 `style="…"` 属性现算现写）；`connect-src` 留 `http:`（接口地址自由填写，有人指着本机/局域网明文代理）。**新增任何一类资源（图标 / 字体 / 媒体）都要在 `cspFor` 里开口子**，否则在应用里就是加载不出来。
+- **主进程 require 的仓内模块必须写进 `package.json` 的 `build.files`**：electron-builder 只拿 `files` 列的东西，不是整个仓库——漏一个，源码直跑一切正常、装上才崩（shell 测试有断言播这个）。
 - 端口退让必须写 `port-fallback-warning` 日志（让「数据看起来没了」可诊断）。
 - 启动路径对声明顺序敏感：`load()` 依赖的 helper（如 `HISTORY_KEY` 这类 const）必须定义在首次调用点之前，否则 TDZ 报错会被兜底 try/catch 静默吞掉，表现为「历史读不回来」。
 - 强杀进程会丢最近的异步落盘写入；涉及「答案不可再生」的改动要考虑落盘时机。

@@ -588,6 +588,80 @@ if (process.platform !== "darwin") {
   restore();
 }
 
+/* ---- shell-policy：导航白名单 / Host / Origin / CSP 四条都能纯代码验（偏偏这四条以前一条都没被测） ---- */
+{
+  const policy = require(join(here, "..", "shell-policy.js"));
+  const P = 18743;
+  const own = policy.ownOrigin(P);
+
+  ok(own === "http://127.0.0.1:18743", "壳/导航: 本源就是 127.0.0.1 + 当前端口 -> " + own);
+  ok(policy.isOwnUrl(own + "/index.html", P) && policy.isOwnUrl(own, P)
+     && policy.isOwnUrl(own + "/?v=1", P) && policy.isOwnUrl(own + "/#x", P),
+     "壳/导航: 本源下的页面 / 根 / 带查询 / 带锚点都放行");
+  ok(!policy.isOwnUrl("http://127.0.0.1:18744/index.html", P),
+     "壳/导航: 同一个 127.0.0.1 上的**别的端口**不放行（那是别的服务）");
+  ok(!policy.isOwnUrl("http://127.0.0.1:187431/index.html", P),
+     "壳/导航: 端口只多一位（187431）也不算自家——按源比，不按字符串前缀比");
+  ok(!policy.isOwnUrl("https://example.com/", P) && !policy.isOwnUrl("blob:http://127.0.0.1:18743/x", P)
+     && !policy.isOwnUrl(undefined, P),
+     "壳/导航: 外站 / blob / 非字符串一律不放行");
+
+  ok(policy.hostAllowed("127.0.0.1:18743", P), "壳/Host: 本源自己的 Host 放行");
+  /* DNS rebinding 的典型形态：攻击者的域名解析到 127.0.0.1，Host 写着他的域名 */
+  ok(!policy.hostAllowed("evil.example.com:18743", P) && !policy.hostAllowed("evil.example.com", P)
+     && !policy.hostAllowed(undefined, P) && !policy.hostAllowed("127.0.0.1:18744", P),
+     "壳/Host: 外域域名 / 缺 Host / 别的端口一律拒（rebinding 下 Host 比 Origin 靠得住）");
+
+  ok(policy.originAllowed(undefined, P) && policy.originAllowed(own, P),
+     "壳/Origin: 不带 Origin 放行（页面 fetch 同源 GET 本来就不发 Origin），与本源相同也放行");
+  ok(!policy.originAllowed("http://evil.example.com", P) && !policy.originAllowed("http://127.0.0.1:18744", P),
+     "壳/Origin: 别的域 / 别的端口一律拒");
+
+  const csp = policy.cspFor("NONCE");
+  ok(csp.indexOf("default-src 'none'") >= 0 && csp.indexOf("object-src 'none'") >= 0
+     && csp.indexOf("frame-ancestors 'none'") >= 0 && csp.indexOf("base-uri 'none'") >= 0,
+     "壳/CSP: 默认全禁（default/object/frame-ancestors/base-uri）");
+  ok(csp.indexOf("script-src 'nonce-NONCE'") >= 0 && csp.indexOf("'unsafe-eval'") < 0
+     && csp.indexOf("script-src 'self'") < 0,
+     "壳/CSP: 脚本只认 nonce——不给 unsafe-eval，也不给 self（没有外部脚本要加载）");
+  ok(csp.indexOf("style-src 'self' 'unsafe-inline'") >= 0,
+     "壳/CSP: 样式留 unsafe-inline（界面大量用 style=\"…\" 属性现算现写）");
+  ok(csp.indexOf("connect-src 'self' https: http:") >= 0,
+     "壳/CSP: 外部请求只开 https 与本机明文（接口地址是自由填的，有人指着本地代理）");
+  ok(policy.cspForInlineFallback().indexOf("script-src 'self' 'unsafe-inline'") >= 0,
+     "壳/CSP: 内联脚本认不出来时的退路是 unsafe-inline（宁可松一格，不能白屏）");
+
+  const html = "<!doctype html><style>a</style><script>var x=1;</script>";
+  const inj = policy.injectNonce(html, "NONCE");
+  ok(inj.injected && inj.html.indexOf('<script nonce="NONCE">var x=1;</script>') >= 0
+     && inj.html.indexOf("<style>a</style>") >= 0 && inj.tags === 1,
+     "壳/CSP: 下发时给内联 <script> 打上本次 nonce，样式与正文一字不动");
+  const noTag = policy.injectNonce("<p>没有脚本</p>", "NONCE");
+  ok(noTag.injected === false && noTag.html === "<p>没有脚本</p>",
+     "壳/CSP: 找不到 <script> 就如实回报 injected:false（不假装打上了）");
+
+  /* 策略文件写了不等于接上了：主进程里三处引用各钉一颗锚 */
+  const mainSrc = readFileSync(join(here, "..", "main.js"), "utf8");
+  ok(mainSrc.indexOf("policy.hostAllowed(req.headers.host") >= 0
+     && mainSrc.indexOf("policy.isOwnUrl(url, serverPort)") >= 0
+     && mainSrc.indexOf("policy.originAllowed(req.headers.origin") >= 0,
+     "壳: 三条判断都真接在了请求与导航上（写到策略文件里不等于生效）");
+  ok(mainSrc.indexOf("'Content-Security-Policy': ") >= 0 && mainSrc.indexOf("policy.injectNonce(") >= 0,
+     "壳: HTML 响应带 CSP 头，并给内联脚本打了 nonce");
+  ok(!/indexOf\('http:\/\/' \+ HOST \+ ':'\)/.test(mainSrc),
+     "壳: 不再有「任何 127.0.0.1 端口都放行」的前缀判法");
+
+  /* 主进程 require 的仓内模块必须在 build.files 里：漏一个，包里的 main.js 就 require 不到——
+     本地源码直跑一切正常，装上才知道。（electron-builder 只拿 files 列的东西，不是整个仓库。） */
+  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+  const listed = (pkg.build && pkg.build.files) || [];
+  const required = Array.from(mainSrc.matchAll(/require\('\.\/([\w.-]+\.js)'\)/g)).map((m) => m[1]);
+  const notPacked = required.filter((f) => listed.indexOf(f) < 0);
+  ok(required.length >= 2 && notPacked.length === 0,
+     "壳: main.js 引的仓内模块都在 package.json 的 build.files 里 -> " + required.join("、")
+     + (notPacked.length ? "（缺：" + notPacked.join("、") + "）" : ""));
+}
+
 console.log(T.join("\n"));
 const fails = T.filter((x) => x.indexOf("FAIL") === 0);
 console.log("\n== 壳侧 " + (T.length - fails.length) + "/" + T.length + " passed ==");

@@ -15,7 +15,10 @@ const { app, BrowserWindow, Menu, shell, screen } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const update = require('./update.js');
+/* 导航白名单 / Host 校验 / CSP 三条策略在 shell-policy.js（能拿出来单独跑，见 tests/shell.mjs） */
+const policy = require('./shell-policy.js');
 
 const APP_DIR = path.join(__dirname, 'app');
 /* 开发版：日志跟着项目走（__dirname 可写）；
@@ -27,7 +30,7 @@ const LOG_DIR = app.isPackaged
   ? path.join(app.getPath('userData'), 'logs')
   : path.join(__dirname, 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'startup.log');
-const HOST = '127.0.0.1';
+const HOST = policy.HOST;
 
 /* 端口必须稳定，不能用随机端口。
    localStorage 按 origin（含端口）分区：端口一变，应用看到的是一套全新的空存储，
@@ -113,12 +116,25 @@ const MIME_TYPES = {
 };
 
 function send(res, status, body, headers) {
-  const h = Object.assign({ 'Cache-Control': 'no-store' }, headers || {});
+  const h = Object.assign({ 'Cache-Control': 'no-store', 'Content-Security-Policy': policy.cspFor(newNonce()) }, headers || {});
   res.writeHead(status, h);
   res.end(body);
 }
 
+/* 每次响应一个新 nonce：页面里那个内联 <script> 只有拿到当次 nonce 才能执行 */
+function newNonce() {
+  return crypto.randomBytes(16).toString('base64');
+}
+
 function handleRequest(req, res) {
+  /* Host 必须是本机这一个源（见 shell-policy.js 的注释：DNS rebinding 下 Host 那道比 Origin 靠得住）。
+     静态页面也过这一道：谁能读源码不重要，重要的是「页面」与「接口」只从本源进得来。 */
+  if (!policy.hostAllowed(req.headers.host, serverPort)) {
+    log('http-badhost', 'host=' + (req.headers.host || '-') + ' ' + req.method + ' ' + req.url);
+    send(res, 403, 'Forbidden', { 'Content-Type': 'text/plain; charset=utf-8' });
+    return;
+  }
+
   let pathname;
   try {
     pathname = decodeURIComponent(new URL(req.url, 'http://' + HOST).pathname);
@@ -161,10 +177,36 @@ function handleRequest(req, res) {
       return;
     }
     const type = MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+    /* HTML 下发时给内联 <script> 打 nonce，CSP 里的 script-src 只认它。
+       打不上（页面结构被改得认不出标签）就退回宽松策略：宁可这一条防线松一格，也不能白屏。 */
+    const nonce = newNonce();
+    const isHtml = /\.html?$/i.test(filePath);
+    if (isHtml) {
+      let html;
+      try {
+        html = fs.readFileSync(filePath, 'utf8');
+      } catch (readErr) {
+        log('http-read-error', pathname + ' :: ' + readErr.message);
+        send(res, 500, 'Internal Error', { 'Content-Type': 'text/plain; charset=utf-8' });
+        return;
+      }
+      const injected = policy.injectNonce(html, nonce);
+      const body = Buffer.from(injected.injected ? injected.html : html, 'utf8');
+      if (!injected.injected) log('csp-nonce-missing', pathname + ' :: 没找到 <script> 标签，本次用宽松策略下发');
+      res.writeHead(200, {
+        'Content-Type': type,
+        'Content-Length': body.length,
+        'Cache-Control': 'no-store',
+        'Content-Security-Policy': injected.injected ? policy.cspFor(nonce) : policy.cspForInlineFallback(),
+      });
+      res.end(body);
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': type,
       'Content-Length': stat.size,
       'Cache-Control': 'no-store',
+      'Content-Security-Policy': policy.cspFor(nonce),
     });
     const stream = fs.createReadStream(filePath);
     stream.on('error', (streamErr) => {
@@ -182,17 +224,15 @@ function handleRequest(req, res) {
 /* GET /status 只读不动作，不需要 x-liantai 头；
    其余动作一律要 x-liantai 自定义头——跨站请求会先触发 OPTIONS 预检，
    而本服务从不回 CORS 头，预检不过就发不出来。防线不靠「端口没人知道」。
-   所有路由（含 /status）都过 Origin 校验：与本机源不符就拒。
-   跨站请求必带 Origin，DNS rebinding 下「跨站也读不到响应」不成立，
-   只有显式校验 Origin 才真的把外站请求挡在外面。 */
+   所有路由（含 /status）都过 Origin 校验：与本源不符就拒。
+   不带 Origin 的请求必须放行（页面自己 fetch 同源 GET 根本不发 Origin），
+   所以这里不是「只靠 Origin」——另外两道是 Host 校验（handleRequest 开头）与 x-liantai 头。 */
 function handleUpdateRoute(req, res, pathname) {
   const json = (code, body) => send(res, code, JSON.stringify(body), { 'Content-Type': 'application/json; charset=utf-8' });
   const action = pathname.slice('/__update'.length);
 
-  const expectedOrigin = 'http://' + HOST + ':' + serverPort;
-  const origin = req.headers.origin;
-  if (origin && origin !== expectedOrigin) {
-    log('update-forbidden', 'origin=' + origin + ' ' + req.method + ' ' + pathname);
+  if (!policy.originAllowed(req.headers.origin, serverPort)) {
+    log('update-forbidden', 'origin=' + req.headers.origin + ' ' + req.method + ' ' + pathname);
     json(403, { ok: false, error: 'forbidden' });
     return;
   }
@@ -439,9 +479,9 @@ function createWindow() {
     return { action: 'deny' };
   });
   /* setWindowOpenHandler 只拦 window.open，拦不住窗口内 location 跳转 / 表单提交——
-     补 will-navigate：本机自己的页面放行，其余一律取消，http(s) 转交系统浏览器。 */
+     补 will-navigate：本实例自己那个源（端口算在内）放行，其余一律取消，http(s) 转交系统浏览器。 */
   wc.on('will-navigate', (e, url) => {
-    if (typeof url === 'string' && url.indexOf('http://' + HOST + ':') === 0) return;
+    if (policy.isOwnUrl(url, serverPort)) return;
     e.preventDefault();
     log('will-navigate-blocked', url);
     if (/^https?:/i.test(url)) shell.openExternal(url);
