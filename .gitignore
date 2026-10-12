@@ -10,6 +10,11 @@ app/build.json
 .DS_Store
 Thumbs.db
 
+# 发布签名私钥（默认在 ~/.liantai-release-key，不进仓库；放进来也拦一下）
+.liantai-release-key
+*.liantai-release-key
+*.pem
+
 tests-out.txt
 screenshots/
 build/shots/

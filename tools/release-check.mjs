@@ -21,6 +21,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -29,8 +30,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-const publish = (pkg.build && pkg.build.publish && pkg.build.publish[0]) || {};
-const REPO = publish.owner && publish.repo ? publish.owner + "/" + publish.repo : "lllvernan-blip/liantai-desktop";
+/* 仓库位置只有一处真源（app-meta.js），不再从 package.json 重算一份 */
+const REPO = createRequire(import.meta.url)(join(root, "app-meta.js")).slug;
 
 const argv = process.argv.slice(2);
 const quiet = argv.includes("--quiet");
@@ -231,6 +232,9 @@ macRows.push({ name: dmgs.length ? dmgs.join("、") : "*.dmg（安装包）", ok
 for (const d of dmgs) macRows.push({ name: d + ".blockmap", ok: has(d + ".blockmap") });
 macRows.push({ name: zips.length ? zips.join("、") : "*.zip（自动更新用，与 dmg 同内容）", ok: zips.length > 0 });
 for (const z of zips) macRows.push({ name: z + ".blockmap", ok: has(z + ".blockmap") });
+/* 签名是 zip 的伴生资产：没有它，已装版本会当这版「没签过」直接拒收（宁可先不更新），
+   于是包传上去了也没人能通过应用更新到它。 */
+for (const z of zips) macRows.push({ name: z + ".sig（发布侧签名，应用拿它独立验包）", ok: has(z + ".sig") });
 if (has(macYml)) {
   const asset = release.assets.find((a) => a.name === macYml);
   const v = ymlVersion(await fetchAssetText(asset));

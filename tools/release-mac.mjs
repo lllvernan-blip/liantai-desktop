@@ -129,7 +129,31 @@ function wantedAssets() {
     if (existsSync(bm)) list.push({ path: bm, name: a.file + ".blockmap", pointer: false });
   }
   list.push({ path: YML, name: "latest-mac.yml", pointer: true });
+  /* 每个 zip 配一份签名：update.js 拿它做独立校验（期望 sha256 跟下载地址同源，
+     签名的私钥只在本机，所以它是「这包真是我们发的」的唯一凭据）。不可变，与包一起传。 */
+  for (const a of macArtifacts()) {
+    if (!/\.zip$/.test(a.file)) continue;
+    list.push({ path: join(DIST, a.file + ".sig"), name: a.file + ".sig", pointer: false, sig: true });
+  }
   return list;
+}
+
+/* 给包签名：私钥在 ~/.liantai-release-key（不进仓库、不上传，见 tools/mac-key.mjs）。
+   没私钥就停下来——签不了名的包传上去，已装版本会当它「没签过」直接拒收，
+   那不是「降级发版」，是发了一版别人装不上的东西。 */
+function signAssets() {
+  const zips = macArtifacts().filter((a) => /\.zip$/.test(a.file));
+  for (const a of zips) {
+    const zip = join(DIST, a.file);
+    if (!existsSync(zip)) die("要签的包不在：" + zip + "（先把包出齐再发）");
+    const signed = run(process.execPath, [join(here, "mac-key.mjs"), "--sign", zip]);
+    if (signed !== 0) {
+      die("签名失败，没发出去。这台机器上还没有签名私钥的话：\n" +
+          "  " + process.execPath + " tools/mac-key.mjs --init\n" +
+          "然后把打印出来的公钥钉进 update.js 的 MAC_UPDATE_KEYS（旧版本不看签名，换新钥不会卡住）。");
+    }
+    if (run(process.execPath, [join(here, "mac-key.mjs"), "--verify", zip]) !== 0) die("签完自验没过，别传。");
+  }
 }
 
 /* latest-mac.yml 是「客户端该下哪个包、拿哪个哈希校验」的指针，必须就是当前这一版、且哈希对得上本地产物。
@@ -172,14 +196,16 @@ function main() {
   for (const w of want) {
     const ok = existsSync(w.path);
     const size = ok ? statSync(w.path).size : 0;
-    console.log("  " + (ok ? "就绪" : "缺  ") + "  " + w.name + (ok ? "  " + (size / 1048576).toFixed(1) + "MB" : ""));
+    const tail = ok ? "  " + (size / 1048576).toFixed(1) + "MB" : (w.sig ? "（出包后签，--dry-run 不签）" : "");
+    console.log("  " + (ok ? "就绪" : (w.sig && dryRun ? "待签" : "缺  ")) + "  " + w.name + tail);
   }
   GH = resolveGh() || "gh";
 
   if (dryRun) {
-    step("（--dry-run：不打包、不联网、不校验 gh 登录态）");
+    step("（--dry-run：不打包、不联网、不签、不校验 gh 登录态）");
     console.log("  会执行的命令：");
     console.log("    " + GH + " release view " + tag + " --repo " + REPO + " --json tagName,isPrerelease,assets");
+    console.log("    " + process.execPath + " tools/mac-key.mjs --sign dist/<zip>   （每个 zip 出 .sig）");
     for (const w of want) console.log("    " + GH + " release upload " + tag + " dist/" + w.name + " --repo " + REPO + (w.pointer || force ? " --clobber" : ""));
     console.log("\n  提示：真要发之前先确认这个 tag 已在 Windows 上跑过 npm run release（建 Release + win 三件套）。");
     return;
@@ -200,6 +226,9 @@ function main() {
   } else {
     console.log("\n（--skip-build：用 dist/ 现有的产物传）");
   }
+
+  step("给 zip 签名");
+  signAssets();
 
   step("gh 登录态与 Release " + tag);
   const auth = gh(["auth", "status"]);

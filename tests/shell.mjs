@@ -14,7 +14,7 @@ import { setTimeout as realSetTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, chmodSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -22,6 +22,13 @@ import { gzipSync } from "node:zlib";
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
+const MAC_KEY_TOOL = join(here, "..", "tools", "mac-key.mjs");
+/* 签名一律走真工具（tools/mac-key.mjs）：测试里不另写一份格式，
+   工具签的与应用验的不是同一串时，这里当场就红。 */
+const macKeyTool = (args) => execFileSync(process.execPath, [MAC_KEY_TOOL, ...args], { encoding: "utf8" });
+/* 失败路径上文件可能根本没被写出来（那本身就是断言要报的事实）：
+   读文件的地方一律用这个，别让测试自己 ENOENT 死掉、把后面的断言全噎住。 */
+const readOr = (p, d) => { try { return readFileSync(p, "utf8"); } catch (err) { return d === undefined ? "" : d; } };
 
 const T = [];
 const ok = (c, m) => T.push((c ? "PASS  " : "FAIL  ") + m);
@@ -392,25 +399,42 @@ if (process.platform !== "darwin") {
     const target = join(appsDir, "练习台.app");
     const userData = join(base, "userdata");
     mkdirSync(appsDir, { recursive: true });
-    const mkApp = (dir, version, marker) => {
+    const mkApp = (dir, version, marker, bundleId) => {
       mkdirSync(join(dir, "Contents", "MacOS"), { recursive: true });
       mkdirSync(join(dir, "Contents", "Resources"), { recursive: true });
       writeFileSync(join(dir, "Contents", "Info.plist"),
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
         '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
-        '<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.lllvernan.liantai</string>' +
+        '<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>' + (bundleId || "com.lllvernan.liantai") + '</string>' +
         '<key>CFBundleShortVersionString</key><string>' + version + '</string></dict></plist>\n');
       writeFileSync(join(dir, "Contents", "MacOS", "练习台"), "#!/bin/bash\nexit 0\n");
       writeFileSync(join(dir, "Contents", "Resources", "marker.txt"), marker);
     };
-    mkApp(target, o.currentVersion, "old");
+    mkApp(target, o.currentVersion, "old", o.targetId);
     const staging = join(base, "staging", "练习台.app");
-    mkApp(staging, o.zipVersion, "new");
+    mkApp(staging, o.zipVersion, "new", o.newId);
     const zipName = "liantai-desktop-" + o.apiVersion + "-" + process.arch + ".zip";
-    const zipPath = join(base, "src.zip");
+    /* 文件名就用资产名：签名覆盖的内容里带着资产名（发布时签的就是 dist/ 里那个产物），
+       测试这条链也要跟真实发布一致，否则验的是一条真实里走不通的路。 */
+    const zipPath = join(base, zipName);
     execFileSync("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", staging, zipPath]);
     const zipBytes = readFileSync(zipPath);
-    const files = { api: null, body: zipPath, bodyPath: "/dl/" + zipName };
+    /* 私钥现场生成到临时目录，不碰本机那把发布私钥（测试要能反复跑、而且不能需要任何本机秘密） */
+    const keyDir = join(base, "keys");
+    const keyPath = join(keyDir, "release.pem");
+    mkdirSync(keyDir, { recursive: true });
+    macKeyTool(["--init", "--key", keyPath]);
+    let signKey = keyPath;
+    if (o.foreignKey) { signKey = join(keyDir, "other.pem"); macKeyTool(["--init", "--key", signKey]); }
+    macKeyTool(["--sign", zipPath, "--key", signKey]);
+    const sigText = readFileSync(zipPath + ".sig", "utf8");
+    const pubPem = macKeyTool(["--pubkey", "--key", keyPath]).split("\n\n")[0].trim();
+    /* o.tamper：源上发的字节与签名时的不一样，且元数据里的 digest 也跟着改了
+       （模拟「元数据被改、包也被换」）—— 这时 sha256 那道拦不住，只有签名能拦。 */
+    const served = Buffer.from(zipBytes);
+    if (o.tamper) served[Math.floor(served.length / 2)] ^= 0xff;
+    const files = { api: null, bodyPath: "/dl/" + zipName, sigPath: "/dl/" + zipName + ".sig" };
+    let sigHits = 0;
     const srv = createServer((req, res) => {
       const u = String(req.url || "").split("?")[0];
       if (u === "/api") {
@@ -419,8 +443,14 @@ if (process.platform !== "darwin") {
         return;
       }
       if (u === files.bodyPath) {
-        const b = readFileSync(files.body);
-        res.writeHead(200, { "Content-Type": "application/zip", "Content-Length": b.length });
+        res.writeHead(200, { "Content-Type": "application/zip", "Content-Length": served.length });
+        res.end(served);
+        return;
+      }
+      if (u === files.sigPath) {
+        sigHits++;
+        const b = Buffer.from(sigText, "utf8");
+        res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Length": b.length });
         res.end(b);
         return;
       }
@@ -429,16 +459,18 @@ if (process.platform !== "darwin") {
     });
     await new Promise((r) => srv.listen(0, "127.0.0.1", r));
     const port = srv.address().port;
-    files.api = {
-      tag_name: "v" + o.apiVersion,
-      assets: [{
-        name: zipName,
-        size: zipBytes.length,
-        digest: "sha256:" + createHash("sha256").update(zipBytes).digest("hex"),
-        browser_download_url: (o.evil ? "https://evil.example/payload.zip"
-                                     : "http://127.0.0.1:" + port + files.bodyPath),
-      }],
-    };
+    const assets = [{
+      name: zipName,
+      size: served.length,
+      digest: "sha256:" + createHash("sha256").update(served).digest("hex"),
+      browser_download_url: (o.evil ? "https://evil.example/payload.zip"
+                                   : "http://127.0.0.1:" + port + files.bodyPath),
+    }];
+    if (!o.noSig) {
+      assets.push({ name: zipName + ".sig", size: Buffer.byteLength(sigText),
+                    browser_download_url: "http://127.0.0.1:" + port + files.sigPath });
+    }
+    files.api = { tag_name: "v" + o.apiVersion, assets: assets };
     if (o.asList) files.api = [
       { tag_name: "v0.0.99-draft", draft: true, assets: [] },   // draft：跳过不看
       { tag_name: "v" + o.apiVersion, prerelease: true, assets: files.api.assets },
@@ -449,6 +481,7 @@ if (process.platform !== "darwin") {
                      releasesUrl: "https://example.invalid/releases",
                      userDataDir: userData, exePath: join(target, "Contents", "MacOS", "练习台"),
                      macApi: "http://127.0.0.1:" + port + "/api",
+                     macPublicKeys: o.pubKeys === undefined ? [pubPem] : o.pubKeys,
                      macOpenCommand: "/bin/echo", pid: 999999,
                      quit: () => { quitCalled++; } });
     const versionOf = () => {
@@ -468,8 +501,8 @@ if (process.platform !== "darwin") {
       srv.close();
       rmSync(base, { recursive: true, force: true });
     };
-    return { base, appsDir, target, userData, zipName, zipPath, zipBytes, mod, clean,
-             versionOf, markerOf, quitCount: () => quitCalled };
+    return { base, appsDir, target, userData, zipName, zipPath, zipBytes, mod, clean, keyPath, pubPem,
+             versionOf, markerOf, sigHits: () => sigHits, quitCount: () => quitCalled };
   };
 
   /* 6a. 查 -> 下 -> 换 -> 重启，一路正常 */
@@ -488,10 +521,13 @@ if (process.platform !== "darwin") {
     ok(existsSync(dlPath) && createHash("sha256").update(readFileSync(dlPath)).digest("hex") ===
        createHash("sha256").update(c.zipBytes).digest("hex"), "壳/mac: 落盘内容与源上逐字节一致");
     ok(c.mod.getStatus().progress && c.mod.getStatus().progress.percent === 100, "壳/mac: 下完进度到 100");
+    ok(c.sigHits() === 1, "壳/mac: 下完包去取了签名（校验这一步真的发生了，不是写在文档里）");
 
     ok(c.mod.installUpdate() === true, "壳/mac: 下好了才放行换包");
     const logPath = join(c.userData, "updates", "install.log");
-    await waitFor(() => existsSync(logPath) && /更新完成/.test(readFileSync(logPath, "utf8")), 30000);
+    await waitFor(() => /更新完成/.test(readOr(logPath)), 30000);
+    ok(/更新完成/.test(readOr(logPath)), "壳/mac: 换包脚本真跑完了（日志里写着「更新完成」）"
+       + (readOr(logPath) ? "" : "（日志都没有：换包脚本可能没起来 —— " + JSON.stringify(c.mod.getStatus()) + "）"));
     ok(c.versionOf() === "0.0.16" && c.markerOf() === "new",
        "壳/mac: 换包真的换成了（真解压、真两次 mv，不是「看起来像」）");
     ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 目录里没留下 old.app / 临时目录");
@@ -511,13 +547,15 @@ if (process.platform !== "darwin") {
     await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
     c.mod.installUpdate();
     const logPath = join(c.userData, "updates", "install.log");
-    await waitFor(() => existsSync(logPath) && /版本不符/.test(readFileSync(logPath, "utf8")), 30000);
+    await waitFor(() => /版本不符/.test(readOr(logPath)), 30000);
+    ok(/版本不符/.test(readOr(logPath)), "壳/mac: 包内版本不符会写进日志"
+       + (readOr(logPath) ? "" : "（日志都没有：换包脚本可能没起来 —— " + JSON.stringify(c.mod.getStatus()) + "）"));
     ok(c.versionOf() === "0.0.15" && c.markerOf() === "old",
        "壳/mac: 包内版本不符 -> 放弃并保留旧版（不拿一个来路不明的包装上去）");
     ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 放弃时也不留残骸");
     ok(!existsSync(join(c.userData, "updates", c.zipName)) && existsSync(join(c.userData, "updates", c.zipName + ".bad")),
        "壳/mac: 放弃时把坏包改名成 .bad（留着看，但下次启动不能再被当成「已下好」端给他）");
-    ok(readFileSync(logPath, "utf8").indexOf(c.target) >= 0, "壳/mac: 放弃时把旧版重新打开（不能让他手上空着）");
+    ok(readOr(logPath).indexOf(c.target) >= 0, "壳/mac: 放弃时把旧版重新打开（不能让他手上空着）");
     c.clean();
   }
 
@@ -554,6 +592,104 @@ if (process.platform !== "darwin") {
     ok(c.mod.getStatus().phase === "available" && c.mod.getStatus().latestVersion === "0.0.16",
        "壳/mac: prerelease 在列也能查到（mac 链按版本号说话，不依赖 /releases/latest）");
     c.clean();
+  }
+
+  /* 6f. 源上发的字节与签名对不上：连元数据里的 digest 都一起改了（模拟「发布页被换掉」）——
+      这时 sha256 那道必然通过，能拦下来的只有签名。这是这一整套东西存在的理由。 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", tamper: true });
+    await c.mod.checkUpdate();
+    ok(c.mod.getStatus().phase === "available", "壳/mac: 元数据被改过也先当成「有新版」（该拦的在下载那步）");
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "error", 30000);
+    const st = c.mod.getStatus();
+    ok(st.errorStage === "download" && /签名验不过/.test(st.error),
+       "壳/mac: 包与签名对不上 -> 拒收，并说清是哪一步拦下的");
+    const dl = join(c.userData, "updates", c.zipName);
+    ok(!existsSync(dl) && !existsSync(dl + ".part"),
+       "壳/mac: 验不过的包一个字节都不留（不分「下好了」与「下了一半」）");
+    c.clean();
+  }
+
+  /* 6g. 签名用了别的私钥（不是钉在包里的那把）：一样拒收 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", foreignKey: true });
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "error", 30000);
+    ok(/签名验不过/.test(c.mod.getStatus().error),
+       "壳/mac: 只有钉在包里的那把公钥算数（别人自己签一份没用）");
+    c.clean();
+  }
+
+  /* 6h. 这一版根本没带签名：在「检查」这步就拒，不下 100MB 才发现 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", noSig: true });
+    await c.mod.checkUpdate();
+    const st = c.mod.getStatus();
+    ok(st.phase === "error" && st.errorStage === "check" && /没有签名文件/.test(st.error),
+       "壳/mac: 没签过名的版本直接拒收（发布时漏签就是这个后果，宁可先不更新）");
+    ok(!existsSync(join(c.userData, "updates", c.zipName)), "壳/mac: 拒收时不下包");
+    c.clean();
+  }
+
+  /* 6i. 包里一把可用公钥都没有（例如公钥被改坏了）：同样拒收 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", pubKeys: [] });
+    await c.mod.checkUpdate();
+    const st = c.mod.getStatus();
+    ok(st.phase === "error" && /没有可用的签名公钥/.test(st.error),
+       "壳/mac: 验不了就拒收（「有条件校验」等于没校验）");
+    c.clean();
+  }
+
+  /* 6j. 包里的 .app 版本号写对了、标识不是练习台：脚本也要拦住 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", newId: "com.example.other" });
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    c.mod.installUpdate();
+    const logPath = join(c.userData, "updates", "install.log");
+    await waitFor(() => /标识不是练习台/.test(readOr(logPath)), 30000);
+    ok(/标识不是练习台/.test(readOr(logPath)), "壳/mac: 包内标识不符会写进日志"
+       + (readOr(logPath) ? "" : "（日志都没有：换包脚本可能没起来 —— " + JSON.stringify(c.mod.getStatus()) + "）"));
+    ok(c.versionOf() === "0.0.15" && c.markerOf() === "old",
+       "壳/mac: 包内标识不是练习台（光版本号对不算）-> 放弃，旧版一个字节不动");
+    ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 放弃时也不留残骸（暂存名/旧包名都清掉）");
+    c.clean();
+  }
+
+  /* 6k. 当前跑着的这个 .app 标识不是练习台（应用被塞进了别的包里的情形）：
+      不许把不相干的目录当成自己的应用本体去替换 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", targetId: "com.example.other" });
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    const refused = c.mod.installUpdate() === false;
+    ok(refused && /不是练习台/.test(c.mod.getStatus().error),
+       "壳/mac: 找到的 .app 标识对不上 -> 拒绝换包并说清（不拿一个来路不明的目录开刀）");
+    ok(c.quitCount() === 0 && c.versionOf() === "0.0.15", "壳/mac: 拒绝时不许动退出流程，也不许动旧版");
+    c.clean();
+  }
+}
+
+/* ---- 8. 钉在包里的公钥与本机发布私钥是不是同一把 ----
+   这一条防的是「签的时候用 A、钉进去的是 B」：真机上表现为每一版都被自己的应用拒收，
+   而两边的日志都只会说「签名验不过」，很难往这儿想。本机没那把私钥就跳过（别的机器上跑测试不该要它）。 */
+{
+  const src = readFileSync(join(here, "..", "update.js"), "utf8");
+  const m = /const MAC_UPDATE_KEYS = \[([\s\S]*?)\n\];/.exec(src);
+  const pinned = m ? (m[1].match(/-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----/) || [""])[0] : "";
+  ok(pinned.indexOf("BEGIN PUBLIC KEY") > 0, "壳/签名: update.js 里钉着一把公钥（一把都没有 = 更新链自己把自己锁死）");
+  const keyFile = join(homedir(), ".liantai-release-key");
+  if (!existsSync(keyFile)) {
+    console.log("  · 跳过「钉的公钥 = 本机发布私钥」：本机没有 " + keyFile);
+  } else {
+    const out = execFileSync(process.execPath, [MAC_KEY_TOOL, "--pubkey"], { encoding: "utf8" });
+    const localPub = out.split("\n\n")[0].trim();
+    ok(localPub === pinned, "壳/签名: update.js 钉的公钥 = 本机发布私钥对应的公钥（签的和验的不是同一把，每版都会被自己拒收）");
   }
 }
 
@@ -660,6 +796,28 @@ if (process.platform !== "darwin") {
   ok(required.length >= 2 && notPacked.length === 0,
      "壳: main.js 引的仓内模块都在 package.json 的 build.files 里 -> " + required.join("、")
      + (notPacked.length ? "（缺：" + notPacked.join("、") + "）" : ""));
+}
+
+/* ---- 9. 应用身份 / 仓库位置的单一真源：app-meta.js 与 package.json 必须一致 ----
+   运行期读不到 package.json 的 `build` 段（打包时被 electron-builder 剥掉，实测 app.asar 里没有
+   `build` / `appId`），所以常量写在 app-meta.js；package.json 那份是给 electron-builder 上传用的。
+   两边漂移的后果是「包传到 A、客户端去 B 找」——链条上没有任何一步会报错，只是永远没更新。 */
+{
+  const APP = require(join(here, "..", "app-meta.js"));
+  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+  const pub = (pkg.build && pkg.build.publish && pkg.build.publish[0]) || {};
+  ok(APP.name === pkg.name, "壳/身份: app-meta.name = package.json.name（userData 目录名与产物名前缀按它来）");
+  ok(APP.appId === (pkg.build && pkg.build.appId), "壳/身份: app-meta.appId = package.json.build.appId（换包时核的就是这个标识）");
+  ok(APP.owner === pub.owner && APP.repo === pub.repo,
+     "壳/身份: app-meta.owner/repo = package.json.build.publish（对不上就是「传到 A、客户端去 B 找」）");
+  ok(APP.slug === pub.owner + "/" + pub.repo && APP.releasesUrl.indexOf(APP.slug) > 0 && APP.apiReleases.indexOf(APP.slug) > 0,
+     "壳/身份: slug / releasesUrl / apiReleases 都由 owner+repo 推出来，不另写一份");
+  const carries = ["main.js", "update.js", "tools/release.mjs", "tools/release-mac.mjs", "tools/gate.mjs",
+                   "tools/release-check.mjs", "tools/push-via-api.mjs", "app-meta.js"]
+    .filter((f) => readFileSync(join(here, "..", f), "utf8").indexOf(APP.slug) >= 0);
+  ok(carries.length === 0,
+     "壳/身份: 仓内代码里没有第二处写死仓库名（owner/repo 只在 app-meta.js，slug 由它推出）"
+     + (carries.length ? "；还写着：" + carries.join("、") : ""));
 }
 
 console.log(T.join("\n"));

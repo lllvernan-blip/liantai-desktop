@@ -22,6 +22,7 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+const APP = require('./app-meta.js');
 
 const PHASE = {
   DISABLED: 'disabled',
@@ -53,8 +54,8 @@ const BACKUP_RETRY_MS = 1500;                 // 换到备用源后隔一下再�
    所以相邻两条要同时活着才算一条能走通的路，排列表时按这个看。
    备用源自己也会挂（实测里 ghproxy.cc 证书过期、ghfast.top 连不通），所以按顺序试，全失败就照常报错+重试。
    备用只是兜底不是新默认：某轮借它走通后，下一轮检查开始时仍回到官方源（backToOfficialFeed）。 */
-const GITHUB_OWNER = 'lllvernan-blip';
-const GITHUB_REPO = 'liantai-desktop';
+const GITHUB_OWNER = APP.owner;
+const GITHUB_REPO = APP.repo;
 /* 等价于包内 app-update.yml（provider github + owner/repo；未签名无 pubkey；缓存目录名与
    electron-updater 按应用名算出的默认值一致），换回它 = 换回包内配置。 */
 const OFFICIAL_FEED = { provider: 'github', owner: GITHUB_OWNER, repo: GITHUB_REPO };
@@ -529,8 +530,8 @@ function installUpdate() {
       任何一次失败都写进 <userData>/updates/install.log 的最后一行——脚本阶段没有界面可说话，
       下次启动 main.js 会读它并在首页说出来（见 macLastFailure）。
    4. 用户数据不动：只替换 .app 本体，练习记录 / Key / 草稿都在 userData 里，一个字节不碰。 */
-const MAC_API_DEFAULT = 'https://api.github.com/repos/lllvernan-blip/liantai-desktop/releases?per_page=15';   // 扫列表而不是 /releases/latest：mac 常发 prerelease，它不占 latest，查 latest 永远看不到
-const MAC_UA = 'liantai-desktop-updater';
+const MAC_API_DEFAULT = APP.apiReleases + '?per_page=15';   // 扫列表而不是 /releases/latest：mac 常发 prerelease，它不占 latest，查 latest 永远看不到
+const MAC_UA = APP.userAgent;
 const MAC_HOST_OK = /^(github\.com|api\.github\.com|[a-z0-9-]+\.githubusercontent\.com)$/i;   // 官方域（api 与资产）
 const MAC_LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/i;                    // 自检用的假源
 const MAC_API_TIMEOUT_MS = 30 * 1000;
@@ -538,16 +539,31 @@ const MAC_IDLE_TIMEOUT_MS = 60 * 1000;   // 下载 60 秒没有任何字节就�
 const MAC_REDIRECT_MAX = 5;
 const UPDATE_DIR = 'updates';
 const ZIP_NAME_RE = /^liantai-desktop-(\d+\.\d+\.\d+)-(arm64|x64)\.zip$/;
+const MAC_SIG_SUFFIX = '.sig';              // 签名资产名 = 包名 + 这个后缀
+const MAC_SIG_MAX = 8 * 1024;               // 签名文件不会超过几行；比这大就不是签名
+
+/* 发布侧签名用的公钥（私钥在本机 ~/.liantai-release-key，不进仓库、不上传，见 tools/mac-key.mjs）。
+   为什么要有这一层：光的 sha256 期望值是从同一份 Release 元数据里读的——元数据被改（账号被盗、
+   有人拿 token 发了一版），地址与期望值会一起被改，校验必然通过。签名只有本机那把私钥做得出，
+   GitHub 上没有，所以包被换过就验不过；验不过就拒收（宁可先不更新，也不把来路不明的包装上去）。
+   数组是留给轮换的：先把新公钥加进来发一版，再用新私钥签下一版，已装版本就平滑换过去了。
+   轮换/丢失的代价写在 tools/mac-key.mjs 开头（丢私钥 = 已装版本手动重装一次）。 */
+const MAC_UPDATE_KEYS = [
+  /* 指纹 29abcdf1767fd4b9（`node tools/mac-key.mjs --pubkey` 可核对是不是同一把） */
+  `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAjNyzNNVXoExoNC/1n9q8lal0cew5gDzufSATBHY3oEs=
+-----END PUBLIC KEY-----`,
+];
 
 /* 换包脚本。写成文件、用 /bin/bash 起一个独立进程，因为它必须在应用退出**之后**才能动 .app。
-   参数全部走位置参数（$1..$6），不做字符串拼接——路径里有空格（“/Applications/练习台.app”）
+   参数全部走位置参数（$1..$7），不做字符串拼接——路径里有空格（“/Applications/练习台.app”）
    或中文都不会被拆坏。
    注：这段是 bash，${...} 在 JS 模板串里要写成 \${ 转义。 */
 const MAC_INSTALL_SCRIPT = `#!/bin/bash
 # 练习台换包脚本：由应用在退出前写出并交出去，独立于应用活着
-# $1=旧进程 pid  $2=新包 zip  $3=要替换的 .app  $4=期望版本  $5=日志文件  $6=重新打开的命令
+# $1=旧进程 pid  $2=新包 zip  $3=要替换的 .app  $4=期望版本  $5=日志文件  $6=重新打开的命令  $7=包标识
 set -u
-PID="$1"; ZIP="$2"; TARGET="$3"; EXPECT="$4"; LOG="$5"; OPENCMD="$6"
+PID="$1"; ZIP="$2"; TARGET="$3"; EXPECT="$4"; LOG="$5"; OPENCMD="$6"; APPID="$7"
 note(){ printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG" 2>/dev/null; }
 reopen(){ "$OPENCMD" "$TARGET" >>"$LOG" 2>&1; }
 
@@ -559,33 +575,62 @@ while kill -0 "$PID" 2>/dev/null; do
   sleep 0.2
 done
 
-# 2) 解压到临时目录，先不动原包
-WORK="$(mktemp -d "\${TMPDIR:-/tmp}/liantai-update.XXXXXX")" || { note "更新放弃：建不了临时目录"; reopen; exit 1; }
+# 2) 解压到临时目录，先不动原包。
+#    优先用目标目录自己（同一个卷）：这样后面两次改名都是 rename（原子、瞬间），
+#    而不是 mv 退化成「复制一遍 200MB 再删旧的」——复制期间正式位置上的应用会半新半旧。
+DIR="$(/usr/bin/dirname "$TARGET")"
+WORK="$(mktemp -d "$DIR/.liantai-update.XXXXXX" 2>/dev/null || true)"
+if [ -z "$WORK" ] || [ ! -d "$WORK" ]; then
+  WORK="$(mktemp -d "\${TMPDIR:-/tmp}/liantai-update.XXXXXX")" || { note "更新放弃：建不了临时目录"; reopen; exit 1; }
+  note "目标目录里建不了暂存目录，改用系统临时目录（跨卷时多一次复制）"
+fi
+# STAGE 与 BAK 都放在目标目录里：新包从暂存名改名到正式名、旧包从正式名改名到暂存名，
+# 两步都在同一个卷上（rename），中间没有「应用不在」的窗口，也不会出现半个应用。
+STAGE="$DIR/.liantai-new.$$.app"
+BAK="$DIR/.liantai-old.$$.app"
+# 任何一条出口都在目标目录里留下半截东西是不行的（BAK 除外：回滚失败时它可能是旧版唯一一份）
+trap 'rm -rf "$WORK" "$STAGE"' EXIT
+
 if ! ditto -x -k "$ZIP" "$WORK" >>"$LOG" 2>&1; then
   mv "$ZIP" "$ZIP.bad" 2>/dev/null   # 坏包改名：别让它下次启动又被当成「已下好」端上去
   note "更新放弃：新包解压失败（下载不完整，或者包被改坏）——这份包已改名为 .bad，不会再用"
-  rm -rf "$WORK"; reopen; exit 1
+  reopen; exit 1
 fi
 NEW="$(/bin/ls -d "$WORK"/*.app 2>/dev/null | /usr/bin/head -n 1)"
-if [ ! -d "$NEW" ]; then mv "$ZIP" "$ZIP.bad" 2>/dev/null; note "更新放弃：新包里没有 .app"; rm -rf "$WORK"; reopen; exit 1; fi
+if [ ! -d "$NEW" ]; then mv "$ZIP" "$ZIP.bad" 2>/dev/null; note "更新放弃：新包里没有 .app"; reopen; exit 1; fi
 GOT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$NEW/Contents/Info.plist" 2>/dev/null)"
 if [ "$GOT" != "$EXPECT" ]; then
   mv "$ZIP" "$ZIP.bad" 2>/dev/null
   note "更新放弃：包内版本不符（期望 $EXPECT，包内是 \${GOT:-读不到}）——这份包已改名为 .bad，不会再用"
-  rm -rf "$WORK"; reopen; exit 1
+  reopen; exit 1
+fi
+# 包身份也要核：光比版本号的话，一个「版本号写成一样」的别的应用就能被换上去
+IDENT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$NEW/Contents/Info.plist" 2>/dev/null)"
+if [ "$IDENT" != "$APPID" ]; then
+  mv "$ZIP" "$ZIP.bad" 2>/dev/null
+  note "更新放弃：包内标识不是练习台（期望 $APPID，包内是 \${IDENT:-读不到}）——这份包已改名为 .bad，不会再用"
+  reopen; exit 1
 fi
 
-# 3) 换包：两次 rename，中间没有“应用不在”的窗口
-BAK="$WORK/old.app"
-if ! mv "$TARGET" "$BAK" 2>>"$LOG"; then
-  note "更新放弃：没法挪走旧版（多半是权限）"; rm -rf "$WORK"; reopen; exit 1
+# 3) 新包先落到目标卷的暂存名上，再改名就位
+if ! mv "$NEW" "$STAGE" 2>>"$LOG"; then
+  if ! cp -pR "$NEW" "$STAGE" 2>>"$LOG"; then
+    note "更新放弃：新包搬不进目标目录（磁盘空间不够？权限？）"; reopen; exit 1
+  fi
+  note "新包跨卷复制到目标目录（改名前）"
 fi
-if ! mv "$NEW" "$TARGET" 2>>"$LOG"; then
+STAGED="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$STAGE/Contents/Info.plist" 2>/dev/null)"
+if [ "$STAGED" != "$EXPECT" ]; then note "更新放弃：暂存到目标卷后包读不出来（磁盘空间不够？）"; reopen; exit 1; fi
+
+if ! mv "$TARGET" "$BAK" 2>>"$LOG"; then
+  note "更新放弃：没法挪走旧版（多半是权限）"; reopen; exit 1
+fi
+if ! mv "$STAGE" "$TARGET" 2>>"$LOG"; then
   if ! mv "$BAK" "$TARGET" 2>>"$LOG"; then
     cp -pR "$BAK" "$TARGET" 2>>"$LOG" && rm -rf "$BAK"   # rename 也失败的最后一道退路：整份拷回
   fi
   note "更新失败：换入新版没成功，已恢复旧版"
-  rm -rf "$WORK"; reopen; exit 1
+  reopen; exit 1
 fi
 xattr -dr com.apple.quarantine "$TARGET" >>"$LOG" 2>&1
 rm -rf "$BAK" "$WORK"
@@ -594,6 +639,28 @@ note "更新完成：$EXPECT"
 reopen
 exit 0
 `;
+
+/* 签名覆盖的内容：包内容的 sha256 + 资产名（资产名里带着版本与架构）。
+   发布工具（tools/mac-key.mjs）调的是这一个函数，两边不会各写一遍格式而对不上。 */
+function macSigPayload(hashHex, name) {
+  return String(hashHex).toLowerCase() + ' ' + String(name);
+}
+
+/* 公钥解析：只认能解析成 Ed25519 的；一把都解析不出来 = 无法校验，那条链一律拒收 */
+function macParseKeys(list) {
+  const out = [];
+  for (const raw of (Array.isArray(list) ? list : [list])) {
+    if (!raw) continue;
+    try {
+      const k = crypto.createPublicKey(String(raw));
+      if (k.asymmetricKeyType !== 'ed25519') { log('update-key-bad', '不是 Ed25519 公钥，略过'); continue; }
+      out.push(k);
+    } catch (err) {
+      log('update-key-bad', (err && err.message) || String(err));
+    }
+  }
+  return out;
+}
 
 let mac = null;        // null = 没走 mac 这条链；{ok:true,...} = 可用
 let macAttempt = 0;    // 同一次失败的重复回调靠它去重
@@ -617,6 +684,7 @@ function initMacUpdater(options) {
     pid: options.pid || process.pid,
     pending: null,     // 查到的待下载（还没下）
     ready: null,       // 已下好、可直接换包的 zip
+    keys: macParseKeys(options.macPublicKeys || MAC_UPDATE_KEYS),   // 可验的签名公钥（自检会传测试用的公钥）
     running: false,    // 下载中：重复点不叠加请求
     timer: null,
   };
@@ -741,10 +809,14 @@ async function macGetJson(url) {
 }
 
 /* 从 assets 里挑本机要用的包：只认我们自己发的 zip，优先架构对得上的那个 */
+/* 注意别和下面的 macAssetName（本地文件名）撞名：同名函数声明会互相覆盖，
+   结果就是元数据里的资产名被当成「本地文件名」算，包名成 undefined。 */
+function assetNameOf(a) { return String((a && a.name) || ''); }
+function assetUrlOf(a) { return String((a && (a.browser_download_url || a.url)) || ''); }
 function macPickAsset(assets, version) {
   const list = Array.isArray(assets) ? assets : [];
-  const nameOf = (a) => String((a && a.name) || '');
-  const urlOf = (a) => String((a && (a.browser_download_url || a.url)) || '');
+  const nameOf = assetNameOf;
+  const urlOf = assetUrlOf;
   const archOk = (a) => {
     const m = /-(arm64|x64)\.zip$/i.exec(nameOf(a));
     return !m || m[1].toLowerCase() === String(process.arch).toLowerCase();
@@ -769,7 +841,7 @@ async function macCheckOnce() {
     /* prerelease 也算数：mac 链是自实现的，按版本号说话，下的是 zip 不受签名限制。
        Windows 的 electron-updater 走 /releases/latest，prerelease 不占 latest，两边互不干扰。 */
     const list = Array.isArray(data)? data : [data];
-    let pendingTag = null, pendingAsset = null, newestTag = null;
+    let pendingTag = null, pendingAsset = null, pendingAssets = [], newestTag = null;
     for (const rel of list) {
       if (!rel || rel.draft) continue;
       const tag = String(rel.tag_name || rel.name || '').replace(/^v/i, '').trim();
@@ -778,7 +850,7 @@ async function macCheckOnce() {
       if (cmpVersion(tag, status.currentVersion) <= 0) continue;
       const asset = macPickAsset(rel.assets || [], tag);
       if (!asset) continue;   // 这条没带 mac 包（多半是另一端先建的 Release），看下一条
-      pendingTag = tag; pendingAsset = asset; break;
+      pendingTag = tag; pendingAsset = asset; pendingAssets = rel.assets || []; break;
     }
     if (!pendingTag) {
       mac.pending = null;
@@ -788,15 +860,67 @@ async function macCheckOnce() {
       return snapshot();
     }
     if (!pendingAsset) throw new Error('v' + newestTag + ' 没带适合本机的 mac 包');
-    const url = String(pendingAsset.browser_download_url || pendingAsset.url || '');
+    const url = assetUrlOf(pendingAsset);
+    const assetName = assetNameOf(pendingAsset);
     macAssertUrl(url);   // 地址不合规就在“检查”这一步就说清，不留到下载时才炸
-    mac.pending = { version: pendingTag, url: url, size: Number(pendingAsset.size) || 0, digest: String(pendingAsset.digest || '') };
+    /* 资产名必须是我们发的那种包名，且与下载地址的最后一段一致：
+       签名覆盖的是「资产名」，两个名字对不上就说明这份元数据自己都不自洽。 */
+    if (!ZIP_NAME_RE.test(assetName)) throw new Error('这版带的包名不是我们发的包：' + assetName);
+    let urlBase = '';
+    try { urlBase = decodeURIComponent(String(url).split('?')[0].split('/').pop() || ''); } catch (err) { urlBase = ''; }
+    if (urlBase !== assetName) throw new Error('包的下载地址与资产名对不上（' + assetName + ' / ' + urlBase + '）——拒收');
+    /* 签名资产：必须在同一个 Release 里、同一个名字加后缀。没有 = 发布侧漏签（或有人换了一版），
+       按本机规矩在「检查」这步就拒收——别先下 100MB 再发现验不了。 */
+    const sigAsset = pendingAssets.find((a) => assetNameOf(a) === assetName + MAC_SIG_SUFFIX && assetUrlOf(a));
+    if (!mac.keys.length) {
+      throw new Error('本机没有可用的签名公钥，这版包无从校验——拒收（请手动下载安装）');
+    }
+    if (!sigAsset) {
+      throw new Error('v' + pendingTag + ' 没有签名文件（' + assetName + MAC_SIG_SUFFIX + '）——按规矩不收，请手动下载安装');
+    }
+    const sigUrl = assetUrlOf(sigAsset);
+    macAssertUrl(sigUrl);
+    mac.pending = { version: pendingTag, url: url, assetName: assetName, sigUrl: sigUrl,
+                    size: Number(pendingAsset.size) || 0, digest: String(pendingAsset.digest || '') };
     status.latestVersion = pendingTag;
     setPhase(PHASE.AVAILABLE, 'v' + pendingTag + ' 可用（点「更新到 v' + pendingTag + '」开始下载）');
   } catch (err) {
     if (id === macAttempt) macFail('check', (err && err.message) || String(err));
   }
   return snapshot();
+}
+
+/* 取签名文件（很小，读回内存） */
+async function macFetchSig(url) {
+  const res = await macOpen(url, { Accept: 'application/octet-stream' }, MAC_API_TIMEOUT_MS);
+  const code = res.statusCode || 0;
+  if (code !== 200) { res.resume(); throw new Error('签名文件取不回来（HTTP ' + code + '）'); }
+  const chunks = [];
+  let n = 0;
+  for await (const c of res) {
+    n += c.length;
+    if (n > MAC_SIG_MAX) { res.destroy(); throw new Error('签名文件太大，不像一份 Ed25519 签名'); }
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks).toString('utf8').trim();
+}
+
+/* 验签：签的是「刚下下来的这份包的 sha256 + 资产名」，用钉在包里的公钥验。
+   这一步与 sha256 校验的区别在信任源：sha256 期望值跟下载地址来自同一份元数据，
+   一起被改也看不出来；签名只有本机那把私钥做得出。验不过就拒收，不给「下次再说」。 */
+async function macCheckSignature(p, hashHex) {
+  const text = await macFetchSig(p.sigUrl);
+  if (!text) throw new Error('签名文件是空的');
+  if (!/^[A-Za-z0-9+/=]+$/.test(text)) throw new Error('签名文件内容不是 base64');
+  const sig = Buffer.from(text, 'base64');
+  if (!sig.length) throw new Error('签名解不出来');
+  const payload = Buffer.from(macSigPayload(hashHex, p.assetName), 'utf8');
+  for (const key of mac.keys) {
+    try {
+      if (crypto.verify(null, payload, key, sig)) return true;
+    } catch (err) { /* 这把验不了就看下一把 */ }
+  }
+  throw new Error('包签名验不过（发布侧没签过这个包，或者包与签名被换过）——拒收，请手动下载安装');
 }
 
 /* 下载：由页面点「更新到 vX」触发（POST /__update/download）。同步返回 true = 已开始。 */
@@ -862,6 +986,7 @@ async function macPull(p) {
     if (!want) throw new Error('发布页没给 sha256，包完整性无从校验——拒收（宁可先不更新）');
     const gotHex = hash.digest('hex');
     if (want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
+    await macCheckSignature(p, gotHex);   // 独立一遭：期望值与地址同源，签名不靠它们
     fs.renameSync(part, file);   // 校验过了才改回正名：半截文件不许看起来像“下好了”
   } catch (err) {
     fail = err;
@@ -879,6 +1004,9 @@ async function macPull(p) {
 }
 
 function macAssetName(p) {
+  /* 查询时已核过「资产名 = 下载地址最后一段」，存盘就按资产名存：
+     签名验的是资产名，两处用同一个字符串，才不会「验过了 A、存下来的是 B」。 */
+  if (p.assetName && ZIP_NAME_RE.test(p.assetName)) return p.assetName;
   const fromUrl = String(p.url).split('?')[0].split('/').pop() || '';
   const clean = fromUrl.replace(/[^A-Za-z0-9._-]/g, '');
   if (ZIP_NAME_RE.test(clean)) return clean;
@@ -886,13 +1014,28 @@ function macAssetName(p) {
 }
 
 /* 从可执行文件往上找 .app（/Applications/练习台.app/Contents/MacOS/练习台） */
-function macBundlePath() {
+function macBundlePathRaw() {
   const from = String((mac && mac.exePath) || process.execPath || '');
   const parts = from.split('/');
   for (let i = parts.length - 1; i >= 1; i--) {
     if (/\.app$/.test(parts[i])) return parts.slice(0, i + 1).join('/');
   }
   return '';
+}
+
+/* 包标识：换包前先问「这真是练习台吗」。只看「哪个目录以 .app 结尾」是不够的——
+   应用被放在一个别的 .app 里层、或者目录名被改过时，会把不相干的东西当成自己的应用本体去替换。 */
+function macBundleId(app) {
+  try {
+    const plist = fs.readFileSync(path.join(app, 'Contents', 'Info.plist'), 'utf8');
+    const m = /CFBundleIdentifier<\/key>\s*<string>([^<]*)<\/string>/.exec(plist);
+    return m ? m[1].trim() : '';
+  } catch (err) { return ''; }
+}
+
+function macBundlePath() {
+  const raw = macBundlePathRaw();
+  return raw && macBundleId(raw) === APP.appId ? raw : '';
 }
 
 /* 换包：把脚本交出去，然后请他退出（脚本会等这个进程真的没了才动手）。
@@ -902,7 +1045,13 @@ function macInstall() {
   if (status.phase !== PHASE.DOWNLOADED) return false;
   const zip = mac.ready.path;
   const target = macBundlePath();
-  if (!target) { macFail('install', '找不到应用本体（.app），这次更新只能手动装'); return false; }
+  if (!target) {
+    const raw = macBundlePathRaw();
+    macFail('install', raw
+      ? '找到的 .app 不是练习台（包标识 ' + (macBundleId(raw) || '读不到') + '），不敢替换它——这次更新只能手动装'
+      : '找不到应用本体（.app），这次更新只能手动装');
+    return false;
+  }
   if (!fs.existsSync(zip)) { macFail('install', '已下好的包不见了（' + zip + '），请重新下载'); return false; }
   try {
     fs.accessSync(path.dirname(target), fs.constants.W_OK);
@@ -920,7 +1069,7 @@ function macInstall() {
     return false;
   }
   try {
-    const child = spawn('/bin/bash', [scriptPath, String(mac.pid), zip, target, mac.ready.version, logPath, mac.openCmd], {
+    const child = spawn('/bin/bash', [scriptPath, String(mac.pid), zip, target, mac.ready.version, logPath, mac.openCmd, APP.appId], {
       detached: true,
       stdio: 'ignore',
     });
@@ -969,4 +1118,4 @@ function stringify(m) {
   }
 }
 
-module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, PHASE, BACKUP_FEEDS };
+module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, macSigPayload, PHASE, BACKUP_FEEDS };

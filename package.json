@@ -27,6 +27,7 @@
     "files": [
       "main.js",
       "shell-policy.js",
+      "app-meta.js",
       "update.js",
       "app/**/*"
     ],

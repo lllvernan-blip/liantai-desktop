@@ -18,6 +18,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -33,6 +34,9 @@ const KEY_RULES = [
   /* 规则本身也得能喂给 git grep：那里用的是 POSIX ERE，不支持 (?:…) 非捕获组（2026-10-12 撞过：
      「repetition-operator operand invalid」）。所以两边只用 ERE 认识的写法：字符类、{m,n}、普通分组。 */
   { name: "GitHub 令牌", re: /(ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/ },
+  /* 签名私钥（发布用的那把在 ~/.liantai-release-key，不进仓库）：PEM 头是最明显的体征，
+     它一旦被提交，拿到仓库的人就能签出「验得过」的假包，比 API Key 还难收场。 */
+  { name: "PEM 私钥", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
 ];
 /* 演示/测试用的假 Key 要显式标记才放行：把「靠人眼认出这是假的」改成「写下来它是假的」。
    标记只放行它所在的那一行，写它的人得自己看那一行里有没有真东西。 */
@@ -54,15 +58,10 @@ export function resolveGh() {
   return "";
 }
 
-/* 仓库位置从 package.json 的 build.publish 推出来，推不出来才回落到写死的那一份
-   （同一个名字在仓库里写死过六处，能少一处是一处）。 */
+/* 仓库位置只有一处真源（app-meta.js）；package.json 的 build.publish 是给 electron-builder 的同一份信息，
+   两边对不上由 tests/shell.mjs 报错 */
 export function repoSlug() {
-  try {
-    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-    const p = (pkg.build && pkg.build.publish && pkg.build.publish[0]) || {};
-    if (p.owner && p.repo) return p.owner + "/" + p.repo;
-  } catch (e) { /* 读不到就用兜底 */ }
-  return "lllvernan-blip/liantai-desktop";
+  return createRequire(import.meta.url)(join(root, "app-meta.js")).slug;
 }
 
 function gateCleanTree() {
