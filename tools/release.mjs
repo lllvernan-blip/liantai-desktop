@@ -17,6 +17,7 @@ import { existsSync, linkSync, readFileSync, statSync, unlinkSync, writeFileSync
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { releaseNotes } from "./release-notes.mjs";
+import { runReleaseGates } from "./gate.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -45,35 +46,33 @@ function run(cmd, args, opts) {
 
 step("发布 v" + pkg.version);
 
-// 1) 干净的工作区。允许有改动（发布常和提交一起做），但要说清楚打进去的是什么。
-const dirty = spawnSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" });
-if (dirty.status === 0 && dirty.stdout.trim()) {
-  console.log("注意：工作区有未提交的改动，这一版会包含它们：");
-  console.log(dirty.stdout.trim());
-}
+/* 0) 发布闸门：工作区干净 + 远端 main = 本地 HEAD + 源码无明文密钥。
+     这三条以前只写在 AGENTS.md 里没人执行：这里原先对脏工作区只打印一句「注意：有未提交的改动」然后照发。
+     闸门放在盖章之前——stamp-build 会写 app/build.json，过了闸门再动文件。 */
+if (!runReleaseGates({ skip: process.argv.includes("--skip-gates") })) process.exit(1);
 
-// 2) gh 登录状态（上传走 gh 自己的登录态，不需要手工配 GH_TOKEN）
+// 1) gh 登录状态（上传走 gh 自己的登录态，不需要手工配 GH_TOKEN）
 const auth = spawnSync("gh", ["auth", "status"], { cwd: root, encoding: "utf8" });
 if (auth.status !== 0) {
   console.error("gh 未登录。先跑 gh auth login。");
   process.exit(1);
 }
 
-// 3) tag 不能已存在
+// 2) tag 不能已存在
 const exists = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "tagName"], { cwd: root, encoding: "utf8" });
 if (exists.status === 0 && !reconcileOnly) {
   console.error("GitHub 上已经有 " + tag + " 了。要发新版本，先把 package.json 里的 version 提高。");
   process.exit(1);
 }
 
-// 4) 盖章（版本号 + 构建时间写进 app/build.json）
+// 3) 盖章（版本号 + 构建时间写进 app/build.json）
 // 只对账时不要盖章：那不是在建包，盖了只会让磁盘上的 build.json 跑到包内那份前面。
 if (!reconcileOnly) {
   step("写构建标识");
   if (run(process.execPath, [join(here, "stamp-build.mjs")]) !== 0) process.exit(1);
 }
 
-// 5) 出包（不发布：--publish never）
+// 4) 出包（不发布：--publish never）
 /* 为什么不让 electron-builder 发布：它给每个 target 各跑一次发布流程，
    第二次撞「tag_name already_exists」而中断，而 latest.yml 与 *.blockmap 常就丢在那一步——
    少了 latest.yml，自动更新压根不会启动。所以打包只用它，发布交给下面的 gh。 */
@@ -98,11 +97,11 @@ if (reconcileOnly) {
   }
 }
 
-/* 6) 确认 Release 存在 */
+/* 5) 确认 Release 存在 */
 step("确认 Release " + tag);
 if (!ensureRelease()) process.exit(1);
 
-/* 7) 自己上传 + 对账：一次创建、逐个 --clobber 传，幂等可重跑，不依赖任何人返回码 */
+/* 6) 自己上传 + 对账：一次创建、逐个 --clobber 传，幂等可重跑，不依赖任何人返回码 */
 step("上传并对账发布资产");
 const missing = reconcileRelease();
 if (missing.length) {

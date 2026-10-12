@@ -181,6 +181,9 @@ const localProblems = [];
 }
 
 const release = await fetchJson("/repos/" + REPO + "/releases/tags/" + tag);
+/* 版本号按「整段」认，不按子串：用 includes 的话，0.0.1 会把 0.0.19 的产物当成本版的
+   （前后必须紧跟 - 或 . 或字符串结尾）。 */
+const versionRe = new RegExp("-" + version.replace(/\./g, "\\.") + "(?=-|\\.|$)");
 if (!quiet) console.log("=== 双平台对账 " + tag + "（" + REPO + "）===");
 list("本仓库（与 Release 无关，发版前同样必须为真）", localRows);
 if (!release) {
@@ -207,7 +210,10 @@ if (has("latest.yml")) {
   const asset = release.assets.find((a) => a.name === "latest.yml");
   const v = ymlVersion(await fetchAssetText(asset));
   if (v === null) {
-    winRows.push({ name: "latest.yml 里的 version", ok: true, note: "读不到内容，跳过校验（清单位置本身对）" });
+    /* 清单在、内容却拿不回来：这项不得当「过」。原先是 ok:true「跳过校验」——正是闸门④最要紧的那一项
+       在失败时静默变绿。读不回来就重跑一次；还读不回来，说明真没核对上。 */
+    winRows.push({ name: "latest.yml 里的 version", ok: false, note: "读不到内容（重跑一次；仍读不到就不算对过账）" });
+    problems.push("latest.yml 的内容读不回来，版本号没能交叉核对");
   } else {
     const ok = v === version;
     winRows.push({ name: "latest.yml 里的 version", ok, note: ok ? "= " + version : "= " + v + "（应为 " + version + "）" });
@@ -229,7 +235,8 @@ if (has(macYml)) {
   const asset = release.assets.find((a) => a.name === macYml);
   const v = ymlVersion(await fetchAssetText(asset));
   if (v === null) {
-    macRows.push({ name: "latest-mac.yml 里的 version", ok: true, note: "读不到内容，跳过校验（清单位置本身对）" });
+    macRows.push({ name: "latest-mac.yml 里的 version", ok: false, note: "读不到内容（重跑一次；仍读不到就不算对过账）" });
+    problems.push("latest-mac.yml 的内容读不回来，版本号没能交叉核对");
   } else {
     const ok = v === version;
     macRows.push({ name: "latest-mac.yml 里的 version", ok, note: ok ? "= " + version : "= " + v + "（应为 " + version + "）" });
@@ -242,16 +249,24 @@ const macArchs = [...new Set([...dmgs, ...zips].map((n) => (/-([a-z0-9]+)\.(dmg|
    上传命令的返回码只说明「传了」，不说明「没传坏」。GitHub 给每个资产算 sha256（digest 字段），
    与本地文件比一次，传输损坏就拦在这里。本机没有对应产物时跳过（这个脚本两边机器都会跑）。 */
 const byteRows = [];
+let byteSkipped = 0;
 for (const a of release.assets || []) {
   if (!/\.(exe|dmg|zip)$/.test(a.name)) continue;
   const dist = join(root, "dist");
   const ext = a.name.match(/\.(exe|dmg|zip)$/)[0];
   const local = existsSync(dist)
-    ? readdirSync(dist).find((n) => n.endsWith(ext) && n.includes(version))
+    ? readdirSync(dist).find((n) => n.endsWith(ext) && versionRe.test(n))
     : null;
   const want = a.digest ? String(a.digest).replace(/^sha256:/i, "").toLowerCase() : "";
-  if (!local) { byteRows.push({ name: a.name, ok: true, note: "本机没有对应产物，跳过字节对账" }); continue; }
-  if (!want) { byteRows.push({ name: a.name, ok: true, note: "GitHub 没回 digest，跳过字节对账" }); continue; }
+  /* 本机没有对应产物就只治得了「这个平台对不上账」，且本机产品上是正常情况（两边机器各跑一次）。
+     但跳过多少项必须看得到：全跳过时这一节就是绿的，不说一声就成了静默的假绿。 */
+  if (!local) { byteRows.push({ name: a.name, ok: true, note: "本机没有对应产物，跳过字节对账" }); byteSkipped++; continue; }
+  /* GitHub 没回 digest 就真的没法自证了：这一项按失败算，不再当「过」 */
+  if (!want) {
+    byteRows.push({ name: a.name, ok: false, note: "GitHub 没回 digest，字节无法对账" });
+    problems.push(a.name + " 没拿到远端 sha256（digest 为空），字节对不上账");
+    continue;
+  }
   const got = createHash("sha256").update(readFileSync(join(dist, local))).digest("hex");
   const ok = got === want;
   byteRows.push({ name: a.name, ok, note: ok ? "远端字节 = 本地（sha256）" : "远端 " + want.slice(0, 16) + "… ≠ 本地 " + got.slice(0, 16) + "…" });
@@ -283,6 +298,7 @@ list("Windows（NSIS 安装版）", winRows);
 list("macOS（dmg + zip）", macRows);
 list("自动更新指针", pointerRows);
 list("字节对账（本机有产物才比）", byteRows);
+if (byteSkipped) console.log("   注：有 " + byteSkipped + " 项因本机没有对应产物而跳过（要在出过包的机器上跑才作数）");
 
 problems.push(...localProblems);
 const missingWin = winRows.filter((r) => !r.ok).length;

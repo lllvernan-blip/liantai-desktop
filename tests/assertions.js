@@ -4,6 +4,11 @@ const T = [];
 const ok = (c, m) => T.push((c ? "PASS  " : "FAIL  ") + m);
 // 画像从练习记录推导，测试统一用“往 history 里种成绩”的方式给数据
 function scoresFor(k, v){ const sc={}; for(const d of MODULES[k].dims) sc[d]=v; return sc; }
+/* fetch 替身统一入口：真实 Response 的 body 只有一份文本，json() 只是把文本解开的糖。
+   替身按同样口径造：成功体一律由对象序列化成 text()，这样「请求 + 读完 body」那条真链路（含整体超时）才被测到。
+   只给 json() 不给 text() 的替身是在替一个现实中不存在的 Response。 */
+const mockRes = o => Promise.resolve(Object.assign({ ok:true, status:200, headers:{ get:()=> "application/json" } }, o,
+  o.text? null : { text: async()=> JSON.stringify(o.json ? await o.json() : null) }));
 
 /* 参考答案（范文）是批改成功后单独一次调用（2026-09-29 从主请求里拆出）：
    默认在此短路——不短的话范文那次会把各处 callLLM 桩子里的 cap 顶掉；
@@ -384,7 +389,7 @@ el("#setBase").value = "https://api.test.com/v1";
 el("#setKey").value = "sk-test";
 el("#setModel").value = "deepseek-v4-flash";   // 不在名单里但实测能用的名字
 const realFetch = globalThis.fetch;
-globalThis.fetch = () => Promise.resolve({ ok:true, status:200, json: async()=>({ data:[{id:"z-model"},{id:"a-flash-model"},{id:"m-chat"}] }), headers:{ get:()=>"application/json" }, text: async()=>"" });
+globalThis.fetch = () => mockRes({ json: async()=>({ data:[{id:"z-model"},{id:"a-flash-model"},{id:"m-chat"}] }) });
 await fetchModels(true);
 ok(Array.isArray(state.modelCache["https://api.test.com/v1"]) && state.modelCache["https://api.test.com/v1"].length === 3, "实拉: 名单入库缓存");
 ok(el("#setModel").value === "deepseek-v4-flash", "实拉: 静默模式不改写当前模型（名单可能不全）");
@@ -418,7 +423,7 @@ state.settings.apiKey = "sk-test";
 const capBodies = [];
 const realFetch8 = globalThis.fetch;
 globalThis.fetch = (url, opt) => { capBodies.push(JSON.parse(opt.body));
-  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" }); };
+  return mockRes({ json: async()=>({ choices:[{ message:{ content:"ok" } }] }) }); };
 state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "standard";
 await callLLM("s","u",false);
 ok(capBodies.at(-1).reasoning_effort === "medium", "适配: effort 家族标准档=reasoning_effort medium");
@@ -445,8 +450,8 @@ globalThis.fetch = realFetch8;
 const realFetch84 = globalThis.fetch;
 capBodies.length = 0;
 globalThis.fetch = (url, opt) => { const b = JSON.parse(opt.body); capBodies.push(b);
-  if(b.reasoning_effort) return Promise.resolve({ ok:false, status:400, json: async()=>({}), headers:{ get:()=>"application/json" }, text: async()=>"bad param" });
-  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" }); };
+  if(b.reasoning_effort) return mockRes({ ok:false, status:400, text: async()=>"bad param" });
+  return mockRes({ json: async()=>({ choices:[{ message:{ content:"ok" } }] }) }); };
 state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
 await callLLM("s","u",false);
 ok(capBodies.filter(b=>b.reasoning_effort).length === 1 && state.modelCaps["deepseek-v4-pro"] === "rejected",
@@ -461,7 +466,7 @@ el("#setModel").value = "deepseek-v4-pro"; setReasonUI();
 ok(el("#segReason").style.display === "none" && el("#reasonNote").textContent.indexOf("不接受") >= 0,
    "实测记忆: 界面收起三档并说明原因");
 globalThis.fetch = (url, opt) => { const b = JSON.parse(opt.body); capBodies.push(b);
-  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" }); };
+  return mockRes({ json: async()=>({ choices:[{ message:{ content:"ok" } }] }) }); };
 state.settings.model = "deepseek-v4-flash";
 await callLLM("s","u",false);
 ok(state.modelCaps["deepseek-v4-flash"] === "ok" && "reasoning_effort" in capBodies.at(-1),
@@ -484,7 +489,7 @@ ok(sseReasonDelta('data: {"choices":[{"delta":{"reasoning_content":"思考中"}}
 state.modelProbe = {};
 delete state.modelCaps["deepseek-v4-pro"];   // 清掉 8.4 记下的拒收，不然探测被跳过
 const realFetch85 = globalThis.fetch;
-globalThis.fetch = (url, opt) => Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"ok", reasoning_content:"思考思考思考思考" } }] }), headers:{ get:()=>"application/json" }, text: async()=>"" });
+globalThis.fetch = (url, opt) => mockRes({ json: async()=>({ choices:[{ message:{ content:"ok", reasoning_content:"思考思考思考思考" } }] }) });
 state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
 await callLLM("s","u",false);
 ok(state.modelProbe["deepseek-v4-pro"] && state.modelProbe["deepseek-v4-pro"].deep && state.modelProbe["deepseek-v4-pro"].deep.reason === 8,
@@ -2057,7 +2062,7 @@ let calls18 = 0;
 globalThis.fetch = () => {
   calls18++;
   if(calls18 === 1) return Promise.reject(new TypeError("fetch failed"));
-  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:'{"a":1}' } }] }) });
+  return mockRes({ json: async()=>({ choices:[{ message:{ content:'{"a":1}' } }] }) });
 };
 let okNet18 = null, err18 = null;
 try{ okNet18 = await callLLM("sys", "user", true); }catch(e){ err18 = e; }
@@ -2075,7 +2080,7 @@ ok(calls18b === 2 && threwNet && String(threwNet.message).indexOf("fetch failed"
 
 /* 18.3 HTTP 错误不重发：401 是事实（Key 不对），重发只会再花一次钱 */
 let calls18c = 0;
-globalThis.fetch = () => { calls18c++; return Promise.resolve({ ok:false, status:401, text: async()=>"unauthorized" }); };
+globalThis.fetch = () => { calls18c++; return mockRes({ ok:false, status:401, text: async()=>"unauthorized" }); };
 let threwHttp = null;
 try{ await callLLM("sys", "user", true); }catch(e){ threwHttp = e; }
 ok(calls18c === 1 && threwHttp && threwHttp.status === 401, "网络抖动: 401 不重发（HTTP 错误走另一条路）");
@@ -2086,7 +2091,7 @@ let calls18d = 0;
 globalThis.fetch = () => {
   calls18d++;
   const body = calls18d === 1 ? "这不是 JSON" : '{"a":2}';
-  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:body } }] }) });
+  return mockRes({ json: async()=>({ choices:[{ message:{ content:body } }] }) });
 };
 let okJson18 = null, errJson18 = null;
 try{ okJson18 = await callLLM("sys", "user", true); }catch(e){ errJson18 = e; }
@@ -2095,7 +2100,7 @@ ok(calls18d === 2 && okJson18 && okJson18.a === 2,
 
 /* 18.5 一直吐坏：重发两次就认输，不能无限重发 */
 let calls18e = 0;
-globalThis.fetch = () => { calls18e++; return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:"坏" } }] }) }); };
+globalThis.fetch = () => { calls18e++; return mockRes({ json: async()=>({ choices:[{ message:{ content:"坏" } }] }) }); };
 let threwJson = null;
 try{ await callLLM("sys", "user", true); }catch(e){ threwJson = e; }
 ok(calls18e === 3 && threwJson && threwJson.code === "JSON",
@@ -2103,7 +2108,7 @@ ok(calls18e === 3 && threwJson && threwJson.code === "JSON",
 
 /* 18.6 一直空输出：也重发两次，报的是 EMPTY（不是笼统的「格式异常」） */
 let calls18f = 0;
-globalThis.fetch = () => { calls18f++; return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:'' }, finish_reason:"stop" }] }) }); };
+globalThis.fetch = () => { calls18f++; return mockRes({ json: async()=>({ choices:[{ message:{ content:'' }, finish_reason:"stop" }] }) }); };
 let threwEmpty = null;
 try{ await callLLM("sys", "user", true); }catch(e){ threwEmpty = e; }
 ok(calls18f === 3 && threwEmpty && threwEmpty.code === "EMPTY",
@@ -2116,7 +2121,7 @@ let calls18g = 0, bodies18g = [];
 globalThis.fetch = (u, opt) => {
   calls18g++; bodies18g.push(JSON.parse(opt.body));
   const ok = calls18g >= 2;
-  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content: ok? '{"a":3}' : '' }, finish_reason: ok? "stop" : "length" }] }) });
+  return mockRes({ json: async()=>({ choices:[{ message:{ content: ok? '{"a":3}' : '' }, finish_reason: ok? "stop" : "length" }] }) });
 };
 let okEmpty18 = null;
 try{ okEmpty18 = await callLLM("sys", "user", true); }catch(e){ okEmpty18 = e; }
@@ -2129,7 +2134,7 @@ ok(bodies18g[0].max_tokens === MAX_OUT_TOKENS && bodies18g[1].max_tokens === MAX
 let calls18h = 0, caps18h = [];
 globalThis.fetch = (u, opt) => {
   calls18h++; caps18h.push(JSON.parse(opt.body).max_tokens);
-  return Promise.resolve({ ok:true, status:200, json: async()=>({ choices:[{ message:{ content:'' }, finish_reason:"length" }] }) });
+  return mockRes({ json: async()=>({ choices:[{ message:{ content:'' }, finish_reason:"length" }] }) });
 };
 let threw18h = null;
 try{ await callLLM("sys", "user", true); }catch(e){ threw18h = e; }
@@ -2348,7 +2353,7 @@ ok(tutNoKeySteps.every(s=> s.text.indexOf("不填 Key 也能练") < 0),
 ok(tutNoKeySteps.every(s=> s.scr !== "pd" || s.text.indexOf("示例") < 0)
    && TUT_SEQ.every(s=> s.text.indexOf("示例题") < 0 && (!s.nk || s.nk.text.indexOf("示例题") < 0)),
    "引导: 快判页与全部引导步骤都不再有示例题的口径");
-state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
+state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";   // gate-allow: 演示用假 Key，不是真凭据
 const tutKeySteps = visibleSteps();
 ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === i && s.sel === TUT_SEQ[i].sel),
    "引导/有 Key: 序列原样（onlyKey 步在，nk 变体不生效；科目页还是 4 步、第一步指红按钮）");
@@ -2366,7 +2371,7 @@ closeModals();
 startPDRound(PD_MIX);
 ok(el("#bannerSlot").innerHTML.indexOf("出题和阅卷都要用 API Key") >= 0 && pdRound === null && pdActive === false,
    "快判入口/没 Key: 被 entryBlocked 拦在原地（不出题、不进判别轨）");
-state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
+state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";   // gate-allow: 演示用假 Key，不是真凭据
 renderHome();
 const pdHomeKey = el("#docBody").innerHTML;
 ok(pdHomeKey.indexOf('id="btnQuick">开始快判') >= 0
@@ -2407,6 +2412,57 @@ ok(profileHistHtml().indexOf("<table") >= 0, "空态: 有记录时记录页照�
 ok(PAGE_HTML.indexOf(".noteedit{width:100%;min-height:84px") >= 0 && PAGE_HTML.indexOf(".card-body h4.noteh{margin-top:18px") >= 0
    && PAGE_HTML.indexOf(".cardcol>.csec+.csec{margin-top:24px") >= 0,
    "学习卡页: 笔记框/标题/分节间距收紧（整卡目标 ≤900 可视高）");
+/* ---- 20. 全项目 review 后修下的四条：按钮接线、判别轨抬头、出题失败落点、超时与静默失败 ---- */
+/* 20.1 画像二级页的经验行：停用/删除两颗按钮只长在二级页上，一级页那条路接了线不算数。
+   DOM 桩子的 querySelectorAll 恒空，「点不动按钮」自身测不出来，只能钉住「二级页也接了线」这一句。 */
+ok(PAGE_HTML.indexOf("profilePageHtml(profPage); wireProfileNav(); wireExperiences();") >= 0,
+   "画像: 二级页也接经验行的停用/删除（漏了就是两颗点不动的死按钮）");
+
+/* 20.2 判别轨的抬头：文号报「快判」，灰字不许按首页那支报「首页」——进快判就得挂 _view="pd" */
+ok(startPDRound.toString().indexOf('_view = "pd"') >= 0,
+   "快判: 进判别轨要挂 _view=pd（不挂的话灰字报「首页」，与文号的「快判」自相矛盾）");
+const _v20 = _view, _pd20 = pdActive, _form20 = pdForm;
+_view = "pd"; pdActive = true; pdForm = PD_MIX; renderHeader();
+const pdNo20 = el("#docNo").textContent, pdLabel20 = el("#modLabel").textContent;
+_view = _v20; pdActive = _pd20; pdForm = _form20; renderHeader();
+ok(pdNo20.indexOf("快判") >= 0 && pdLabel20 === PD_FORMS[PD_MIX].name,
+   "快判: 抬头文号与灰字同口径 -> 文号「" + pdNo20 + "」灰字「" + pdLabel20 + "」");
+
+/* 20.3 出题失败：上一轮已收尾时必须回到小结——回到那道题的「看本轮小结」上，那颗按钮的翻页守卫会把人钉死 */
+const realCall20 = callLLM;
+callLLM = async ()=>{ throw {code:"JSON"}; };
+pdRound = { form:PD_MIX, theme:"主题", done:true, idx:0, correct:1,
+  items:[{ context:"材料", stem:"题干", options:["对的说法","错的说法"], answer:0, done:true, picked:0, ok:true, trap:"", explain:"解析" }] };
+pdActive = true;
+await genPDRound(PD_MIX, "主题");
+const failBody20 = el("#docBody").innerHTML;
+callLLM = realCall20;
+ok(failBody20.indexOf('id="pdAgain"') >= 0 && failBody20.indexOf('id="pdNext"') < 0,
+   "快判: 出题失败回到小结，不落在「看本轮小结」那颗点不动的按钮上");
+
+/* 20.4 计时器得盖住「读完 body」那一段：只包 fetch 的话，回了头却停住 body 会永远挂着（阅卷按钮一直转） */
+const realST20 = globalThis.setTimeout, realFetch20 = globalThis.fetch;
+let aborter20 = null, bodyRead20 = false;
+globalThis.setTimeout = fn => { aborter20 = fn; return 1; };
+globalThis.fetch = (u, opt) => Promise.resolve({ ok:true, status:200, headers:{ get:()=>"application/json" },
+  text: async()=>{ bodyRead20 = true;
+    return await new Promise((_, rej)=>{ opt.signal.addEventListener("abort", ()=>{ const e = new Error("aborted"); e.name = "AbortError"; rej(e); }); Promise.resolve().then(()=>aborter20()); }); } });
+let toCode20 = "";
+try{ await fetchWithTimeout("http://x/v1", {}, 50); }catch(e){ toCode20 = e && e.code; }
+globalThis.setTimeout = realST20; globalThis.fetch = realFetch20;
+ok(bodyRead20 && toCode20 === "TIMEOUT",
+   "超时: 计时器盖住读完 body 那一段（body 停住也中止，不会永远挂着）");
+
+/* 20.5 草稿落盘失败要出声：手写的东西静默消失，是最不该不出声的一类失败（save() 会出声，草稿和划线反而不会） */
+const realSetItem20 = localStorage.setItem;
+localStorage.setItem = ()=>{ throw new Error("QuotaExceededError"); };
+el("#bannerSlot").innerHTML = "";
+_storageWarned = false;
+saveDraft("sig-20", "写到一半的字");
+localStorage.setItem = realSetItem20;
+ok(el("#bannerSlot").innerHTML.indexOf("没能存到本地") >= 0,
+   "草稿: 落盘失败当场出声（本地存储满了不许静默丢字）");
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

@@ -21,6 +21,7 @@
 - **输出坏了最多重发两次**（`BODY_RETRY_MAX = 2`）：① `content` 为空；② `content` 在但 `parseJsonLoose` 解不出。**两种坏法只要 `finish=length` 就原地把额度翻倍重发**。重发还坏才抛：空输出 `{code:"EMPTY"}`、坏 JSON `{code:"JSON"}`，`handleErr` 各按各的说法提示，不许静默吞。坏输出走 `llmFailNote()` 记控制台（`main.js` 把渲染进程警告以上收进 `logs/startup.log`）。`sseFinish()` 是拿 `finish_reason` 用的，别当无用解析删。
 - **额度动态**：首次 `MAX_OUT_TOKENS = 16384`，`finish=length` 就翻倍（→32768→65536，封顶 `MAX_OUT_TOKENS_HARD`）。思考与正文共用一个额度（`reasoning_tokens` 计在 `completion_tokens` 里）。**别写死「某模型的输出上限」**。阅卷思考档单独降 `GRADE_LEVEL = "quick"`（阅卷照 need 逐条核，不吃长链推理）。
 - **范文从批改主请求拆出去单独拉**：`fetchModelAnswer()` 在批改成功后另发一次，**要纯文本不要 JSON**；那次失败只当没写过（catch 掉、留空，`renderGrade` 不渲染空范文），别拖垮整次批改。往主请求里再塞大块附属内容前先想这条。
+- **非流式调用的超时盖住「读完 body」**：`fetchWithTimeout()` 连 body 一起读完再返回（`{res, text, json}`）。只把 `fetch` 包进计时器是不够的——拿到响应头计时器就被清掉，服务商回了头却停住 body 时这一路调用永久挂住（阅卷按钮一直停在「阅卷中…」）。流式那条路的 `CONNECT_TIMEOUT` 只算到首字节（到了就交给 `IDLE_TIMEOUT`：连续 60 秒没字节才算吊死），别让它变成一条「整个流 60 秒」的隐形硬上限。
 - **传输层失败自动同档静默重发一次**（`retriedNet`）：DNS / TLS / 连接断 / 整体超时；HTTP 错误照旧走降级阶梯（只 400/422 换档）**绝不重发**。一次请求最坏 4 次调用（传输 1 + 输出 2 + 降级 1）；`retriedNet` 与输出重发不是一回事。
 - **训练链只有三步**（`FLOW_STEPS`：读材料含找点 / 一稿 / 批改）：链前先摆一整页学习卡（`f.cardSeen`，不进步骤条），**两科都是先看学习卡再动手**、卡阶段不亮题面；归类降级成一稿页上的入口（`f.orgOpen`），沉淀并进批改页（`_lastDistilled` 异步跑完由 `paintExpLine` 就地补一行）。写与读材料时卡以浮标 + 抽屉常驻，**浮标挂在 `#docBody` 之外的 `#fabSlot`**（纸面内的入场动画 transform 会成为 fixed 的包含块）。学习卡 `example` 是「这类题长什么样」的全新示例，prompt 明令不得复用本题材料情节；翻卡计次只属作答阶段。
 
@@ -55,7 +56,7 @@
 - **差量缓存会错位，每次检查前必须自检**：`installer.exe`（NSIS 写）与 `current.blockmap`（electron-updater 写）由两个程序维护、可能指向两个版本；`alignDifferentialCache()` 每次检查前核对（blockmap 里 `sizes` 逐块相加 == 安装包大小），对不上就删 `current.blockmap`。
 - **发布**：三个命令 `release` / `release:mac` / `release:check`（用法看 `docs/发布与更新.md`），**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**：一个 tag 下一整套 = Windows 三件 + mac 五件。
 - **单发 mac 必须加 `--prerelease`**：只带 mac 资产的 Release 会占住 `/releases/latest`，Windows 用户检查更新就 404（`release-mac.mjs` 默认不自己建 Release，除非 `--create`）。
-- **发布前先跑发布闸门**：① `git status --short` 干净；② `gh api repos/lllvernan-blip/liantai-desktop/commits/main --jq .sha` 与本地 HEAD 一致；③ 源码 grep `sk-[a-f0-9]{20,}` 零命中；④ `npm run release:check`（package.json 三铁律与「文档引用的文件路径都存在」都收在它里面）。**验包不许碰本机那份安装**；详细规矩见 `docs/发布与更新.md`。
+- **发布闸门是脚本，不是人肉清单**：`tools/gate.mjs`（`release` / `release:mac` 开头自动跑，也可 `node tools/gate.mjs` 单跑）——① 工作区干净；② 远端 `main` 的 sha = 本地 HEAD；③ 跟踪文件里没有明文密钥（`sk-` 各家形态 + GitHub 令牌）。任一不过就停手；`--skip-gates` 是明知故犯时的唯一出口。**第四条 `npm run release:check`（八件齐不齐 + 字节对账）只能在发完之后跑**，不算 pre-flight。演示/测试用的假 Key 靠行内 `gate-allow` 标记放行（只放行它所在的那一行）。**验包不许碰本机那份安装**；详细规矩见 `docs/发布与更新.md`。
 - **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 五件；④ 任意一端 `npm run release:check` 看八件齐不齐。
   - Windows **直连官方 git 协议不通**：拉取用转发站一次性 fetch，**别改 origin、更别用它推送**（推送带令牌）——`git fetch "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop.git" main && git merge --ff-only FETCH_HEAD`；拉完 `git rev-parse HEAD` 必须就是 mac 推的那条 sha，不等就别发。
   - **先发的那台决定 tag**（`gh release create` 用本地 HEAD 建 tag）：谁先发谁先拉最新；tag 不是本地 HEAD 就 `git checkout <tag>` 重新出包。Windows 的 gh 登录是交互式的，必须本人敲一次（`gh auth login --with-token < 文件` 可非交互）。
@@ -82,7 +83,7 @@
 - **文案分四类**：空态提示（留）、必备声明（留）、讲机制 / 流程（删）、重复的口径（并成一条）。只写「结论与操作」；**发给模型的参数细节不写**；「只存本地 / 备份不含 Key / Key 只发往你填的地址」这类声明一字不动（删了就是骗人）。
 - **更新日志一个版本只写一条**：`app/index.html` 的 `CHANGELOG` 给用户扫一眼；最重要、最直观的那件事写在前半句，其余概括成「修复了一些问题」之类带过；**不带括号、不写原因、不写怎么实现的**。细节进 commit message 与 Release 说明。**两个平台共用同一条**，**动笔的地方在这台 mac**。只约束新写的条目，旧条目不回改。
 - **说明句紧贴主行动**：各起始页红按钮紧跟在它上面的说明句下方，间距一律 24px——说明句和按钮是一个整体，中间不插大空档（「那句话和红按钮隔太开」被点名过）。首页 hero 是标题+副题两行所以按钮自然落得低，这是内容多一行，不是间距不一致；次级行（模块 chips）也一律 24px 跟进。
-- **快判只有首页一个入口**（2026-10-12 拍板「取消快判分题型，只留主页这一个入口」；科目页 hero 化同日拍板「和首页排布一样，说明句换成符合当前页面的话」）：首页红按钮「开始快判」→ `startPDRound(PD_MIX)` 直接综合一轮（三种形式混着出，`PD_FORMS`/`PD_FORM_ORDER` 只当出题引擎用，不再有用户可挑的形式）；快判落地页、三种形式 chips、自选主题折叠区、一次性首轮说明（`pdIntroSeen`）与顶栏闪电入口（`__pd`/`.subjdiv`）全部撤掉。快判一轮进行中 `pdActive` 仍置真（抬头文号报「快判」），小结收尾是「再来一轮 / 回首页」。
+- **快判只有首页一个入口**（2026-10-12 拍板「取消快判分题型，只留主页这一个入口」；科目页 hero 化同日拍板「和首页排布一样，说明句换成符合当前页面的话」）：首页红按钮「开始快判」→ `startPDRound(PD_MIX)` 直接综合一轮（三种形式混着出，`PD_FORMS`/`PD_FORM_ORDER` 只当出题引擎用，不再有用户可挑的形式）；快判落地页、三种形式 chips、自选主题折叠区、一次性首轮说明（`pdIntroSeen`）与顶栏闪电入口（`__pd`/`.subjdiv`）全部撤掉。快判一轮进行中 `pdActive` 置真、`_view = "pd"`（判别轨是独立的第四屏：不挂 `_view`，灰字会按首页那支报「首页」，与文号的「快判」自相矛盾），小结收尾是「再来一轮 / 回首页」。**出题失败回到出题前的现场**：上一轮已收尾就回小结（回到那道题的「看本轮小结」上，它的翻页守卫会把人钉在原地）。
   - **起始页统一 hero 排布**：`startBoxHtml(rf)` 按 `_view === "home"` 分两形，**三页共用同一套骨架**（hero-big → hero-sub → 红按钮 → chips → foot，间距全 24 档、几何同锚）——**首页**：大标题「今天练什么？」+「按你最近的练习情况出题，写完就有分」+「开始快判」+ 两枚点名科目 chips + 必备声明；**科目页（综应A/申论）**：大标题「综应A/申论 练什么？」+ 说明句换成当前页的话（本页流程「学习卡 → 作答 → 批改，写完就有分」）+「开始综应A/申论练习」+ 模块 chips + 同一行必备声明；**首页也是一张公文纸**：红头常显，hero 接在卷首下方；**没填 Key 时两处主行动都换成 `#btnSetup`「先填 API Key（出题和阅卷都要）」→ 开设置页**——出题这条路此刻走不通，按钮就不说「开始练习」或「开始快判」，说了什么就做什么。快判不在科目页抢红，科目页不摆两句大题。三颗按钮都可能在也可能不在，`wireStartBox()` 一律取到再接线。
   - **首页没有科目**：打开落在 `renderHome()`，三个入口一个都不预选（`.subjbtn` 不许带 `active`）、纸面不摆模块 chips。品牌名 `#btnHome` 是唯一回首页的路，别删。
   - **大题必须点名科目**：「练一道综应大题 / 练一道申论大题」走 `startSubjectTask(subject)`（切科目 → 退判别轨 `pdActive = false` → 出题）。**不许写成「练一道大题（综应 / 申论）」**——那实际去的是上次练的科目。
@@ -101,7 +102,7 @@
   - **不许谎报「我在做什么」**：明知走不通就别先答应一声；也别把人从首页拽进科目页（那是靠切 `settings.subject` 完成的）。
   - **不许假装没发生**：故意不做的楼不要留给用户错觉——拿不到的结果不亮成功态，不入账的轮次直接不存在（没有示例轮，就没有「不计入统计」要解释）。
   - **纸面上不写抬头已报的标题**：抬头（`#modLabel`）已经报了「你在哪」，纸面再写一遍就是同一句话写两次；纸面第一行得是「这是什么」（模块 `note`）或数据。名单同理：`renderModuleLanding` 拆词比对，`note` 与子类型胶囊重复就不写。小结也只写「本轮小结」。
-- **画像分两级**：一级一行一个入口（模块 / 快判 / 经验 / 记录，`.navrow` 整行可点、尾部 `›`），二级才是明细。`profPage` 是当前页（`null` = 一级），`profGo` 进、`profBack` 回；`openModal("modalProfile")` 一律回一级，而 `renderProfile()` **不会**自己回一级（测试要一级就显式 `profBack()`）。一级的行是按钮不是折叠件。
+- **画像分两级**：一级一行一个入口（模块 / 快判 / 经验 / 记录，`.navrow` 整行可点、尾部 `›`），二级才是明细。`profPage` 是当前页（`null` = 一级），`profGo` 进、`profBack` 回；`openModal("modalProfile")` 一律回一级，而 `renderProfile()` **不会**自己回一级（测试要一级就显式 `profBack()`）。一级的行是按钮不是折叠件。**两级都要接线**：`wireProfileNav()` 与 `wireExperiences()` 一个不能少（停用/删除两颗按钮只长在二级页上，一级那条路接了线不算数）。
 - **弹层加东西先量「主按钮还在不在视口内」**：加两三个字段，主按钮就被顶到窗口高之外。可选件一律默认收起（`<details class="addpick">`），收起态要 `panelScrollH === panelClientH` 且主按钮底边 ≤ 窗口高。
 - **长什么样看 `docs/界面规范.md`**：字号 / 控件高 / 颜色与表面 / 间距与分隔 / 横向基准 / 纸面 / 数据列 / 组件形状 / 设计语言都在那一份。**改界面前先读**；本文件只留行为与口径。
 
@@ -115,7 +116,7 @@
 ## 状态与兼容
 
 - `gw_state` 保存设置、画像、学习卡、笔记和模型缓存；练习历史在独立的 `gw_history`（写满裁最旧，不得并回 `gw_state`）。
-- `gw_draft` 保存未提交草稿；`gw_marks` 保存按题目签名的材料划线。
+- `gw_draft` 保存未提交草稿；`gw_marks` 保存按题目签名的材料划线。**这两样的落盘失败必须出声**（`storageFail()`，同一次故障只报一次）：草稿与划线是不可再生的手写内容，静默丢掉就真没了（`save()` / `saveHistory()` 一直把「写没写进去」回给调用方，草稿与划线不许例外）。
 - 修改状态结构时保留旧数据的默认合并与迁移；导入数据不能未经校验直接当成可信记录。
 - 题目、草稿和划线通过题目签名关联，不能使用全局单槽覆盖当前题之外的数据。
 

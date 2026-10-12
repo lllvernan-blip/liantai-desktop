@@ -29,6 +29,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { releaseNotes } from "./release-notes.mjs";
+import { runReleaseGates } from "./gate.mjs";
 import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -160,6 +161,10 @@ function checkYml() {
 function main() {
   console.log("mac 侧发布 · " + tag + " · " + (REPO || "(package.json 里没配 build.publish)"));
   if (!REPO) die("package.json 的 build.publish 里没有 owner/repo，不知道该发到哪儿。");
+
+  /* 发布闸门（见 tools/gate.mjs）：工作区干净 + 远端 main = 本地 HEAD + 源码无明文密钥。
+     --dry-run 不跑（它承诺「不联网」，而第二条要问 GitHub）。 */
+  if (!dryRun && !runReleaseGates({ skip: argv.includes("--skip-gates") })) process.exit(1);
 
   step("检查本地产物与清单");
   checkYml();
