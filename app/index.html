@@ -124,10 +124,8 @@ html,body{margin:0;padding:0;}
 .start-entry .pdforms .chip[data-mod]{padding:5px 14px;font-size:13px;color:var(--ink-soft);border-color:var(--line);background:transparent;}
 .start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--ink-faint);background:transparent;}
 .start-entry .pdforms .chip[data-mod].on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
-.start-entry .pdforms:has([data-mod]){margin-top:24px;}   /* 模块切换行锁在次级行锚位 225：主按钮 144+57+24（四页骨架对齐，见 .startbox[data-start=subj]） */
-.start-entry .pdforms:has([data-pdform]){margin-top:71px;}  /* 快判页无红按钮，形式 chips 即主行动：说明行 48+25+71 锁在主行动锚位 144 */
-.startbox[data-start="subj"] .actions{margin-top:72px;}   /* 科目页主行动锁在锚位 144：说明行 48+24+72；首页 hero 的标题+副题也是 96px 量，翻页时红按钮不跳 */
-.pdthemes{margin:42px auto 0;border-top:1px solid var(--line);width:100%;max-width:680px;text-align:left;}   /* 快判页无红按钮，chips 即主行动（144 锚位）：144+39+42 落在次级行锚位 225 */
+.start-entry .pdforms:has([data-mod]){margin-top:24px;}   /* 模块切换行紧跟主按钮，全站 24 档 */
+.pdthemes{margin:24px auto 0;border-top:1px solid var(--line);width:100%;max-width:680px;text-align:left;}
 .pdthemes>summary{display:flex;align-items:center;min-height:36px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13px;color:var(--muted);}
 .pdthemes>summary::-webkit-details-marker{display:none;}
 .pdthemes>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);}
