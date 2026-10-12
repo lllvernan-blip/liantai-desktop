@@ -283,21 +283,6 @@ html,body{margin:0;padding:0;}
   details.pditem[open]>summary::after{content:"▾";}
   .pditem .pdexp{color:var(--muted);font-size:13px;line-height:1.75;white-space:pre-wrap;}
   details.pditem .pdexp{padding:0 12px 9px 38px;}
-  /* 清单只有一种语言：一条顶线 + 行间细线，不再套框。之前的 .hits/.pdreview/.hist/.mrowbox
-     各自描一圈边，同一屏里「带框的清单」与「带顶线的清单」两种修辞并存 */
-  .hits{border-top:1px solid var(--line);}
-  .hitline{display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.6;align-items:baseline;}
-  .hitline .mk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
-  .hitline .pt{flex:1 1 auto;min-width:0;}
-  .hitline.hit .mk{color:var(--success);}
-  .hitline.part .mk{color:var(--warn);}
-  .hitline.miss .mk,.hitline.miss .pt{color:var(--danger);}
-  .hitline .sc{font-family:var(--hei);font-size:13px;color:var(--muted);flex:0 0 52px;text-align:right;font-variant-numeric:tabular-nums;order:3;}   /* 分值列定宽右贴纸边：不做成一列时，「4/4」会停在整行中间、右边空一大片 */
-  .hitline.hit .sc{color:var(--success);}
-  .hitline.part .sc{color:var(--warn);}
-  .hitline.miss .sc{color:var(--danger);}
-  .hitline .ev{color:var(--muted-2);font-size:13px;flex:0 0 32%;min-width:0;order:2;}
-
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
   .grade{margin-top:32px;border-top:1px solid var(--line-strong);padding-top:16px;}
   .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;position:sticky;top:96px;z-index:6;background:var(--paper);}   /* 往下逐条对采分点时，分数和丢分总数一直贴在顶上 */
@@ -310,9 +295,6 @@ html,body{margin:0;padding:0;}
   .grade details.notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
   .grade details.notebox>summary{padding:9px 2px;}
   .grade details.notebox .notebody{padding:2px 2px 10px;}
-/* 错因类型小标：回改页里不达标子项旁的那一小块文字。字号走六档里的 12px，颜色维度只借 token，不新造色。*/
-.kindtag{flex:0 0 auto;font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 6px;border-radius:var(--r-ctl);white-space:nowrap;}
-.hitline .kindtag{order:1;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:6px 0 2px;}
   .barline{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
@@ -519,10 +501,6 @@ html,body{margin:0;padding:0;}
   /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
   .pickline .ptag{font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:2px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
   .fnav{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap;}
-  /* 回改稿的行级差异对照：新增绿、删除删除线 */
-  .dline{font-size:14px;line-height:1.8;padding:1px 0;}
-  .dline.add{color:var(--success);}
-  .dline.del{color:var(--danger);text-decoration:line-through;}
   /* 判别轨：可点的行块选项，判完对的绿、错的红、正解标出（沿用克制的红绿，不加新色） */
   .pdopts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
   /* 快判选项：原生 button（键盘可达），所以要把 button 的字体/居中复位成段落式左对齐 */
@@ -1032,10 +1010,10 @@ function sanitizeFlows(list){
     return true;
   }).map(f=>{
     const o = Object.assign({ subject:null, subtype:null, sig:"", keyPoints:[], createdAt:0, closedAt:null,
-                              step:"read", cardSeen:true, attempts:[], selections:[], groups:[], drafts:[] }, f);
+                              step:"read", cardSeen:true, attempts:[], selections:[], groups:[] }, f);
     if(o.step === "revise" || o.step === "organize") o.step = "draft";   // 回改与归类都已下线：这些链回到「一稿」继续，不整条消失
     if(o.step === "distill") o.step = "review";   // 沉淀并进批改页：停在这一步的老链回到「批改」
-    for(const k of ["keyPoints","attempts","selections","groups","drafts"]) if(!Array.isArray(o[k])) o[k] = [];
+    for(const k of ["keyPoints","attempts","selections","groups"]) if(!Array.isArray(o[k])) o[k] = [];
     if(o.closedAt == null) o.closedAt = null;
     return o;
   });
@@ -1739,19 +1717,17 @@ const GRADE_TEMP = 0;
    撞上限时正文被截成半截 JSON，重发只是把同一个赌局再摇一次。而阅卷这道题是「对照 need 逐条核」，
    不需要长链推理（要创造力的是出题）。降到 quick 实测每次批改 36~56 秒 → 20~39 秒，分数不变。 */
 const GRADE_LEVEL = "quick";
-async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline, rewrite){
+async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline){
   const m = MODULES[k];
   const gradeOpts = { temp: GRADE_TEMP, level: GRADE_LEVEL };   // 阅卷的思考强度见 GRADE_LEVEL（额度被思考吃光就交不出分数）
   // organizeOutline：考生作答前的归类提纲，只进 prompt 供诊断，绝不参与 hits / 总分
-  // rewrite：回改稿提交（mode=rewrite）时带上轮批改要点；总分口径一字不动
   const exps = expBlock(k);   // 经验闭环：请阅卷特别核对用户是否又犯这些错，两科都注入
   // 错因回执：请阅卷顺手判定「带进去的这几条错因这次犯没犯」。只用于经验状态跟进，不进分数
   const expCheck = exps? `\n另请在 experienceChecks 里逐条回报 experiences：title 原样照抄，status 取 again（这次又犯了同一处）/ fixed（这次没再犯）/ na（本题考不到这条）。这一项只用于考生自己的错因跟进，**不参与计分**，不得因此改动 hits、scores 与总分。` : "";
   const expNote = exps? "用户在 experiences 里这些点上栽过跟头：请特别核对考生是否又犯了这些错。" : "";
   const user = JSON.stringify(Object.assign(
     { module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[], organizeOutline: organizeOutline || "" },
-    exps? { experiences:exps, expNote } : {},
-    rewrite? { mode:"rewrite", previousReview:(rewrite.previousReview||[]) } : {}));
+    exps? { experiences:exps, expNote } : {}));
   const schema = `{
     "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
@@ -1764,7 +1740,6 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
     `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
     `\n归类提纲（organizeOutline，可能为空）是考生作答前对材料的归类草稿：只用于诊断其归类与结构意识，不参与计分，也不要求答案与其一致；总分仍只看子项覆盖。` +
-    (rewrite? `\n本次答卷（mode=rewrite）是考生按上一轮批改（previousReview）回改后的新一稿：请对照 previousReview 核对上轮指出的问题是否改正；计分口径不变。` : "") +
     expCheck +
     "\n" + SCORING_RULES +
     `\n错因归类：每条子项都要给 kind——${GRADE_TAG_LINE}；拿不准选最接近的一类，拿满分的填 -。kind 只用于考生自己的错因统计，不参与计分，不得因此改动 awarded 与总分。` +
@@ -1939,10 +1914,6 @@ function expStatusSummaryHtml(){
   if(!cleared && !recur) return `<div class="hint" style="margin:2px 0 8px">${all.length} 条经验都还没核过。</div>`;
   return `<div class="hint" style="margin:2px 0 8px">已改掉 ${cleared} 条 · 复犯 ${recur} 条 · 待验证 ${fresh} 条</div>`;
 }
-function previousReviewHits(){
-  const g = lastGrade && lastGrade.g;
-  return (g && Array.isArray(g.hits))? g.hits.map(h=>({ point:h.point||"", status:h.status||"", evidence:h.evidence||"" })) : [];
-}
 /* 经验 UI：申论 distill 步 = 本次新提炼 + 我的经验列表；综应A 的管理入口在画像弹层（两处共用列表与接线） */
 function expSourceLabel(e){
   const h = (state.history||[]).find(x=> x.question && qSig(x.question) === e.sourceSig);
@@ -2040,7 +2011,7 @@ function switchSubject(id){
   const fromPD = pdActive; pdActive = false;   // 从判别轨回到作答轨：先退出判别模式（同科目也照走，恢复原科目栏）
   if(!SUBJECTS[id] || (id === curSubject() && !fromPD)) return;
   // 只有真正切到另一个科目才收口进行中的训练链；从判别轨点回当前科目只恢复科目栏/落地页，申论链照常进行
-  if(id !== curSubject()) closeActiveFlow("switched");
+  if(id !== curSubject()) closeActiveFlow();
   state.settings.subject = id; save();
   renderTabs(); renderHeader(); renderStart();
 }
@@ -3039,26 +3010,25 @@ function ensureFlow(module, subtype, question, keyPoints){
   const sig = qSig(question);
   let f = activeFlow();
   if(f && f.sig === sig && f.module === module) return f;   // 同题复用（重渲染 / 刷新回来）
-  if(f) closeFlow(f, { reason:"switched" });                // 换题：收口旧链，草稿与选区不动
+  if(f) closeFlow(f);                // 换题：收口旧链，草稿与选区不动
   f = { id: genFlowId(), subject: subjectOf(module), module, subtype: subtype||null, sig,
         question, keyPoints: keyPoints||[], createdAt: Date.now(), closedAt: null,
-        step: "read", cardSeen: false, attempts: [], selections: [], groups: [], drafts: [] };   // 新链先从学习卡开头：先记知识点再动手
+        step: "read", cardSeen: false, attempts: [], selections: [], groups: [] };   // 新链先从学习卡开头：先记知识点再动手
   state.flows.push(f);
   _flowId = f.id;
   pruneFlows();
   save();
   return f;
 }
-function closeFlow(flow, opts){
+function closeFlow(flow){
   if(!flow || flow.closedAt) return;
   flow.closedAt = Date.now();
   flow.step = "done";
-  flow.closeReason = (opts && opts.reason) || "";
   save();
 }
-function closeActiveFlow(reason){
+function closeActiveFlow(){
   const f = activeFlow();
-  if(f) closeFlow(f, { reason });
+  if(f) closeFlow(f);
 }
 /* 恢复现场：24h 内未关闭的申论链（新在前）；首页给入口用，不自动跳转 */
 const RESUME_WINDOW = 24*3600*1000;
@@ -3286,58 +3256,6 @@ function groupLabel(groups, gi){
   const nm = String(g.name||"").trim();
   return nm || ("要点" + (gi+1));
 }
-/* ============ 回改：清单 + 行级差异 ============ */
-/* 回改清单：hits 里 ✗/◐ 的子项 + evidence 里的【缺：xxx】标注（已在子项证据里出现的不重复列） */
-function revisionListHtml(g){
-  const rows = [];
-  for(const h of (g && g.hits) || []){
-    const cls = hitClass(h);
-    if(cls === "hit") continue;
-    rows.push({ cls, mk: cls==="part"? "◐" : "✗", text: h.point || "", ev: h.evidence || "" });
-  }
-  const evAll = rows.map(r=>r.ev).join("\n");
-  const seen = new Set();
-  for(const h of (g && g.hits) || []){
-    for(const x of (String(h && h.evidence || "").match(/【缺：[^】]*】/g) || [])){
-      if(seen.has(x) || evAll.indexOf(x) >= 0) continue;
-      seen.add(x); rows.push({ cls:"miss", mk:"缺", text:x, ev:"" });
-    }
-  }
-  if(!rows.length) return `<div class="hint" style="margin-top:10px">上一稿没有列出不达标的子项——按「待改进」自己再把把关。</div>`;
-  return `<div class="hits" style="margin-top:10px">` + rows.map(r=>
-    `<div class="hitline ${r.cls}"><span class="mk">${r.mk}</span><span class="pt">${esc(r.text)}</span>${r.ev? `<span class="ev">${esc(r.ev)}</span>`:""}</div>`
-  ).join("") + `</div>`;
-}
-/* 行级 LCS diff：返回 same/add/del 序列；回改页新增绿、删改删除线，只做展示不参与计分 */
-function diffLCS(a, b){
-  const splitLines = s => { const t = String(s==null?"":s); return t === ""? [] : t.split("\n"); };
-  const A = splitLines(a), B = splitLines(b);
-  const n = A.length, m = B.length;
-  const dp = Array.from({length:n+1}, ()=> new Array(m+1).fill(0));
-  for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--)
-    dp[i][j] = A[i]===B[j]? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
-  const out = [];
-  let i=0, j=0;
-  while(i<n && j<m){
-    if(A[i]===B[j]){ out.push({t:"same", text:A[i]}); i++; j++; }
-    else if(dp[i+1][j] >= dp[i][j+1]){ out.push({t:"del", text:A[i]}); i++; }
-    else{ out.push({t:"add", text:B[j]}); j++; }
-  }
-  while(i<n) out.push({t:"del", text:A[i++]});
-  while(j<m) out.push({t:"add", text:B[j++]});
-  return out;
-}
-function diffHtml(prev, cur){
-  let html = "";
-  for(const op of diffLCS(prev, cur)){
-    if(op.t === "same") continue;
-    html += op.t === "add"
-      ? `<div class="dline add">+ ${esc(op.text)}</div>`
-      : `<div class="dline del">− ${esc(op.text)}</div>`;
-  }
-  return html || `<span class="hint">与上一稿没有行级差异</span>`;
-}
-
 /* ============ 申论训练链：面板渲染 ============ */
 let lastGrade = null;   // 最近一次批改 { g, total }：批改步的重渲染只读它，不重调 AI
 
@@ -3362,8 +3280,7 @@ function renderChainCard(f){
   wireCardPage("btnChainStart", ()=>{ f.cardSeen = true; save(); renderFlowStep(); });
 }
 /* 哪几步带学习卡浮标：读材料时看卡不计次，一稿阶段翻卡计次（计次只属作答阶段）。
-   表里只列真能取到的 step（FLOW_STEPS = read/draft/review）：曾经写过的 revise（回改稿）已下线，
-   链在 load/import 时就被 sanitizeFlows 降级成 draft，不会走到这里。 */
+   表里只列真能取到的 step——FLOW_STEPS 是 read/draft/review，别的都到不了这里。 */
 const FAB_BY_STEP = { read:{ act:"看学习卡", count:false }, draft:{ act:"翻学习卡", count:true } };
 function renderFlowStep(){
   if(!current || !current.question){ renderStart(); return; }
@@ -3400,7 +3317,7 @@ function stepPanelHtml(step, f){
     return html;
   }
   // 归类降级成一稿页上的入口：f.orgOpen 打开时，一稿那一屏就换成归类面板
-  if(step === "draft" || step === "revise") return (f && f.orgOpen)? organizePanelHtml(f) : draftPanelHtml(f);
+  if(step === "draft") return (f && f.orgOpen)? organizePanelHtml(f) : draftPanelHtml(f);
   if(step === "review"){
     if(!lastGrade) return `<div class="hint" style="margin-top:10px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
     return gradeHtml(lastGrade.g, lastGrade.total);   // 批改是链子的最后一步：出链的去处由批改页自己的按钮交代
@@ -3553,19 +3470,14 @@ function wireCardDrawer(count){ const b = $("#btnCard"); if(b) b.onclick = ()=> 
 function draftPanelHtml(f){
   const {module} = current;
   const question = current.question;
-  const rewriting = !!(f && f.step === "revise");   // 回改稿：同一面板，多一份回改清单与差异对照
   // 归类不再占一步：它是作答区那一行右侧的一个入口，想先理一遍要点再写就点它，归完回到这里
-  const gN = (f && !rewriting)? (f.groups || []).length : 0;
-  const orgBtn = (f && !rewriting)? `<button id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
+  const gN = f? (f.groups || []).length : 0;
+  const orgBtn = f? `<button id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
   let html = "";
-  if(rewriting){
-    html += `<div class="hint" style="margin-top:10px">按下面的清单逐条回改，提交后重新阅卷。</div>`;
-    html += revisionListHtml(lastGrade && lastGrade.g || {});
-  }
   // 提纲不再另摆一份：归类面板里有一份「提纲预览」，同一个东西不在两处各写一遍
   if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
-    <div class="secrow"><div class="sec-title">作答区${rewriting? "（已预填上一稿）":""}</div><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
+    <div class="secrow"><div class="sec-title">作答区</div><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
@@ -3576,7 +3488,6 @@ function draftPanelHtml(f){
       <span class="hint" id="gradeLive" aria-live="polite"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
-  if(rewriting) html += `<details class="notebox" open style="margin-top:12px"><summary>与上一稿的差异（行级对照，边写边更新）</summary><div class="notebody"><div class="tpl" id="diffBox"></div></div></details>`;
   return html;
 }
 
@@ -3668,16 +3579,6 @@ function wireDraft(f){
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
   // 作答限时：进作答区就把这次的时钟接上；下拉只改时长，不重渲
   wireTimeControls();
-  // 回改稿：预填上一稿（有未提交的回改草稿则以草稿优先），并做行级差异实时对照
-  if(f && f.step === "revise"){
-    const prev = (f.attempts && f.attempts.length)? String(f.attempts[f.attempts.length-1].answer||"") : "";
-    if(!ta.value) ta.value = prev;
-    setWordCount(ta.value.length, limit);
-    const dbox = $("#diffBox");
-    const updDiff = ()=>{ if(dbox) dbox.innerHTML = diffHtml(prev, ta.value); };
-    updDiff();
-    ta.addEventListener("input", updDiff);
-  }
 }
 function wireOrganize(f){
   const sels = f.selections || [];
@@ -3738,7 +3639,7 @@ function wireStep(step, f){
     };
       wireCardDrawer(false);   // 读材料步：看卡不计次（计次只属作答阶段）
   }
-  if(step === "draft" || step === "revise"){
+  if(step === "draft"){
     if(f && f.orgOpen) wireOrganize(f);   // 归类面板打开时，这一屏就是它（没有作答区可接）
     else wireDraft(f);
   }
@@ -3807,7 +3708,6 @@ async function submitAnswer(){
   const mod = current.module, sub = current.subtype, q = current.question;
   const f = activeFlow();
   const inFlow = !!(f && f.sig === qSig(q));
-  const rewriting = !!(inFlow && f.step === "revise");   // 回改稿：走同一条 grade 路径，但带上轮批改要点
   const outline = inFlow? buildOrganizeOutline(f.groups, f.selections) : "";   // 归类提纲：只进 prompt 供诊断
   const kps = current.keyPoints || [], peeks = current.cardPeeks || 0;
   // 限时：交卷即停表。这两个数先取下来，记录与批改页都用它
@@ -3828,7 +3728,7 @@ async function submitAnswer(){
     const gp = $("#gradePeek"); if(gp && pk){ gp.style.display="block"; gp.textContent = pk.slice(-160); }
   };
   try{
-    const g = await grade(mod, sub, q, kps, ans, onDelta, outline, rewriting? { previousReview: previousReviewHits() } : null);
+    const g = await grade(mod, sub, q, kps, ans, onDelta, outline);
     if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
     if(g && typeof g === "object" && !Array.isArray(g.hits)) g.hits = [];   // 采分点不是数组：先夹平，免得下面的遍历/渲染整页抛错
     updateProfile(mod);
@@ -3836,14 +3736,13 @@ async function submitAnswer(){
     const pts = pointsOf(g.hits);
     const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub, flowId: inFlow? f.id : undefined,
-      mode: rewriting? "rewrite" : undefined,
       timeLimit: usedSec == null? undefined : limMin,
       usedSec: usedSec == null? undefined : usedSec,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       expCheck: (expCheck.again.length || expCheck.fixed.length)? { again:expCheck.again.slice(), fixed:expCheck.fixed.slice() } : undefined,
       grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
     if(state.history.length>200) state.history.length=200;
-    if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline, mode: rewriting? "rewrite" : "draft" });   // 批改门槛的事实源
+    if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline });   // 批改门槛的事实源
     clearInterval(tick);
     // 草稿只在记录确实落盘后才清：写不进 localStorage 时留着草稿，用户还能再交一次，
     // 不然「记录只活在内存里 + 草稿已删」这个窗口里被强杀，手写答案就不可再生地没了。
@@ -3851,7 +3750,7 @@ async function submitAnswer(){
     else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
-    setLimitState(limMin, 0);   // 这一稿停表：回改是新的一稿，下次进作答区重新起算
+    setLimitState(limMin, 0);   // 这一稿停表：交完就算一稿，下次进作答区重新起算
     _timeUpSaid = false;
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。

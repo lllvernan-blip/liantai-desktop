@@ -868,7 +868,7 @@ ok(addFreeSelectionRecord(fB, 0, 8) === false, "找点: 同一选区不重复收
 
 /* ④.1 局部重铺必须与整块渲染同源：划线后按段重铺，重铺出的那段仍要能点句子找点 */
 const mq2 = { background:"第一句。第二句。第三句", requirements:"r" };
-const mf2 = { step:"read", sig:qSig(mq2), selections:[], groups:[], drafts:[], attempts:[] };
+const mf2 = { step:"read", sig:qSig(mq2), selections:[], groups:[], attempts:[] };
 const full2 = mergedMaterialRange(mq2, mf2, 0, mq2.background.length);
 ok(full2.indexOf("pt-seg") >= 0 && full2.indexOf('data-sid="2"') >= 0, "读材料: 整块渲染的每句都是可点片段");
 const part2 = mergedMaterialRange(mq2, mf2, 4, 7);
@@ -938,7 +938,7 @@ ok(state.history[0].flowId, "记录: 练习记录带上 flowId");
 localStorage.clear();
 localStorage.setItem("gw_history", JSON.stringify([{ ts:42, module:"zy.guina", grade:{ total:50, scores:{} } }]));
 localStorage.setItem("gw_state", JSON.stringify({ settings:{}, profile:{}, history:[], cache:{},
-  flows:[ { id:"flow_1", subject:"zy", module:"zy.guina", subtype:null, sig:"q1", question:{background:"b"}, keyPoints:[], createdAt:1, closedAt:null, step:"read", attempts:[], selections:[], groups:[], drafts:[] },
+  flows:[ { id:"flow_1", subject:"zy", module:"zy.guina", subtype:null, sig:"q1", question:{background:"b"}, keyPoints:[], createdAt:1, closedAt:null, step:"read", attempts:[], selections:[], groups:[] },
           { id:"flow_bad", step:"bogus", question:{background:"x"} },
           { id:"flow_done", step:"done", closedAt:5, question:{background:"c"} } ] }));
 const lf1 = load();
@@ -961,53 +961,13 @@ ok(state.flows.some(x=>x.sig === qSig(keepQ)), "flow 裁剪: 有未提交草稿�
 clearDraft(qSig(keepQ));
 state.flows = []; _flowId = null;
 
-/* ============ 12. 第二批：回改 / 回滚 / 经验闭环 / 恢复现场 ============ */
-
-/* 12.1 行级 LCS diff */
-ok(JSON.stringify(diffLCS("", "")) === "[]", "diff: 空 vs 空 = 无差异");
-ok(diffLCS("a\nb", "a\nb").every(op=>op.t==="same") && diffLCS("a\nb","a\nb").length === 2, "diff: 全等 = 全 same");
-const dAB = diffLCS("a\nb", "a\nc");
-ok(dAB.some(op=>op.t==="del"&&op.text==="b") && dAB.some(op=>op.t==="add"&&op.text==="c") && dAB.some(op=>op.t==="same"&&op.text==="a"), "diff: 单行改动 = 一删一增一保留");
-const dXY = diffLCS("a\nb\nc", "x\ny\nz");
-ok(dXY.filter(op=>op.t==="del").length === 3 && dXY.filter(op=>op.t==="add").length === 3, "diff: 全异 = 全删全增");
-ok(diffHtml("a\nb", "a\nc").indexOf("dline add") >= 0 && diffHtml("a\nb","a\nc").indexOf("dline del") >= 0, "diff: HTML 标出新增与删除");
-ok(diffHtml("同\n稿", "同\n稿").indexOf("没有行级差异") >= 0, "diff: 无差异时轻提示");
-
-/* 12.2 回改 revise：预填上一稿 + drafts 压栈 + rewrite 提交带 mode+previousReview */
-state.history = []; state.experiences = []; _lastDistilled = [];
-current = { module:"sl.guina", subtype:"概括问题", question:{ background:"回改题材料。", requirements:"不超过250字。" }, cardPeeks:0 };
-renderQuestion();
-const fR = activeFlow();
-fR.cardSeen = true;   // 测试直接落在链中段：学习卡那一屏另有断言
-flowGoStep("draft");
-el("#answer").value = "第一稿的作答内容，字数肯定超过二十个字了，没有问题。";
-el("#btnSubmit").disabled = false;
-const realCall12 = callLLM;
-let cap12 = null;
-callLLM = async (sys, user)=>{ cap12 = { sys, user }; return { hits:[ {point:"要点一",score:10,awarded:5,status:"半分",evidence:"△ 表述不准"}, {point:"要点二",score:10,awarded:0,status:"零分",evidence:"【缺：关键对策】"} ], scores:{}, strengths:[], weaknesses:[], comment:"x" }; };
-await submitAnswer();
-ok(fR.step === "review" && fR.attempts.length === 1, "回改: 一稿提交进入批改步");
-ok(JSON.parse(cap12.user).mode === undefined, "回改: 一稿提交不带 rewrite 标记");
-/* 回改进页面板：revise 已不在 FLOW_STEPS（用户不可达），按 flowGoStep 原压栈逻辑直接设步 */
-fR.drafts.unshift({ text: String(fR.attempts[fR.attempts.length-1].answer || ""), ts: Date.now(), step: "revise" });
-fR.step = "revise"; renderFlowStep();
-ok(fR.drafts.length === 1 && fR.drafts[0].step === "revise" && fR.drafts[0].text.indexOf("第一稿") >= 0, "回改: 上一稿压栈 flow.drafts");
-ok(el("#answer").value.indexOf("第一稿") >= 0, "回改: 作答区预填上一稿");
-ok(el("#docBody").innerHTML.indexOf("要点一") >= 0 && el("#docBody").innerHTML.indexOf("【缺：关键对策】") >= 0, "回改: 回改清单列出 ✗/◐ 子项与缺失标注");
-ok(el("#docBody").innerHTML.indexOf("diffBox") >= 0, "回改: 行级差异对照框在场");
-el("#answer").value = "第一稿的作答内容，字数肯定超过二十个字了，没有问题。\n补上关键对策的一行。";
-el("#btnSubmit").disabled = false;
-await submitAnswer();
-const sent12 = JSON.parse(cap12.user);
-ok(sent12.mode === "rewrite" && Array.isArray(sent12.previousReview) && sent12.previousReview.length === 2 && sent12.previousReview[0].point === "要点一", "回改: 提交带 mode=rewrite + previousReview");
-ok(fR.attempts.length === 2 && fR.attempts[1].mode === "rewrite", "回改: attempts 追加并标记 rewrite");
-ok(state.history[0].answer.indexOf("补上关键对策") >= 0, "回改: 回改稿照常入练习记录（总分口径不变）");
-ok(cap12.sys.indexOf("previousReview") >= 0 && cap12.sys.indexOf("计分口径不变") >= 0, "回改: prompt 说明回改背景，计分口径一字不动");
+/* ============ 12. 第二批：回滚 / 经验闭环 / 恢复现场 ============ */
+const realCall = callLLM;   // 本节里各段都会把自己的桩塞给 callLLM，用完要换回应用里那个实现（后面几节要真跑 callLLM 的重发逻辑）
 
 /* 12.3 回滚（rollbackFlowFrom）已退役：界面上没有任何入口调用它，留着就是死代码，整套断言随之退役。
    这里只钉住「它确实不在了」——以后谁再把它抄回来，会在这里被拦一次。 */
 ok(typeof rollbackFlowFrom === "undefined", "回滚: rollbackFlowFrom 已删除（无入口的死代码）");
-closeActiveFlow("test-done");
+closeActiveFlow();
 clearDraft(qSig(current.question));
 state.history = []; state.flows = []; _flowId = null; current = null;
 
@@ -1055,7 +1015,7 @@ await grade("zy.gongwen","通知",{ background:"b" },[],"答案");
 ok(capI.user.indexOf("综应格式三件套") >= 0, "注入: 综应A 阅卷同样带经验");
 await gen("sl.guina","概括问题",null,false);
 ok(capI.user.indexOf("综应格式三件套") < 0, "注入: 经验按模块归属，不跨科目串味");
-callLLM = realCall12;
+callLLM = realCall;
 
 /* 12.6 提炼失败静默：不影响批改展示、不弹错、不写半条数据 */
 _lastDistilled = [];
@@ -1066,7 +1026,7 @@ await distillExperience("sl.guina",null,{ hits:[], weaknesses:[], comment:"" }, 
 ok(rejectedE, "提炼失败: 异常可被调用方吞掉（submitAnswer 里 fire-and-forget）");
 ok(state.experiences.length === expCnt && _lastDistilled.length === 0, "提炼失败: 不写半条经验");
 ok(el("#bannerSlot").innerHTML === "", "提炼失败: 静默，不弹任何错误横幅");
-callLLM = realCall12;
+callLLM = realCall;
 
 /* 12.7 恢复现场：有 24h 内未关闭的链时给入口，点了才跳，不自动跳转 */
 state.flows = []; _flowId = null; current = null;
@@ -1595,8 +1555,8 @@ ok(sfBad.length === 1 && sfBad[0].id === "b", "flow 净化: 非法 step 丢弃�
 state.flows = []; _flowId = null;
 const pq14 = { background:"裁剪次序题材料。", requirements:"r" };
 saveDraft(qSig(pq14), "还没交的草稿");
-state.flows.push({ id:"f_draft", subject:"zy", module:"zy.guina", sig:qSig(pq14), question:pq14, keyPoints:[], createdAt:1, closedAt:9, step:"done", attempts:[], selections:[], groups:[], drafts:[] });
-for(let i=0;i<25;i++) state.flows.push({ id:"f"+i, subject:"zy", module:"zy.guina", sig:"sig"+i, question:{background:"b"+i}, keyPoints:[], createdAt:2+i, closedAt:9, step:"done", attempts:[], selections:[], groups:[], drafts:[] });
+state.flows.push({ id:"f_draft", subject:"zy", module:"zy.guina", sig:qSig(pq14), question:pq14, keyPoints:[], createdAt:1, closedAt:9, step:"done", attempts:[], selections:[], groups:[] });
+for(let i=0;i<25;i++) state.flows.push({ id:"f"+i, subject:"zy", module:"zy.guina", sig:"sig"+i, question:{background:"b"+i}, keyPoints:[], createdAt:2+i, closedAt:9, step:"done", attempts:[], selections:[], groups:[] });
 pruneFlows();
 ok(state.flows.length === MAX_OPEN_FLOWS && state.flows.some(x=>x.id==="f_draft") && state.flows.some(x=>x.id==="f24") && !state.flows.some(x=>x.id==="f0"),
    "flow 裁剪: 裁剪次序正确——有草稿的最旧项保留，先裁其后的无草稿项 (剩 " + state.flows.length + ")");
