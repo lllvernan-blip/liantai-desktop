@@ -291,10 +291,6 @@ html,body{margin:0;padding:0;}
   .grade .total{font-family:var(--hei);font-size:30px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
   .ghead .gtag{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
-  /* 批改页里的折叠区收成「带顶线的行」：页面里已经有一层纸面，再套两层盒子只剩噪音 */
-  .grade details.notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:20px;}
-  .grade details.notebox>summary{padding:9px 2px;}
-  .grade details.notebox .notebody{padding:2px 2px 10px;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:6px 0 2px;}
   .barline{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
@@ -311,22 +307,13 @@ html,body{margin:0;padding:0;}
   .pill{padding:4px 10px;font-size:13px;border-radius:var(--r-ctl);}
   .pill.good{background:var(--success-bg);color:var(--success);}
   .pill.bad{background:var(--danger-bg);color:var(--danger);}
-  /* 我的答案（逐句批注）：这是批改页的主体。满分的句子照旧、半分的那句分数转焦橙、
-     没对上任何采分点的标红——分数落在句子上，比另列一张丢分清单直接得多。
+  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。满分的句子照旧、半分的那句
+     分数转焦橙、没对上任何采分点的标红——分数落在句子上，比另开一张丢分清单直接得多。
      用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
   .answerreview{margin-top:8px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
   .answerreview .asent.miss{background:var(--danger-bg);box-shadow:inset 0 -2px 0 var(--danger-line);color:var(--danger);}
   .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:12px;color:var(--success);margin-left:2px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
   .answerreview .asc.part{color:var(--warn);}   /* 没拿满的那句：分数转焦橙，句子本身不动 */
-  /* 丢分清单（2026-10-13）：批改页的结论区——只列没拿满的子项，一行说清
-     「丢了多少分 / 哪一类毛病 / 缺的是什么」。逐句标注与范文都退到它下面的可展开区。 */
-  .loselist{margin-top:2px;border-top:1px solid var(--line);}
-  .loseline{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.7;}
-  .loseline .lname{flex:0 0 auto;max-width:46%;font-family:var(--hei);}
-  .loseline .lscore{flex:0 0 auto;font-family:var(--hei);color:var(--danger);font-variant-numeric:tabular-nums;}
-  .loseline .lkind{flex:0 0 auto;font-size:12px;color:var(--warn);border:1px solid var(--line-strong);border-radius:var(--r-ctl);padding:1px 8px;white-space:nowrap;}
-  .loseline .lfix{flex:1 1 auto;min-width:0;color:var(--ink-soft);font-size:13px;}
-  /* 一句话点评：同一支仿宋，跟上面那张黑体清单分开 */
   .comment{margin-top:14px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
   .nextrow{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
@@ -361,7 +348,7 @@ html,body{margin:0;padding:0;}
   .notebox>summary::-webkit-details-marker{display:none;}
   .notebody{padding:4px 12px 12px;font-size:15px;line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
-  .modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
+  .modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;-webkit-text-stroke:0.3px currentColor;}
   /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
   .setgrp{border-top:1px solid var(--line);margin-top:24px;padding-top:20px;}
   .setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0;}
@@ -1776,7 +1763,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
     "experienceChecks":[{"title":"原样照抄 experiences 里那一条的 title","status":"again / fixed / na"}],`: ""}
-    "comment":"一句话（40 字内）：这次最该改的一件事——挑一处真能改的，说清下次怎么做。不要复述没答到的采分点（丢分清单里已经逐条列了），也不要重复采分点总数（那个数已经在分数旁报了）"
+    "comment":"解析（150 字上下）：先讲这一文种的采分点分别考什么、标准答法怎么组织（让人能照着复现）；再对照这份答卷说清差在哪、下次怎么改。不要复述采分点总数，也不要逐条报分数（答卷上已经逐句标了）"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
@@ -3845,53 +3832,6 @@ function hitClass(h){
   return "hit";
 }
 
-/* ============ 丢分清单（批改页的结论区） ============ */
-/* 只列没拿满的子项，一行说清三件事：丢了多少分、哪一类毛病（阅卷给的 kind）、缺的是什么。
-   数据全在阅卷结果里（point / score / awarded / kind / evidence），不另跑一次调用。
-   「缺什么」取 evidence 里那句【缺：xxx】：那是模型自己给出的证据，不是我们替它编的补法。 */
-const MISS_RE = /【缺[：:]\s*([^】]+)】/g;
-function loseDetail(h){
-  const ev = String((h && h.evidence) || "");
-  const miss = []; let m; MISS_RE.lastIndex = 0;
-  while((m = MISS_RE.exec(ev))){ const t = m[1].trim(); if(t) miss.push(t); }
-  const got = evidenceFrags(ev);
-  const a = Number(h && h.awarded);
-  if(isFinite(a) && a > 0){   // 半分：答到了什么、还差什么，两头都说
-    const head = got.length? "答到了「" + got.join("」「") + "」" : "只答到一半";
-    return head + (miss.length? "，还差 " + miss.join("、") : "");
-  }
-  if(miss.length) return "缺 " + miss.join("、");
-  if(got.length) return "只提到「" + got.join("」「") + "」";   // 零分但答了腔：说清是提了没答到
-  return "";
-}
-function clipTxt(v, n){
-  const t = String(v == null? "" : v).trim();
-  return t.length > n? t.slice(0, n) + "…" : t;
-}
-function loseListHtml(hits){
-  const list = (Array.isArray(hits)? hits : []).filter(h=>{
-    const s = Number(h && h.score);
-    if(!isFinite(s)) return false;   // 无分值的老记录：没有可算的丢分，不列
-    const a = Number(h && h.awarded);
-    return !isFinite(a) || a < s - 0.001;
-  });
-  if(!list.length) return "";
-  let html = `<div class="sec-title" style="margin-top:18px">丢分清单</div><div class="loselist">`;
-  for(const h of list){
-    const s = Number(h.score);
-    const a = isFinite(Number(h.awarded))? Math.max(0, Math.min(Number(h.awarded), s)) : 0;
-    const lost = Math.round((s - a) * 10) / 10;
-    const kind = GRADE_TAG_KEYS.indexOf(h.kind) >= 0? h.kind : "";
-    const fix = clipTxt(loseDetail(h), 90);
-    html += `<div class="loseline"><span class="lname">${esc(clipTxt(h.point, 40))}</span>`
-      + `<span class="lscore">−${lost} 分</span>`
-      + (kind? `<span class="lkind">${esc(kind)}</span>` : "")
-      + (fix? `<span class="lfix">${esc(fix)}</span>` : "")
-      + `</div>`;
-  }
-  return html + `</div>`;
-}
-
 // 画像聚合值全部由练习记录即时推导（dimStat/typeStat），这里只记“最近练过什么”供推送轮转
 function updateProfile(k){
   state.profile.lastModules.unshift(k);
@@ -3918,8 +3858,8 @@ function evidenceFrags(ev){
   while((m = ANS_QUOTED.exec(String(ev||"")))){ const t = m[1].trim(); if(t) out.push(t); }
   return out;
 }
-/* 「【缺：xxx】」这类标注说的是「这一处答卷里压根没有」，逐句标注用不上它——
-   它是丢分清单里那句「缺什么」的来源（见 loseDetail）；这里只保证它不被当成可定位的原文。 */
+/* 「【缺：xxx】」这类标注说的是「这一处答卷里压根没有」，逐句标注用不上它：
+   模型写的「缺 X」不是考生写的字，拿它去定位就是瞎标，这里只保证它不被当成可定位的原文。 */
 /* 在答卷里找这段证据：先整段逐字找，再退到最长可匹配前缀——至少 6 字，再短就会随手配到别处 */
 function locateFrag(text, frag){
   const f = String(frag||"").trim();
@@ -3982,7 +3922,7 @@ function answerReviewHtml(g, answer){
     const cls = !m.usable? "" : (sc <= 0? (heading? "" : " miss") : (fu > 0 && sc < fu - 0.001? " part" : ""));
     body += `<span class="asent${cls}">${esc(p)}</span>` + ((m.usable && sc > 0)? `<i class="asc${(fu > 0 && sc < fu - 0.001)? " part":""}">（+${sc}）</i>` : "");
   });
-  // 不自带小标题：这一块由 gradeHtml 包进可展开区，标题在 summary 上（2026-10-13 批改页瘦身）
+  // 不自带小标题：标题由 gradeHtml 用 .sec-title 给出，三块共用一套题头
   return head + `<div class="answerreview">${body}</div>`;
 }
 /* 提炼结果就地补进批改页那一行：经验闭环的最后一步是「回执」，不再单占一屏（2026-10-09） */
@@ -3993,8 +3933,8 @@ function paintExpLine(){
   const b = $("#btnGoExp");
   if(b) b.onclick = ()=>{ openModal("modalProfile"); profGo("exp"); };
 }
-/* 一句话点评按句切行（。！？；后断行）：长句拆开读不费劲，没有动画。
-   旧记录里可能留着 120 字的点评，切行同样适用。 */
+/* 解析按句切行（。！？；后断行）：长句拆开读不费劲，没有动画。
+   旧记录里留着的是更短的一句话点评，切行同样适用。 */
 function gradeCommentHtml(comment){
   const lines = String(comment).match(/[^。！？；]+[。！？；]?/g) || [];
   return lines.map(s=>s.trim()).filter(Boolean).map(s=>`<div>${esc(s)}</div>`).join("");
@@ -4019,14 +3959,13 @@ function gradeHtml(g, total){
     const over = overtimeSec(tm.min, tm.usedSec);
     html += `<div class="hint" style="margin-top:6px">本题限时 ${tm.min} 分钟 · 用时 ${fmtDur(tm.usedSec)}${over > 0? `（超时 ${fmtDur(over)}）` : ""}。</div>`;
   }
-  // —— 结论区 ——：这一页要回答「这次丢在哪、先改哪条」，答案就是这张清单；
-  // 数据全在阅卷结果里，不另跑调用。全部都拿到时说一声，不留一块空白让人以为坏了
-  const lose = loseListHtml(hits);
-  if(lose) html += lose;
-  else if(hits.length) html += `<div class="sec-title" style="margin-top:18px">丢分清单</div><div class="hint" style="margin-top:2px">这次采分点全部拿到，没有丢分。</div>`;
-  // 一句话点评：只给整体印象。哪几点没答到已经在清单里逐条列了，不在这里再讲一遍
-  if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${gradeCommentHtml(g.comment)}</div>`;
-  // 老记录（无分值、无采分点）没有丢分清单可用，退回「待改进」的原话
+  // —— 正文三段 ——：我的答案（逐句标注）· 参考答案 · 解析。
+  // 一页把「你写了什么、本该写成什么样、为什么」摆全，不另造清单，也不把两篇文章折起来（2026-10-13）。
+  const ansReview = answerReviewHtml(g, lastGrade && lastGrade.answer);
+  if(ansReview) html += `<div class="sec-title">我的答案</div>` + ansReview;
+  if(g.modelAnswer) html += `<div class="sec-title">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
+  if(g.comment) html += `<div class="sec-title">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
+  // 老记录（无采分点）没有逐句标注可用，退回「待改进」的原话
   if(!hits.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）
   const ec = (lastGrade && lastGrade.expCheck) || null;
@@ -4038,15 +3977,6 @@ function gradeHtml(g, total){
   }
   // 提炼是批改之后异步跑的：跑完就地补一行（见 paintExpLine），不让用户为了看「这次提炼了什么」再走一屏
   html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div>`;
-  // —— 证据区（可展开）——：逐句标注与范文回答的是「为什么」与「该是什么样」，不是结论。
-  // 结论在上面的清单里；想看细节的自己展开，不想看的不必先滚过两篇文章（2026-10-13）。
-  const ansReview = answerReviewHtml(g, lastGrade && lastGrade.answer);
-  if(ansReview) html += `<details class="notebox"><summary>我的答案（逐句标注）</summary><div class="notebody">${ansReview}</div></details>`;
-  // 范文进 .notebody：那层带 pre-wrap，模型分的段看得见了
-  // （以前直接平铺在 .modelanswer 上，换行被折成一大块）
-  if(g.modelAnswer) html += `<details class="notebox"><summary>参考答案（范文）</summary><div class="notebody"><div class="modelanswer">${esc(g.modelAnswer)}</div></div></details>`;
-  // 维度分不在这一页：画像的模块页有一份完整的（维度条 + 短板/强项 + 子类型统计），
-  // 批改页里再摆一遍只是让人多挖一层（2026-10-13）。
   html += `<div class="nextrow">
       <button id="btnRetry">同模块再来一道</button>
       <button class="linkbtn" id="btnSeeProfile">看我的画像</button>
