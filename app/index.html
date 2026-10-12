@@ -8,10 +8,10 @@
   :root{
     --gov-red:#c0151a;
     --gov-red-dark:#9c1115;
-    --ink:#1f1f1f;
+    --ink:#2C2925;       /* 深灰非纯黑（人感 Demo 同款）；对纸白 / 暖底板对比约 14.5:1，远超 4:1 门槛 */
     --line:#d9d6cf;
     --paper:#fffdf8;
-    --canvas:#e9e7e1;
+    --canvas:#F4F1EA;    /* 底板：暖浅灰。暖色只住底板层，卷面 --paper 不动（SPEC 3.0） */
     --muted:#5e5e57;
     --muted-2:#827d72;   /* 第三档灰（≈4.0:1）：证据 / 计数 / 口径说明。只有两档灰时，正文与证据糊在同一层，眼睛没有先看哪里的顺序 */
     /* 淡底四档：悬停 / 展开抬头 / 按钮悬停 / 细条底 —— 原来这里是七八个近似米色各行其是 */
@@ -56,7 +56,8 @@
   ::-webkit-scrollbar-thumb:hover{background:#b3ada1;background-clip:content-box;}
   ::-webkit-scrollbar-corner{background:transparent;}
 html,body{margin:0;padding:0;}
-  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;}
+  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;
+       background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:22px 22px;}   /* 极细点阵：底板的纸感 */
 
   /* 控件行里只有两个尺寸：按钮/输入框同高，胶囊矮一档；行高定死 1.35，不再跟 body 的 1.7 走 */
   /* 控件是产品（雅黑），文档是公文（仿宋）：红头、材料、作答、范文用仿宋，
@@ -77,14 +78,14 @@ html,body{margin:0;padding:0;}
   ::placeholder{color:var(--text-disabled);opacity:1;}   /* 别用浏览器的淡灰，钉成 2.9:1 */
 
   /* 顶栏 */
-  .topbar{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);}
+  .topbar{position:sticky;top:0;z-index:20;background:var(--canvas);border-bottom:1px solid var(--line);}   /* 顶栏融进底板，不占一块纸（人感 Demo 同款） */
   /* 顶栏与科目栏与纸面对齐同一列：原来两端贴窗口边、正文却居中，一屏里出现两套左右基准 */
   .toolbar{display:flex;align-items:center;gap:6px;padding:9px max(14px,calc((100% - 880px)/2 + 14px));}
   /* 右上四个入口是工具，比品牌弱，但它们是纯文字、热区只有 13px 高：撑到能稳点中的高度，并给一点悬停反馈 */
   .toolbar button.linkbtn{padding:6px 11px;font-size:13px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-ctl);}
-  /* 品牌前一小段红竖线：跟纸面里的小节标记同一套语言，顶栏不再是一行裸字 */
-  .toolbar .brand::before{content:"";display:inline-block;width:3px;height:13px;background:var(--gov-red);margin-right:7px;vertical-align:-1px;}
+  /* 品牌位是应用图标（SPEC 3.0：禁止单字印章式代标）+ 文字；图标 data URI 内联，不引外部资源 */
+  .toolbar .brand img{width:22px;height:22px;border-radius:6px;margin-right:8px;vertical-align:-4px;display:inline-block;}
   .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:15px;color:var(--gov-red);letter-spacing:1.5px;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:12px;letter-spacing:0;margin-left:8px;}
   /* 品牌名就是回家的路（2026-10-08）：首页不属于任何科目，得有个不挑科目的落点 */
@@ -532,6 +533,12 @@ html,body{margin:0;padding:0;}
   @keyframes pdMarked{from{opacity:.55;}to{opacity:1;}}
   .pdopt.good,.pdopt.bad{animation:pdMarked .22s ease-out both;}
 
+  /* 批改页流式渐显（全应用唯一主动效，SPEC 3.2 动效预算）：点评内容一开始就在 DOM 里，
+     只是逐句渐显——首句等 350ms、句间隔 450ms，一次 500ms ease 过渡到位（人感 Demo 的节奏） */
+  .ai-line{opacity:0;transform:translateY(6px);}
+  .ai-line.in{animation:stream .5s ease forwards;}
+  @keyframes stream{to{opacity:1;transform:none;}}
+
   /* 等 AI 时：一条慢慢呼吸的短线，只说“在等”，不是进度条 */
   @keyframes breathe{0%,100%{opacity:.25;}50%{opacity:.75;}}
   .loading{position:relative;}
@@ -547,6 +554,7 @@ html,body{margin:0;padding:0;}
     html{scroll-behavior:auto;}
     *{transition:none !important;}
     #docBody>*,.modal:not([hidden]) .box,.drawer:not([hidden]) .sheet,.pdopt.good,.pdopt.bad{animation:none !important;}
+    .ai-line{animation:none !important;opacity:1;transform:none;}   /* 流式渐显直接置位，不靠计时器 */
     .loading::after{animation:none;opacity:.5;}
   }
 </style>
@@ -555,7 +563,7 @@ html,body{margin:0;padding:0;}
 
 <header class="topbar">
   <div class="toolbar">
-    <button class="brand" id="btnHome" title="回到起始页">练习台</button>
+    <button class="brand" id="btnHome" data-tip="首页"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAYAAAB/HSuDAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAEnTSURBVHhe7d1NiF3nnedxL72zQedKOkeBciALQRYxWQQTCHigYUQ2cfdiyCwatOkZLxIwdC8MycJkFiYrZ9XatVbdXvQEQw/BBAKn8kJsMk0UZ5LIcdyW/BIXcmLJbltWnLSnhqdkeeLnka2Xe6vq99z6/OEDRm8u3Vs65zzfe17uuMOYAzjzYrp3PnTs/htaTCfnxfgIAAC9mE42x3TXc/jYffUxojHGmA7mgwX9Ynz42sZ/cxhPby6meccwPrW5mLYBAOAjXD1u3Dl2nB79ICgcHh/YOc48cuSe+hjUGGPMLsy8WBz980/kNxfj4+9vnLeus/EGAIDdMUzn3v+A6fSHzjgQCIwx5tZm3ti4c2cDOowPbQ7jqfc3rleaDS8AAGS6Fgce3jmuvWvj7vqY1xhjDtyUSjoP05evfqLv03wAANbVeOn/X1pQzhgYj9fHxsYYs1ZTbrRy9ZP96QmLfQAADrbx0uYwPXntTIH62NkYY7qZnVP5F0dPfPDpfrPBAwAAPqTcuLqcJVBuPOjSAWNM8uzciX8xPuyO+wAAsALDeOZqEPDIQmPMPk+pkuUa/p3H7TmlHwAAdlG5j8D4+NWnYi2O1sfmxhiz8ik3LNk5rd+n/AAAsH+unR2wmO6tj9mNMea254NF/2I622x4AACA/TVM5zYX02NigDHmtsaiHwAAOiQGGGNuZuYjR+6x6AcAgDVxLQYcGo/Xx/7GmAM4O4/r27mR3/Rks8EAAADWwzA+tXMDwY2NO+s1gTFmzadUwM1hPHX1bqLX2UAAAABraLxU1gHOCjBmzWfnsX2L6aQ7+AMAAM4KMGYNp1zbvzmMpzeH8Urzjx4AADjg3j8r4MiRe+q1hDGmk5kPHbt/c5ieaP+BAwAAXMcwPVHWEfXawhgTOldv6uc0fwAA4DYN45myrqjXGsaYgNm5m//h6cH3H/XR/gMGAAC4VcN0bh7Gh8r9xOo1iDFmj+fqjf3GR9zNHwAA2D3jpbLuEAKM2YfZ+cR/MT5s4Q8AAOwdIcCYPZudhf8wPrQ5TFvtP0YAAIC9IAQYs6tj4Q8AAGQRAoxZ6cyL6aSb+wEAALneDwEbG3fW6xljzE1Mef5mefxG+48LAAAg0DBteXygMbcw85Ej92wO0xPNPyYAAIAeDONT8+Fj99VrHWPM+1Oum9kcpkc3h/FK8w8IAACgO+Pj82JxtF77GHOgp5wm4wZ/AADA+tm5P8DD7g9gDvyU02LK6THtPxIAAIA1Mkzn5sXRE/WayJi1n1K/dk73r/9RAAAArDWXBZgDNKV6bS6ms+0/BAAAgIOgXBYwnazXSsaszVy9yd94uv3mBwAAOICG6UlnA5i1m51P/d3kDwAAoOJsALMmU2rW5jA90X6TAwAA8IFhfGo+NB6v11TGdDHzoWP3+9QfAADgZo2XyiPS67WVMdEzL8ZH2m9mAAAAbmgYT5Unp9XrLGOiZueU/8U0N9/AAAAA3IqzLgkwseOUfwAAgBUaxituEGjixin/AAAAu2QYT7skwOz7OOUfAABgT7gkwOzfzIujJ8pdKq/zjQkAAMCquSTA7MdsDtOjzTcjAAAAe2B8fL5r4+56nWbMSmfnlP9hfKr9BgQAAGAPnZ0X0731ms2YlYxT/gEAAIKUSwIOTw/Wazdjlhqn/AMAAKRySYBZwZRvIqf8AwAAxDs7HzlyT72mM+ampnzzbA7jmet8YwEAABBnvOS+AOaWpzxfcnOYzrXfUAAAAOQqEeDoiXqNZ8x1Zz587D43+wMAAOhUuTngMH25XusZ86HZudP/MF5pvoEAAADoyjyMD9VrPmN2Zl5MJ+tvGAAAADo2TI/Waz9zwGdejA833ygAAAD0bxhP12tAc0BncxhPNd8gAAAArI9henLe2LizXg+aAzLlzd9cjI833xgAAACsn2F8ar5r4+56bWjWfMqbXgpQ8w0BAADA+hrGM/ORI/fUa0SzpjMvFkfLm958IwAAALD+huncfGg8Xq8VzZpNKT3lzW6+AQAAADhAxkvzYrq3XjOaNZny5pY3uX3jAQAAOHCG8cq8OHqiXjuazsfiHwAAgIYIsF6zc9q/xT8AAADXUyLA4WP31WtJ09lcveGfa/4BAAD4OO4J0PVcfdSfu/0DAABwE8rTATwisL+ZNzbu3BymJ5s3FAAAAD7a2fJhcr3GNMGzuRgfv84bCQAAAB9vGJ8qHyrX60wTOJvDeKp5AwEAAOBmDdOTIkD4zIvxkeaNAwAAgFs1jKfrNacJmXkxnWzeMAAAALhdw/RovfY0+zzz4uiJ5o0CAACAJc2L8eF6DWr2aebDx+7bHMYr9ZsEAAAAq1DOOK/XomaPZz40Ht9cjJfqNwcAAABWZhivlDPP6zWp2aOZjxy5Z3OYzjVvDAAAAKxaiQCHj91Xr03NLs9818bdm4vpbPOGAAAAwK4ZL5Uz0es1qtmlKc9i3BzGp9o3AgAAAHbZMJ2bF4uj9VrV7MJsLqbHmjcAAAAA9s5cr1XNimc+PD5wnRceAAAA9tS8GB+p16xmRbNz0z93/AcAACDEfOjY/fXa1Sw5rvsHAAAgzjBtuR/Aisd1/wAAAIRyP4BVjev+AQAASOZ+ACsY1/0DAADQA/cDWHLKqRT1iwoAAABxhuncfNfG3fW61tzElFMomhcUAAAAUg3TE/Xa1txgyqkTzQsJAAAA4eZhfKhe45qPmPIIhfIohfpFBAAAgHjDeGU+fOy+eq1rrjOu+wcAAKBr7gdw43HdPwAAAGvB/QA+elz3DwAAwDpxP4DrjOv+AQAAWDvuB9BOOTWieaEAAACgf2fnjY0763XwgZx5mL58nRcIAAAA1kK53129Fj5w49R/AAAA1l65FGAx3VuviQ/UbA7j6eaFAQAAgHUzjE/Va+IDM/Pi6InmBQEAAIA1dSCfClBugLA5TOfqFwMAAADW1s6lAIuj9Rp5rWdzGE81LwQAAACsu2F6sl4jr+2UZyA2LwAAAAAcEOVpePVaeS1ncxjP1H95AAAAODCGaatcGl+vl9dq5sPTg81fHAAAAA6aYXq0XjOvzcx3bdxdKkfzlwYAAICDptwQ8MiRe+q181rM5mJ6rPkLAwAAwEE1TE/Ua+fuZz40Hi91o/nLAgAAwAE2Hzp2f72G7npK1aj/kgAAAHDgDeOZeg3d7cyLoyeavyAAAACwo9wwv15Ldzke+wcAAAAfYx0eCzgP40PNXwwAAACoPVavqbuZUi889g8AAABuQnks4GJxtF5bdzE+/QcAAIBb0t9ZAD79BwAAgFvU41kAPv0HAACA29LPWQA+/QcAAIDb1NNZAD79BwAAgCUM46l6rR03Pv0HAACA5c2L6d56zR01Pv0HAACAFRimJ+o1d8z49B8AAABWZz5y5J567R0x8+HpwfqLBQAAAG5b5hMBNofxzHW+WAAAAOB2JD4RYD48PtB8oQAAAMBS5sX4cL0G39fZXExz/UUCAAAASxqmrXLPvXodvi9THk3QfIEAAADASpQn7tVr8X2Z8miC+osDAAAAVmQYz9Rr8T2fcjOCclOC5osDAAAAVqbce69ek+/plEcS1F8UAAAAsGLD+FS9Jt+zKTch2FyMl5ovCgAAAFi5cg++em2+JzMvppP1FwMAAADsmsfqtfmeTDn94DpfDAAAALAb9uORgB79BwAAAHtvHqYv12v0XR03/wMAAIB9MExP1mv0XRs3/wMAAID9Mx85ck+9Vt+VcfM/AAAA2D/zYnykXqvvyrj5HwAAAOyjYdqq1+orHzf/AwAAgP03L46eqNfsK53NYXq0/p8CAAAAe218vF6zr3Q2h+lc+z8FAAAA9tQwXik36a/X7SuZ+fCx+5r/IQAAALAv5mH6cr12X8k4/R8AAACS7NJlAE7/BwAAgCC7cRmA0/8BAAAgz8ovA3D6PwAAACRa8WUATv8HAACAQKu8DMDp/wAAAJBrZZcBzIvxkfoPBwAAAFKs6DKAzWE80/7hAAAAQIbxUr2Wv+WZF4uj7R8MAAAAJJkPHbu/XtPf0syL6WT9hwIAAABZyuX79Zr+lqZcR1D/oQAAAECYYTxTr+lvacp1BM0fCgAAAMQpl/HX6/qbmnL9QP2HAQAAAJnKZfz12v6mxuP/AAAAoCPDeLpe29/UePwfAAAA9OQ2Hgc437Vxd/sHAQAAAMnmxXRvvcb/2JkPjw/UfwgAAACQbR7Gh+o1/sfO5mJ6rP5DAAAAgHDD9ES9xv/Ycf0/AAAA9OgW7gMwb2zc2f4BAAAAQA/mQ+Pxeq1/3ZkPHbu//s0AAABAH+bFdLJe61935sX4SP2bAQAAgE4M4+l6rX/d2RymJ5vfDAAAAPTibL3Wv+6UGwZc5zcDAAAAnZjv2ri7Xu9/aObFdG/9mwAAAIC+zIfHB+o1/4dmPjw9WP8mAAAAoDPD9Gi95v/QbA7jqeY3AQAAAH0ZpifrNf+HZnMYn2p+E3Ag/PQ/f3H7Z1/6y+1nv/LV7fPf/CYA0LGyPy/79aLe5wMHxDBt1Wv+D40bAML6e/qzn9t+/mtf3379e9/dfuvnZ7a33/sDAHAAXH72l9uXfvj97Re+8Y3tn3z+C80xArB+PvJGgPNicbT+xcB6+Nf7/2Ln04Cy468PBgCAg6kcF7x86tTOWYD1sQOwHubDx+6r1/47U+4QWP9ioG/ltD+f8gMAN3Ll/PPbv/jrk82xBNC3eRgfqtf+OzMvxofrXwz0qXziX07xr3fuAAAf583//bT7BsA6GcZT9dp/ZzYX4+PNLwa68uNPf2Z765/+sdmZAwDcivJBgvsEwBoYxqfqtf/ObA7jmeYXA90on/q/u/VyswMHALgd773zpssCoHvjpXrtf8e8sXHn5jBeaX8x0INf/c1/29lJ1ztuAIBllacG1MceQD/mI0fu+XAAODQer38R0Idyd/96Rw0AsEoXvv0/t3/wiU82xyFAvnlx9MSHA8Di6In6FwH5XO8PAOyVcoNAEQD6Mx+eHvxwADg8PVj/IiDbi9/6VrNjBgDYTb/7zv9qjkmAcMP06IcCQPmB5hcBsco1//UOGQBgL5TLD+tjEyDZ+PiHA4BHAEI3fvqfv+iGfwDAvvJ0AOhI/SjA8gPNLwLiPP3Zz3nUHwCw78qHET/5/BeaYxUg0DBtVQFg2mp+ERCnXHdX74ABAPbDWz8/0xyrAJnmjY07dxb/5T/qnwTy/Ov9f9HseAEA9pNLAaAP86Hx+NUAcGg8Xv8kkOf173232ekCAOynchaARwNCvnlx9MTVALA4eqL+SSBLqev1DhcAIMHzX/t6c+wCZJkPTw++HwCmk/VPAllKXa93tgAACcoNip0FANnmxfjI+wFgfKT+SSDHz770l82OFgAgybNf+WpzDAMEGcbTV58AsJgea34SiPHit77V7GQBAJJc+Pb/bI5hgCDD9MT7jwAcTzc/CcS4cv75ZicLAJDkvXfedBkAZJuvnQEwX+cngQA/+fwXmh0sAECin/+X/9ocywAhhunctTMAnmp+Eohw/pvfbHauAACJtv7pH5tjGSDEMG29HwCmc81PAhHe/N9PNztXAIBE5WkA9bEMkOPaGQBX6p8AMpQdab1zBQBI5T4AkOuOeWPjzvoHgRz1ThUAINnTn/1cczwDZLhjPnLknvoHgQxlB1rvVAEAkv3sS3/ZHNMAGe6YDx+7r/5BIMNP//MXm50qAECyX/3Nf2uOaYAMd8yHjt1f/yCQ4Rd/fbLZqQIAJHv+a19vjmmADAIABCs70HqnCgCQrDzCuD6mATIIABCs7EDrnSoAQDIBAHIJABBMAAAAeiMAQK475sPjA/UPAhkEAACgNwIA5LpjXkwn6x8EMggAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOS6Yx7Gh+ofBDIIAABAbwQAyHXHvBgfqX8QyCAAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwAAgN4IAJBLAIBgAgAA0BsBAHIJABBMAAAAeiMAQC4BAIIJAABAbwQAyCUAQDABAADojQAAuQQACCYAAAC9EQAglwAAwQQAAKA3AgDkEgAgmAAAAPRGAIBcAgAEEwDWz3vvvLl96Yff/5Ctf/rH7XPf/CbA2ivbu3ob+KeLrzXbSvomAEAuAQCCCQB9e3fr5e0L3/7n7Re+8T+2f/alv9r+8ac/07zHAEzbP/rU8Z3t5PNf+/pOJLhy/vlmm0o/BADIJQBAMAGgP7/7zr9sP/e3f7f9k89/oXk/Abh5T3/2c9vPfuWrOyG1nD1Vb2/JJQBALgEAggkAfbj87C93PrXyCT/A7ihnCJS4+uZPnm62weQRACCXAADBBIBsZeH/i78+2bxvAOyecqmAEJBNAIBcAgAEEwAylWv7yydR9fsFwN4pAda9AjIJAJBLAIBgAkCWcqfqchfrH3zik817BcD+KJdglTBbb7PZPwIA5BIAIJgAkOPlU3/vGn+AUOUeASXQullgBgEAcgkAEEwA2H/lU/+f/5f/2rw3AOT51//0F84GCCAAQC4BAIIJAPurXFvqcX4AfSlna7lJ4P4SACCXAADBBID9c+mH3985pbR+TwDIV+7VcuHb/9xs29kbAgDkEgAgmACwP357+h/c6A9gDZQbBNbbeHafAAC5BAAIJgDsPY/3A1gv5T4u5X4u9fae3SMAQC4BAIIJAHvL4h9gPf3sS3/lCQF7SACAXAIABBMA9k55zF/9+gOwPkrkrbf97A4BAHIJABBMANgb5YZ/rvkHWH/lHi/1PoDVEwAglwAAwQSA3Vce9edu/wAHQ4m9JfrW+wJWSwCAXAIABBMAdle5KdRPPv+F5nUHYH2V6Fvib71PYHUEAMglAEAwAWB3lTtD1685AOvvX//TX7gp4C4SACCXAADBBIDd46Z/AAfb81/7erNvYDUEAMglAEAwAWB3vLv18vaPP/2Z5vUG4OAo9wO4/Owvm30EyxMAIJcAAMEEgN1RPvWpX2sADp5f/PXJZh/B8gQAyCUAQDABYPXKp/8e+QfANW8989NmX8FyBADIJQBAMAFg9Z79yleb1xmAg+tnX/qrZl/BcgQAyCUAQDABYLXKpzz1awwAv/vOvzT7DG6fAAC5BAAIJgCsVrnWs36NAaA8FrDeZ3D7BADIJQBAMAFgdXz6D8DHcRbA6ggAkEsAgGACwOo897d/17y+AHDNz//Lf232HdweAQByCQAQTABYjffeeXP7R5863ry+APDnypNi6n0It04AgFwCAAQTAFbjwrf/uXltAaD24rcea/Yh3DoBAHIJABBMAFiNX/3Nf29eWwCoeSTgaggAkEsAgGACwGo8/dnPNa8tANR+8IlP7lw2Vu9HuDUCAOQSACCYALC8K+efb15XAPgol374/WZfwq0RACCXAADBBIDlbf3TPzavKwB8lHP2vUsTACCXAADBBIDlefwfALfC4wCXJwBALgEAggkAy/vpiS82rysAfJQff/ozzb6EWyMAQC4BAIIJAMv70aeON68rAHycP118rdmfcPMEAMglAEAwAWA572693LymAHAjb/7k6Wafws0TACCXAADBBIDllDs5168pANxIuYFsvU/h5gkAkEsAgGACwHJe/953m9cUAG7kt6f/odmncPMEAMglAEAwAWA5HgEIwO3wKMDlCACQSwCAYALAcgQAAG6HALAcAQByCQAQTABYTjmFs35NAeBGBIDlCACQSwCAYALAcpwBAMDtEACWIwBALgEAggkAyxEAALgdAsByBADIJQBAMAFgOb/7zr80rykA3MjLp/6+2adw8wQAyCUAQDABYDmXfvj95jUFgBspZ5DV+xRungAAuQQACCYALOfys79sXlMAuJHXv/fdZp/CzRMAIJcAAMEEgOX94BOfbF5XAPg472693OxPuHkCAOQSACCYALC8f/1Pf9G8rgDwUX70qePNvoRbIwBALgEAggkAy/vV3/z35nUFgI/y0xNfbPYl3BoBAHIJABBMAFheeZRT/boCwEd5/mtfb/Yl3BoBAHIJABBMAFieJwEAcCvKI2TrfQm3RgCAXAIABBMAlvfeO2+6ESAAN+1PF19r9iXcGgEAcgkAEEwAWI2ffemvmtcWAGrlxrH1PoRbJwBALgEAggkAq/Hyqb9vXlsAqL3wjf/R7EO4dQIA5BIAIJgAsBrlec4uAwDgRt565qfNPoRbJwBALgEAggkAq/OLvz7ZvL4AcI3T/1dHAIBcAgAEEwBWp9zVuX59AeCacrlYve/g9ggAkEsAgGACwGqVT3fq1xgAfvzpz+w8Nabeb3B7BADIJQBAMAFgtZwFAMD1+PR/tQQAyCUAQDABYPV+euKLzesMwMH19Gc/59P/FRMAIJcAAMEEgNUrd3iuX2cADq5ydli9r2A5AgDkEgAgmACwOzwRAIDCnf93hwAAuQQACCYA7I5yFsAPPvHJ5vUG4GB5/XvfbfYRLE8AgFwCAAQTAHbP81/7evN6A3BwlLPB6n0DqyEAQC4BAIIJALvnTxdf27nxU/2aA7D+fvSp49tXzj/f7BtYDQEAcgkAEEwA2F2Xn/2lSwEADiCn/u8uAQByCQAQTADYfeXuz/XrDsD6evnU3zf7AlZLAIBcAgAEEwD2xovfeqx57QFYP7/6m//e7ANYPQEAcgkAEEwA2DvloLB+/QFYHz898cXt9955s9n+s3oCAOQSACCYALB3ykFheR50/R4A0L8ff/ozbvq3hwQAyCUAQDABYG+Vg8OffP4LzfsAQL/KHf/feuanzTaf3SMAQC4BAIIJAHuvPB6wPBu6fi8A6E85s8sn/3tPAIBcAgAEEwD2zwvf+B/N+wFAP8q9XVzzvz8EAMglAEAwAWB/Xfj2P2//4BOfbN4XALJ51N/+EgAglwAAwQSA/VeuG336s59r3hsA8pTr/V//3nebbTl7SwCAXAIABBMAMry79bL7AgCE+9mX/mr78rO/bLbh7D0BAHIJABBMAMjy5k+e3jnArN8nAPZPudGfT/2zCACQSwCAYAJApt995188LhBgn/3405/Z3vqnf2y20ew/AQByCQAQTADI9tvT/7BzAFq/bwDsnnKd/4vfeswd/oMJAJBLAIBgAkC+cgBaQkA5BbV+/wBYnXLmVVn4/+nia822mCwCAOQSACCYANCXcvOp57/2dZcHAKxIeQrLc3/7dzv3YKm3ueQSACCXAADBBIB+lScHXPj2P+8cuP70xBeb9xaAVjmb6tmvfHXn2v4r559vtq30QQCAXAIABBMA1ks5Q6DcqfrcN78JwPvKjVXfeuanzTaTfgkAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA9EYAgFwCAAQTAACA3ggAkEsAgGACAADQGwEAcgkAEEwAAAB6IwBALgEAggkAAEBvBADIJQBAMAEAAOiNAAC5BAAIJgAAAL0RACCXAADBBAAAoDcCAOQSACCYAAAA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QC4BAIIJALvvT+++vX3p9a3tV178zfavf3UGgF3y0rlnt19/7ZXtP/7hrWZbzHoRACCXAADBBIDd894fL+98QvXc2Weag1QAdteFV8/vBNh628x6EAAglwAAwQSA3VFOR/3Nr3/eHJACsHdKgP33Ny4022j6JwBALgEAggkAq1euSfWpP0COcjZWva2mbwIA5BIAIJgAsFpl8V8feAKw/17berHZZtMvAQByCQAQTABYnXLav0/+AXKVG7LW2276JABALgEAggkAq1FuNOWaf4BsJdL+4fIbzTac/ggAkEsAgGACwGqUU0vrA00A8vz2peebbTj9EQAglwAAwQSA5ZVP/536D9APZwH0TwCAXAIABBMAlvf6a680B5cA5Lrw6vlmW05fBADIJQBAMAFgeS+de7Y5uAQg178993+abTl9EQAglwAAwQSA5bz3x8vNgSUA+VwG0DcBAHIJABBMAFjOO29fag4qAcj3729caLbp9EMAgFwCAAQTAJbz1pu/aw4qAch38fevNtt0+iEAQC4BAIIJAMu59PpWc1AJQL7fX3il2abTDwEAcgkAEEwAWE45hbQ+qAQgX3mCS71Npx8CAOQSACCYALCcy29fbA4qAcj3xkX3AOiZAAC5BAAIJgAs50/vvt0cVAKQr9zEtd6m0w8BAHIJABBMAFjeC7/5RXNgCUCu584+s/1//+OdZntOPwQAyCUAQDABYHmvbb3YHFwCkOu3Lz3fbMvpiwAAuQQACCYALO8Pl99oDi4ByFUe4Vpvy+mLAAC5BAAIJgCsRvk0qT7ABCDP+RfONttw+iMAQC4BAIIJAKvhLACAPvj0fz0IAJBLAIBgAsDqlGdK1weaAOS48Or5ZttNnwQAyCUAQDABYLVeffmF5oATgP330rln3fl/jQgAkEsAgGACwGqVg0sRACBLWfy/98fLzTabfgkAkEsAgGACwO74/QWXAwAkKKf9++R//QgAkEsAgGACwO65/PbF7ZfP/7o5GAVg9537t1+54d8aEwAglwAAwQSA3VcOQMtlAc+dfaY5QAVgtV558Tfbb1y80GyLWS8CAOQSACCYALC3ylkB5WkB5RIBAFanbF+d6n9wCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMglAEAwAQAA6I0AALkEAAgmAAAAvREAIJcAAMEEAACgNwIA5BIAIJgAAAD0RgCAXAIABBMAAIDeCACQSwCAYAIAANAbAQByCQAQTAAAAHojAEAuAQCCCQAAQG8EAMgl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" alt="练习台图标" width="22" height="22">练习台</button>
     <span class="subjbar" id="subjbar"></span>
     <span class="spacer"></span>
     <button class="iconbtn" id="btnProfile" aria-label="我的画像" data-tip="我的画像"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.2" r="3.4"/><path d="M4.8 19.2c1.5-3.4 4-5 7.2-5s5.7 1.6 7.2 5"/></svg></button>
@@ -858,6 +866,7 @@ const DEFAULT_STATE = {
   profile:{ modules:{}, lastModules:[] },
   tut:{ seq:0, done:false },   // seq = 一条引导序列的游标（原始索引，指向下一个未消费的步骤）；done = 序列已完结
   tutVersion:3,
+  pdIntroSeen:false,   // 快判落地页的一次性首轮说明（SPEC 4.2）：看过「知道了」或练过一轮就不再出现
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
@@ -2151,7 +2160,7 @@ function renderStart(){
   maybeTour(curSubject());
 }
 
-/* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组：home → pd → zy → sl。
+/* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组：home → zy → sl。
    游标 state.tut.seq 指向下一个未消费的步骤：一组播完（点「知道了」）先收尾，后面屏幕的组
    等首次进入再接着播；中途跳屏/被切走不回头补弹；跳过 = 整条序列完结，任何屏都不再自动弹。
    设置里可重置重新播。气泡不叠在弹层之上：弹层打开时引导暂歇（见 tourPause/tourResume）。 ---- */
@@ -2162,14 +2171,7 @@ const TUT_SEQ = [
   { scr:"home", sel:"[data-big='zy']", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。",
     nk:{ text:"想练整篇：这两句各自去综应或申论，都要先填 API Key。" } },
   { scr:"home", sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
-  // pd：先讲综合快判，再讲单形式入口：主行动先出现，避免把新用户直接引到选择。
-  // 没 Key 时主行动那颗是「先填 API Key」，nk 变体如实讲填 Key
-  { scr:"pd", sel:".startbox .primary.big", text:"综合快判把三种形式混在一轮，不提前告诉你是哪一类。",
-    nk:{ text:"点这里填 API Key，出题和阅卷都要；填好就能开练。" } },
-  { scr:"pd", sel:".pdforms .chip[data-pdform]", text:"只练一种形式就点下面那排里的一个，一轮同样是 5 题。" },
-  { scr:"pd", sel:".pdthemes>summary", text:"填了主题，一轮的题都围绕它出。" },
-  { scr:"pd", sel:"#btnProfile", text:"三种快判形式的正确率，分别记在「我的画像」里。" },
-  { scr:"pd", sel:"#btnSettings", text:"真出题要用 API Key，申请方法见设置页。" },
+  // 快判不进引导序列（SPEC 4.2）：首轮用法由落地页那条一次性页内说明交代（state.pdIntroSeen，见 renderPDLanding）。
   // zy / sl：科目页的红按钮是本科目的主行动（快判常驻顶栏最左那颗胶囊，不在纸面上再放一个）。
   // 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人照第一步做就被拦下来，
   // 引导在承诺做不到的事；所以没 Key 时第一步改指纸面上那颗「先填 API Key」（nk），
@@ -2284,7 +2286,7 @@ function tourShow(){
   requestAnimationFrame(tourPlace);
 }
 /* 卡片摆放：左右对齐高亮元素的中线，上下默认放下方——
-   但若下方会盖住下一步要讲的元素（比如把「智能推送」按钮压掉一半），就改放上方；
+   但若下方会盖住下一步要讲的元素（比如把「同模块再来一道」按钮压掉一半），就改放上方；
    两边都挤时选出屏和遮挡更轻的一边。 */
 function rectOf(sel){
   const el = document.querySelector(sel);
@@ -2581,9 +2583,9 @@ function wireZyPage(phase){
     wireMarks();
     wireDraft(null);
   } else if(phase === "grade"){
-    const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    wireGradeStream();
   } else {
     wireCardPage("btnZyAnswer", ()=>{ current.phase = "answer"; renderZyPage(); });
   }
@@ -2802,8 +2804,12 @@ function renderPDLanding(){
   renderTabs();
   const recent = pdRecentTheme();
   // 主行动跟着 Key 走：有 Key 是真出题（点了 A 得到 B）；没 Key 出题这条路走不通，按钮就带他去填 Key
+  // 首轮用法由这条一次性页内说明讲（SPEC 4.2，state.pdIntroSeen）：说明在时常驻一行让位（同一个意思不写两遍），
+  // 「知道了」或练过一轮后说明收起、常驻一行回来——纸面第一行始终有「这是什么」。
+  const intro = !state.pdIntroSeen;
   let html = `<div class="startbox">
-    <p style="margin:0">从材料里做判断，一轮 5 题，点选即判。</p>
+    <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
+    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">从材料里做判断，一轮 5 题，点选即判。</p>
     <div class="actions" style="justify-content:center;margin:16px 0 0">${state.settings.apiKey
       ? `<button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button>`
       : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
@@ -2819,6 +2825,10 @@ function renderPDLanding(){
   docBody.innerHTML = html; renderHeader();
   paintFab();
   const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时那颗主按钮：说了「先填 Key」就真把人送到设置页
+  const iok = $("#pdIntroOk");
+  if(iok) iok.onclick = ()=>{ state.pdIntroSeen = true; save();
+    const n = $("#pdIntro"); if(n) n.style.display = "none";
+    const p = $("#pdWhat"); if(p) p.style.display = ""; };
   docBody.querySelectorAll("[data-pdform]").forEach(b=> b.onclick = ()=> startPDRound(b.dataset.pdform));
   docBody.querySelectorAll("[data-pdtopic]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = b.dataset.pdtopic; });
   docBody.querySelectorAll("[data-pdrecent]").forEach(b=> b.onclick = ()=>{ const inp=$("#pdTheme"); if(inp) inp.value = recent.slice(0,80); });
@@ -2831,6 +2841,7 @@ function pdThemeValue(){
 }
 function startPDRound(form){
   if(entryBlocked()) return;   // 没 Key / 没选模型都停在原地：不进加载态，也不先把人挪去别的屏
+  if(!state.pdIntroSeen){ state.pdIntroSeen = true; save(); }   // 练过一轮也算看过：首轮说明从此不再出现（SPEC 4.2）
   genPDRound(form, pdThemeValue());
 }
 // 出题：一轮 5 道同形式判别题，沿用 callLLM（流式等待页 + reqSeq 守卫 + handleErr 失败保留现场）
@@ -3319,8 +3330,8 @@ function railHtml(f){
 function navHtml(step){
   const i = FLOW_STEPS.indexOf(step);
   const prev = i > 0? FLOW_STEPS[i-1] : null;
-  // 链上每一步都自带主行动（找点完毕动笔写 / 提交阅卷），末步「批改」的主行动是离开链的
-  // 「智能推送下一题」（见 gradeHtml）。所以这里只留「上一步」，不再挂一枚重复的 Next。
+  // 链上每一步都自带主行动（找点完毕动笔写 / 提交阅卷）；末步「批改」之后没有下一步，
+  // 去哪由批改页自己的按钮交代（同模块再来一道 / 看我的画像）。所以这里只留「上一步」。
   let html = `<div class="fnav">`;
   if(prev) html += `<button class="linkbtn" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
   return html + `</div>`;
@@ -3372,7 +3383,7 @@ function stepPanelHtml(step, f){
   if(step === "draft" || step === "revise") return (f && f.orgOpen)? organizePanelHtml(f) : draftPanelHtml(f);
   if(step === "review"){
     if(!lastGrade) return `<div class="hint" style="margin-top:10px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
-    return gradeHtml(lastGrade.g, lastGrade.total);   // 批改是链子的最后一步：主行动交回「智能推送下一题」
+    return gradeHtml(lastGrade.g, lastGrade.total);   // 批改是链子的最后一步：出链的去处由批改页自己的按钮交代
   }
   return "";
 }
@@ -3712,9 +3723,9 @@ function wireStep(step, f){
     else wireDraft(f);
   }
   if(step === "review"){
-    const bn2 = $("#btnNext"); if(bn2) bn2.onclick = startSmart;
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    wireGradeStream();
   }
 }
 /* 找点已并入读材料步：这里的监听只服务合并后的 read 步（点句子=找点开关，选区弹窗=划线/选要点） */
@@ -3880,9 +3891,6 @@ function updateProfile(k){
   if(state.profile.lastModules.length>8) state.profile.lastModules.length=8;
 }
 
-// inFlow：由训练链的批改步（renderFlowStep）调用时为 true。此时流程的下一步才是唯一主行动，
-// 「智能推送下一题」是离场动作，降级为次要按钮，免得红主按钮在劝用户中期离链。
-// 综应A 的结果页（renderZyPage）不建训练链、没有 .fnav，不传此参数，主按钮保持原样。
 /* ============ 答卷逐句标注 ============ */
 /* 把答卷切成句子：保留句末标点（中文句读与换行都算一次断句，换行单独成片以便原样还原）。
    逐句标注要回答的是「这句话拿了几分」，所以只按句读切，不按字数。 */
@@ -3977,8 +3985,27 @@ function paintExpLine(){
   const b = $("#btnGoExp");
   if(b) b.onclick = ()=>{ openModal("modalProfile"); profGo("exp"); };
 }
+/* 批改页流式渐显（全应用唯一主动效）：点评按句切（。！？；后断行），每句一行。
+   内容一开始就在 DOM 里，只是视觉渐显——渲染后逐句加 .in（首句等 350ms、句间隔 450ms）；
+   「重放批改过程」按同一节奏再来一遍；reduced-motion 下 CSS 直接把行置位，这里的计时器只是白跑。 */
+function gradeCommentHtml(comment){
+  const lines = String(comment).match(/[^。！？；]+[。！？；]?/g) || [];
+  return lines.map(s=>s.trim()).filter(Boolean).map(s=>`<div class="ai-line">${esc(s)}</div>`).join("");
+}
+let _streamTimers = [];
+function startGradeStream(replay){
+  _streamTimers.forEach(clearTimeout); _streamTimers = [];
+  const lines = document.querySelectorAll("#docBody .ai-line");
+  lines.forEach((l,i)=>{ if(replay) l.classList.remove("in");
+    _streamTimers.push(setTimeout(()=>l.classList.add("in"), 350 + i*450)); });
+}
+function wireGradeStream(){
+  const rp = $("#btnReplayGrade"); if(rp) rp.onclick = ()=> startGradeStream(true);
+  startGradeStream();
+}
 function gradeHtml(g, total){
-  // 批改是链子的最后一步（沉淀已并进这一页）：主行动交回「智能推送下一题」
+  // 批改页自己收尾（沉淀已并进这一页）：去哪由 nextrow 两颗按钮交代——
+  // 推送是出题引擎底层的事（每次出题自适应选题），页面上没有「推送」入口（SPEC 4.6）。
   const dims = MODULES[current.module].dims;
   const pts = pointsOf(g.hits);
   // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
@@ -3988,6 +4015,8 @@ function gradeHtml(g, total){
   // 右上角只报两个数：采分点几项、丢了多少分——“先改哪条”往下看，细账折在最下面
   const hits = g.hits || [];
   if(pts) html += `<span class="gtag">采分点 ${hits.length} 项 · 丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
+  // 重放入口只跟着点评走：没有点评就没有可重放的句子
+  if(g.comment) html += `<button class="linkbtn" id="btnReplayGrade" style="margin-left:auto">重放批改过程</button>`;
   html += `</div>`;
   const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
   if(sumNote) html += `<div class="hint" style="margin:2px 0 4px">${sumNote}</div>`;
@@ -4012,7 +4041,7 @@ function gradeHtml(g, total){
   }
   // 提炼是批改之后异步跑的：跑完就地补一行（见 paintExpLine），不让用户为了看「这次提炼了什么」再走一屏
   html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div>`;
-  if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${esc(g.comment)}</div>`;
+  if(g.comment) html += `<div class="comment"><b>阅卷点评：</b>${gradeCommentHtml(g.comment)}</div>`;
   // 优点收成一句而不是一排小牌：它不是这一页的结论，正面的东西点到就够
   const goods = (g.strengths||[]).filter(Boolean);
   if(goods.length) html += `<div class="hint" style="margin-top:8px">答得好的地方：${goods.map(s=>esc(s)).join("、")}。</div>`;
@@ -4023,9 +4052,7 @@ function gradeHtml(g, total){
   for(const d of dims){ const v=Number(g.scores[d])||0; const pct=Math.round(v/20*100);
     html += `<div class="barline"><span class="bn">${d}</span><span class="bt"><i class="${pct<60?"lo":""}" style="width:${pct}%"></i></span><span class="bv">${v}/20</span></div>`; }
   html += `</div></div></details>`;
-  const nextCls = ` class="primary big"`;
   html += `<div class="nextrow">
-      <button${nextCls} id="btnNext">智能推送下一题</button>
       <button id="btnRetry">同模块再来一道</button>
       <button class="linkbtn" id="btnSeeProfile">看我的画像</button>
     </div></div>`;

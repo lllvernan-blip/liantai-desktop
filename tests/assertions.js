@@ -236,6 +236,16 @@ current.question.score = 20;   // 子项合计 15 ≠ 题目满分 20，必须�
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[{point:"只列了一个子项",score:5,awarded:5,status:"满分"}] }, 33);
 ok(el("#docBody").innerHTML.indexOf("与本题满分 20 分不一致") >= 0, "阅卷页: 子项合计与题目满分不一致时明示");
 
+/* 3.x 批改页流式渐显：点评按句切成 .ai-line（内容一开始就在 DOM 里），重放入口与 reduced-motion 守卫在位 */
+ok(el("#docBody").innerHTML.indexOf('class="ai-line"') >= 0,
+   "批改页: 点评按句渲染成 ai-line（全文在 DOM，只是视觉渐显）");
+ok(PAGE_HTML.indexOf(".ai-line{") >= 0 && PAGE_HTML.indexOf("@keyframes stream") >= 0
+   && PAGE_HTML.indexOf("重放批改过程") >= 0 && PAGE_HTML.indexOf("btnReplayGrade") >= 0
+   && PAGE_HTML.indexOf("startGradeStream") >= 0,
+   "批改页: 流式渐显的类、节奏与「重放批改过程」入口都在");
+ok(/@media \(prefers-reduced-motion:reduce\)\{[\s\S]*?\.ai-line\{animation:none !important;opacity:1;transform:none;\}/.test(PAGE_HTML),
+   "批改页: reduced-motion 下流式渐显直接置位（不依赖计时器）");
+
 /* 4.9 划线随写随看 + 完整参考答案（2026-09-18 三改进；题目笔记已下线） */
 const qMk = { background:"ABCDEFG", requirements:"R" };
 saveMarks(qSig(qMk), new Set([1,2,6]));
@@ -1137,6 +1147,22 @@ ok(pdLand.indexOf('<details class="pdthemes">') >= 0 && pdLand.indexOf("自选�
 ok(pdLand.indexOf("综合快判") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0
    && pdLand.indexOf('class="pdforms"') >= 0,
    "快判: 纸面主入口开始综合轮，单形式入口是同一排里的三个 chips");
+
+/* 快判首轮页内说明（SPEC 4.2）：一次性、可收口，不进引导序列；说明在时同义的一行让位 */
+state.pdIntroSeen = false; renderPDLanding();
+let _pi = el("#docBody").innerHTML;
+ok(_pi.indexOf('id="pdIntro"') >= 0 && _pi.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0
+   && _pi.indexOf('id="pdIntroOk"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;display:none"') >= 0,
+   "快判/首轮说明: 没看过时说明出现，同义的常驻一行不上屏（同一个意思不写两遍）");
+el("#pdIntroOk").onclick();
+ok(state.pdIntroSeen === true && el("#pdIntro").style.display === "none" && el("#pdWhat").style.display === "",
+   "快判/首轮说明: 「知道了」置 seen 并就地收掉，让位给常驻一行");
+renderPDLanding();
+_pi = el("#docBody").innerHTML;
+ok(_pi.indexOf('id="pdIntro" style="display:none"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;"') >= 0,
+   "快判/首轮说明: 看过后再进落地页，说明收起、常驻一行在（不常驻解释文案）");
+state.pdIntroSeen = false; renderPDLanding();   // 恢复现场：后面还有依赖落地页形状的断言
+
 switchSubject("sl");
 ok(pdActive === false && el("#docBody").innerHTML.indexOf("贯彻执行") >= 0 && el("#docBody").innerHTML.indexOf("公文写作") < 0,
    "快判: 从快判切申论，作答轨模块 chips 正常恢复");
@@ -1431,6 +1457,10 @@ ok(el("#docBody").innerHTML.indexOf('data-mod="sl.guanche"') >= 0,
 /* ③ 左上角品牌名 = 回首页（首页不属于任何科目，得有个不挑科目的落点） */
 ok(PAGE_HTML.indexOf('id="btnHome"') >= 0 && PAGE_HTML.indexOf('$("#btnHome").onclick = ()=> renderHome();') >= 0,
    "首页: 左上角「练习台」是回家的入口");
+/* 品牌位是应用图标（SPEC 3.0：禁止单字印章式代标），图标 data URI 内联，悬浮提示走同一套 [data-tip] */
+ok(/id="btnHome"[^>]*data-tip="首页"[^>]*><img src="data:image\/png;base64,/.test(PAGE_HTML)
+   && PAGE_HTML.indexOf(".toolbar .brand::before") < 0 && PAGE_HTML.indexOf('title="回到起始页"') < 0,
+   "品牌位: 应用图标 data URI + 「首页」悬浮提示；红竖条代标与旧 title 双份提示都撤了");
 renderHome();
 ok(_view === "home" && el("#subjbar").innerHTML.indexOf("active") < 0,
    "首页: 从科目页回得来，回到的是无选中态");
@@ -1491,7 +1521,7 @@ ok(pdActive === false && state.settings.subject === "sl",
 renderHome();
 
 /* ⑤ 顶栏结构：科目入口在第一行；模块与快判形式入口落进纸面 chips，顶栏只有一行。 */
-ok(/id="btnHome"[^>]*>练习台<\/button>\s*<span class="subjbar" id="subjbar">/.test(PAGE_HTML),
+ok(/id="btnHome"[^>]*><img [^>]*>练习台<\/button>\s*<span class="subjbar" id="subjbar">/.test(PAGE_HTML),
    "顶栏: 科目入口紧跟在品牌后面（同一行）");
 ok(PAGE_HTML.indexOf('id="modbar"') < 0 && PAGE_HTML.indexOf(".modbar{") < 0,
    "顶栏: 第二行页签带已整体撤掉（modbar 容器与样式都不在）");
@@ -1766,12 +1796,12 @@ ok(PAGE_HTML.indexOf("kh.open = !state.settings.apiKey") >= 0, "设置页: 无 K
 /* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组 home→pd→zy→sl，随屏接续，设置可重置 ---- */
 ok(Array.isArray(TUT_SEQ) && TUT_SEQ.length > 0 && TUT_SEQ.every(s=> s.scr && s.sel && s.text),
    "使用引导: 每一步都写明在哪一屏、落点元素与说明文字");
-ok(["home","pd","zy","sl"].every(k=> TUT_SEQ.some(s=> s.scr === k)) && TUT_SEQ[0].scr === "home",
-   "使用引导: 四个屏都有组，home 在最前（打开软件第一屏就是它）");
+ok(["home","zy","sl"].every(k=> TUT_SEQ.some(s=> s.scr === k)) && TUT_SEQ[0].scr === "home",
+   "使用引导: 三个屏都有组，home 在最前（打开软件第一屏就是它；快判不进序列，首轮说明在快判页页内）");
 const tutGrpFirst = k => TUT_SEQ.find(s=> s.scr === k);
-ok(tutGrpFirst("home").sel === "#btnQuick" && tutGrpFirst("pd").sel === ".startbox .primary.big"
+ok(tutGrpFirst("home").sel === "#btnQuick" && TUT_SEQ.every(s=> s.scr !== "pd")
    && tutGrpFirst("zy").sel === "#btnSmart" && tutGrpFirst("sl").sel === "#btnSmart",
-   "使用引导: 每组先讲主行动（首页快判按钮 / 快判页综合快判 / 科目页红按钮）");
+   "使用引导: 每组先讲主行动（首页快判按钮 / 科目页红按钮），快判不进引导序列（SPEC 4.2）");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
 ok(DEFAULT_STATE.tut && DEFAULT_STATE.tut.seq === 0 && DEFAULT_STATE.tut.done === false && DEFAULT_STATE.tutVersion === 3,
@@ -1816,11 +1846,13 @@ ok(PAGE_HTML.indexOf("使用指南") < 0 && PAGE_HTML.indexOf("分步使用引�
 ok(PAGE_HTML.indexOf("会挑你最弱的模块") < 0 && PAGE_HTML.indexOf("提交后 AI 按本模块维度评分") < 0,
    "文案: 不写「挑最弱」「按维度评分」这类机制");
 ok(PAGE_HTML.indexOf("写得太少了：至少写满一段再交卷") >= 0 && PAGE_HTML.indexOf("～") < 0, "文案: 交卷提示去掉语气词");
-const tutPdSteps = TUT_SEQ.filter(s=> s.scr === "pd");
-ok(tutPdSteps.every(s=>s.text.indexOf("题型") < 0) && tutPdSteps[0].text.indexOf("形式") >= 0 && tutPdSteps[3].text.indexOf("形式") >= 0,
-   "文案: 快判统一说「形式」，不再混用「题型」");
-ok(tutPdSteps[1].text.indexOf("只练一种形式") >= 0 && PAGE_HTML.indexOf('data-pdform="${id}"') >= 0,
-   "文案: 快判落地页的单形式 chips 与引导同口径");
+ok(TUT_SEQ.every(s=> s.scr !== "pd") && TUT_SEQ.every(s=> s.text.indexOf("题型") < 0),
+   "文案: 快判不进引导序列（首轮用法归页内一次性说明），引导与全部步骤不说「题型」");
+ok(PAGE_HTML.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0 && PAGE_HTML.indexOf('id="pdIntroOk"') >= 0,
+   "快判/首轮说明: 页内一次性说明存在，带「知道了」收口（SPEC 4.2）");
+ok(renderPDLanding.toString().indexOf("pdIntroSeen") >= 0 && renderPDLanding.toString().indexOf('id="pdIntro"') >= 0
+   && startPDRound.toString().indexOf("state.pdIntroSeen = true") >= 0,
+   "快判/首轮说明: 说明与 pdIntroSeen 联动，startPDRound 也置 seen（练过一轮同样不再出现）");
 
 /* ---- 在途请求：换页与进快判都要作废在途请求，旧结果不许回来顶掉当前页 ---- */
 ok(tabClick.toString().indexOf("reqSeq++") >= 0 && enterPD.toString().indexOf("reqSeq++") >= 0,
@@ -1904,6 +1936,14 @@ ok(execHtml.indexOf("记过的错因：") >= 0 && execHtml.indexOf("「漏写落
 lastGrade = { g:gExec, total:100, expCheck:null };
 ok(gradeHtml(gExec, 100).indexOf("记过的错因：") < 0, "批改页: 没有回执就不摆空行");
 lastGrade = null; current = null;
+
+/* 16.3b 推送归出题引擎底层（SPEC 4.6）：批改页没有「智能推送下一题」，nextrow 只剩两颗按钮 */
+ok(PAGE_HTML.indexOf("智能推送下一题") < 0 && PAGE_HTML.indexOf("btnNext") < 0,
+   "批改页: 「智能推送下一题」按钮下线，页面上没有推送入口（选题是引擎在出题时做的事）");
+ok(PAGE_HTML.indexOf('id="btnRetry"') >= 0 && PAGE_HTML.indexOf('id="btnSeeProfile"') >= 0,
+   "批改页: nextrow 保留「同模块再来一道」与「看我的画像」两颗按钮");
+ok(PAGE_HTML.indexOf('bn2 = $("#btnNext")') < 0,
+   "批改页: btnNext 的旧接线一并撤净（两处 wiring 都不再钉它）");
 
 /* 16.4 快判辨析点：自由文本同类归并 → 按类统计 → 下次出题优先考错得多的那几类 */
 state.history = [
