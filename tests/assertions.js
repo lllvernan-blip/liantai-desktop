@@ -1314,7 +1314,7 @@ ok(subjStart.indexOf('class="primary big" id="btnSetup">先填 API Key') >= 0
    "科目页（没填 Key）: 红按钮改说「先填 API Key」——出题这条路当下走不通，就不说「开始练习」");
 ok(subjStart.indexOf("开始快判") < 0,
    "科目页: 不出现「开始快判」（快判是顶栏最左那颗胶囊的事）");
-const zyFlowOrder = ["练习流程","学习卡","作答","批改"].map(s=> subjStart.indexOf(s));
+const zyFlowOrder = ["综应A 练什么？","学习卡","作答","批改","写完就有分"].map(s=> subjStart.indexOf(s));
 ok(zyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > zyFlowOrder[i-1])),
    "综应A布局: 主按钮下预览真实流程，顺序为学习卡→作答→批改");
 ok(subjStart.indexOf("data-big") < 0,
@@ -1331,7 +1331,7 @@ state.settings.subject = "sl"; renderStart();
 const slNoKeyStart = el("#docBody").innerHTML;
 ok(slNoKeyStart.indexOf('id="btnSetup">先填 API Key') >= 0,
    "科目页（没填 Key）: 换到申论也是同一个形态，不为某个科目开特例");
-const slNoKeyFlowOrder = ["练习流程","学习卡","读材料找点","一稿","批改"].map(s=> slNoKeyStart.indexOf(s));
+const slNoKeyFlowOrder = ["申论 练什么？","学习卡","读材料找点","一稿","批改"].map(s=> slNoKeyStart.indexOf(s));
 ok(slNoKeyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > slNoKeyFlowOrder[i-1])),
    "申论布局（没填 Key）: 仍预览真实的学习卡→读材料找点→一稿→批改流程");
 
@@ -1345,7 +1345,7 @@ state.settings.subject = "sl"; renderStart();
 const slStart = el("#docBody").innerHTML;
 ok(slStart.indexOf('id="btnSmart">开始申论练习') >= 0,
    "科目页（填了 Key）: 换到申论，红按钮跟着换名（开始申论练习）");
-const slFlowOrder = ["练习流程","学习卡","读材料找点","一稿","批改"].map(s=> slStart.indexOf(s));
+const slFlowOrder = ["申论 练什么？","学习卡","读材料找点","一稿","批改","写完就有分"].map(s=> slStart.indexOf(s));
 ok(slFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > slFlowOrder[i-1])),
    "申论布局（填了 Key）: 流程预览包含读材料找点和一稿");
 state.settings.apiKey = ""; state.settings.subject = "zy";

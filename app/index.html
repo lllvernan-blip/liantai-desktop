@@ -164,14 +164,12 @@ html,body{margin:0;padding:0;}
   .startbox button.primary.big{font-size:17px;padding:16px 58px;border-radius:12px;box-shadow:0 6px 18px rgba(190,59,43,.28);}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
   .startbox .actions{justify-content:center;margin-top:24px;}
+  .startbox.start-hero .actions{margin-top:0;}   /* hero 说明句自带 24px 下边距，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」） */
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
   .startbox .hero-big{font-size:26px;font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
   .startbox .hero-sub{font-size:14px;color:var(--ink-soft);line-height:1.7;margin:0 0 24px;}
   .startbox .hero-foot{font-size:12.5px;color:var(--ink-faint);margin:24px 0 0;}
-  .start-flow{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:8px;margin:0;font-size:14px;}
-  .start-flow-label{color:var(--ink-soft);}
-  .start-flow-steps{font-family:var(--hei);color:var(--ink);}
-  .start-flow-steps .arrow{padding:0 5px;color:var(--ink-faint);}
+  .startbox .hero-sub .arrow{padding:0 5px;color:var(--ink-faint);}   /* 科目页 hero 说明句里的流程箭头（学习卡 → 作答 → 批改） */
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
@@ -2125,9 +2123,6 @@ function startBoxHtml(rf){
   const flow = curSubject() === "sl"? ["学习卡","读材料找点","一稿","批改"] : ["学习卡","作答","批改"];
   const flowHtml = flow.map((step,i)=>`${i? `<span class="arrow" aria-hidden="true">→</span>`:""}<span>${step}</span>`).join("");
   const bigs = SUBJECT_ORDER.map(id=>`<button class="chip" data-big="${id}">${id==="zy"? esc(SUBJECTS[id].name)+" 练一轮" : "写一篇"+esc(SUBJECTS[id].name)}</button>`).join("");
-  // 首页 = Demo ① 的居中 hero：大标题一句、副题一句、一颗主按钮、两枚点名科目的 chips、一行必备声明。
-  // 大题点名科目的规则不破：data-big 仍由 startSubjectTask 消费，chips 文案改成与动作一致的短句。
-  // 没 Key 时主行动换「先填 API Key」，chips 照摆（点了被 entryBlocked 拦在原地）；foot 是必备声明口径，不随 Key 有无变。
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
     <div class="hero-big">今天练什么？</div>
@@ -2140,14 +2135,17 @@ function startBoxHtml(rf){
     <div class="hero-foot">填好 API Key 就能开始 · 没有账号，数据都在本地</div>
   </div>`;
   }
-  // 科目页：说明（练习流程）→ 主按钮（本科目主行动，快判不在这里抢红）→ 模块切换 chips（紧跟主按钮下方，不再吊在页面底部）
-  return `<div class="startbox start-entry" data-start="subj">
-    <div class="start-flow"><span class="start-flow-label">练习流程</span><span class="start-flow-steps">${flowHtml}</span></div>
+  // 科目页与首页同一套 hero 排布（2026-10-12 拍板）：大标题点科目、说明句预览本页流程、主按钮、模块 chips、必备声明。
+  // 说明句和首页同口径但换成当前页的话：首页说「按你最近的练习情况出题」，这里报自己的流程，尾部同收「写完就有分」。
+  return `<div class="startbox start-entry start-hero" data-start="subj">
+    <div class="hero-big">${esc(subj.name)} 练什么？</div>
+    <div class="hero-sub">${flowHtml}，写完就有分</div>
     <div class="actions">${state.settings.apiKey
       ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
       : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>
     ${rf? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
+    <div class="hero-foot">填好 API Key 就能开始 · 没有账号，数据都在本地</div>
   </div>`;
 }
 function wireStartBox(){
