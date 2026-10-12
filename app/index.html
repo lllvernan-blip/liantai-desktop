@@ -307,13 +307,15 @@ html,body{margin:0;padding:0;}
   .pill{padding:4px 10px;font-size:13px;border-radius:var(--r-ctl);}
   .pill.good{background:var(--success-bg);color:var(--success);}
   .pill.bad{background:var(--danger-bg);color:var(--danger);}
-  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。满分的句子照旧、半分的那句
-     分数转焦橙、没对上任何采分点的标红——分数落在句子上，比另开一张丢分清单直接得多。
-     用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
+  /* 批改页题头分两层：只有「我的答案」用重题头（红竖线），参考答案与解析降成细线上方的
+     墨灰小标题——一屏三个同重标题，眼睛找不到主次（2026-10-13）。 */
+  .grade .sec-title.lite{margin:20px 0 6px;padding:12px 0 0;border-top:1px solid var(--line);border-left:none;font-size:13.5px;color:var(--muted);letter-spacing:1px;}
+  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。只有**没拿满**的句子才有标记——
+     零分标红、半分在句末报出拿到多少分（焦橙）；满分句什么都不挂，读的时候不必一路跳过
+     「（+4）（+4）」这类符号。用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
   .answerreview{margin-top:8px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
   .answerreview .asent.miss{background:var(--danger-bg);box-shadow:inset 0 -2px 0 var(--danger-line);color:var(--danger);}
-  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:12px;color:var(--success);margin-left:2px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
-  .answerreview .asc.part{color:var(--warn);}   /* 没拿满的那句：分数转焦橙，句子本身不动 */
+  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:12px;color:var(--warn);margin-left:2px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
   .comment{margin-top:14px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
   .nextrow{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:20px;}
 
@@ -1763,7 +1765,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
     "experienceChecks":[{"title":"原样照抄 experiences 里那一条的 title","status":"again / fixed / na"}],`: ""}
-    "comment":"解析（150 字上下）：先讲这一文种的采分点分别考什么、标准答法怎么组织（让人能照着复现）；再对照这份答卷说清差在哪、下次怎么改。不要复述采分点总数，也不要逐条报分数（答卷上已经逐句标了）"
+    "comment":"解析（100 字以内）：这题的采分点分别考什么、标准答法怎么组织。只讲这题该怎么看，不要评价考生的答卷（答卷上已经逐句标了）"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
@@ -3901,14 +3903,14 @@ function answerMarks(hits, answer){
    分落在紧随的正文上，小标题自己当然是 0——拿它去标红就是在冤枉人。 */
 const ANS_HEADING = /^(?:[一二三四五六七八九十百]+[、.．]|\d+[、.．)])/;
 function isNumHeading(p){ return ANS_HEADING.test(String(p||"").trim()); }
-/* 我的答案（逐句批注）：得分句在句末报出这一句拿了几分；没对上的标红。
-   没得分的不报 +0——0 是噪音，红本身就是结论。 */
+/* 我的答案（逐句批注）：只有没拿满的句子才有标记——没对上的标红，拿了一半的在句末报出
+   拿到几分。满分句什么都不挂：「（+4）」这种符号人人有份，读的时候只能一路跳过去。 */
 function answerReviewHtml(g, answer){
   const text = String(answer||"").trim();
   if(!text) return "";
   const m = answerMarks(g && g.hits, text);
   const head = m.usable
-    ? `<div class="hint" style="margin-top:4px">标红＝这句没对上任何采分点；句末括号里是这一句拿到的分。</div>`
+    ? `<div class="hint" style="margin-top:4px">标红＝这句没对上任何采分点；句末小字是没拿满的那句得了多少分。</div>`
     : `<div class="hint" style="margin-top:4px">这次的证据没能逐句对回答卷，只把作答原文摆出来。</div>`;
   const nextReal = i => { for(let k = i + 1; k < m.parts.length; k++){ if(m.parts[k] !== "\n") return k; } return -1; };
   let body = "";
@@ -3919,8 +3921,9 @@ function answerReviewHtml(g, answer){
     // 下一句不属于同一个「条」就不算题头：光一条序号、后面接的是别的条目，它自己就是那条作答
     const nx = nextReal(i);
     const heading = isNumHeading(p) && nx >= 0 && !isNumHeading(m.parts[nx]) && m.got[nx] > 0;
-    const cls = !m.usable? "" : (sc <= 0? (heading? "" : " miss") : (fu > 0 && sc < fu - 0.001? " part" : ""));
-    body += `<span class="asent${cls}">${esc(p)}</span>` + ((m.usable && sc > 0)? `<i class="asc${(fu > 0 && sc < fu - 0.001)? " part":""}">（+${sc}）</i>` : "");
+    const short = fu > 0 && sc < fu - 0.001;   // 没拿满：满分的句子不挂任何标记
+    const cls = !m.usable? "" : (sc <= 0? (heading? "" : " miss") : (short? " part" : ""));
+    body += `<span class="asent${cls}">${esc(p)}</span>` + ((m.usable && sc > 0 && short)? `<i class="asc">+${sc}</i>` : "");
   });
   // 不自带小标题：标题由 gradeHtml 用 .sec-title 给出，三块共用一套题头
   return head + `<div class="answerreview">${body}</div>`;
@@ -3963,8 +3966,8 @@ function gradeHtml(g, total){
   // 一页把「你写了什么、本该写成什么样、为什么」摆全，不另造清单，也不把两篇文章折起来（2026-10-13）。
   const ansReview = answerReviewHtml(g, lastGrade && lastGrade.answer);
   if(ansReview) html += `<div class="sec-title">我的答案</div>` + ansReview;
-  if(g.modelAnswer) html += `<div class="sec-title">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
-  if(g.comment) html += `<div class="sec-title">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
+  if(g.modelAnswer) html += `<div class="sec-title lite">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
+  if(g.comment) html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
   // 老记录（无采分点）没有逐句标注可用，退回「待改进」的原话
   if(!hits.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）

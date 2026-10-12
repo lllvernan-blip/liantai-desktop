@@ -189,9 +189,10 @@ renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送�
 ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody").innerHTML.indexOf("asent miss") >= 0,
    "批改页: 首屏就是带标注的「我的答案」（2026-10-13）");
 ok(el("#docBody").innerHTML.indexOf("asent miss") >= 0, "批改页: 没对上采分点的句子标红");
-ok(el("#docBody").innerHTML.indexOf("（+4）") >= 0, "批改页: 得分句在句末括号里标分");
-ok(el("#docBody").innerHTML.indexOf("（+0）") < 0 && el("#docBody").innerHTML.indexOf("asc part") >= 0,
-   "批改页: 没得分的不标 +0（红本身就是结论）；没拿满的那句分数转焦橙");
+ok(el("#docBody").innerHTML.indexOf('class="asc">+1<') >= 0 && el("#docBody").innerHTML.indexOf("（+4）") < 0,
+   "批改页: 只有没拿满的句子在句末报分（满分的句子什么都不挂）");
+ok(el("#docBody").innerHTML.indexOf("（+0）") < 0 && el("#docBody").innerHTML.indexOf("+0<") < 0,
+   "批改页: 没得分的不标 +0（红本身就是结论）");
 ok(el("#docBody").innerHTML.indexOf("漏掉的采分点") < 0 && el("#docBody").innerHTML.indexOf("missline") < 0,
    "批改页: 旧版「漏答清单」的措辞没有回来（那时的清单不带分值也不带错因）");
 ok(el("#docBody").innerHTML.indexOf("全部采分点对照") < 0 && el("#docBody").innerHTML.indexOf("先改这几条") < 0,
@@ -2526,8 +2527,11 @@ ok(H22.indexOf(">我的答案</div>") >= 0 && H22.indexOf(">参考答案</div>")
 ok(H22.indexOf(">我的答案</div>") < H22.indexOf(">参考答案</div>")
    && H22.indexOf(">参考答案</div>") < H22.indexOf(">解析</div>"),
    "批改页: 次序是我的答案 → 参考答案 → 解析");
-ok(H22.indexOf("asent miss") >= 0 && H22.indexOf("（+4）") >= 0 && H22.indexOf("（+0）") < 0,
-   "批改页: 逐句标注照常（没对上采分点的标红、得分句标分、没得分的不标 +0）");
+ok(H22.indexOf("asent miss") >= 0 && H22.indexOf('class="asc">+1<') >= 0 && H22.indexOf('class="asc">+4<') < 0,
+   "批改页: 逐句标注只标丢分处（零分标红、半分报分、满分不挂标记）");
+ok(H22.indexOf('class="sec-title">我的答案</div>') >= 0 && H22.indexOf('class="sec-title lite">参考答案</div>') >= 0
+   && H22.indexOf('class="sec-title lite">解析</div>') >= 0,
+   "批改页: 只有「我的答案」用重题头，参考答案与解析降一级");
 ok(H22.indexOf("第一段内容。\n第二段内容。") >= 0,
    "批改页: 范文按原文换行渲染（pre-wrap，不再折成一坨）");
 ok(H22.indexOf("先写主送机关再写正文。") >= 0, "批改页: 解析照常渲染");
@@ -2538,8 +2542,8 @@ ok(PAGE_HTML.indexOf("loselist") < 0 && PAGE_HTML.indexOf("loseDetail") < 0 && P
    "批改页: 丢分清单整块删净（含 CSS 与取值函数，不留死代码）");
 ok(PAGE_HTML.indexOf("white-space:pre-wrap;-webkit-text-stroke") >= 0,
    "批改页: 范文容器自带 pre-wrap（不再靠折叠体兜）");
-ok(PAGE_HTML.indexOf('"comment":"解析（150 字上下）') >= 0,
-   "阅卷 prompt: comment 改口径为「解析」（先讲这题怎么答、再对照答卷说差在哪）");
+ok(PAGE_HTML.indexOf('"comment":"解析（100 字以内）') >= 0,
+   "阅卷 prompt: comment 改口径为「解析」（只讲这题怎么答，不评价答卷）");
 ok(PAGE_HTML.indexOf("一句话（40 字内）") < 0,
    "阅卷 prompt: 一句话点评的口径不在了（它撑不起「解析」这个位置）");
 /* 全满分：三段照常，不留空块 */
