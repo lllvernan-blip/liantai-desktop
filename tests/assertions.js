@@ -647,10 +647,15 @@ state.history = [];
 ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf("zy.guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
 renderHome();
 ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
-   && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
-   && el("#docBody").innerHTML.indexOf('data-big="zy">练一道综应大题') >= 0
-   && el("#docBody").innerHTML.indexOf('data-big="sl">练一道申论大题') >= 0,
-   "起始页: 快判是第一入口（带一行小字），两句大题各自点名科目");
+   && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
+   && el("#docBody").innerHTML.indexOf('data-big="zy">综应A 练一轮') >= 0
+   && el("#docBody").innerHTML.indexOf('data-big="sl">写一篇申论') >= 0,
+   "首页: 居中 hero——大标题下主行动是快判，两枚 chips 各自点名科目");
+/* 红头跟着屏走：首页让位给 hero，进科目页就回来 */
+ok(el(".redhead").style.display === "none", "首页: 公文红头不渲染（抬头 / 红线 / 文号整块让位）");
+renderTabs(); renderStart();
+ok(el(".redhead").style.display === "", "科目页: 公文红头照旧（卷面身份只在首页让位）");
+renderHome();
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
@@ -1152,14 +1157,14 @@ ok(pdLand.indexOf("综合快判") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}
 state.pdIntroSeen = false; renderPDLanding();
 let _pi = el("#docBody").innerHTML;
 ok(_pi.indexOf('id="pdIntro"') >= 0 && _pi.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0
-   && _pi.indexOf('id="pdIntroOk"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;display:none"') >= 0,
+   && _pi.indexOf('id="pdIntroOk"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0 0 24px;display:none"') >= 0,
    "快判/首轮说明: 没看过时说明出现，同义的常驻一行不上屏（同一个意思不写两遍）");
 el("#pdIntroOk").onclick();
 ok(state.pdIntroSeen === true && el("#pdIntro").style.display === "none" && el("#pdWhat").style.display === "",
    "快判/首轮说明: 「知道了」置 seen 并就地收掉，让位给常驻一行");
 renderPDLanding();
 _pi = el("#docBody").innerHTML;
-ok(_pi.indexOf('id="pdIntro" style="display:none"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;"') >= 0,
+ok(_pi.indexOf('id="pdIntro" style="display:none"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0 0 24px;"') >= 0,
    "快判/首轮说明: 看过后再进落地页，说明收起、常驻一行在（不常驻解释文案）");
 state.pdIntroSeen = false; renderPDLanding();   // 恢复现场：后面还有依赖落地页形状的断言
 
@@ -1319,19 +1324,23 @@ const startUp = el("#docBody").innerHTML;
 ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
    && startUp.indexOf("开始快判") < 0 && startUp.indexOf("btnSample") < 0,
    "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快判」");
+ok(el(".redhead").style.display === "none",
+   "首页: 公文红头（抬头 / 红线 / 文号）整块让位给居中 hero");
 el("#btnSetup").onclick();
 ok(el("#modalSettings").hidden === false,
    "首页（没填 Key）: 那颗按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
 closeModals();
-ok(startUp.indexOf('data-big="zy">练一道综应大题') >= 0 && startUp.indexOf('data-big="sl">练一道申论大题') >= 0
+ok(startUp.indexOf('data-big="zy">综应A 练一轮') >= 0 && startUp.indexOf('data-big="sl">写一篇申论') >= 0
    && startUp.indexOf("练一道大题（综应 / 申论）") < 0,
-   "快判往上提: 两句大题各自点名科目，不再写含糊的「综应 / 申论」");
+   "快判往上提: 两枚 chips 各自点名科目（数据仍走 startSubjectTask），不再写含糊的「综应 / 申论」");
 state.settings.apiKey = "sk-test";
 renderHome();
 ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
-   && el("#docBody").innerHTML.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0
+   && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
+   && el("#docBody").innerHTML.indexOf("按你最近的练习情况出题，写完就有分") >= 0
+   && el("#docBody").innerHTML.indexOf("填好 API Key 就能开始 · 没有账号，数据都在本地") >= 0
    && el("#docBody").innerHTML.indexOf("btnSample") < 0,
-   "快判往上提: 首页填了 Key 时红按钮是「开始快判」，下面一行小字（示例题入口已下线）");
+   "首页 hero: 大标题 / 副题 / 主按钮 / 脚注都住（示例题入口已下线）");
 state.settings.apiKey = "";
 /* ②b 科目首页（综应A / 申论）：红按钮是本科目的主行动，快判不在纸面上抢红
      （快判入口常驻顶栏最左那颗胶囊，科目页再放一遍就是同一条路开两个门） */
@@ -1491,8 +1500,8 @@ renderHome();
 const homePlain = el("#docBody").innerHTML;
 ok(homePlain.indexOf("开始今天的练习") < 0 && homePlain.indexOf('data-start="home"') >= 0,
    "废话精简: 首页也不再写「开始今天的练习」——主行动自己就是标题");
-ok(homePlain.indexOf("从材料里挑出对的说法，一轮 5 题，两三分钟。") >= 0,
-   "废话精简: 但「快判是什么」那一行留着（它是「这是什么」，不是重复）");
+ok(homePlain.indexOf("按你最近的练习情况出题，写完就有分") >= 0,
+   "废话精简: 首页副题那行留着——它是「这是什么」，不是重复");
 renderModuleLanding("zy.guina");
 const landPlain = el("#docBody").innerHTML;
 ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") < 0,

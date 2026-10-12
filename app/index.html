@@ -14,6 +14,8 @@
     --canvas:#F4F1EA;    /* 底板：暖浅灰。暖色只住底板层，卷面 --paper 不动（SPEC 3.0） */
     --muted:#5e5e57;
     --muted-2:#827d72;   /* 第三档灰（≈4.0:1）：证据 / 计数 / 口径说明。只有两档灰时，正文与证据糊在同一层，眼睛没有先看哪里的顺序 */
+    --ink-soft:#6E695F;  /* 人感 Demo 同款：纸面屏的说明 / 次级文字（弹层留给下一棒） */
+    --ink-faint:#A29C8F; /* 人感 Demo 同款：纸面屏的脚注 / 弱化文字 */
     /* 淡底四档：悬停 / 展开抬头 / 按钮悬停 / 细条底 —— 原来这里是七八个近似米色各行其是 */
     --wash:#f7f5f0; --wash-2:#fbfaf6; --wash-3:#f3f1ec; --line-soft:#eceae4;
     --head:#f2efe8;      /* 表头与弹层抬头（原来是偏冷的一抹灰，在暖纸面上一块斑） */
@@ -116,15 +118,21 @@ html,body{margin:0;padding:0;}
   .shell-mac .toolbar{padding-left:84px;padding-top:7px;padding-bottom:11px;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
 /* 快判落地页：主行动 → 顶部形式入口 → 默认收起的主题设置。 */
-.pdforms{margin-top:18px;}
-.pdthemes{margin:20px auto 0;border-top:1px solid var(--line);width:100%;max-width:700px;text-align:left;}
+.pdforms{margin-top:24px;}
+/* 科目页/模块落地页尾部的模块切换行：这是次级导航，降半档（小一号、淡色），
+   别和上面的文种/形式 chips 平起平坐——同权重会让人读成两级同级的选择（2026-10-12 验收） */
+.start-entry .pdforms .chip[data-mod]{padding:5px 14px;font-size:13px;color:var(--ink-soft);border-color:var(--line);background:transparent;}
+.start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--ink-faint);background:transparent;}
+.start-entry .pdforms .chip[data-mod].on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
+.start-entry .pdforms:has([data-mod]){margin-top:40px;}   /* 模块切换行与主按钮拉开一档（快判形式选择仍案 24px） */
+.pdthemes{margin:24px auto 0;border-top:1px solid var(--line);width:100%;max-width:700px;text-align:left;}
 .pdthemes>summary{display:flex;align-items:center;min-height:36px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13px;color:var(--muted);}
 .pdthemes>summary::-webkit-details-marker{display:none;}
 .pdthemes>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);}
 .pdthemes[open]>summary::after{content:"▾";}
 .pdthemebody{padding:0 0 4px;text-align:center;}
 .pdthemes .subtypechips{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;max-width:700px;}
-.pdthemes .chip{padding:4px 8px;font-size:13px;}
+.startbox .pdthemes .chip{padding:4px 8px;font-size:13px;}   /* 主题 chips 收在折叠区里，保持小一号（比 .startbox .chip 更专，隔开距离） */
   .chip{border:1px solid var(--line);background:var(--ctl);padding:6px 12px;cursor:pointer;font-size:13px;border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
 .model-item{display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--ink);}
 .model-item:hover{background:var(--canvas);}
@@ -132,6 +140,11 @@ html,body{margin:0;padding:0;}
   /* chips 的「当前项」（模块落地页标出你正在看的模块）：与科目按钮同一套红——红线 + 淡红底 */
   .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .chip small{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}   /* 不写 font-size 就会按浏览器的 smaller 算：13px × 0.833 = 10.8px，六档之外的野字号 */
+  /* 入口纸面的 chips（人感 Demo .chip）：胶囊、纸白底、暖灰边——首页 / 模块页 / 快判页同一套，弹层内不动 */
+  .startbox .chip{border-color:#D8D2C6;background:var(--paper);color:#55504A;font-size:14px;padding:9px 22px;}
+  .startbox .chip:hover{border-color:var(--ink-faint);color:var(--ink);background:var(--paper);}
+  .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
+  .startbox .chiprow{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px;}
 
   .wrap{max-width:880px;margin:24px auto 56px;padding:0 14px;}
   .doc{background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);padding:40px 54px 56px;}
@@ -141,21 +154,29 @@ html,body{margin:0;padding:0;}
   .redline .bar{flex:1;height:2px;background:var(--gov-red);}
   /* 抬头下的最后一行：左边报「在哪」，右边报文号，同一行收掉——原先各自占一行，中间空出一大截 */
   .docmeta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:8px 2px 6px;}
-  .docno{font-family:var(--fangsong);font-size:14px;text-align:right;margin-left:auto;}
-  .modlabel{font-family:var(--hei);font-size:13px;color:var(--muted);letter-spacing:1px;}
+  .docno{font-family:var(--fangsong);font-size:14px;text-align:right;margin-left:auto;color:var(--ink-soft);}
+  .modlabel{font-family:var(--hei);font-size:13px;color:var(--ink-soft);letter-spacing:1px;}
 
-  /* 起始区 —— 醒目主入口 */
+  /* 起始区 —— 入口纸面。垂直节奏只用四档（8 / 16 / 24 / 40px），同屏同类间距一致（人感 Demo 的排版纪律） */
   .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
   /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
+  .startbox.start-entry{padding:48px 36px 56px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
+  .startbox.start-home{padding:64px 36px 48px;}    /* 首页 hero（Demo ①）：整屏居中，上下留白拉满 */
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
-  .startbox p{color:var(--muted);font-size:13px;margin:0 0 24px;}
+  .startbox p{color:var(--ink-soft);font-size:14px;line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
-  /* 起始区的主行动再抬高一级：纸面上只有它一件事，就让它占得住地方 */
-  .startbox .primary.big{padding:16px 54px;}
-  .start-flow{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:8px;margin:26px auto 0;font-size:13px;}
-  .start-flow-label{color:var(--muted);}
+  /* 主行动照 Demo .primary：17px / 600 / 字距 2px，红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
+  .startbox button.primary.big{font-size:17px;padding:16px 58px;border-radius:12px;box-shadow:0 6px 18px rgba(190,59,43,.28);}
+  .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
+  .startbox .actions{justify-content:center;margin-top:24px;}
+  /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
+  .startbox .hero-big{font-size:26px;font-weight:600;letter-spacing:.5px;margin:0 0 6px;}
+  .startbox .hero-sub{font-size:14px;color:var(--ink-soft);line-height:1.8;margin:0 0 40px;}
+  .startbox .hero-foot{font-size:12.5px;color:var(--ink-faint);margin:40px 0 0;}
+  .start-flow{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:8px;margin:0;font-size:14px;}
+  .start-flow-label{color:var(--ink-soft);}
   .start-flow-steps{font-family:var(--hei);color:var(--ink);}
-  .start-flow-steps .arrow{padding:0 5px;color:var(--muted-2);}
+  .start-flow-steps .arrow{padding:0 5px;color:var(--ink-faint);}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
@@ -331,7 +352,7 @@ html,body{margin:0;padding:0;}
   .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--head);font-family:var(--hei);font-weight:700;font-size:15px;letter-spacing:1px;flex:0 0 auto;}
   .mhead .x{border:none;background:transparent;font-size:14px;cursor:pointer;color:var(--muted);width:30px;height:30px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-ctl);}
   .mhead .x:hover{background:var(--wash-3);color:var(--gov-red);}
-  .panel-body{padding:16px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+  .panel-body{padding:20px 24px 24px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}   /* 抬头下 20px、两侧 24px：弹层内边距对齐 24px 档位 */
   /* 学习卡抽屉 + 我的笔记 + 翻卡浮标 */
   .drawer{position:fixed;inset:0;z-index:60;background:rgba(31,31,31,.35);}
   .drawer[hidden]{display:none;}
@@ -353,12 +374,24 @@ html,body{margin:0;padding:0;}
   .notebody{padding:4px 12px 12px;font-size:15px;line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
   .modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
-  .field{margin-bottom:22px;}
-  .field label{display:block;font-family:var(--hei);font-size:13px;margin-bottom:6px;}
-  /* 设置弹层的分界：上面是接哪家 AI，下面是版本与更新 */
-  #updateField{border-top:1px solid var(--line);margin-top:20px;padding-top:18px;}
+  /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
+  .setgrp{border-top:1px solid var(--line);margin-top:24px;padding-top:20px;}
+  .setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0;}
+  .grp-t{font-size:12.5px;font-weight:600;color:var(--ink-faint);letter-spacing:1px;margin-bottom:16px;}
+  .field{margin-bottom:16px;}
+  .setgrp>:last-child{margin-bottom:0;}
+  .field label{display:block;font-family:var(--hei);font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
-  .field .note{font-size:12px;color:var(--muted-2);margin-top:4px;}
+  .field .note,.setgrp>.note{font-size:12px;color:var(--ink-faint);line-height:1.6;margin-top:6px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
+  .field .note.long{line-height:1.7;}
+  .setgrp .notebox{border-top:none;margin:0;}
+  .setgrp .notebox>summary{padding:2px 0;}
+  .setgrp .notebox .notebody{padding:4px 0 0;font-size:12.5px;line-height:1.7;}
+  #updateField .note{margin:0 0 8px;}
+  /* 次级按钮（ghost）：透明底细边、与 primary 同高——「测试连接」不该和「保存」一个重量 */
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-soft);min-height:40px;font-size:15px;}
+  button.ghost:hover{background:var(--wash-3);color:var(--ink);}
+  #modalSettings .actions{gap:10px;}
   /* 地址与 Key 是技术串：仿宋里 l / 1 / I 长得一样，这两格单独换雅黑 */
   #setBase,#setKey,#setModel{font-family:var(--yahei);font-size:13px;}
   .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;width:fit-content;}
@@ -389,6 +422,12 @@ html,body{margin:0;padding:0;}
   .mrow .mweak{flex:0 0 120px;text-align:right;color:var(--danger);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .mrow .mweak.good{color:var(--success);}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  /* 画像弹层：标题降一档（纸面的红边大标题不进弹层），统计数字与说明字分层 */
+  #modalProfile .sec-title{border-left:none;padding-left:0;font-size:13.5px;letter-spacing:1px;margin:24px 0 12px;}
+  #modalProfile .notebody{font-size:12.5px;line-height:1.7;color:var(--ink-soft);}
+  #profileBody>details.notebox:first-child{border-top:none;}
+  .mrow{font-size:14px;}
+  .mrow .mmeta,.mrow .mnone,.mrow .mweak{font-size:12.5px;}
   /* 画像一级的行是入口（点进去看明细），不是折叠件：尾部用 › 而不是三角，方形、无底色、整行可点 */
   .navrow{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;text-align:left;cursor:pointer;}
   .navrow:hover{background:var(--wash);}
@@ -598,74 +637,80 @@ html,body{margin:0;padding:0;}
     <div class="box">
       <div class="mhead"><span>设置（AI 接口 / 纸面样式）</span><button class="x" title="关闭">✕</button></div>
       <div class="panel-body">
-      <div class="field">
-        <label>AI 服务商</label>
-        <select id="setProvider"></select>
-        <div class="note">推荐 DeepSeek：国内直连、便宜。</div>
-      </div>
-      <div class="field">
-        <label>接口地址（Base URL）</label>
-        <input type="text" id="setBase" placeholder="https://api.deepseek.com/v1">
-      </div>
-      <div class="field">
-        <label>API Key</label>
-        <input type="password" id="setKey" placeholder="粘贴你的 API Key">
-        <div class="note">Key 只发往上面这个地址，别用来路不明的地址。</div>
-      </div>
-      <details class="notebox" id="keyHelp">
-        <summary>还没有 API Key？四步拿到（推荐 DeepSeek，几分钱练一次）</summary>
-        <div class="notebody">① 注册：浏览器打开 platform.deepseek.com，用手机号注册并登录。
+      <section class="setgrp">
+        <div class="grpt">AI 服务</div>
+        <div class="field">
+          <label>AI 服务商</label>
+          <select id="setProvider"></select>
+          <div class="note">推荐 DeepSeek：国内直连、便宜。</div>
+        </div>
+        <div class="field">
+          <label>接口地址（Base URL）</label>
+          <input type="text" id="setBase" placeholder="https://api.deepseek.com/v1">
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="setKey" placeholder="粘贴你的 API Key">
+          <div class="note">Key 只发往上面这个地址，别用来路不明的地址。</div>
+        </div>
+        <details class="notebox" id="keyHelp">
+          <summary>还没有 API Key？四步拿到（推荐 DeepSeek，几分钱练一次）</summary>
+          <div class="notebody">① 注册：浏览器打开 platform.deepseek.com，用手机号注册并登录。
 ② 创建 Key：左侧「API keys」→「创建 API key」，复制生成的 sk- 开头字符串（只显示这一次）。
 ③ 充值：账户里充少量余额即可用（按用量计费，练一次题大约几分钱）。
 ④ 回到这里：Key 粘进上面的输入框 → 点下面「拉取模型列表」选一个模型 → 关掉设置，开始练。</div>
-      </details>
-      <div class="field">
-        <label>模型</label>
-        <div style="display:flex;gap:8px;position:relative;">
-          <input type="text" id="setModel" placeholder="点输入框展开候选，或手动输入模型名" autocomplete="off" style="flex:1">
-          <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
-          <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--sh-2);max-height:220px;overflow:auto;"></div>
+        </details>
+        <div class="field">
+          <label>模型</label>
+          <div style="display:flex;gap:8px;position:relative;">
+            <input type="text" id="setModel" placeholder="点输入框展开候选，或手动输入模型名" autocomplete="off" style="flex:1">
+            <button type="button" id="btnFetchModels" style="white-space:nowrap">拉取模型列表</button>
+            <div id="modelMenu" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:40;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--sh-2);max-height:220px;overflow:auto;"></div>
+          </div>
+          <div class="note" id="modelNote">填上 Key 后可拉取候选名单，也可以直接输入模型名。</div>
         </div>
-        <div class="note" id="modelNote">填上 Key 后可拉取候选名单，也可以直接输入模型名。</div>
-      </div>
-      <div class="field">
-        <label>推理程度</label>
-        <div class="seg" id="segReason">
-          <button type="button" data-lv="quick">快速</button>
-          <button type="button" data-lv="standard">标准</button>
-          <button type="button" data-lv="deep">深入</button>
+      </section>
+      <section class="setgrp">
+        <div class="grpt">批改偏好</div>
+        <div class="field">
+          <label>推理程度</label>
+          <div class="seg" id="segReason">
+            <button type="button" data-lv="quick">快速</button>
+            <button type="button" data-lv="standard">标准</button>
+            <button type="button" data-lv="deep">深入</button>
+          </div>
+          <div class="note" id="reasonNote"></div>
         </div>
-        <div class="note" id="reasonNote"></div>
-      </div>
+      </section>
       <div class="actions">
         <button class="primary" id="btnSaveSet">保存</button>
-        <button id="btnTest">测试连接</button>
+        <button class="ghost" id="btnTest">测试连接</button>
         <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
-      <details class="more">
-        <summary>更多设置（纸面样式）</summary>
-        <div class="inner">
-          <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">只做界面装饰，不是真实公文；建议用明显虚构的名字。</div></div>
-          <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div></div>
+      <section class="setgrp">
+        <div class="grpt">纸面样式</div>
+        <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">只做界面装饰，不是真实公文；建议用明显虚构的名字。</div></div>
+        <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div></div>
+      </section>
+      <section class="setgrp">
+        <div class="grpt">数据与备份</div>
+        <div class="field">
+          <div class="actions" style="margin-top:0">
+            <button type="button" id="btnExport2">导出备份</button>
+            <button type="button" id="btnImport2">导入备份</button>
+          </div>
+          <div class="note long">练习记录、草稿、划线只存你这台机器上（我们的服务器不碰）；批改那一步会把题目、你的作答与归类提纲发给你上面填的服务商——它才能给分。备份里不含 Key，可放心转存。换电脑前先「导出备份」，新机器上「导入备份」接着练。</div>
         </div>
-      </details>
-      <div class="field">
-        <label>数据与备份</label>
-        <div class="actions" style="margin-top:0">
-          <button type="button" id="btnExport2">导出备份</button>
-          <button type="button" id="btnImport2">导入备份</button>
+        <div class="field">
+          <label>使用引导</label>
+          <button type="button" id="btnTutReset">重置使用引导</button>
+          <div class="note">清掉「已看过」的记录，下次进入会重新播放。</div>
         </div>
-        <div class="note">练习记录、草稿、划线只存你这台机器上（我们的服务器不碰）；批改那一步会把题目、你的作答与归类提纲发给你上面填的服务商——它才能给分。备份里不含 Key，可放心转存。换电脑前先「导出备份」，新机器上「导入备份」接着练。</div>
-      </div>
-      <div class="field">
-        <label>使用引导</label>
-        <button type="button" id="btnTutReset">重置使用引导</button>
-        <div class="note">清掉「已看过」的记录，下次进入会重新播放。</div>
-      </div>
-      <div class="field" id="updateField">
-        <label>版本与更新</label>
+      </section>
+      <section class="setgrp" id="updateField">
+        <div class="grpt">版本与更新</div>
         <div class="note" id="updateNote" aria-live="polite">正在读取更新状态…</div>
-        <div class="actions" style="margin-top:8px">
+        <div class="actions" style="margin-top:0">
           <button type="button" id="btnCheckUpdate" hidden>检查更新</button>
           <button type="button" id="btnPullUpdate" hidden>更新</button>
           <button type="button" id="btnInstallUpdate" hidden>重启并更新</button>
@@ -675,8 +720,8 @@ html,body{margin:0;padding:0;}
           <summary>更新日志</summary>
           <div class="inner" id="changelogBody"></div>
         </details>
-      </div>
-        <div id="buildNote" style="margin:18px 0 0;text-align:center;font-size:12px;color:var(--text-disabled)"></div>
+      </section>
+        <div id="buildNote" style="margin:16px 0 0;text-align:center;font-size:12px;color:var(--text-disabled)"></div>
       </div>
     </div>
   </div>
@@ -1932,6 +1977,9 @@ function networkFailHint(){
 
 function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
+  // 首页是居中 hero（人感 Demo ①）：公文红头（抬头 / 红线 / 文号）整块让位，其他屏照旧
+  const rh = document.querySelector(".redhead");
+  if(rh && typeof rh.style === "object" && rh.style) rh.style.display = (_view === "home")? "none" : "";
   const n = state.history.length + 1, y = new Date().getFullYear();
   // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字（申论轨写「申论」、快判轨写「快判」、综应轨写「综应A」）。
   // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
@@ -2073,12 +2121,9 @@ function showLoading(t, tail){
   paintFab();
 }
 
-/* 起始页的正文两种形态共用一套：home（没选任何科目）与 start（在一个科目里）。
-   红按钮是本科目 / 快判的主行动；下面两句大题各自点名科目——原来写「练一道大题（综应 / 申论）」，
-   实际去的是「上次练的科目」，标签含糊（「综应 / 申论」那种写法读不出到底去哪一科）。 */
-/* 起始页两种形态（2026-10-08 分开）：
-   · 首页（`_view === "home"`，没选科目）：红按钮是「开始快判」——打开软件第一眼就能练，快判最轻；
-     随后两句大题各自点名科目。
+/* 起始页两种形态（2026-10-08 分开，2026-10-12 首页改居中 hero）：
+   · 首页（`_view === "home"`，没选科目）：整屏居中 hero——大标题「今天练什么？」、主按钮「开始快判」、
+     两枚点名科目的 chips、一行必备声明；公文红头在首页整块让位（renderHeader 里收）。
    · 科目首页（综应A / 申论）：红按钮是**本科目的主行动**（走 `startSmart`）。快判不在这里抢红：
      它不是科目内容，是另一种练法，入口常驻顶栏最左那颗「快判」，在科目页里再放一遍就是同一条路开两个门。
    两处没填 Key 时红按钮一律换成「先填 API Key」：出题这条路当下走不通，红按钮就带他去真能走的那一步。 */
@@ -2087,24 +2132,30 @@ function startBoxHtml(rf){
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
   const flow = curSubject() === "sl"? ["学习卡","读材料找点","一稿","批改"] : ["学习卡","作答","批改"];
   const flowHtml = flow.map((step,i)=>`${i? `<span class="arrow" aria-hidden="true">→</span>`:""}<span>${step}</span>`).join("");
-  const bigs = SUBJECT_ORDER.map(id=>`<button data-big="${id}">练一道${esc(SUBJECTS[id].short)}大题</button>`).join("");
-  // 纸面上不再写标题（上面「开始今天的练习」、下面「开始综应练习」，同一个意思写两遍）：
-  // 抬头已经报了「你在哪」，纸面上再写一遍「开始…」就是同一句话写两次——主行动自己就是标题。
-  // data-start 是给断言看的：首页还是科目页，两形得能分开认。
-  // 首页的说明行在按钮上方：抬头之下纸面留白拉到按钮之间会空一截，一行小字先接住视线，主行动紧随其后。
-  // 模块入口也在纸面上（顶栏第二行已撤）：起始页给一排模块 chips，点了进模块落地页。
-  return `<div class="startbox" data-start="${home? "home":"subj"}">
-    ${home? `<p class="hint" style="text-align:center;margin:0">从材料里挑出对的说法，一轮 5 题，两三分钟。</p>` : ""}
-    <div class="actions" style="justify-content:center;margin:${home? "12px":"0"} 0 0">${home
-      ? (state.settings.apiKey
-          ? `<button class="primary big" id="btnQuick">开始快判</button>`
-          : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`)
-      : (state.settings.apiKey
-          ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
-          : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`)}</div>
-    ${home? `<div class="actions" style="justify-content:center;margin-top:22px">${bigs}</div>` : `<div class="start-flow"><span class="start-flow-label">练习流程</span><span class="start-flow-steps">${flowHtml}</span></div>
-    <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>`}
-    ${rf? `<div class="actions" style="justify-content:center;margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
+  const bigs = SUBJECT_ORDER.map(id=>`<button class="chip" data-big="${id}">${id==="zy"? esc(SUBJECTS[id].name)+" 练一轮" : "写一篇"+esc(SUBJECTS[id].name)}</button>`).join("");
+  // 首页 = Demo ① 的居中 hero：大标题一句、副题一句、一颗主按钮、两枚点名科目的 chips、一行必备声明。
+  // 大题点名科目的规则不破：data-big 仍由 startSubjectTask 消费，chips 文案改成与动作一致的短句。
+  // 没 Key 时主行动换「先填 API Key」，chips 照摆（点了被 entryBlocked 拦在原地）；foot 是必备声明口径，不随 Key 有无变。
+  if(home){
+    return `<div class="startbox start-entry start-home" data-start="home">
+    <div class="hero-big">今天练什么？</div>
+    <div class="hero-sub">按你最近的练习情况出题，写完就有分</div>
+    ${state.settings.apiKey
+      ? `<button class="primary big" id="btnQuick">开始快判</button>`
+      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}
+    <div class="chiprow">${bigs}</div>
+    ${rf? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
+    <div class="hero-foot">填好 API Key 就能开始 · 没有账号，数据都在本地</div>
+  </div>`;
+  }
+  // 科目页：说明（练习流程）→ 主按钮（本科目主行动，快判不在这里抢红）→ 模块切换 chips（紧跟主按钮下方，不再吊在页面底部）
+  return `<div class="startbox start-entry" data-start="subj">
+    <div class="start-flow"><span class="start-flow-label">练习流程</span><span class="start-flow-steps">${flowHtml}</span></div>
+    <div class="actions">${state.settings.apiKey
+      ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
+      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
+    <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>
+    ${rf? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
   </div>`;
 }
 function wireStartBox(){
@@ -2374,7 +2425,7 @@ function renderModuleLanding(k){
   const subs = subtypeListOf(k);
   const noteRedundant = subs.length > 0 && m.note.split(/[\/、·]/).map(s=>s.trim()).filter(Boolean)
     .every(t=> subs.some(s=> s.indexOf(t) >= 0));
-  let html = `<div class="startbox">
+  let html = `<div class="startbox start-entry">
     ${noteRedundant? "" : `<p>${esc(m.note)}</p>`}
     <p class="hint">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过，点下面的文种可以直接开始。"}</p>
     <div class="subtypechips">
@@ -2383,7 +2434,7 @@ function renderModuleLanding(k){
       return `<button class="chip" data-t="${t}">${t}${st? ` <small>${Math.round(st.avg)}分·${st.n}次</small>`:""}</button>`;
     }).join("")}
     </div>
-    <div class="actions" style="justify-content:center;margin-top:26px"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
+    <div class="actions"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k2=>`<button class="chip${k2===k?" on":""}" data-mod="${k2}">${esc(MODULES[k2].name)}</button>`).join("")}</div></div>
   </div>`;
   docBody.innerHTML = html;
@@ -2807,13 +2858,14 @@ function renderPDLanding(){
   // 首轮用法由这条一次性页内说明讲（SPEC 4.2，state.pdIntroSeen）：说明在时常驻一行让位（同一个意思不写两遍），
   // 「知道了」或练过一轮后说明收起、常驻一行回来——纸面第一行始终有「这是什么」。
   const intro = !state.pdIntroSeen;
-  let html = `<div class="startbox">
+  // 节奏与模块落地页同一档：说明 → 三种形式 chips（形式选择）→ 主按钮（综合轮）→ 自选主题折叠区
+  let html = `<div class="startbox start-entry">
     <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
-    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">从材料里做判断，一轮 5 题，点选即判。</p>
-    <div class="actions" style="justify-content:center;margin:16px 0 0">${state.settings.apiKey
+    <p id="pdWhat" style="margin:0 0 24px;${intro? "display:none":""}">从材料里做判断，一轮 5 题，点选即判。</p>
+    <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>`<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}</button>`).join("")}</div></div>
+    <div class="actions">${state.settings.apiKey
       ? `<button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button>`
       : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
-    <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>`<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}</button>`).join("")}</div></div>
     <details class="pdthemes">
       <summary>自选主题（可选，留空随机）</summary>
       <div class="pdthemebody">
@@ -4085,7 +4137,7 @@ function profGo(kind, key){ profPage = { kind, key: key || "" }; renderProfile()
 function profBack(){ profPage = null; renderProfile(); }
 function renderProfile(){
   if(profPage){ $("#profileBody").innerHTML = profilePageHtml(profPage); wireProfileNav(); return; }
-  let html = `<details class="notebox" style="margin:0 0 14px"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；维度分只用来诊断弱在哪，不参与均分。</div></details>`;
+  let html = `<details class="notebox" style="margin:0"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；维度分只用来诊断弱在哪，不参与均分。</div></details>`;
   for(const sid of SUBJECT_ORDER){
     const subj = SUBJECTS[sid];
     html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div><div class="mrowbox">`;
