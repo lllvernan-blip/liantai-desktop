@@ -186,15 +186,16 @@ renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送�
                      {point:"落款单位与日期",score:2,awarded:1,status:"半分",evidence:"答到：「遵照执行」只写了要求，【缺：成文日期】"} ],
               comment:"继续加油", modelAnswer:"关于调整作息的通知。各科室请遵照执行。" },
             60, null, null, "关于调整作息的通知。各科室请注意作息调整，请遵照执行。特此通知。");
-ok(el("#docBody").innerHTML.indexOf("我的答案") >= 0, "批改页: 主体是逐句批注的「我的答案」");
+ok(el("#docBody").innerHTML.indexOf("丢分清单") >= 0 && el("#docBody").innerHTML.indexOf("<summary>我的答案") >= 0,
+   "批改页: 首屏结论是丢分清单，逐句批注收进可展开区（2026-10-13 瘦身）");
 ok(el("#docBody").innerHTML.indexOf("asent miss") >= 0, "批改页: 没对上采分点的句子标红");
 ok(el("#docBody").innerHTML.indexOf("（+4）") >= 0, "批改页: 得分句在句末括号里标分");
 ok(el("#docBody").innerHTML.indexOf("（+0）") < 0 && el("#docBody").innerHTML.indexOf("asc part") >= 0,
    "批改页: 没得分的不标 +0（红本身就是结论）；没拿满的那句分数转焦橙");
 ok(el("#docBody").innerHTML.indexOf("漏掉的采分点") < 0 && el("#docBody").innerHTML.indexOf("missline") < 0,
-   "批改页: 漏答清单已下线（漏了哪几点交给范文与点评，标红只说自己的卷面）");
+   "批改页: 旧版「漏答清单」的措辞没有回来（那时的清单不带分值也不带错因）");
 ok(el("#docBody").innerHTML.indexOf("全部采分点对照") < 0 && el("#docBody").innerHTML.indexOf("先改这几条") < 0,
-   "批改页: 丢分清单与全量对照表都已下线");
+   "批改页: 旧版「全量对照表 / 先改这几条」的措辞没有回来");
 /* 提炼（原「沉淀」步）结果就地补进批改页：它是异步跑的，跑完才填这一行 */
 ok(el("#docBody").innerHTML.indexOf('id="expLine"') >= 0, "批改页: 留出「这次提炼了 N 条经验」的位置");
 _lastDistilled = [{ type:"错因", title:"把反映当做法", body:"材料里的第三方反映不是做法。" }];
@@ -210,7 +211,7 @@ ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:0,status:"零分",evide
    "逐句标注: 光一行序号、一分没得，照样标红（它这条本来就是作答）");
 ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:4,status:"满分",evidence:"答到：「正文内容」"}] }, "一、开头小标题。\n正文内容到这里。").indexOf("asent miss") < 0,
    "逐句标注: 小标题自己占一行也照样跟正文算一条（分落在下一行上，不是它的错）");
-ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0, "批改页: 范文摆上台面（不再折叠）");
+ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0, "批改页: 范文仍在页面上（现在收在可展开区里）");
 ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
 
 /* 4.5 采分点分值口径（满分/半分/零分三档 + 标注符号） */
@@ -258,8 +259,10 @@ ok(markedRuns(qMk).length === 2 && markedRuns(qMk)[0] === "BC" && markedRuns(qMk
 ok(marksRecapHtml(qMk).indexOf("我划的重点（2 处）") >= 0 && marksRecapHtml(qMk).indexOf("BC") >= 0, "划线随写随看: 列表渲染出划过的句子");
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", modelAnswer:"第一，迅速核实情况。第二，按预案上报。", hits:[] }, 50);
 ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody").innerHTML.indexOf("按预案上报") >= 0,
-   "阅卷页: 完整范文直接摆出来");
-ok(el("#docBody").innerHTML.indexOf("参考答案（范文") < 0, "阅卷页: 范文不再折成「参考答案（范文，仅供对照）」那一栏");
+   "阅卷页: 完整范文仍在页面上");
+ok(el("#docBody").innerHTML.indexOf("<summary>参考答案（范文）</summary>") >= 0
+   && el("#docBody").innerHTML.indexOf("<details class=\"notebox\" open") < 0,
+   "阅卷页: 范文收进可展开区且默认折叠（首屏不再是两篇文章）");
 
 /* 5. 失败路径 */
 el("#docBody").innerHTML = "正在作答的题";
@@ -2507,6 +2510,42 @@ ok(q21 && q21.question && q21.question.theme === "基层治理",
    只改一条分支的话，另一条路上的题永远没有主题标签（单跑一条 gen 看不出来，所以查页面原文） */
 ok((PAGE_HTML.match(/,"theme":"材料主题/g) || []).length === 2,
    "字段地基: 出题 schema 两条分支都带 theme（漏一条分支 = 那条路上的题没标签）");
+
+/* ============ 22. 批改页瘦身：丢分清单上台 / 证据折起 / 点评一句话 ============ */
+current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 } };
+renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:[], comment:"先写主送机关再写正文。",
+  modelAnswer:"第一段内容。\n第二段内容。",
+  hits:[ {point:"标题含事由",score:4,awarded:4,status:"满分",kind:"-",evidence:"答到：「关于调整作息的通知」"},
+         {point:"写明主送机关",score:4,awarded:0,status:"零分",kind:"漏点",evidence:"【缺：写明主送机关】"},
+         {point:"落款单位与日期",score:2,awarded:1,status:"半分",kind:"格式",evidence:"答到：「遵照执行」，【缺：成文日期】"} ] },
+  78, null, null, "关于调整作息的通知。各科室请遵照执行。");
+const H22 = el("#docBody").innerHTML;
+ok(H22.indexOf("丢分清单") >= 0 && H22.indexOf("−4 分") >= 0 && H22.indexOf("−1 分") >= 0,
+   "批改页瘦身: 丢分清单列出没拿满的子项与丢分");
+ok(H22.indexOf('class="lname">标题含事由') < 0, "批改页瘦身: 满分子项不进丢分清单（清单只说该改什么）");
+ok(H22.indexOf('class="lkind">漏点') >= 0 && H22.indexOf('class="lkind">格式') >= 0,
+   "批改页瘦身: 每行带阅卷给的错因标签");
+ok(H22.indexOf("缺 写明主送机关") >= 0, "批改页瘦身: 零分子项说清「缺什么」（取 evidence 里那句【缺：】）");
+ok(H22.indexOf("答到了「遵照执行」，还差 成文日期") >= 0,
+   "批改页瘦身: 半分子项两头都说（答到了什么、还差什么）");
+ok(loseDetail({ awarded:0, evidence:"提到的只是「加强宣传」，没落到实处" }) === "只提到「加强宣传」",
+   "丢分清单: 零分但答了腔（没【缺：】标注）时说清是「提了没答到」");
+ok(loseListHtml([{ point:"无分值的老记录" }]) === "", "丢分清单: 无分值的老记录不入清单（没有可算的丢分）");
+ok(H22.indexOf("丢分清单") < H22.indexOf("<summary>我的答案"),
+   "批改页瘦身: 丢分清单在逐句批注之前（结论先于证据）");
+ok(H22.indexOf("<summary>我的答案（逐句标注）") >= 0 && H22.indexOf("<summary>参考答案（范文）") >= 0
+   && H22.indexOf('<details class="notebox" open>') < 0,
+   "批改页瘦身: 逐句批注与范文都收进可展开区（默认折叠）");
+ok(PAGE_HTML.indexOf("line-height:1.85;white-space:pre-wrap;") >= 0,
+   "批改页瘦身: 折叠体带 pre-wrap，范文的段落看得见（以前平铺在 .modelanswer 上会被折成一大块）");
+ok(H22.indexOf("先写主送机关再写正文。") >= 0, "批改页瘦身: 一句话点评照常渲染");
+ok(PAGE_HTML.indexOf("一句话（40 字内）：这次最该改的一件事") >= 0,
+   "阅卷 prompt: 点评收成一句话（不再复述没答到的采分点）");
+/* 全满分：不列空清单，只报一句——不然一块空白看着像坏了 */
+renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x",
+  hits:[{point:"a",score:5,awarded:5,status:"满分",evidence:"答到：「a」"}] }, 50);
+ok(el("#docBody").innerHTML.indexOf("采分点全部拿到") >= 0 && el("#docBody").innerHTML.indexOf("loseline") < 0,
+   "批改页瘦身: 采分点全拿到时不列空清单，只报一句");
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
