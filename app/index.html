@@ -124,8 +124,10 @@ html,body{margin:0;padding:0;}
 .start-entry .pdforms .chip[data-mod]{padding:5px 14px;font-size:13px;color:var(--ink-soft);border-color:var(--line);background:transparent;}
 .start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--ink-faint);background:transparent;}
 .start-entry .pdforms .chip[data-mod].on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
-.start-entry .pdforms:has([data-mod]){margin-top:40px;}   /* 模块切换行与主按钮拉开一档（快判形式选择仍案 24px） */
-.pdthemes{margin:24px auto 0;border-top:1px solid var(--line);width:100%;max-width:680px;text-align:left;}
+.start-entry .pdforms:has([data-mod]){margin-top:24px;}   /* 模块切换行锁在次级行锚位 225：主按钮 144+57+24（四页骨架对齐，见 .startbox[data-start=subj]） */
+.start-entry .pdforms:has([data-pdform]){margin-top:71px;}  /* 快判页无红按钮，形式 chips 即主行动：说明行 48+25+71 锁在主行动锚位 144 */
+.startbox[data-start="subj"] .actions{margin-top:72px;}   /* 科目页主行动锁在锚位 144：说明行 48+24+72；首页 hero 的标题+副题也是 96px 量，翻页时红按钮不跳 */
+.pdthemes{margin:42px auto 0;border-top:1px solid var(--line);width:100%;max-width:680px;text-align:left;}   /* 快判页无红按钮，chips 即主行动（144 锚位）：144+39+42 落在次级行锚位 225 */
 .pdthemes>summary{display:flex;align-items:center;min-height:36px;padding:7px 2px;cursor:pointer;list-style:none;font-size:13px;color:var(--muted);}
 .pdthemes>summary::-webkit-details-marker{display:none;}
 .pdthemes>summary::after{content:"▸";margin-left:auto;font-size:12px;color:var(--line-strong);}
@@ -164,7 +166,7 @@ html,body{margin:0;padding:0;}
   .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
   /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
   .startbox.start-entry{padding:48px 36px 56px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
-  .startbox.start-home{padding:40px 36px 48px;}    /* 首页 hero：红头在上方，hero 接着往下走，不重复拉开一屏 */
+    .startbox.start-home{padding:48px 36px 48px;}    /* 首页 hero：红头在上方，hero 接着往下走；大标题首行、主按钮 144、次级行 225 与其他起始页共用同一套锚位 */    /* 首页 hero：红头在上方，hero 接着往下走；42 让大标题首行落在 48 锚位（26px 字的行盒上沿占 6px） */
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--ink-soft);font-size:14px;line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
@@ -173,7 +175,7 @@ html,body{margin:0;padding:0;}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
   .startbox .actions{justify-content:center;margin-top:24px;}
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
-  .startbox .hero-big{font-size:26px;font-weight:600;letter-spacing:.5px;margin:0 0 6px;}
+  .startbox .hero-big{font-size:26px;font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
   .startbox .hero-sub{font-size:14px;color:var(--ink-soft);line-height:1.7;margin:0 0 24px;}
   .startbox .hero-foot{font-size:12.5px;color:var(--ink-faint);margin:24px 0 0;}
   .start-flow{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:8px;margin:0;font-size:14px;}
