@@ -651,10 +651,10 @@ ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
    && el("#docBody").innerHTML.indexOf('data-big="zy">综应A 练一轮') >= 0
    && el("#docBody").innerHTML.indexOf('data-big="sl">写一篇申论') >= 0,
    "首页: 居中 hero——大标题下主行动是快判，两枚 chips 各自点名科目");
-/* 红头跟着屏走：首页让位给 hero，进科目页就回来 */
-ok(el(".redhead").style.display === "none", "首页: 公文红头不渲染（抬头 / 红线 / 文号整块让位）");
+/* 红头常显：首页也是一张公文纸（红头在卷首，hero 接在下方），进科目页照旧 */
+ok(el(".redhead").style.display === "", "首页: 公文红头常显（抬头 / 红线 / 文号回到卷首）");
 renderTabs(); renderStart();
-ok(el(".redhead").style.display === "", "科目页: 公文红头照旧（卷面身份只在首页让位）");
+ok(el(".redhead").style.display === "", "科目页: 公文红头照旧（卷面身份各屏一致）");
 renderHome();
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
@@ -1324,8 +1324,8 @@ const startUp = el("#docBody").innerHTML;
 ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
    && startUp.indexOf("开始快判") < 0 && startUp.indexOf("btnSample") < 0,
    "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快判」");
-ok(el(".redhead").style.display === "none",
-   "首页: 公文红头（抬头 / 红线 / 文号）整块让位给居中 hero");
+ok(el(".redhead").style.display === "" && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0,
+   "首页: 公文红头回到卷首，hero（今天练什么？）接在下方——两张皮合成一张纸");
 el("#btnSetup").onclick();
 ok(el("#modalSettings").hidden === false,
    "首页（没填 Key）: 那颗按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
@@ -1556,8 +1556,8 @@ ok(PAGE_HTML.indexOf('border-radius:var(--r-card)') >= 0,
    "质感: 弹层卡片走统一大圆角 token（SPEC 3.2）");
 ok(PAGE_HTML.indexOf('--r-flat:0; --r-ctl:8px; --r-pill:999px;') >= 0,
    "圆润化: 控件圆角档走 8px（人感 Demo --r-ctl），魔数不落进控件规则");
-ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-card)') >= 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('box-shadow:var(--sh-paper)') >= 0; })(),
-   "圆润化: 纸面 .doc 带 16px 圆角 + clip 裁角（sticky 步骤条不受影响）+ Demo 档柔影");
+ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border-radius:6px') >= 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('min-height:calc(100vh - 97px)') >= 0 && m[0].indexOf('rgba(60,50,40,.06)') >= 0; })(),
+   "纸面纪律: .doc 是公文纸不是网页卡片——6px 小圆角 + 放平的阴影 + 撑满视口（clip 保 sticky 步骤条）");
 ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
    "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
 ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:10px') >= 0; })()
@@ -2328,7 +2328,7 @@ state.history = _histKeep;
 
 /* 19.10 顶栏与纸面间距：纸面与真实顶栏始终间隔 24px（第二行已撤，不用任何空白补位）。 */
 ok(renderTabs.toString().indexOf("gap-modbar") < 0 && PAGE_HTML.indexOf(".wrap.gap-modbar") < 0
-   && /\.wrap\{[^}]*margin:24px auto 56px/.test(PAGE_HTML),
+   && /\.wrap\{[^}]*margin:24px auto 24px/.test(PAGE_HTML),
    "顶栏: 不用额外空白补题型入口行高度，纸面统一距真实顶栏 24px");
 ok(PAGE_HTML.indexOf("--h-modbar") < 0, "顶栏: 题型行高度变量已随第二行撤掉");
 /* 首页文号跟着抬头走：首页不属于任何科目，落款不能挂某个科目的前缀 */

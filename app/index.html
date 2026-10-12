@@ -146,9 +146,11 @@ html,body{margin:0;padding:0;}
   .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px;}
 
-  .wrap{max-width:760px;margin:24px auto 56px;padding:0 14px;}
+  .wrap{max-width:760px;margin:24px auto 24px;padding:0 14px;}
   /* overflow 用 clip 不用 hidden：railwrap 的步骤条是 sticky，hidden 会把它变成不滚动的容器、粘性失效；clip 只裁不接管滚动 */
-  .doc{background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);border-radius:var(--r-card);overflow:clip;padding:40px 54px 56px;}
+  /* 纸面是公文纸不是网页卡片：圆角收小、阴影放平（悬浮感是卡片语言，不是纸的语言），
+     高度撑满视口（下方不悬空，纸像真铺在桌上）——2026-10-12 阿楠拍板「公文模板样子给搞没了/周边空很多」 */
+  .doc{background:var(--paper);border:1px solid var(--line);box-shadow:0 1px 3px rgba(60,50,40,.06), 0 10px 26px rgba(60,50,40,.06);border-radius:6px;overflow:clip;padding:40px 54px 56px;min-height:calc(100vh - 97px);}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 10px;}
   .redline{display:flex;align-items:center;}
@@ -162,7 +164,7 @@ html,body{margin:0;padding:0;}
   .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
   /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
   .startbox.start-entry{padding:48px 36px 56px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
-  .startbox.start-home{padding:64px 36px 48px;}    /* 首页 hero（Demo ①）：整屏居中，上下留白拉满 */
+  .startbox.start-home{padding:40px 36px 48px;}    /* 首页 hero：红头在上方，hero 接着往下走，不重复拉开一屏 */
   .startbox h2{font-family:var(--hei);font-size:19px;margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--ink-soft);font-size:14px;line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
@@ -1982,9 +1984,9 @@ function networkFailHint(){
 
 function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
-  // 首页是居中 hero（人感 Demo ①）：公文红头（抬头 / 红线 / 文号）整块让位，其他屏照旧
+  // 红头常显：首页也是一张公文纸（红头 + hero 落在卷首下方）——曾经让位过，阿楠看后要求把公文模板的样子还回来（2026-10-12）
   const rh = document.querySelector(".redhead");
-  if(rh && typeof rh.style === "object" && rh.style) rh.style.display = (_view === "home")? "none" : "";
+  if(rh && typeof rh.style === "object" && rh.style) rh.style.display = "";
   const n = state.history.length + 1, y = new Date().getFullYear();
   // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字（申论轨写「申论」、快判轨写「快判」、综应轨写「综应A」）。
   // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
