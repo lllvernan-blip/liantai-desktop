@@ -14,18 +14,23 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, linkSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { releaseNotes } from "./release-notes.mjs";
 import { runReleaseGates } from "./gate.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
+/* 仓库位置只有一处真源（app-meta.js）：发布脚本、更新链、壳读的是同一份，
+   不会出现「传到 A、客户端去 B 找」。package.json 的 build.publish 是给 electron-builder 的同一份信息，
+   两边是否对得上由 tests/shell.mjs 盯着。 */
+const APP = createRequire(import.meta.url)(join(here, "..", "app-meta.js"));
+const REPO = APP.slug;
 const root = join(here, "..");
 /* 直接调 electron-builder 的 JS 入口，不调 npx/npm：
    Windows 上 Node 18.20+/20.12+ 已经禁止 spawn 一个 .cmd/.bat 而不带 shell（CVE-2024-27980），
    而带 shell 又要跟引号搏斗——走 js 入口最干净。 */
 const BUILDER_CLI = join(root, "node_modules", "electron-builder", "cli.js");
-const REPO = "lllvernan-blip/liantai-desktop";
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const tag = "v" + pkg.version;
 // --reconcile-only：只把 Release 上缺的资产补齐，不出包
@@ -111,7 +116,7 @@ if (missing.length) {
 }
 
 step("发布完成");
-console.log(tag + "  ->  https://github.com/lllvernan-blip/liantai-desktop/releases/tag/" + tag);
+console.log(tag + "  ->  " + APP.releasesUrl + "/tag/" + tag);
 console.log("装的用户下次启动就会在后台收到它（差量更新，只下载变化的部分）。");
 console.log("这一版还有 mac 那一半（在 mac 上 npm run release:mac）；两边都传完用 npm run release:check 看整个 Release 齐不齐。");
 

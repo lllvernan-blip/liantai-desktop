@@ -45,7 +45,8 @@ const UPDATE_FEED_ENV = 'LIANTAI_UPDATE_FEED';
 /* mac 那条链（update.js 里的 initMacUpdater）查的是 GitHub Releases API。同一个思路：
    不改包也能换一个「谁说有新版」的地方——验收要拿假源把查→下→换→重启走一轮。 */
 const RELEASE_API_ENV = 'LIANTAI_RELEASE_API';
-const RELEASES_URL = 'https://github.com/lllvernan-blip/liantai-desktop/releases';
+const APP = require('./app-meta.js');
+const RELEASES_URL = APP.releasesUrl;
 
 let mainWindow = null;
 let server = null;

@@ -15,12 +15,13 @@
  * 只推快进：远端分支必须是本地历史的祖先，否则停手让你先合并/变基。
  */
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const REPO = "lllvernan-blip/liantai-desktop";
-const BRANCH = "main";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO = createRequire(import.meta.url)(join(root, "app-meta.js")).slug;
+const BRANCH = "main";
 
 function git(args) {
   const r = spawnSync("git", args, { cwd: root, maxBuffer: 512 * 1024 * 1024 });

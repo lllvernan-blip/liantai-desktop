@@ -1074,6 +1074,13 @@ function ensureActive(){
 }
 activeModule = lastModuleOf(curSubject());
 
+/* 引导游标与划线颜色的取值口径：load（本机存储）与 import（备份文件）两条入口共用，
+   免得一个收一个不收——两处不一致时，表现为「同样的数据刷新后一个样、导入后另一个样」。 */
+function normTut(t){
+  return { seq: (t && typeof t.seq === "number" && t.seq >= 0)? Math.floor(t.seq) : 0, done: !!(t && t.done) };
+}
+function normMarkColor(c){ return MARK_COLORS.indexOf(c) >= 0? c : DEFAULT_STATE.settings.markColor; }
+
 function load(){
   try{
     const raw = localStorage.getItem("gw_state");
@@ -1094,6 +1101,7 @@ function load(){
     if(!s.settings.reasonLevel){ const t=Number(s.settings.temperature); s.settings.reasonLevel = (t<=0.35?"quick":(t<=0.95?"standard":"deep")); }
     if(["quick","standard","deep"].indexOf(s.settings.reasonLevel)<0) s.settings.reasonLevel="standard";
     if(s.settings.orgName === LEGACY_ORG) s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
+    s.settings.markColor = normMarkColor(s.settings.markColor);   // 只认自己那几个色，别的值会让 --mark 变成一句废 CSS
     if(!SUBJECTS[s.settings.subject]) s.settings.subject = DEFAULT_SUBJECT;       // 旧数据没有科目这一层，补默认
     s.profile = (s.profile && typeof s.profile === "object" && !Array.isArray(s.profile))? s.profile : {};
     // profile.modules 是旧数据 pass-through 容器：只补科目前缀，不再重建/补默认聚合字段（画像由 history 即时推导）
@@ -1107,7 +1115,7 @@ function load(){
     if(lm.join("|") !== s.profile.lastModules.join("|")){ s.profile.lastModules = lm; migrated = true; }
     if(s.tutVersion !== DEFAULT_STATE.tutVersion){ s.tut = migrateTut(s.tut); s.tutVersion = DEFAULT_STATE.tutVersion; migrated = true; }
     else if(!s.tut || typeof s.tut !== "object"){ s.tut = { seq:0, done:false }; migrated = true; }
-    else { s.tut.seq = (typeof s.tut.seq === "number" && s.tut.seq >= 0)? Math.floor(s.tut.seq) : 0; s.tut.done = !!s.tut.done; }
+    else s.tut = normTut(s.tut);
     // 迁移：练习记录从 gw_state 拆到 gw_history；写成功才清掉旧副本，失败则下轮再试
     let hist = loadHistory();
     if(Array.isArray(s.history) && s.history.length){
@@ -3353,8 +3361,10 @@ function renderChainCard(f){
   $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
   wireCardPage("btnChainStart", ()=>{ f.cardSeen = true; save(); renderFlowStep(); });
 }
-/* 哪几步带学习卡浮标：读材料时看卡不计次，一稿阶段翻卡计次（计次只属作答阶段）。 */
-const FAB_BY_STEP = { read:{ act:"看学习卡", count:false }, draft:{ act:"翻学习卡", count:true }, revise:{ act:"翻学习卡", count:true } };
+/* 哪几步带学习卡浮标：读材料时看卡不计次，一稿阶段翻卡计次（计次只属作答阶段）。
+   表里只列真能取到的 step（FLOW_STEPS = read/draft/review）：曾经写过的 revise（回改稿）已下线，
+   链在 load/import 时就被 sanitizeFlows 降级成 draft，不会走到这里。 */
+const FAB_BY_STEP = { read:{ act:"看学习卡", count:false }, draft:{ act:"翻学习卡", count:true } };
 function renderFlowStep(){
   if(!current || !current.question){ renderStart(); return; }
   const f = activeFlow();
@@ -4473,7 +4483,11 @@ function importJSON(file){
       const hadKey = !!(st && st.apiKey);
       state.settings.apiKey = keepKey;   // Key 只认本机填的：文件里的不采用，也不因文件没带而被清空
       if(state.settings.orgName === LEGACY_ORG) state.settings.orgName = "模拟练习专用";
+      state.settings.markColor = normMarkColor(state.settings.markColor);   // 备份里的取值同样过这一道
       if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
+      /* 引导序列的进度：备份带的是同一代结构（tutVersion 相同）就接着用。
+         不恢复的话，导入一份自己已经走完过的备份会从头再教一遍（结构不同代的不能硬搬，宁可重放）。 */
+      if(Number(s.tutVersion) === DEFAULT_STATE.tutVersion && plainObj(s.tut)) state.tut = normTut(s.tut);
       // profile：modules 是旧数据 pass-through 容器（只迁移键，死字段不再重建）；lastModules 必须是数组
       const pf = plainObj(s.profile);
       if(pf){
@@ -4519,7 +4533,7 @@ function importJSON(file){
       const openFlows = state.flows.filter(x=>!x.closedAt);
       if(openFlows.length) _flowId = openFlows[openFlows.length-1].id;
       current = null;   // 导入后内存里的旧题不再可信，回到起点
-      saveHistory(); save(); fillSettings(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
+      saveHistory(); save(); fillSettings(); applyMarkColor(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
       banner(hadKey? "已从备份恢复数据 ✓ 文件里的 API Key 未被采用（防他人备份覆盖你的 Key），本地已填的 Key 保持不变。" : "已从备份恢复数据 ✓");
     }catch(e){ banner("导入失败：文件不是有效的备份 JSON。", "error"); }
   };

@@ -2453,6 +2453,25 @@ globalThis.setTimeout = realST20; globalThis.fetch = realFetch20;
 ok(bodyRead20 && toCode20 === "TIMEOUT",
    "超时: 计时器盖住读完 body 那一段（body 停住也中止，不会永远挂着）");
 
+/* 20.6 导入：引导游标与划线颜色都要跟着备份走（以前导入只重建了 state 的默认部分，这两样都丢掉） */
+state.tut = { seq: 4, done: true };
+importJSON(JSON.stringify({ settings:{ markColor:"#bfdbfe" }, tutVersion: DEFAULT_STATE.tutVersion,
+                            tut:{ seq:2, done:false }, history:[] }));
+ok(state.tut.seq === 2 && state.tut.done === false,
+   "导入: 备份里的引导进度跟着恢复（导入一份自己走完过的备份，不该从头再教一遍）");
+ok(state.settings.markColor === "#bfdbfe" && document.documentElement.style["--mark"] === "#bfdbfe",
+   "导入: 划线颜色按备份恢复，并当场刷新 CSS 变量（不然划过线的题看着像没生效）");
+
+/* 导入的那一刻不能因为一个颜色就惊动用户：形状不对的取值一律回落，不写进 state */
+importJSON(JSON.stringify({ settings:{ markColor:"red; background:url(x)" }, history:[] }));
+ok(state.settings.markColor === DEFAULT_STATE.settings.markColor,
+   "导入: 不是自己那几个颜色 -> 回落到默认（废值会让 --mark 变成一句空 CSS）");
+
+/* 旧代结构（tutVersion 不同）不能硬搬游标：宁可重放一遍，也不能把一个对不上的游标当成进度 */
+importJSON(JSON.stringify({ settings:{}, tutVersion: 2, tut:{ seq:5, done:true }, history:[] }));
+ok(state.tut.seq === 0 && state.tut.done === false,
+   "导入: tutVersion 不是当前这一代 -> 不采用那份游标（结构不同，重放比错位好）");
+
 /* 20.5 草稿落盘失败要出声：手写的东西静默消失，是最不该不出声的一类失败（save() 会出声，草稿和划线反而不会） */
 const realSetItem20 = localStorage.setItem;
 localStorage.setItem = ()=>{ throw new Error("QuotaExceededError"); };
