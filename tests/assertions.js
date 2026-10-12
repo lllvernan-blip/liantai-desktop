@@ -235,22 +235,24 @@ ok(hitClass({status:"命中"}) === "hit" && hitClass({status:"部分命中"}) ==
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[ {point:"标题含事由",score:5,awarded:5,status:"满分",evidence:"写了标题"},
                    {point:"落款单位与日期",score:5,awarded:0,status:"零分",evidence:"【缺：落款】"} ] }, 50);
 ok(el("#docBody").innerHTML.indexOf("折合 50 分") >= 0, "阅卷页: 总分按采分点口径显示 (5 / 10 分)");
-ok(el("#docBody").innerHTML.indexOf("采分点 2 项") >= 0 && el("#docBody").innerHTML.indexOf("丢 5 分") >= 0,
-   "阅卷页: 右上角只报采分点项数与丢分");
-ok(el("#docBody").innerHTML.indexOf("不参与总分") >= 0, "阅卷页: 声明维度分不参与总分");
+ok(el("#docBody").innerHTML.indexOf("丢 5 分") >= 0 && el("#docBody").innerHTML.indexOf("采分点 2 项") < 0,
+   "阅卷页: 右上角只报丢了多少分（采分点项数是内部概念）");
+ok(el("#docBody").innerHTML.indexOf("维度分") < 0,
+   "阅卷页: 维度分不在批改页（画像的模块页里有一份完整的）");
 current.question.score = 20;   // 子项合计 15 ≠ 题目满分 20，必须明示而不是静默
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[{point:"只列了一个子项",score:5,awarded:5,status:"满分"}] }, 33);
 ok(el("#docBody").innerHTML.indexOf("与本题满分 20 分不一致") >= 0, "阅卷页: 子项合计与题目满分不一致时明示");
 
-/* 3.x 批改页流式渐显：点评按句切成 .ai-line（内容一开始就在 DOM 里），重放入口与 reduced-motion 守卫在位 */
-ok(el("#docBody").innerHTML.indexOf('class="ai-line"') >= 0,
-   "批改页: 点评按句渲染成 ai-line（全文在 DOM，只是视觉渐显）");
-ok(PAGE_HTML.indexOf(".ai-line{") >= 0 && PAGE_HTML.indexOf("@keyframes stream") >= 0
-   && PAGE_HTML.indexOf("重放批改过程") >= 0 && PAGE_HTML.indexOf("btnReplayGrade") >= 0
-   && PAGE_HTML.indexOf("startGradeStream") >= 0,
-   "批改页: 流式渐显的类、节奏与「重放批改过程」入口都在");
-ok(/@media \(prefers-reduced-motion:reduce\)\{[\s\S]*?\.ai-line\{animation:none !important;opacity:1;transform:none;\}/.test(PAGE_HTML),
-   "批改页: reduced-motion 下流式渐显直接置位（不依赖计时器）");
+/* 3.x 交互减法（2026-10-13）：批改页的流式渐显与「重放批改过程」整块下线——
+   点评只剩一句话，重放一遍等于让人看一行字再淡入一次 */
+ok(el("#docBody").innerHTML.indexOf("阅卷点评：") >= 0,
+   "批改页: 点评直接渲染（不再逐句渐显）");
+ok(PAGE_HTML.indexOf(".ai-line") < 0 && PAGE_HTML.indexOf("@keyframes stream") < 0
+   && PAGE_HTML.indexOf("startGradeStream") < 0 && PAGE_HTML.indexOf("wireGradeStream") < 0
+   && PAGE_HTML.indexOf("重放批改过程") < 0 && PAGE_HTML.indexOf("btnReplayGrade") < 0,
+   "批改页: 渐显与重放整块下线（含 CSS 与计时器，不留死代码）");
+ok(PAGE_HTML.indexOf("答得好的地方") < 0,
+   "批改页: 「答得好的地方」那一行也下线（夸奖不改变下一步做什么）");
 
 /* 4.9 划线随写随看 + 完整参考答案（2026-09-18 三改进；题目笔记已下线） */
 const qMk = { background:"ABCDEFG", requirements:"R" };
