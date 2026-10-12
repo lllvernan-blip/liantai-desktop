@@ -149,7 +149,7 @@ html,body{margin:0;padding:0;}
   .wrap{max-width:760px;margin:24px auto 24px;padding:0 14px;}
   /* overflow 用 clip 不用 hidden：railwrap 的步骤条是 sticky，hidden 会把它变成不滚动的容器、粘性失效；clip 只裁不接管滚动 */
   /* 纸面是公文纸不是网页卡片：圆角收小、阴影放平（悬浮感是卡片语言，不是纸的语言），
-     高度撑满视口（下方不悬空，纸像真铺在桌上）——2026-10-12 阿楠拍板「公文模板样子给搞没了/周边空很多」 */
+     高度撑满视口（下方不悬空，纸像真铺在桌上）——2026-10-12 定稿「公文模板的样子不能丢」 */
   .doc{background:var(--paper);border:1px solid var(--line);box-shadow:0 1px 3px rgba(60,50,40,.06), 0 10px 26px rgba(60,50,40,.06);border-radius:6px;overflow:clip;padding:40px 54px 56px;min-height:calc(100vh - 97px);}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 10px;}
@@ -1984,7 +1984,7 @@ function networkFailHint(){
 
 function renderHeader(){
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
-  // 红头常显：首页也是一张公文纸（红头 + hero 落在卷首下方）——曾经让位过，阿楠看后要求把公文模板的样子还回来（2026-10-12）
+  // 红头常显：首页也是一张公文纸（红头 + hero 落在卷首下方）——曾经让位过，公文模板的样子不能丢（2026-10-12 定稿）
   const rh = document.querySelector(".redhead");
   if(rh && typeof rh.style === "object" && rh.style) rh.style.display = "";
   const n = state.history.length + 1, y = new Date().getFullYear();
@@ -2865,14 +2865,17 @@ function renderPDLanding(){
   // 首轮用法由这条一次性页内说明讲（SPEC 4.2，state.pdIntroSeen）：说明在时常驻一行让位（同一个意思不写两遍），
   // 「知道了」或练过一轮后说明收起、常驻一行回来——纸面第一行始终有「这是什么」。
   const intro = !state.pdIntroSeen;
-  // 节奏与模块落地页同一档：说明 → 三种形式 chips（形式选择）→ 主按钮（综合轮）→ 自选主题折叠区
+  // 综合混着练的入口只在首页（btnQuick）：这里再摆一颗一模一样的大按钮，两处就重复了（2026-10-12 去重定稿）。
+  // 落地页的价值是「挑一种形式/主题」：chips 就是行动，点了直接开练，带各自底子小字；没 Key 时主行动位仍是先填 Key。
+  const fst = pdFormStats().st;
   let html = `<div class="startbox start-entry">
     <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
-    <p id="pdWhat" style="margin:0 0 24px;${intro? "display:none":""}">从材料里做判断，一轮 5 题，点选即判。</p>
-    <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>`<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}</button>`).join("")}</div></div>
-    <div class="actions">${state.settings.apiKey
-      ? `<button class="primary big" data-pdform="${PD_MIX}">开始一轮综合快判</button>`
-      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
+    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">从材料里做判断，一轮 5 题，点选即判。挑一种形式，点了直接开练；综合混着练在首页。</p>
+    <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>{
+      const t = fst[id] || {q:0,c:0};
+      return `<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}${t.q? ` <small>${Math.round(t.c/t.q*100)}%·${t.q}题</small>`:""}</button>`;
+    }).join("")}</div></div>
+    ${state.settings.apiKey? "" : `<div class="actions"><button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button></div>`}
     <details class="pdthemes">
       <summary>自选主题（可选，留空随机）</summary>
       <div class="pdthemebody">

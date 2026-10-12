@@ -1135,7 +1135,7 @@ ok(pdActive === true && el("#subjbar").innerHTML.indexOf('class="subjbtn icon ac
    && el("#subjbar").innerHTML.indexOf('class="subjbtn active" data-s="zy"') < 0,
    "快判: 进入后高亮快判按钮（图标版）、作答轨科目按钮不高亮");
 ok(el("#modLabel").textContent === "", "快判: 落地页灰字空着（轨名由科目栏和文号说，不重复）");
-const pdLand = el("#docBody").innerHTML;
+let pdLand = el("#docBody").innerHTML;
 ok(PD_FORM_ORDER.every(id=> pdLand.indexOf(`data-pdform="${id}"`) >= 0
    && pdLand.indexOf(PD_FORMS[id].name) >= 0)
    && pdLand.indexOf('class="pdforms"') >= 0,
@@ -1144,27 +1144,38 @@ ok(renderPDLanding.toString().indexOf('startPDRound(b.dataset.pdform)') >= 0,
    "快判布局: 单形式 chips 直接开始对应练习轮");
 ok(pdLand.indexOf("公文写作") < 0 && pdLand.indexOf("贯彻执行") < 0,
    "快判: 落地页不混入综应/申论模块 chips");
-ok(pdLand.indexOf("开始") >= 0,
-   "快判: 综合快判仍是纸面主入口（单形式入口是一排 chips，不是另一套科目入口）");
+const _pdKeyKeep = state.settings.apiKey;
+state.settings.apiKey = "sk-assert0key0000000000000000000";
+renderPDLanding();
+const pdLandKeyed = el("#docBody").innerHTML;
+ok(pdLandKeyed.indexOf("开始一轮综合快判") < 0 && pdLandKeyed.indexOf('class="primary big"') < 0,
+   "快判: 有 Key 时落地页没有大按钮——综合轮的入口只在首页，这里挑形式直接开练（与首页不重复）");
+state.settings.apiKey = "";
+renderPDLanding();
+ok(el("#docBody").innerHTML.indexOf('id="btnSetup"') >= 0
+   && el("#docBody").innerHTML.indexOf("开始一轮综合快判") < 0,
+   "快判: 没 Key 时落地页主行动位是「先填 API Key」");
+state.settings.apiKey = _pdKeyKeep;
+renderPDLanding();
+pdLand = el("#docBody").innerHTML;
 ok(pdLand.indexOf('<details class="pdthemes">') >= 0 && pdLand.indexOf("自选主题（可选，留空随机）") >= 0
    && pdLand.indexOf('data-pdtopic=') >= 0 && pdLand.indexOf('data-big=') < 0,
    "快判布局: 主题选择收进折叠区，主题选项保留，纸面不重复摆科目入口");
-ok(pdLand.indexOf("综合快判") >= 0 && pdLand.indexOf(`data-pdform="${PD_MIX}"`) >= 0
-   && pdLand.indexOf('class="pdforms"') >= 0,
-   "快判: 纸面主入口开始综合轮，单形式入口是同一排里的三个 chips");
+ok(pdLand.indexOf('data-pdform="' + PD_MIX + '"') < 0 && pdLand.indexOf('class="pdforms"') >= 0,
+   "快判: 落地页不再摆综合轮——综合快判与首页主行动二选一，不重复摆");
 
 /* 快判首轮页内说明（SPEC 4.2）：一次性、可收口，不进引导序列；说明在时同义的一行让位 */
 state.pdIntroSeen = false; renderPDLanding();
 let _pi = el("#docBody").innerHTML;
 ok(_pi.indexOf('id="pdIntro"') >= 0 && _pi.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0
-   && _pi.indexOf('id="pdIntroOk"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0 0 24px;display:none"') >= 0,
+   && _pi.indexOf('id="pdIntroOk"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;display:none"') >= 0,
    "快判/首轮说明: 没看过时说明出现，同义的常驻一行不上屏（同一个意思不写两遍）");
 el("#pdIntroOk").onclick();
 ok(state.pdIntroSeen === true && el("#pdIntro").style.display === "none" && el("#pdWhat").style.display === "",
    "快判/首轮说明: 「知道了」置 seen 并就地收掉，让位给常驻一行");
 renderPDLanding();
 _pi = el("#docBody").innerHTML;
-ok(_pi.indexOf('id="pdIntro" style="display:none"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0 0 24px;"') >= 0,
+ok(_pi.indexOf('id="pdIntro" style="display:none"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;"') >= 0,
    "快判/首轮说明: 看过后再进落地页，说明收起、常驻一行在（不常驻解释文案）");
 state.pdIntroSeen = false; renderPDLanding();   // 恢复现场：后面还有依赖落地页形状的断言
 
@@ -2414,9 +2425,9 @@ ok(el("#bannerSlot").innerHTML.indexOf("出题和阅卷都要用 API Key") >= 0 
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";
 renderPDLanding();
 const pdLandKey = el("#docBody").innerHTML;
-ok(pdLandKey.indexOf("开始一轮综合快判") >= 0 && pdLandKey.indexOf("先试一轮示例题") < 0
-   && pdLandKey.indexOf("也是内置示例题") < 0,
-   "快判落地页/有 Key: 还是「开始一轮综合快判」（有 Key 时它就是真出题，标签照旧）");
+ok(pdLandKey.indexOf("开始一轮综合快判") < 0 && pdLandKey.indexOf('class="primary big"') < 0
+   && pdLandKey.indexOf("先试一轮示例题") < 0 && pdLandKey.indexOf("也是内置示例题") < 0,
+   "快判落地页/有 Key: 不再有综合轮大按钮——形式 chips 就是行动，综合轮的入口只在首页");
 /* 示例题整块下线：池子、取题函数、入口与「不用 Key 也能练」的口径一律不留残留（CHANGELOG 是面向用户的历史记录，不在禁止范围） */
 const _pageNoLog = PAGE_HTML.slice(0, PAGE_HTML.indexOf("const CHANGELOG"));
 ok(PAGE_HTML.indexOf("PD_SAMPLE_ITEMS") < 0 && PAGE_HTML.indexOf("pdSampleItems") < 0
