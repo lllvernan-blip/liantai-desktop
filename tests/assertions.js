@@ -1167,7 +1167,7 @@ ok(pdLand.indexOf('data-pdform="' + PD_MIX + '"') < 0 && pdLand.indexOf('class="
 /* 快判首轮页内说明（SPEC 4.2）：一次性、可收口，不进引导序列；说明在时同义的一行让位 */
 state.pdIntroSeen = false; renderPDLanding();
 let _pi = el("#docBody").innerHTML;
-ok(_pi.indexOf('id="pdIntro"') >= 0 && _pi.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0
+ok(_pi.indexOf('id="pdIntro"') >= 0 && _pi.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判；综合混着练在首页。") >= 0
    && _pi.indexOf('id="pdIntroOk"') >= 0 && _pi.indexOf('id="pdWhat" style="margin:0;display:none"') >= 0,
    "快判/首轮说明: 没看过时说明出现，同义的常驻一行不上屏（同一个意思不写两遍）");
 el("#pdIntroOk").onclick();
@@ -1525,7 +1525,7 @@ ok(el("#docBody").innerHTML.indexOf("针对问题提出解决措施") >= 0
    "废话精简: 真在描述「这是什么」的 note（提出对策）还留着，只去掉重复的标题");
 renderPDLanding();
 ok(el("#docBody").innerHTML.indexOf("快判 · 从材料里做判断") < 0
-   && el("#docBody").innerHTML.indexOf("从材料里做判断，一轮 5 题，点选即判。") >= 0,
+   && el("#docBody").innerHTML.indexOf("挑一种形式，点了直接开练。") >= 0,
    "废话精简: 快判落地页两行并一行（抬头已写着「快判」，纸面上不再重复标题）");
 renderHome();
 
@@ -1881,7 +1881,7 @@ ok(PAGE_HTML.indexOf("会挑你最弱的模块") < 0 && PAGE_HTML.indexOf("提�
 ok(PAGE_HTML.indexOf("写得太少了：至少写满一段再交卷") >= 0 && PAGE_HTML.indexOf("～") < 0, "文案: 交卷提示去掉语气词");
 ok(TUT_SEQ.every(s=> s.scr !== "pd") && TUT_SEQ.every(s=> s.text.indexOf("题型") < 0),
    "文案: 快判不进引导序列（首轮用法归页内一次性说明），引导与全部步骤不说「题型」");
-ok(PAGE_HTML.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判。") >= 0 && PAGE_HTML.indexOf('id="pdIntroOk"') >= 0,
+ok(PAGE_HTML.indexOf("快判一轮 5 题：从材料里挑出对的说法，点选即判；综合混着练在首页。") >= 0 && PAGE_HTML.indexOf('id="pdIntroOk"') >= 0,
    "快判/首轮说明: 页内一次性说明存在，带「知道了」收口（SPEC 4.2）");
 ok(renderPDLanding.toString().indexOf("pdIntroSeen") >= 0 && renderPDLanding.toString().indexOf('id="pdIntro"') >= 0
    && startPDRound.toString().indexOf("state.pdIntroSeen = true") >= 0,

@@ -174,8 +174,8 @@ html,body{margin:0;padding:0;}
   .startbox .actions{justify-content:center;margin-top:24px;}
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
   .startbox .hero-big{font-size:26px;font-weight:600;letter-spacing:.5px;margin:0 0 6px;}
-  .startbox .hero-sub{font-size:14px;color:var(--ink-soft);line-height:1.8;margin:0 0 40px;}
-  .startbox .hero-foot{font-size:12.5px;color:var(--ink-faint);margin:40px 0 0;}
+  .startbox .hero-sub{font-size:14px;color:var(--ink-soft);line-height:1.7;margin:0 0 24px;}
+  .startbox .hero-foot{font-size:12.5px;color:var(--ink-faint);margin:24px 0 0;}
   .start-flow{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:8px;margin:0;font-size:14px;}
   .start-flow-label{color:var(--ink-soft);}
   .start-flow-steps{font-family:var(--hei);color:var(--ink);}
@@ -2869,8 +2869,8 @@ function renderPDLanding(){
   // 落地页的价值是「挑一种形式/主题」：chips 就是行动，点了直接开练，带各自底子小字；没 Key 时主行动位仍是先填 Key。
   const fst = pdFormStats().st;
   let html = `<div class="startbox start-entry">
-    <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
-    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">从材料里做判断，一轮 5 题，点选即判。挑一种形式，点了直接开练；综合混着练在首页。</p>
+    <div class="banner" id="pdIntro" style="${intro? "display:flex;align-items:center;gap:8px" : "display:none"}">快判一轮 5 题：从材料里挑出对的说法，点选即判；综合混着练在首页。<button class="linkbtn" id="pdIntroOk" style="flex:none;margin-left:auto">知道了</button></div>
+    <p id="pdWhat" style="margin:0;${intro? "display:none":""}">挑一种形式，点了直接开练。</p>
     <div class="pdforms"><div class="subtypechips">${PD_FORM_ORDER.map(id=>{
       const t = fst[id] || {q:0,c:0};
       return `<button class="chip" data-pdform="${id}">${PD_FORMS[id].name}${t.q? ` <small>${Math.round(t.c/t.q*100)}%·${t.q}题</small>`:""}</button>`;
