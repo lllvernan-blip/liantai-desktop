@@ -11,7 +11,7 @@
  *  - 关键事件追加写入 logs/startup.log，便于在没有截图的情况下验证启动。
  */
 
-const { app, BrowserWindow, Menu, shell } = require('electron');
+const { app, BrowserWindow, Menu, shell, screen } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -320,15 +320,39 @@ function applyMenu() {
   ]));
 }
 
+/* 窗口尺寸记忆：默认 1040×720 居中——内容列就一张纸的宽度，开再大两侧全是空，看着像铺满了屏幕却没内容。
+   用户手动调过就记住（userData/window-bounds.json），下次按他的来；读不到/不合法就用默认，不算错。
+   最大化/全屏状态不写回：那不是用户想要的「窗口大小」，下次开机不该被扣在全屏上。 */
+const WIN_DEFAULT = { width: 1040, height: 720 };
+function windowBoundsFile() { return path.join(app.getPath('userData'), 'window-bounds.json'); }
+function loadWindowBounds() {
+  try {
+    const b = JSON.parse(fs.readFileSync(windowBoundsFile(), 'utf8'));
+    if (b && Number.isFinite(b.width) && Number.isFinite(b.height) && b.width >= 900 && b.height >= 600) return b;
+  } catch (e) {}
+  return null;
+}
+let _boundsSaveTimer = null;
+function saveWindowBounds() {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMinimized() || mainWindow.isMaximized() || mainWindow.isFullScreen()) return;
+  clearTimeout(_boundsSaveTimer);
+  _boundsSaveTimer = setTimeout(() => {
+    try { fs.writeFileSync(windowBoundsFile(), JSON.stringify(mainWindow.getBounds())); } catch (e) {}
+  }, 300);
+}
+
 function createWindow() {
+  const saved = loadWindowBounds();
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 900,
+    width: saved ? saved.width : WIN_DEFAULT.width,
+    height: saved ? saved.height : WIN_DEFAULT.height,
+    ...(saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? { x: saved.x, y: saved.y } : { center: true }),
     title: '练习台',
     autoHideMenuBar: true,
     // macOS 无边框标题栏（SPEC 3.2）：顶栏融入窗口壳，页面侧用 .shell-mac 给红绿灯让位；Windows 忽略此选项
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    backgroundColor: '#ffffff',
+    // 开屏底色跟页面底板同色（暖浅灰）：默认纯白会在页面加载前闪一屏白
+    backgroundColor: '#F4F1EA',
     show: true,
     webPreferences: {
       contextIsolation: true,
@@ -337,6 +361,16 @@ function createWindow() {
       sandbox: true,
     },
   });
+  // 记住的位置若落在已拔掉的显示器上（外接屏场景），拉回主屏居中，不跟用户玩「窗口找不到了」
+  try {
+    const b = mainWindow.getBounds();
+    const wa = screen.getDisplayMatching(b).workArea;
+    const visible = b.x < wa.x + wa.width && b.x + b.width > wa.x && b.y < wa.y + wa.height && b.y + b.height > wa.y;
+    if (!visible) mainWindow.center();
+  } catch (e) {}
+  mainWindow.on('resize', saveWindowBounds);
+  mainWindow.on('move', saveWindowBounds);
+  mainWindow.on('close', saveWindowBounds);
 
   // 隐藏默认菜单栏（macOS 例外，见 applyMenu 的注释）
   applyMenu();

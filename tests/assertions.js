@@ -1554,6 +1554,19 @@ ok(PAGE_HTML.indexOf('class="foot"') < 0,
    "顶栏: 页脚式说明行不进主界面（数据仅存本地说在设置页，SPEC 3.2）");
 ok(PAGE_HTML.indexOf('border-radius:var(--r-card)') >= 0,
    "质感: 弹层卡片走统一大圆角 token（SPEC 3.2）");
+ok(PAGE_HTML.indexOf('--r-flat:0; --r-ctl:8px; --r-pill:999px;') >= 0,
+   "圆润化: 控件圆角档走 8px（人感 Demo --r-ctl），魔数不落进控件规则");
+ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-card)') >= 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('box-shadow:var(--sh-paper)') >= 0; })(),
+   "圆润化: 纸面 .doc 带 16px 圆角 + clip 裁角（sticky 步骤条不受影响）+ Demo 档柔影");
+ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
+   "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
+ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:10px') >= 0; })()
+   && PAGE_HTML.indexOf('.tour-tip button{border-radius:var(--r-pill);}') >= 0,
+   "圆润化: 引导气泡是墨底白字 10px 圆角，气泡内按钮胶囊化");
+ok((function(){ const m = PAGE_HTML.match(/\.seg button\.active\{[^}]*\}/); return m && m[0].indexOf('var(--red-wash)') >= 0; })(),
+   "圆润化: 分段控件（推理程度）选中态是淡红底红字，不是整块实红");
+ok((function(){ const m = PAGE_HTML.match(/\.fab\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-ctl)') >= 0 && m[0].indexOf('box-shadow:var(--sh-paper)') >= 0; })(),
+   "圆润化: FAB 圆角收进 8px 档、阴影用纸面同档柔影");
 
 /* 13 节用完 PD 出题桩就把真身装回去：
    以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
