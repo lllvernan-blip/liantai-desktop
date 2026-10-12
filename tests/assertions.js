@@ -2442,6 +2442,72 @@ localStorage.setItem = realSetItem20;
 ok(el("#bannerSlot").innerHTML.indexOf("没能存到本地") >= 0,
    "草稿: 落盘失败当场出声（本地存储满了不许静默丢字）");
 
+/* ============ 21. 字段地基：思路自述 / 材料主题 / 跨题归纳缓存 ============ */
+
+/* 21.1 归纳缓存：缺省是空对象，形状只能是「模块键 -> {at, basedOn, data}」 */
+ok(DEFAULT_STATE.digests && typeof DEFAULT_STATE.digests === "object" && !Array.isArray(DEFAULT_STATE.digests)
+   && Object.keys(DEFAULT_STATE.digests).length === 0,
+   "字段地基: digests 默认是空对象");
+
+/* 21.2 归纳缓存是可再生的（记录没变就复用、记录变了重算）：坏项直接丢，裸模块键补上科目前缀。
+   取值里特意留一个 null：那一行挡不住的话，下一行读 .at 就抛，整个 load() 会掉进兜底分支。 */
+let dg21 = null, dg21err = "";
+try{
+  dg21 = normDigests({
+    gongwen: { at:1, basedOn:20, data:{ pattern:"x" } },
+    "zy.guina": { at:2, basedOn:20, data:{ pattern:"y" } },
+    "zy.fenxi": { at:3, basedOn:20 },
+    "zy.duice": { at:"昨天", basedOn:20, data:{} },
+    "not.a.module": { at:4, basedOn:20, data:{} },
+    "zy.shiwu": null,
+    "zy.guanche": { at:5, basedOn:20, data:[1,2] }
+  });
+}catch(e){ dg21err = String((e && e.message) || e); }
+ok(!dg21err && Object.keys(dg21).join(",") === "zy.gongwen,zy.guina" && dg21["zy.gongwen"].data.pattern === "x",
+   "字段地基: 归纳缓存的坏项丢掉（null 不炸、data 不是对象也挡），裸模块键补上科目前缀");
+
+/* 21.3 思路自述只认字符串与闭集里的 kind：坏值丢掉，但记录本体必须留着 */
+const mh21 = migrateHistory([
+  { ts:1, module:"zy.gongwen", selfNote: 12345, selfKind:"how" },
+  { ts:2, module:"zy.gongwen", selfNote:"   ", selfKind:"猜的" },
+  { ts:3, module:"zy.guina", selfNote:"先看问法再回材料找主体", selfKind:"stuck" }
+]).list;
+ok(mh21.length === 3, "字段地基: 自述不合格也不丢整条记录（记录本体比自述值钱）");
+ok(mh21[0].selfNote === undefined && mh21[0].selfKind === "how",
+   "字段地基: 自述不是字符串 -> 只丢自述，kind 照留");
+ok(mh21[1].selfNote === undefined && mh21[1].selfKind === undefined,
+   "字段地基: 空白自述与闭集外的 kind 一并丢掉");
+ok(mh21[2].selfNote === "先看问法再回材料找主体" && mh21[2].selfKind === "stuck",
+   "字段地基: 合法自述原样留下（how=凭什么确定 / stuck=卡在哪）");
+
+/* 21.4 自述是给人看的一句话：超长截到上限，不整条丢；改过一遍的记录再跑一次不再变化（幂等） */
+const mh21b = migrateHistory([{ ts:9, module:"zy.gongwen", selfNote: "字".repeat(500) }]).list;
+ok(mh21b[0].selfNote.length === SELF_NOTE_MAX,
+   "字段地基: 超长自述截到 " + SELF_NOTE_MAX + " 字（不是整条丢）");
+ok(migrateHistory(mh21b).changed === false,
+   "字段地基: 自述归一后二次迁移不再改动（幂等，不会每启动一次就回写一遍）");
+
+/* 21.5 归纳缓存跟着备份走：换了机器不用从零再攒一遍；缺字段的坏项挡在门外 */
+importJSON(JSON.stringify({ settings:{}, history:[],
+  digests:{ "zy.gongwen":{ at:7, basedOn:22, data:{ pattern:"先看选项再回材料" } }, "zy.fenxi":{ at:8 } } }));
+ok(state.digests["zy.gongwen"] && state.digests["zy.gongwen"].basedOn === 22 && !state.digests["zy.fenxi"],
+   "字段地基: 导入恢复归纳缓存（缺字段的坏项被挡在门外）");
+
+/* 21.6 出题顺手给材料主题标签：归纳与去重要用它（本步只落盘，不参与出题行为） */
+const realCall21 = callLLM;
+let sys21 = "";
+callLLM = async sys => { sys21 = String(sys||"");
+  return { question:{ background:"某市…", requirements:"…", suggestedFormat:"…", difficulty:"适中", score:20, theme:"基层治理" }, keyPoints:[] }; };
+const q21 = await gen("zy.gongwen");
+callLLM = realCall21;
+ok(sys21.indexOf('"theme"') >= 0, "字段地基: 出题 schema 要求材料主题标签");
+ok(q21 && q21.question && q21.question.theme === "基层治理",
+   "字段地基: 主题标签随题目一起回来（历史记录整条存 question，不另开字段）");
+/* 出题 schema 有两条分支（要学习卡 / 不要学习卡），两条都得带 theme：
+   只改一条分支的话，另一条路上的题永远没有主题标签（单跑一条 gen 看不出来，所以查页面原文） */
+ok((PAGE_HTML.match(/,"theme":"材料主题/g) || []).length === 2,
+   "字段地基: 出题 schema 两条分支都带 theme（漏一条分支 = 那条路上的题没标签）");
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

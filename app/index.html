@@ -836,6 +836,11 @@ function migrateKeyedObject(src){
   }
   return { map:out, changed };
 }
+/* 思路自述（跨题归纳的语料）：两种时刻各记一句——how = 这道答对了，凭什么确定；
+   stuck = 这道丢分了，卡在哪一步。上限 200 字：它是给人看的一句话，不是第二篇答卷。
+   这两个常量必须声明在 migrateHistory 之前：load() 在模块顶层就会把它跑一遍，挪到后面要撞 TDZ。 */
+const SELF_KINDS = ["how","stuck"];
+const SELF_NOTE_MAX = 200;
 function migrateHistory(list){
   let changed = false;
   const out = [];
@@ -866,10 +871,42 @@ function migrateHistory(list){
     // 旧记录没有训练链：补占位 flowId，让记录与训练链的关联从第一天就是显式的（幂等：补过就不再动）。
     // 判别轨记录（track:'pd'）不建训练链，不补占位。
     if(!nh.flowId && h.track !== "pd"){ nh = Object.assign({}, nh, { flowId: "legacy-" + (h.ts == null? i : h.ts) }); touched = true; }
+    // 思路自述：只认字符串与闭集里的 kind。坏值就地丢掉（归纳时按「这道没自述」处理），
+    // 不因为一个字段不合格就把整条记录扔掉——记录本体比自述值钱。
+    if(h.track !== "pd" && (nh.selfNote !== undefined || nh.selfKind !== undefined)){
+      const patch = {};
+      if(nh.selfNote !== undefined){
+        const v = nh.selfNote;
+        if(typeof v !== "string" || !v.trim()) patch.selfNote = undefined;
+        else if(v.length > SELF_NOTE_MAX) patch.selfNote = v.slice(0, SELF_NOTE_MAX);
+      }
+      if(nh.selfKind !== undefined && SELF_KINDS.indexOf(nh.selfKind) < 0) patch.selfKind = undefined;
+      if(Object.keys(patch).length){ nh = Object.assign({}, nh, patch); touched = true; }
+    }
     if(touched){ changed = true; out.push(nh); return; }
     out.push(h);
   });
   return { list:out, changed };
+}
+
+/* 跨题归纳缓存：模块键 → { at, basedOn, data }。够量才生成，没生成就是空对象。
+   它是可再生的（记录没变就该复用、记录变了重算），所以坏项直接丢，不做兼容迁移；
+   键仍按模块键迁移一次：旧数据里可能存着裸键。 */
+function normDigests(v){
+  const out = {};
+  const src = (v && typeof v === "object" && !Array.isArray(v))? v : {};
+  for(const k of Object.keys(src)){
+    const key = migrateModuleKey(k);
+    const it = src[k];
+    if(!MODULES[key]) continue;
+    // 值必须是对象：null 得挡在这里（下面一读 .at 就抛）；数组与字符串不用单独拦，
+    // 后面的字段校验自然不放过它们（数组没有数字 at，data 也不是对象）
+    if(!it || typeof it !== "object") continue;
+    if(!isFinite(Number(it.at)) || !isFinite(Number(it.basedOn))) continue;
+    if(!it.data || typeof it.data !== "object" || Array.isArray(it.data)) continue;
+    out[key] = { at:Number(it.at), basedOn:Number(it.basedOn), data:it.data };
+  }
+  return out;
 }
 
 /* 画像聚合字段（dims.sum/n、weakDims/strongDims/types）已删除：画像全部由练习记录即时推导，
@@ -889,6 +926,7 @@ const DEFAULT_STATE = {
   history:[],
   flows:[],
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
+  digests:{},       // 跨题归纳缓存（见 normDigests）：模块键 → { at, basedOn, data }
   cache:{ studyCards:{}, notes:{} },
   modelCache:{},
   modelCaps:{},   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
@@ -1120,6 +1158,7 @@ function load(){
     s.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
     // 训练链：非法 step 丢弃该项、缺失字段补默认（sanitizeFlows 幂等，二次 load 不再变化）
     s.flows = sanitizeFlows(s.flows);
+    s.digests = normDigests(s.digests);
     // 练习记录的模块键补前缀；记录存在独立的 gw_history，得单独回写
     const mh = migrateHistory(s.history);
     if(mh.changed){
@@ -1696,11 +1735,11 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
+    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20,"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
     ${kpSchema}
   }`
     : `{
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20},
+    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20,"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
     ${kpSchema}
   }`;
   return await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
@@ -4412,6 +4451,9 @@ function importJSON(file){
       // 经验闭环：逐条校验；训练链走 sanitizeFlows（非法 step 丢弃，不整包失败）
       state.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
       state.flows = sanitizeFlows(Array.isArray(s.flows)? s.flows : []);
+      // 跨题归纳缓存跟着备份走：换了机器不用从零再攒一遍（形状不对的项丢掉，不整包失败）
+      const dg = plainObj(s.digests);
+      if(dg) state.digests = normDigests(plainPick(dg));
       // 草稿与划线：不在 state 里，按题目签名逐条校验后合并回来；本机已有的一份不覆盖
       const dr = plainObj(s.drafts);
       if(dr){
