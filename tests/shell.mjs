@@ -829,6 +829,12 @@ if (process.platform !== "darwin") {
      "发布: release-mac 打包前不核对清单（只在 skip-build / dry-run 时核）");
   ok(/if \(!skipBuild\)[\s\S]{0,900}?checkYml\(\);[\s\S]{0,80}?\/\/ 刚出的包再核一遍/.test(rm),
      "发布: release-mac 出包之后补核一次清单（这次核的才是真要传的东西）");
+  /* blockmap 是打包生成的、.sig 是签出来的，打包前算的清单里两样都没有。
+     拿那份去上传，Release 就会少 blockmap 而 release-check 报「macOS 缺 2 项」。 */
+  ok(/let want = wantedAssets\(\);/.test(rm),
+     "发布: 打包前那份资产清单是可重算的（let，不是 const）");
+  ok(/signAssets\(\);[\s\S]{0,500}?want = wantedAssets\(\);/.test(rm),
+     "发布: 签完名重算资产清单（blockmap 与 .sig 到这才齐，不然会漏传）");
 }
 
 /* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿

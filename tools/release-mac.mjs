@@ -197,7 +197,9 @@ function main() {
   /* 不重新打包时才在这里核对清单（含 --dry-run：它也是「用手头的产物」）。
      走打包路径的话这一步留给出包之后那次 checkYml()——那一次核的才是真要传的东西。 */
   if (skipBuild) checkYml();
-  const want = wantedAssets();
+  /* 这一份是「按目标算」的清单：此刻还没打包，blockmap 与 .sig 都不在本地，
+     它只用来看「还差什么」。上传前会再算一遍（见 signAssets 之后的那次重算）。 */
+  let want = wantedAssets();
   for (const w of want) {
     const ok = existsSync(w.path);
     const size = ok ? statSync(w.path).size : 0;
@@ -234,6 +236,10 @@ function main() {
 
   step("给 zip 签名");
   signAssets();
+  /* 到这一步产物才算齐：blockmap 是打包生成的、.sig 刚签出来。打包前算的那份清单里
+     这两样都不存在，直接拿去上传就会漏传——v0.0.21 就这么漏了 dmg 与 zip 各一份
+     blockmap，release-check 报「macOS 缺 2 项」才发现。 */
+  want = wantedAssets();
 
   step("gh 登录态与 Release " + tag);
   const auth = gh(["auth", "status"]);
