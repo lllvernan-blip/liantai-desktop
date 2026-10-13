@@ -2664,6 +2664,12 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
   const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
   ok(_deadVars.length === 0, "尺子: 没有定义了却没人用的 CSS 变量" + (_deadVars.length? "（" + _deadVars.join("、") + "）" : ""));
+  // :root 外不写设计色 hex（用户可选的划线色是运行时变量，另算）
+  const _css = PAGE_HTML.slice(PAGE_HTML.indexOf("<style>"), PAGE_HTML.indexOf("</style>"));
+  const _rootEnd = _css.indexOf("}", _css.indexOf(":root{"));
+  const _hexOutside = (_css.slice(_rootEnd).match(/#[0-9a-fA-F]{3,8}\b/g) || [])
+     .filter(h=> ["#a7f3d0"].indexOf(h.toLowerCase()) < 0);
+  ok(_hexOutside.length === 0, "尺子: CSS 里 :root 外的设计色都进了 token" + (_hexOutside.length? "（" + _hexOutside.join(" ") + "）" : ""));
 }
 
 console.log(T.join("\n"));

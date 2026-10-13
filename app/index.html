@@ -22,9 +22,12 @@
     --red-wash:#fdf3f3;  /* 当前项的红底（chips 当前项 / 步骤条） */
     --red-wash-2:#fbf1f1;/* 红底上的悬停 */
     --bar:#a9a49a;       /* 中性细条填充：6px 实心深灰曾是整行最重的东西，压到 4px 并调浅 */
+    --scroll-thumb:#cfcac0; --scroll-thumb-hover:#b3ada1;   /* 滚动条滑块（悬停加深一档） */
     --mat:#f6f2e7;       /* 材料纸底：比纸面明显黄一档，一眼能分出「给定资料」与「我写的地方」 */
+    --pick-bg:#e9e1cc; --pick-line:#cdbe97;   /* 材料区已点选：暖沙，不是淡蓝（淡蓝 + 蓝下划线看着像超链接） */
     --write:#fffdf5;     /* 凡是「我写字的地方」共一色：作答区、笔记、下笔处 */
     --ctl:#fffefb;       /* 控件外表：不用纯白——纯白比纸面更冷更亮，贴上去像另一个应用 */
+    --on-dark:#fff;      /* 墨底 / 红底上的字：主按钮、浮动菜单、步骤条当前格 */
     --focus-halo:0 0 0 3px rgba(192,21,26,.07);   /* 控件获得焦点时的外圈：输入框与两处大文本框共用 */
     --warn:#b45309;      /* 部分命中 */
     /* 控件高度：同一行里的按钮 / 输入框 / 胶囊不再高低不齐 */
@@ -40,6 +43,8 @@
     --pad-ctl:8px 12px; --pad-ctl-sm:6px 12px;
     /* 语义别名：同一个 hex 只在 :root 出现一次，改一处即全站生效 */
     --line-strong:#8f8b81;   /* 3.3:1 —— 表单控件的可辨识边界（分隔线不受 3:1 约束，控件边界受） */
+    --line-hover:#b9b2a2;    /* 悬停时的描边加深一档（浮标） */
+    --chip-line:#d8d2c6; --chip-ink:#55504a;   /* 纸面上的胶囊：比全局 --line / --muted 略重，白底上才咬得住 */
     --text-disabled:#9a968d; /* 2.9:1 —— placeholder 与禁用文字（门槛 2:1） */
     --focus-ring:rgba(192,21,26,.9);   /* 5.4:1；原来的 .45 合成后只有 2.3:1，低于焦点环 3:1 门槛 */
     --success:#2f7d32; --success-bg:#f2f8f2;
@@ -63,8 +68,8 @@
   /* 滚动条：系统默认的灰色宽条压在暖白纸面上很扎眼，改成细的暖灰拇指、透明轨道 */
   ::-webkit-scrollbar{width:10px;height:10px;}
   ::-webkit-scrollbar-track{background:transparent;}
-  ::-webkit-scrollbar-thumb{background:#cfcac0;border:3px solid transparent;background-clip:content-box;border-radius:8px;}
-  ::-webkit-scrollbar-thumb:hover{background:#b3ada1;background-clip:content-box;}
+  ::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border:3px solid transparent;background-clip:content-box;border-radius:8px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover);background-clip:content-box;}
   ::-webkit-scrollbar-corner{background:transparent;}
 html,body{margin:0;padding:0;}
   body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:var(--fs-body);line-height:1.7;-webkit-font-smoothing:antialiased;
@@ -77,7 +82,7 @@ html,body{margin:0;padding:0;}
   button:hover{background:var(--wash-3);}
   button:disabled{opacity:.5;cursor:not-allowed;}
   /* 主行动比次级控件高一大档（40 vs 36）、重一号（15 vs 14）：一屏里只允许一个这种重量的东西 */
-  button.primary{background:var(--gov-red);border-color:var(--gov-red);color:#fff;font-weight:600;font-size:var(--fs-body);letter-spacing:1px;min-height:40px;padding:8px 24px;}
+  button.primary{background:var(--gov-red);border-color:var(--gov-red);color:var(--on-dark);font-weight:600;font-size:var(--fs-body);letter-spacing:1px;min-height:40px;padding:8px 24px;}
   button.primary:hover{background:var(--gov-red-dark);box-shadow:var(--sh-1);transform:translateY(-1px);}
   button.primary:active:not(:disabled){transform:translateY(1px);box-shadow:none;}
   /* 正在跑（如提交阅卷）：不可点 ≠ 正在跑，两个态分开表达 */
@@ -111,7 +116,7 @@ html,body{margin:0;padding:0;}
   .subjbtn.active:hover{background:var(--red-wash-2);}
     /* 悬浮提示（SPEC 3.2）：图标无框，悬浮才现文字说明；纯 CSS，零依赖 */
   [data-tip]{position:relative;}
-  [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);right:-4px;background:var(--ink);color:#fffdf8;font-size:var(--fs-note);line-height:1;padding:8px 8px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-2px);transition:opacity .12s ease .18s,transform .12s ease .18s;z-index:40;}
+  [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);right:-4px;background:var(--ink);color:var(--paper);font-size:var(--fs-note);line-height:1;padding:8px 8px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-2px);transition:opacity .12s ease .18s,transform .12s ease .18s;z-index:40;}
   [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translateY(0);}
   /* 全局工具区（SPEC 3.2 桌面质感）：图标无框，悬浮才现底色 */
   .toolbar .iconbtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:30px;border:none;background:transparent;color:var(--muted);border-radius:var(--r-ctl);cursor:pointer;padding:0;min-height:0;}
@@ -142,7 +147,7 @@ html,body{margin:0;padding:0;}
   .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .chip small{font-size:var(--fs-note);color:var(--muted);font-variant-numeric:tabular-nums;}   /* 不写 font-size 就会按浏览器的 smaller 算：13px × 0.833 = 10.8px，六档之外的野字号 */
   /* 入口纸面的 chips（人感 Demo .chip）：胶囊、纸白底、暖灰边——首页 / 模块页 / 快判页同一套，弹层内不动 */
-  .startbox .chip{border-color:#D8D2C6;background:var(--paper);color:#55504A;font-size:var(--fs-body);padding:8px 24px;}
+  .startbox .chip{border-color:var(--chip-line);background:var(--paper);color:var(--chip-ink);font-size:var(--fs-body);padding:8px 24px;}
   .startbox .chip:hover{border-color:var(--ink-faint);color:var(--ink);background:var(--paper);}
   .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
@@ -165,11 +170,11 @@ html,body{margin:0;padding:0;}
   .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
   /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
   .startbox.start-entry{padding:48px 36px 56px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
-    .startbox.start-home{padding:48px 36px 48px;}    /* 首页 hero：红头在上方，hero 接着往下走；大标题首行、主按钮 144、次级行 225 与其他起始页共用同一套锚位 */    /* 首页 hero：红头在上方，hero 接着往下走；42 让大标题首行落在 48 锚位（26px 字的行盒上沿占 6px） */
+    .startbox.start-home{padding:48px 36px 48px;}   /* 首页 hero：红头在上方，hero 接着往下走；大标题首行、主按钮、次级行与科目页共用同一套锚位 */
   .startbox h2{font-family:var(--hei);font-size:var(--fs-hero);margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--ink-soft);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
-  /* 主行动照 Demo .primary：17px / 600 / 字距 2px，红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
+  /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
   .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:12px;box-shadow:0 6px 18px rgba(190,59,43,.28);}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
   .startbox .actions{justify-content:center;margin-top:24px;}
@@ -187,7 +192,7 @@ html,body{margin:0;padding:0;}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:var(--fs-title);margin:24px 0 12px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
   .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 12px;}
-  .secrow .sec-title{margin:0;}   /* 标题自带的上 28 下 10 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
+  .secrow .sec-title{margin:0;}   /* 标题自带的上 24 下 12 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
   /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
   .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
   .secright{display:flex;align-items:center;gap:12px;}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
@@ -214,7 +219,7 @@ html,body{margin:0;padding:0;}
   .swatch{width:26px;height:26px;min-height:0;border-radius:var(--r-pill);border:2px solid var(--line);cursor:pointer;padding:0;}
   .swatch.sel{border-color:var(--gov-red);box-shadow:0 0 0 2px rgba(192,21,26,.2);}
   .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:var(--r-ctl);padding:4px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}   /* 墨底浮标记压在纸面上，深色表面可超出常规阴影上限 */
-  .markpop button{background:transparent;border:none;color:#fff;font-size:var(--fs-body);padding:4px 12px;cursor:pointer;font-family:var(--fangsong);}
+  .markpop button{background:transparent;border:none;color:var(--on-dark);font-size:var(--fs-body);padding:4px 12px;cursor:pointer;font-family:var(--fangsong);}
   .markpop button:hover{color:var(--mark,#a7f3d0);}
   /* 字段化：标签占定 5 个字（作答要求／建议结构都是 5 字），值从同一条竖线开始，折行也缩进到那一列。
      b 必须把 text-indent 归零：text-indent 是继承属性，而 inline-block 自成块容器，
@@ -276,7 +281,7 @@ html,body{margin:0;padding:0;}
   .tlleft{font-size:var(--fs-note);color:var(--muted);font-variant-numeric:tabular-nums;}
   .tlleft.warn{color:var(--warn);font-weight:600;}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
-  .counter b.over{color:#fff;background:var(--danger);padding:0 4px;}
+  .counter b.over{color:var(--on-dark);background:var(--danger);padding:0 4px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
   .pdreview{text-align:left;margin-top:4px;}
   /* 逐题回顾一行一条：对错标记 + 题号 + 辨析点，解析点开才看（原来那条解析把每行撑成三行） */
@@ -341,16 +346,16 @@ html,body{margin:0;padding:0;}
   .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:16px 16px 24px;}
   .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:var(--r-ctl);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);font-family:var(--hei);}
-  .fab:hover{background:var(--ctl);border-color:#b9b2a2;}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
+  .fab:hover{background:var(--ctl);border-color:var(--line-hover);}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--ink);}
   .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:10px;box-shadow:0 0 0 200vmax rgba(25,22,16,.45);outline:2px solid var(--gov-red);display:none;}
   /* 引导气泡照人感 Demo .tip 的墨底语言：深底白字、10px 圆角、暖调柔影；高亮框内收同样 10px */
-  .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--ink);color:#fffdf8;border-radius:10px;box-shadow:0 10px 30px rgba(25,22,16,.28), 0 2px 6px rgba(25,22,16,.18);padding:12px 16px;font-size:var(--fs-body);line-height:1.75;display:none;}
+  .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--ink);color:var(--paper);border-radius:10px;box-shadow:0 10px 30px rgba(25,22,16,.28), 0 2px 6px rgba(25,22,16,.18);padding:12px 16px;font-size:var(--fs-body);line-height:1.75;display:none;}
   .tour-tip button{border-radius:var(--r-pill);}
   .tour-tip .tstep{font-size:var(--fs-note);color:rgba(255,253,248,.55);font-variant-numeric:tabular-nums;margin-bottom:4px;}
   .tour-tip .tacts{display:flex;gap:8px;align-items:center;margin-top:12px;}
   .tour-tip .tourskip{margin-left:auto;color:rgba(255,253,248,.6);}
-  .tour-tip .tourskip:hover{color:#fffdf8;}
+  .tour-tip .tourskip:hover{color:var(--paper);}
   .noteedit{width:100%;min-height:84px;resize:vertical;font-family:var(--fangsong);font-size:var(--fs-body);line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:24px;}
@@ -490,12 +495,12 @@ html,body{margin:0;padding:0;}
   .flowrail .fstep::before{content:counter(fs);display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;font-size:var(--fs-note);font-variant-numeric:tabular-nums;border-radius:var(--r-pill);background:var(--wash-3);color:var(--muted);}
   .flowrail .fstep.done::before{content:"✓";background:var(--success-bg);color:var(--success);}
   .flowrail .fstep.active{color:var(--gov-red);background:var(--red-wash);}
-  .flowrail .fstep.active::before{background:var(--gov-red);color:#fff;}
+  .flowrail .fstep.active::before{background:var(--gov-red);color:var(--on-dark);}
   /* 找点高亮：与 gw_marks 的划线层（.ms.on）互不覆盖，用独立的蓝色系 */
   .pt-seg{cursor:pointer;border-radius:var(--r-ctl);}
   .pt-seg:hover{background:var(--wash);}
   /* 已点选：淡蓝是整屏唯一的冷色，还带一道蓝下划线，看着像超链接——换成「铅笔涂过一遍」的暖沙 */
-  .pt-seg.picked{background:#e9e1cc;box-shadow:inset 0 -2px 0 #cdbe97;}
+  .pt-seg.picked{background:var(--pick-bg);box-shadow:inset 0 -2px 0 var(--pick-line);}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);padding:4px 4px;border-bottom:1px solid var(--line);}
   .pickline button.linkbtn{white-space:nowrap;}   /* 长要点折行时「移除」会被挤成两行竖排 */
   .pickline .ptag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
