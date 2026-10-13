@@ -1,8 +1,8 @@
 # 练习台
 
-综应、申论的练习与批改，Windows 与 macOS 两版。覆盖公文写作、归纳概括、综合分析、提出对策和案例实务五类训练，提供学习卡、作答、AI 阅卷、逐句批注与范文、画像和自适应推送。
+综应、申论的练习与批改，Windows 与 macOS 两版。覆盖公文写作、归纳概括、综合分析、提出对策和案例实务五类训练，提供学习卡、作答、AI 阅卷、逐句批注与范文、画像和自适应选题。
 
-打开就是快判：一轮 5 题，看材料点选即判，练的是从材料里辨认说法——申论和综应 A 的小题吃的也是这个动作；没填 API Key 也能先跑一轮内置示例题。想做整篇就点「练一道大题」，进综应 A（学习卡 → 作答 → 批改）或申论（学习卡 → 读材料含找点 → 一稿 → 批改；归类是一稿页上的一个入口，想先理一遍要点再写就点它）。「综合快判」把事实选择 / 分组概括 / 表达比较三种形式混着出（不给提示，更像真考），也可以单练某一类；它只记正确率，不计入综应A/申论的维度画像。
+打开是三个入口：「开始快判」、「综应A 练一轮」、「写一篇申论」。快判一轮 5 题，看材料点选即判，练的是从材料里辨认说法——申论和综应 A 的小题吃的也是这个动作；事实选择 / 分组概括 / 表达比较三种形式混着出（不给提示，更像真考）。想做整篇就点那两句，分别进综应 A（学习卡 → 作答 → 批改）或申论（学习卡 → 读材料含找点 → 一稿 → 批改；归类是一稿页上的一个入口，想先理一遍要点再写就点它）。它只记正确率，不计入综应A/申论的维度画像。**出题与阅卷都要 API Key**：没填时首页与科目页的主行动会换成「先填 API Key（出题和阅卷都要）」。
 
 作答可以设限时（时长不分档，框里写多少分钟就是多少，留空就是不限）：**从开始作答那一刻起算**——读材料、归类、写都算在里，切步与刷新不重置，交卷停表；剩最后 5 分钟转橙，到点提示一声但不自动交卷；批改页与练习记录表都会报「限时多少、用了多久、超时多少」。
 
@@ -39,7 +39,7 @@ mac 版**没有 Apple 开发者证书**，所以不签名、不公证，也不�
 | `docs/` | 协作规则的细节层：`界面规范.md`（质感与排版）、`题型规范.md`（各模块子类型与评分维度的数值依据，改 `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 必须同步它）、`验证工具.md`（探针 / 漂移）、`发布与更新.md`（发布流程 / 验包 / 卡点）——`AGENTS.md` 各节都指向这里 |
 | `打包.bat` | 双击自助出包（Windows）：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
 | `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
-| `tools/` | 打包辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
+| `tools/` | 打包与发布辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版（顺手给 zip 签 `.sig`）；`gate.mjs` 发布闸门（发布脚本开头自动跑）；`mac-key.mjs` 管发布签名密钥；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
@@ -60,7 +60,7 @@ npm run dist
 
 macOS 上同理：`npm install && npm start` 可以开发运行；出成品用 `npm run dist:mac`。**mac 版只能在 mac 上打**（Windows 上跑不了 `--mac`），`dist:mac` 已经内置了 npmmirror 的组件源。
 
-发布新版本（先改 `package.json` 里的 `version`，再一键传上 GitHub Release）：
+发布新版本（先提 `package.json` 里的 `version`，**再提交并推送**——发布闸门会核对远端 `main` 就是本地 HEAD，不推它直接拦下）：
 
 ```powershell
 npm run release
