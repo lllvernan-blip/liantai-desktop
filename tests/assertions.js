@@ -2191,8 +2191,8 @@ ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().
 state.settings.timeLimit = 0;
 current = { module:"zy.guina", subtype:"概括做法", question:{ background:"材".repeat(120), requirements:"不超过300字。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
 renderZyPage();
-ok(dtHtml().indexOf('class="sec-title plain">题目</div>') >= 0 && dtHtml().indexOf("作答要求：") >= 0,
-   "作答页: 「换一题」与轻题头同行（不独占一行，作答要求不被顶低一格）");
+ok(dtHtml().indexOf('class="sec-title">题目</div>') >= 0 && dtHtml().indexOf("作答要求：") >= 0,
+   "作答页: 「换一题」与题头同行（不独占一行，作答要求不被顶低一格）");
 ok(dtHtml().indexOf("作答要求：") < 0 || dtHtml().indexOf("作答要求：") < dtHtml().indexOf("背景材料"),
    "作答页: 题面在材料之前（先看要求再看材料）");
 ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('value=""') >= 0,
@@ -2380,7 +2380,7 @@ ok(__histEmpty.indexOf("还没有练习记录") >= 0 && __histEmpty.indexOf("<ta
    "空态: 记录页 0 条时给一句去处，不摆空表格");
 state.history = [{ ts: Date.now(), module:"zy.gongwen", subtype:"通知", grade:{ total:70, scores:{} } }];
 ok(profileHistHtml().indexOf("<table") >= 0, "空态: 有记录时记录页照常摆表格");
-ok(PAGE_HTML.indexOf(".noteedit{width:100%;min-height:84px") >= 0 && PAGE_HTML.indexOf(".card-body h4.noteh{margin-top:18px") >= 0
+ok(PAGE_HTML.indexOf(".noteedit{width:100%;min-height:84px") >= 0 && PAGE_HTML.indexOf(".card-body h4.noteh{margin-top:16px") >= 0
    && PAGE_HTML.indexOf(".cardcol>.csec+.csec{margin-top:24px") >= 0,
    "学习卡页: 笔记框/标题/分节间距收紧（整卡目标 ≤900 可视高）");
 /* ---- 20. 全项目 review 后修下的四条：按钮接线、判别轨抬头、出题失败落点、超时与静默失败 ---- */
@@ -2620,6 +2620,46 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(PAGE_HTML.indexOf("html += selfNoteHtml(g, total);") >= 0, "思路自述: 接在解析后面（两科共用 gradeHtml）");
   ok(PAGE_HTML.indexOf("function wireSelfNote(){") >= 0 && (PAGE_HTML.match(/wireSelfNote\(\);/g) || []).length === 2,
      "思路自述: 申论批改步与综应A 结果页都接了线（两处调用 + 一处定义）");
+}
+
+/* ============ 24. 排版尺子：字号五档 / 间距无中间值 / 屏级层级 ============ */
+{
+  // 字号：全站只剩五档变量，字面值只留给红头与纸上的字
+  ok(PAGE_HTML.indexOf("--fs-display:30px") > 0 && PAGE_HTML.indexOf("--fs-hero:26px") > 0
+     && PAGE_HTML.indexOf("--fs-title:16px") > 0 && PAGE_HTML.indexOf("--fs-body:14px") > 0
+     && PAGE_HTML.indexOf("--fs-note:12.5px") > 0,
+     "尺子: :root 里五档字号都在");
+  const _lit = (PAGE_HTML.match(/font-size:[0-9.]+px/g) || []);
+  ok(_lit.length === 6 && _lit.every(x=> x === "font-size:16px" || x === "font-size:30px"),
+     "尺子: 字面字号只剩 6 处（红头机关名 30 + 纸上的字 16×5），其余全走变量");
+  ok((PAGE_HTML.match(/var\(--fs-note\)/g) || []).length >= 40
+     && (PAGE_HTML.match(/var\(--fs-body\)/g) || []).length >= 35,
+     "尺子: 字号确实被用上了（不是定义了没人用）");
+  // 间距：只允许五档 + 几个大留白，中间值一个不剩
+  const _spOK = [0,1,4,8,12,16,24,32,36,38,40,42,48,54,56,58,84,100,760];
+  const _spVals = new Set();
+  for(const m of PAGE_HTML.matchAll(/(?:margin|padding|gap)(?:-[a-z]+)?\s*:\s*([^;}]+)/g))
+    for(const d of m[1].matchAll(/(\d+)px/g)) _spVals.add(Number(d[1]));
+  const _spBad = Array.from(_spVals).filter(v => _spOK.indexOf(v) < 0);
+  ok(_spBad.length === 0,
+     "尺子: 间距没有中间值（2/3/5/6/7/9/10/11/13/14/18/20/22/26/28/30 一个不剩）");
+  ok(_spVals.has(4) && _spVals.has(8) && _spVals.has(12) && _spVals.has(16) && _spVals.has(24),
+     "尺子: 五档间距确实在用（4 / 8 / 12 / 16 / 24）");
+  // 层级：标题只有两档；题头比容器标签重
+  ok(PAGE_HTML.indexOf(".sec-title{font-family:var(--hei);font-weight:700;font-size:var(--fs-title)") >= 0,
+     "层级: 区块标题只有一档（16px 红竖线）");
+  ok(PAGE_HTML.indexOf(".sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body)") >= 0,
+     "层级: 次级标题降一档（14px 灰、不缩进）");
+  ok(PAGE_HTML.indexOf('<div class="sec-title plain">作答区</div>') >= 0,
+     "层级: 「作答区」是容器标签，不比「题目」重");
+  ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') >= 0,
+     "层级: 两科的题头同一档（综应A 与申论不再各写一套）");
+  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') >= 0,
+     "层级: 快判一轮页有标题（进去第一行就知道在干什么）");
+  ok(PAGE_HTML.indexOf("标红＝没答到") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
+     "层级: 批改页的标注图例挪进标题行（不再每题占一行）");
+  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0,
+     "层级: 「我的答案」也是标题行带右侧图例");
 }
 
 console.log(T.join("\n"));
