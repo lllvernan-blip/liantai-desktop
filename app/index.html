@@ -354,7 +354,9 @@ html,body{margin:0;padding:0;}
   .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:var(--r-ctl);box-shadow:0 0 0 200vmax var(--scrim);outline:2px solid var(--gov-red);display:none;}
   /* 引导气泡：墨底白字、控件圆角、暖调柔影；高亮框与气泡同一档圆角，孔和话才是同一套东西 */
   .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--ink);color:var(--paper);border-radius:var(--r-ctl);box-shadow:var(--sh-tip);padding:12px 16px;font-size:var(--fs-body);line-height:1.75;display:none;}
-  .tour-tip button{border-radius:var(--r-pill);}
+  /* 气泡里的按钮跟界面按钮同一档圆角。这里原是 --r-pill，于是引导成了全站唯一的胶囊——
+     同一颗「下一步」在引导里是圆的、在界面上是方的，看着像另一个应用的控件飘了进来。 */
+  .tour-tip button{border-radius:var(--r-ctl);}
   .tour-tip .tstep{font-size:var(--fs-note);color:var(--tip-dim);font-variant-numeric:tabular-nums;margin-bottom:4px;}
   .tour-tip .tacts{display:flex;gap:8px;align-items:center;margin-top:12px;}
   .tour-tip .tourskip{margin-left:auto;color:var(--tip-dim-2);}

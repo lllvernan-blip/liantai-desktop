@@ -1491,8 +1491,8 @@ ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].in
 ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
    "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
 ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:var(--r-ctl)') >= 0; })()
-   && PAGE_HTML.indexOf('.tour-tip button{border-radius:var(--r-pill);}') >= 0,
-   "圆润化: 引导气泡是墨底白字、控件圆角（与高亮框同一档），气泡内按钮胶囊化");
+   && PAGE_HTML.indexOf('.tour-tip button{border-radius:var(--r-ctl);}') >= 0,
+   "圆润化: 引导气泡与高亮框同档圆角，气泡内按钮跟界面按钮同档（不是胶囊）");
 /* 引导浮层是整屏唯一的深色面，它的遮罩 / 柔影 / 灰字以前散成四条 rgba，
    而且不在「:root 外的 hex」那条断言的射程里——那条只认 #hex，rgba 直接漏过。 */
 ok(!/\.tour-tip\{[^}]*rgba\(|\.tour-tip \.tstep\{[^}]*rgba\(|\.tour-tip \.tourskip\{[^}]*rgba\(/.test(PAGE_HTML),
