@@ -837,6 +837,31 @@ if (process.platform !== "darwin") {
      "发布: 签完名重算资产清单（blockmap 与 .sig 到这才齐，不然会漏传）");
 }
 
+/* 测试副本（tools/build-test.mjs）：与正式版并存、数据分家的那一只 app。
+   三处都不能松——userData 没切开就等于拿真数据当试验场；更新链没摘掉，自动更新会把
+   测试版顶成正式版；端口撞上则让 localStorage 分区漂走，测的东西不算数。 */
+{
+  const mainSrc = readFileSync(join(here, "..", "main.js"), "utf8");
+  const bt = readOr(join(here, "..", "tools", "build-test.mjs"));
+
+  ok(/const IS_TEST = fs\.existsSync\([\s\S]{0,200}?build-test\.json/.test(mainSrc),
+     "测试副本: 壳在最早期认 app/build-test.json 这个标记");
+  /* 与 load() 的 TDZ 同一类：路径一旦取过就改不回来，setPath 必须排在第一次 getPath 之前。 */
+  const iSet = mainSrc.indexOf("app.setPath('userData'");
+  const iLog = mainSrc.indexOf("const LOG_DIR =");
+  ok(iSet > 0 && iLog > 0 && iSet < iLog,
+     "测试副本: setPath('userData') 排在 LOG_DIR 之前（取过路径就改不动了）");
+  ok(/PREFERRED_PORT = IS_TEST \? 18744 : 18743/.test(mainSrc),
+     "测试副本: 端口与正式版分开（localStorage 按 origin 分区，撞上就换一套空存储）");
+  ok(/if \(IS_TEST\) \{ log\('update-skipped'[\s\S]{0,80}?return; \}/.test(mainSrc),
+     "测试副本: 不接更新链（否则自动更新把自己顶成正式版）");
+
+  ok(/appId: pkg\.build\.appId \+ "\.test"/.test(bt) && /publish: null/.test(bt),
+     "测试副本: 打包配置换独立 appId、不写发布源");
+  ok(/rmSync\(FLAG, \{ force: true \}\)/.test(bt),
+     "测试副本: 打完撤掉标记（留着会让下一次正式包也变成测试版）");
+}
+
 /* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿
    不好预测（可能正好切掉半条约束），所以按它自己写的上限卡住。 */
 {

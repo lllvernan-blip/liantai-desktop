@@ -21,6 +21,12 @@ const update = require('./update.js');
 const policy = require('./shell-policy.js');
 
 const APP_DIR = path.join(__dirname, 'app');
+/* 测试副本：tools/build-test.mjs 打测试包时会埋一个 app/build-test.json（只有测试包里有）。
+   发现它就把 userData 换成 "…-test"，与正式版彻底分家——测试版里怎么折腾都碰不到正式版的
+   记录，正式版也照常能用。这两行必须排在 LOG_DIR 之前：那行会第一次调 app.getPath('userData')，
+   路径一旦取过就改不回来了。 */
+const IS_TEST = fs.existsSync(path.join(APP_DIR, 'build-test.json'));
+if (IS_TEST) app.setPath('userData', app.getPath('userData') + '-test');
 /* 开发版：日志跟着项目走（__dirname 可写）；
    打包版：asar 包内只读，日志必须写进 userData，否则写入被静默吞掉——打包版出问题将没有任何排查抓手。
    userData 各平台不同：Windows 是 %APPDATA%\liantai-desktop，macOS 是 ~/Library/Application Support/liantai-desktop。
@@ -35,7 +41,10 @@ const HOST = policy.HOST;
 /* 端口必须稳定，不能用随机端口。
    localStorage 按 origin（含端口）分区：端口一变，应用看到的是一套全新的空存储，
    用户的设置、练习记录、草稿、划线会“凭空消失”（数据还在磁盘上，只是换了 key 空间）。 */
-const PREFERRED_PORT = 18743;
+/* 测试副本换一个固定端口：两个版本能同时开着对比。
+   更要紧的是 localStorage 按 origin 分区——测试版若总被正式版挤到邻近端口，
+   它每次看到的都是另一套空存储，测出来的东西不算数。 */
+const PREFERRED_PORT = IS_TEST ? 18744 : 18743;
 const PORT_BUSY_RETRY = 3;      // 先反复试首选端口（上一个实例可能正在退出）
 const PORT_FALLBACK_STEPS = 5;  // 仍被占用时退到邻近端口，并显式告警
 
@@ -388,7 +397,7 @@ function createWindow() {
     width: saved ? saved.width : WIN_DEFAULT.width,
     height: saved ? saved.height : WIN_DEFAULT.height,
     ...(saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? { x: saved.x, y: saved.y } : { center: true }),
-    title: '练习台',
+    title: IS_TEST ? '练习台（测试）' : '练习台',
     autoHideMenuBar: true,
     // macOS 无边框标题栏（SPEC 3.2）：顶栏融入窗口壳，页面侧用 .shell-mac 给红绿灯让位；Windows 忽略此选项
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
@@ -508,6 +517,8 @@ function createWindow() {
 /* ------------------------------------------------------------------ */
 
 function setupUpdate() {
+  /* 测试版不接更新链：它换了 userData，自动更新一装就把自己换成正式版，被测的东西当场消失。 */
+  if (IS_TEST) { log('update-skipped', '测试副本，不接更新链'); return; }
   // 更新是锦上添花，绝不能弄死启动：这儿的任何异常都只能进日志
   try {
     update.initUpdate({

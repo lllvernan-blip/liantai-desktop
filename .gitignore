@@ -18,3 +18,7 @@ Thumbs.db
 tests-out.txt
 screenshots/
 build/shots/
+
+# 测试副本的产物与标记（tools/build-test.mjs）
+dist-test/
+app/build-test.json
