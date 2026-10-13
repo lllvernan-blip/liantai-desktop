@@ -179,6 +179,8 @@ html,body{margin:0;padding:0;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
   .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:28px 0 10px;}
   .secrow .sec-title{margin:0;}   /* 标题自带的上 28 下 10 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
+  /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
+  .sec-title.plain{border-left:none;padding-left:0;font-size:13.5px;color:var(--muted);letter-spacing:1px;}
   .secright{display:flex;align-items:center;gap:12px;}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
   ::selection{background:rgba(192,21,26,.16);}
@@ -290,7 +292,6 @@ html,body{margin:0;padding:0;}
   #docBody:has(.flowrail) .grade .ghead{top:138px;}
   .grade .total{font-family:var(--hei);font-size:30px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
-  .ghead .gtag{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:6px 0 2px;}
   .barline{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13px;}
@@ -2596,8 +2597,9 @@ function metaLineHtml(q){
 }
 function qHeadHtml(showQuestion){
   const {question} = current;
-  let html = `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
-  if(showQuestion === false) return html;   // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）
+  let html = `<div class="secrow" style="margin:6px 0 0"><div class="sec-title plain">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
+  // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）；这行只剩一颗按钮，不必带题头
+  if(showQuestion === false) return `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
   html += metaLineHtml(question);
@@ -3950,9 +3952,8 @@ function gradeHtml(g, total){
   const paperScore = Number(current && current.question && current.question.score);
   const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
   let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
-  // 右上角只报丢了多少分：“先改哪条”看下面的清单，采分点项数是内部概念
+  // 打了分就不再另报「丢 N 分」：两个数说的是同一件事，写两遍只是噪音（2026-10-13）
   const hits = g.hits || [];
-  if(pts) html += `<span class="gtag">丢 ${Math.round((pts.max - pts.got) * 10) / 10} 分</span>`;
   html += `</div>`;
   const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
   if(sumNote) html += `<div class="hint" style="margin:2px 0 4px">${sumNote}</div>`;

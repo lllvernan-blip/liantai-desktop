@@ -236,8 +236,10 @@ ok(hitClass({status:"命中"}) === "hit" && hitClass({status:"部分命中"}) ==
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[ {point:"标题含事由",score:5,awarded:5,status:"满分",evidence:"写了标题"},
                    {point:"落款单位与日期",score:5,awarded:0,status:"零分",evidence:"【缺：落款】"} ] }, 50);
 ok(el("#docBody").innerHTML.indexOf("折合 50 分") >= 0, "阅卷页: 总分按采分点口径显示 (5 / 10 分)");
-ok(el("#docBody").innerHTML.indexOf("丢 5 分") >= 0 && el("#docBody").innerHTML.indexOf("采分点 2 项") < 0,
-   "阅卷页: 右上角只报丢了多少分（采分点项数是内部概念）");
+ok(el("#docBody").innerHTML.indexOf('class="sec-title plain">题目</div>') >= 0,
+   "题目页: 「换一题」与轻题头同行，不再独占一行（作答要求不再被顶低一行）");
+ok(el("#docBody").innerHTML.indexOf("丢 5 分") < 0 && el("#docBody").innerHTML.indexOf("gtag") < 0,
+   "阅卷页: 打了分就不再另报「丢 N 分」（同一个数字不写两遍）");
 ok(el("#docBody").innerHTML.indexOf("维度分") < 0,
    "阅卷页: 维度分不在批改页（画像的模块页里有一份完整的）");
 current.question.score = 20;   // 子项合计 15 ≠ 题目满分 20，必须明示而不是静默
