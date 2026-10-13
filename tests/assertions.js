@@ -2660,6 +2660,10 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "层级: 批改页的标注图例挪进标题行（不再每题占一行）");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0,
      "层级: 「我的答案」也是标题行带右侧图例");
+  // 尺子本身不许有“定义了没人用”的死 token
+  const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
+  const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
+  ok(_deadVars.length === 0, "尺子: 没有定义了却没人用的 CSS 变量" + (_deadVars.length? "（" + _deadVars.join("、") + "）" : ""));
 }
 
 console.log(T.join("\n"));

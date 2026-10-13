@@ -37,7 +37,7 @@
     --fs-note:12.5px;    /* 辅助小字：提示、标签、脚注 */
     /* 间距只有五档，直接写数值：紧贴 4 / 组内 8 / 组间 12 / 分段 16 / 区块 24 */
     /* 控件内边距：普通与矮一档各一种，不再一个控件一套 */
-    --pad-ctl:8px 14px; --pad-ctl-sm:6px 12px;
+    --pad-ctl:8px 12px; --pad-ctl-sm:6px 12px;
     /* 语义别名：同一个 hex 只在 :root 出现一次，改一处即全站生效 */
     --line-strong:#8f8b81;   /* 3.3:1 —— 表单控件的可辨识边界（分隔线不受 3:1 约束，控件边界受） */
     --text-disabled:#9a968d; /* 2.9:1 —— placeholder 与禁用文字（门槛 2:1） */
@@ -73,7 +73,7 @@ html,body{margin:0;padding:0;}
   /* 控件行里只有两个尺寸：按钮/输入框同高，胶囊矮一档；行高定死 1.35，不再跟 body 的 1.7 走 */
   /* 控件是产品（雅黑），文档是公文（仿宋）：红头、材料、作答、范文用仿宋，
      按钮 / chips / 输入框不再穿仿宋——仿宋笔画细，小字号的按钮看起来像没渲染完 */
-  button{font-family:var(--yahei);font-size:var(--fs-body);line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:var(--ctl);color:var(--ink);padding:8px 12px;cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
+  button{font-family:var(--yahei);font-size:var(--fs-body);line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:var(--ctl);color:var(--ink);padding:var(--pad-ctl);cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
   button:hover{background:var(--wash-3);}
   button:disabled{opacity:.5;cursor:not-allowed;}
   /* 主行动比次级控件高一大档（40 vs 36）、重一号（15 vs 14）：一屏里只允许一个这种重量的东西 */
