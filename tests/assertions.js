@@ -2543,6 +2543,9 @@ ok(H22.indexOf("第一段内容。\n第二段内容。") >= 0,
 ok(H22.indexOf("先写主送机关再写正文。") >= 0, "批改页: 解析照常渲染");
 ok(H22.indexOf("<details") < 0 && H22.indexOf("丢分清单") < 0 && H22.indexOf("loseline") < 0,
    "批改页: 折叠区与丢分清单都不在（2026-10-13 回退到平铺三段）");
+ok((PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].indexOf("sticky") < 0
+   && (PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].length > 0,
+   "批改页: 分数不吸顶（往下看文章时它不该浮在字上面）");
 ok(PAGE_HTML.indexOf("loselist") < 0 && PAGE_HTML.indexOf("loseDetail") < 0 && PAGE_HTML.indexOf("MISS_RE") < 0
    && PAGE_HTML.indexOf("clipTxt") < 0,
    "批改页: 丢分清单整块删净（含 CSS 与取值函数，不留死代码）");

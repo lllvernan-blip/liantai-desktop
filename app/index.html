@@ -287,9 +287,7 @@ html,body{margin:0;padding:0;}
   details.pditem .pdexp{padding:0 12px 9px 38px;}
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
   .grade{margin-top:32px;border-top:1px solid var(--line-strong);padding-top:16px;}
-  .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;position:sticky;top:96px;z-index:6;background:var(--paper);}   /* 往下逐条对采分点时，分数一直贴在顶上 */
-  /* 有训练链的页面（申论）：让开吸住的链子（41px），否则两条会叠在一起 */
-  #docBody:has(.flowrail) .grade .ghead{top:138px;}
+  .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;}   /* 分数不吸顶：它不是随对的参照物，往下滚看文章时它不该浮在字上面（2026-10-13） */
   .grade .total{font-family:var(--hei);font-size:30px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:13px;color:var(--muted);font-weight:400;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
