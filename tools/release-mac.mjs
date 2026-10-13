@@ -158,14 +158,17 @@ function signAssets() {
 
 /* latest-mac.yml 是「客户端该下哪个包、拿哪个哈希校验」的指针，必须就是当前这一版、且哈希对得上本地产物。
    踩过的坑（win 侧同样）：dist/ 里混着上一次试打包的清单，于是把旧版本的包按新版名字传上去，
-   客户端表现为「版本号写着新版、内容是旧版」或「下完校验失败」——两种都不会在打包阶段报错。 */
+   客户端表现为「版本号写着新版、内容是旧版」或「下完校验失败」——两种都不会在打包阶段报错。
+   只在「不重新打包」的路径上调它：要重新打包时 dist/ 里是什么版本都会被换掉，
+   在这里硬核会把「dist 空着」和「dist 里是上一版」两种正常起手式一并卡死。 */
 function checkYml() {
-  if (!existsSync(YML)) die("没有 dist/latest-mac.yml：先 npm run dist:mac 出一次包（或别加 --skip-build）。");
+  if (!existsSync(YML)) die("没有 dist/latest-mac.yml：带了 --skip-build 就得先 npm run dist:mac 出一次包；\n" +
+    "去掉 --skip-build 让它自己打包也行。");
   const text = readFileSync(YML, "utf8");
   const v = (((/^version:\s*(.+)$/m.exec(text) || [])[1]) || "").trim().replace(/^['"]|['"]$/g, "");
   if (v !== pkg.version) {
     die("dist/latest-mac.yml 是「" + (v || "读不出") + "」的清单，package.json 是「" + pkg.version + "」。\n" +
-        "dist/ 里混着上一次打包的残留 —— 先 npm run dist:mac 重新出一次包。");
+        "dist/ 里混着上一次打包的残留 —— 去掉 --skip-build 重新出一遍，或先 npm run dist:mac。");
   }
   const problems = [];
   for (const a of macArtifacts()) {
@@ -191,7 +194,9 @@ function main() {
   if (!dryRun && !runReleaseGates({ skip: argv.includes("--skip-gates") })) process.exit(1);
 
   step("检查本地产物与清单");
-  checkYml();
+  /* 不重新打包时才在这里核对清单（含 --dry-run：它也是「用手头的产物」）。
+     走打包路径的话这一步留给出包之后那次 checkYml()——那一次核的才是真要传的东西。 */
+  if (skipBuild) checkYml();
   const want = wantedAssets();
   for (const w of want) {
     const ok = existsSync(w.path);

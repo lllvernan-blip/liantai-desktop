@@ -820,6 +820,17 @@ if (process.platform !== "darwin") {
      + (carries.length ? "；还写着：" + carries.join("、") : ""));
 }
 
+/* mac 发布脚本「先核对清单再打包」的顺序问题：
+   打包前无条件核 latest-mac.yml，会把「dist/ 空着」和「dist/ 里是上一版」两种正常起手式
+   一并卡死——而这两件事本来都该由即将开始的打包自己处理。核对只应发生在「用手头产物」的路径上。 */
+{
+  const rm = readOr(join(here, "..", "tools", "release-mac.mjs"));
+  ok(/step\("检查本地产物与清单"\);[\s\S]{0,400}?if \(skipBuild\) checkYml\(\)/.test(rm),
+     "发布: release-mac 打包前不核对清单（只在 skip-build / dry-run 时核）");
+  ok(/if \(!skipBuild\)[\s\S]{0,900}?checkYml\(\);[\s\S]{0,80}?\/\/ 刚出的包再核一遍/.test(rm),
+     "发布: release-mac 出包之后补核一次清单（这次核的才是真要传的东西）");
+}
+
 /* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿
    不好预测（可能正好切掉半条约束），所以按它自己写的上限卡住。 */
 {
