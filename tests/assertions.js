@@ -1490,9 +1490,19 @@ ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].in
    "纸面纪律: .doc 是公文纸不是网页卡片——6px 小圆角 + 放平的阴影 + 撑满视口（clip 保 sticky 步骤条）");
 ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
    "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
-ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:10px') >= 0; })()
+ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:var(--r-ctl)') >= 0; })()
    && PAGE_HTML.indexOf('.tour-tip button{border-radius:var(--r-pill);}') >= 0,
-   "圆润化: 引导气泡是墨底白字 10px 圆角，气泡内按钮胶囊化");
+   "圆润化: 引导气泡是墨底白字、控件圆角（与高亮框同一档），气泡内按钮胶囊化");
+/* 引导浮层是整屏唯一的深色面，它的遮罩 / 柔影 / 灰字以前散成四条 rgba，
+   而且不在「:root 外的 hex」那条断言的射程里——那条只认 #hex，rgba 直接漏过。 */
+ok(!/\.tour-tip\{[^}]*rgba\(|\.tour-tip \.tstep\{[^}]*rgba\(|\.tour-tip \.tourskip\{[^}]*rgba\(/.test(PAGE_HTML),
+   "引导: 气泡的遮罩 / 柔影 / 灰字都走 token，不散落 rgba");
+/* 设置保存后要当场重画当前页：首页与科目页那颗红按钮是按「有没有 Key」渲染的，
+   不重画就得切一次页面才更新（2026-10-13 报的就是这个）。 */
+ok(PAGE_HTML.indexOf("applyForm(); const saved = save(); renderHeader(); renderCurrentView();") >= 0,
+   "设置: 保存后立刻重渲染当前页（填完 Key 当场见效，不用切页面）");
+ok(/function renderCurrentView\(\)\{[\s\S]{0,420}?_view === "q"\) return false/.test(PAGE_HTML),
+   "设置: 重渲染跳过正在作答的题页（不能清掉他刚写的东西）");
 ok((function(){ const m = PAGE_HTML.match(/\.seg button\.active\{[^}]*\}/); return m && m[0].indexOf('var(--red-wash)') >= 0; })(),
    "圆润化: 分段控件（推理程度）选中态是淡红底红字，不是整块实红");
 ok((function(){ const m = PAGE_HTML.match(/\.fab\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-ctl)') >= 0 && m[0].indexOf('box-shadow:var(--sh-paper)') >= 0; })(),

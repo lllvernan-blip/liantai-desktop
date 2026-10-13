@@ -55,6 +55,9 @@
     --sh-3:0 12px 40px rgba(0,0,0,.18);
     /* 纸面浮在桌面上（.doc、FAB 同用）：人感 Demo 的 --shadow 档——暖调、大而淡，白纸才立得住 */
     --sh-paper:0 10px 30px rgba(60,50,40,.08), 0 2px 6px rgba(60,50,40,.05);
+    --scrim:rgba(25,22,16,.45);   /* 引导挖孔外的暗遮罩（暖调，与纸面同族） */
+    --sh-tip:0 10px 30px rgba(25,22,16,.28), 0 2px 6px rgba(25,22,16,.18);   /* 墨底气泡的柔影 */
+    --tip-dim:rgba(255,253,248,.55); --tip-dim-2:rgba(255,253,248,.6);   /* 墨底上的次级白字两档 */
     --r-card:16px;   /* 卡片/弹层/纸面统一大圆角（人感 Demo --r-card） */
     /* 圆角只要三档：直角 / 控件（人感 Demo --r-ctl=8px）/ 胶囊 */
     --r-flat:0; --r-ctl:8px; --r-pill:999px;
@@ -348,13 +351,13 @@ html,body{margin:0;padding:0;}
   .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:var(--r-ctl);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);font-family:var(--hei);}
   .fab:hover{background:var(--ctl);border-color:var(--line-hover);}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--ink);}
-  .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:10px;box-shadow:0 0 0 200vmax rgba(25,22,16,.45);outline:2px solid var(--gov-red);display:none;}
-  /* 引导气泡照人感 Demo .tip 的墨底语言：深底白字、10px 圆角、暖调柔影；高亮框内收同样 10px */
-  .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--ink);color:var(--paper);border-radius:10px;box-shadow:0 10px 30px rgba(25,22,16,.28), 0 2px 6px rgba(25,22,16,.18);padding:12px 16px;font-size:var(--fs-body);line-height:1.75;display:none;}
+  .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:var(--r-ctl);box-shadow:0 0 0 200vmax var(--scrim);outline:2px solid var(--gov-red);display:none;}
+  /* 引导气泡：墨底白字、控件圆角、暖调柔影；高亮框与气泡同一档圆角，孔和话才是同一套东西 */
+  .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--ink);color:var(--paper);border-radius:var(--r-ctl);box-shadow:var(--sh-tip);padding:12px 16px;font-size:var(--fs-body);line-height:1.75;display:none;}
   .tour-tip button{border-radius:var(--r-pill);}
-  .tour-tip .tstep{font-size:var(--fs-note);color:rgba(255,253,248,.55);font-variant-numeric:tabular-nums;margin-bottom:4px;}
+  .tour-tip .tstep{font-size:var(--fs-note);color:var(--tip-dim);font-variant-numeric:tabular-nums;margin-bottom:4px;}
   .tour-tip .tacts{display:flex;gap:8px;align-items:center;margin-top:12px;}
-  .tour-tip .tourskip{margin-left:auto;color:rgba(255,253,248,.6);}
+  .tour-tip .tourskip{margin-left:auto;color:var(--tip-dim-2);}
   .tour-tip .tourskip:hover{color:var(--paper);}
   .noteedit{width:100%;min-height:84px;resize:vertical;font-family:var(--fangsong);font-size:var(--fs-body);line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
@@ -2285,6 +2288,19 @@ function renderStart(){
   paintFab();
   wireStartBox();
   maybeTour(curSubject());
+}
+
+/* 就地重渲染当前这一屏（返回是否重画了）。
+   改完设置要立刻见效：首页与科目页那颗红按钮是按「有没有 Key」渲染出来的，
+   不重画就还挂着「先填 API Key」，得切一次页面才更新。
+   正在作答的题页不动——重画会清掉他刚写的东西，那屏也不显示「要 Key」。 */
+function renderCurrentView(){
+  if(_view === "q") return false;
+  if(pdActive && pdRound){ if(pdRound.done) renderPDSummary(); else renderPDRound(); return true; }
+  if(_view === "landing") renderModuleLanding(activeModule || lastModuleOf(curSubject()));
+  else if(_view === "home") renderHome();
+  else renderStart();
+  return true;
 }
 
 /* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组：home → zy → sl。
@@ -4424,7 +4440,7 @@ async function fetchModels(silent){
 }
 function saveSettings(){
   const hadKey = !!state.settings.apiKey;   // 存之前有没有 Key：用来分清「刚填上」和「本来就有」
-  applyForm(); const saved = save(); renderHeader();
+  applyForm(); const saved = save(); renderHeader(); renderCurrentView();
   $("#setMsg").textContent = saved? "已保存 ✓" : "没保存上：本地存储已满，先「导出」备份再清理旧记录";
   setTimeout(()=>{ if($("#setMsg").textContent==="已保存 ✓") $("#setMsg").textContent=""; }, 1800);
   if(!state.settings.apiKey) banner("还没填 API Key，出题/阅卷功能暂不可用。填入后即可使用。");
@@ -5030,10 +5046,8 @@ renderChangelog();
     state.tutVersion = DEFAULT_STATE.tutVersion;
     save();
     closeModals();
-    // 重置后就地重播：首页/科目首页/快判页直接重渲一次让它当场出现；正在作答不打断，这些屏都会再弹
-    if(_view === "q"){ banner("使用说明已重置。本页练习还在进行，回到首页或科目页时会重新显示引导。"); return; }
-    if(pdActive && pdRound){ if(pdRound.done) renderPDSummary(); else renderPDRound(); }
-    else if(_view === "home") renderHome(); else renderStart();
+    // 重置后就地重播：首页/科目首页/快判页直接重渲一次让它当场出现；正在作答不打断
+    if(!renderCurrentView()) banner("使用说明已重置。本页练习还在进行，回到首页或科目页时会重新显示引导。");
   };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   const setModelEl = $("#setModel");
