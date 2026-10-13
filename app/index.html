@@ -350,6 +350,19 @@ html,body{margin:0;padding:0;}
   .notebody{padding:4px 12px 12px;font-size:15px;line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
   .modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;-webkit-text-stroke:0.3px currentColor;}
+  /* 作答前的规则展示位：动手那一刻要看见的东西，不折起来；一条一行 */
+  .prepbox{margin:12px 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--write);}
+  .prephead{font-family:var(--hei);font-size:13px;font-weight:600;color:var(--muted);}
+  .prepline{font-size:13.5px;line-height:1.7;margin-top:6px;}
+  .prepline .etag{font-family:var(--hei);font-size:12px;color:var(--muted);background:var(--wash-3);padding:1px 7px;border-radius:var(--r-ctl);margin-right:6px;}
+  .prepline b{font-weight:600;}
+  .prepbody{color:var(--muted-2);}
+  /* 思路自述：批改后问一句，可跳过；刻意做得比正文轻 */
+  .selfbox{margin:16px 0 4px;padding:12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--write);}
+  .selfask{font-family:var(--hei);font-size:13.5px;margin-bottom:6px;}
+  textarea.selfin{width:100%;min-height:56px;resize:vertical;font-family:var(--fangsong);font-size:15px;line-height:1.9;border:1px solid var(--line-strong);padding:10px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  textarea.selfin:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
+  .selfrow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;}
   /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
   .setgrp{border-top:1px solid var(--line);margin-top:24px;padding-top:20px;}
   .setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0;}
@@ -1814,6 +1827,10 @@ async function fetchModelAnswer(k, subtype, question, keyPoints, answer){
 // 不做成两个功能、不设采纳仪式：提炼全自动，失败静默跳过，绝不影响批改展示。
 const EXP_MAX = 60;
 const EXP_TYPES = ["错因","规则","表达"];
+const PREP_MAX = 3;   // 作答前最多摆几条：摆多了自己也不看
+// 动笔那一刻先看「怎么做」，再看「别怎么写」——规则是能照着做的动作，错因只是提醒
+const PREP_RANK = { "规则":0, "表达":1, "错因":2 };
+const prepRank = t => (t in PREP_RANK)? PREP_RANK[t] : 9;
 let _lastDistilled = [];   // 最近一次批改提炼出的经验（申论 distill 步展示用）
 const RETEST_DAYS = 7;   // 已改掉的错因不是注销，是排期复测：纠错后一周左右会回流，换题再来一次才算真的改掉
 function expDueRetest(e, now){
@@ -1955,6 +1972,22 @@ function expSourceLabel(e){
 function experienceListHtml(){
   if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。练完一轮、批改后自动归档，先去练一轮。</div>`;
   return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
+}
+/* 作答前的规则展示位：沉淀下来的经验原先只在画像里躺着，做题时看不见——规则得站在动手那一刻才有用。
+   一条一行、最多 3 条、不折叠：动笔前扫一眼就是它全部的用处。这个模块没有经验时整块不出现。 */
+function prepRules(k){
+  return (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k)
+    .sort((a,b)=> prepRank(a.type) - prepRank(b.type) || Number(b.ts||0) - Number(a.ts||0))
+    .slice(0, PREP_MAX);
+}
+function prepRulesHtml(k){
+  const all = (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k);
+  const list = prepRules(k);
+  if(!list.length) return "";
+  return `<div class="prepbox"><div class="prephead">动笔前 · 你在这类题上攒下的经验</div>`
+    + list.map(e=>`<div class="prepline"><span class="etag">${esc(e.type)}</span><b>${esc(e.title)}</b> <span class="prepbody">${esc(e.body)}</span></div>`).join("")
+    + (all.length > list.length? `<div class="hint" style="margin-top:6px">另有 ${all.length - list.length} 条，在画像的「我的经验」里</div>` : "")
+    + `</div>`;
 }
 function wireExperiences(){
   document.querySelectorAll("[data-exp-toggle]").forEach(b=> b.onclick = ()=>{
@@ -2653,6 +2686,7 @@ function wireZyPage(phase){
   } else if(phase === "grade"){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    wireSelfNote();
   } else {
     wireCardPage("btnZyAnswer", ()=>{ current.phase = "answer"; renderZyPage(); });
   }
@@ -3506,7 +3540,7 @@ function draftPanelHtml(f){
   // 归类不再占一步：它是作答区那一行右侧的一个入口，想先理一遍要点再写就点它，归完回到这里
   const gN = f? (f.groups || []).length : 0;
   const orgBtn = f? `<button id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
-  let html = "";
+  let html = prepRulesHtml(module);   // 作答前的规则展示位：动笔之前先看见自己攒下的经验
   // 提纲不再另摆一份：归类面板里有一份「提纲预览」，同一个东西不在两处各写一遍
   if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
@@ -3679,6 +3713,7 @@ function wireStep(step, f){
   if(step === "review"){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    wireSelfNote();
   }
 }
 /* 找点已并入读材料步：这里的监听只服务合并后的 read 步（点句子=找点开关，选区弹窗=划线/选要点） */
@@ -3939,6 +3974,55 @@ function paintExpLine(){
   const b = $("#btnGoExp");
   if(b) b.onclick = ()=>{ openModal("modalProfile"); profGo("exp"); };
 }
+/* 思路自述：批改之后趁印象还在问一句，两问都可跳过。
+   只从错题归纳只能得出「你哪里不行」——做对的题才是有效打法的语料来源，
+   所以得高分的题问「凭什么确定」，丢分的题问「卡在哪一步」。
+   落在 state.history[0].selfNote / selfKind（步骤 1 的地基）；跳过的题不写字段，归纳时不硬凑。 */
+const SELF_ASK = {
+  how:   ["这道你凭什么确定了？", "是一眼看出的，还是排除了别的？哪一步让你确定——一句话，可跳过"],
+  stuck: ["这道卡在哪一步？",   "读材料、找点、还是落笔时卡的——一句话，可跳过"]
+};
+function selfAskKind(g, total){
+  const pts = pointsOf(g && g.hits);
+  const r = pts? pts.got/pts.max : (Number(total)||0)/100;
+  return r >= 0.8? "how" : "stuck";
+}
+// 只认当前这道题的记录：批改页再渲染时 history[0] 有可能已经换人了
+function curGradeRecord(){
+  const r = state.history && state.history[0];
+  if(!r || !current || !current.question) return null;
+  return (r.question && qSig(r.question) === qSig(current.question))? r : null;
+}
+function selfNoteHtml(g, total){
+  const r = curGradeRecord();
+  if(!r) return "";
+  const kind = selfAskKind(g, total);
+  const cur = (r.selfKind === kind && typeof r.selfNote === "string")? r.selfNote : "";
+  const ask = SELF_ASK[kind];
+  return `<div class="selfbox" id="selfBox" data-kind="${kind}">`
+    + `<div class="selfask">${esc(ask[0])}</div>`
+    + `<textarea class="selfin" id="selfNote" maxlength="${SELF_NOTE_MAX}" placeholder="${esc(ask[1])}">${esc(cur)}</textarea>`
+    + `<div class="selfrow"><button id="btnSelfSave">记下</button><button class="linkbtn" id="btnSelfSkip">跳过</button>`
+    + `<span class="hint" id="selfState">${cur? "已记下。攒够一个模块的量，就能看出你的做题习惯" : "跳过也行——跳过的题不参与归纳"}</span></div></div>`;
+}
+function wireSelfNote(){
+  const box = $("#selfBox"); if(!box) return;
+  const kind = box.dataset.kind === "how"? "how" : "stuck";
+  const ta = $("#selfNote"), st = $("#selfState");
+  const write = v=>{
+    const r = curGradeRecord(); if(!r) return false;
+    const t = String(v||"").trim().slice(0, SELF_NOTE_MAX);
+    // 空 = 跳过：两个字段都不写进去。留个空串会在历史里占一个「答了但没内容」的位，归纳时要再判一次
+    if(!t){ delete r.selfNote; delete r.selfKind; }
+    else { r.selfNote = t; r.selfKind = kind; }
+    save();
+    return !!t;
+  };
+  const b = $("#btnSelfSave");
+  if(b) b.onclick = ()=>{ if(write(ta && ta.value) && st) st.textContent = "已记下。攒够一个模块的量，就能看出你的做题习惯"; };
+  const sk = $("#btnSelfSkip");
+  if(sk) sk.onclick = ()=>{ write(""); if(ta) ta.value = ""; if(st) st.textContent = "已跳过，这题不参与归纳"; };
+}
 /* 解析按句切行（。！？；后断行）：长句拆开读不费劲，没有动画。
    旧记录里留着的是更短的一句话点评，切行同样适用。 */
 function gradeCommentHtml(comment){
@@ -3972,6 +4056,7 @@ function gradeHtml(g, total){
   if(ansReview) html += `<div class="sec-title">我的答案</div>` + ansReview;
   if(g.modelAnswer) html += `<div class="sec-title lite">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
   if(g.comment) html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
+  html += selfNoteHtml(g, total);   // 趁印象还在问一句（可跳过）
   // 老记录（无采分点）没有逐句标注可用，退回「待改进」的原话
   if(!hits.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）

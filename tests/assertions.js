@@ -2562,6 +2562,66 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
    && el("#docBody").innerHTML.indexOf("loseline") < 0,
    "批改页: 全满分时三段照常（没有清单可列，也不留空块）");
 
+/* ============ 23. 第 3 步：作答前的规则展示位 + 批改页思路自述 ============ */
+{
+  const _exp0 = state.experiences, _hist0 = state.history;
+  const _mk = (id, type, title, ts, extra)=> Object.assign({ id, type, kind:"", title, body:"正文 "+id,
+    scope:"module", module:"zy.gongwen", subject:"zy", ts, disabled:false }, extra || {});
+  state.experiences = [ _mk("e1","错因","错因条",100), _mk("e2","规则","规则条A",200), _mk("e3","表达","表达条",300),
+    _mk("e4","规则","规则条B",50), _mk("e5","规则","停用的规则",999,{ disabled:true }) ];
+  const _pr = prepRules("zy.gongwen");
+  ok(_pr.length === 3, "规则展示位: 最多摆 3 条");
+  ok(_pr[0].title === "规则条A" && _pr[1].title === "规则条B",
+     "规则展示位: 规则类排最前（同一类里新的在前）");
+  ok(_pr[2].title === "表达条" && _pr.map(e=>e.id).indexOf("e1") < 0,
+     "规则展示位: 表达往后排，错因排最后（摊不到 3 条时才轮到它）");
+  ok(_pr.map(e=>e.id).indexOf("e5") < 0, "规则展示位: 停用的经验不摆出来");
+  const _ph = prepRulesHtml("zy.gongwen");
+  ok(_ph.indexOf("动笔前") >= 0 && _ph.indexOf("规则条A") >= 0 && _ph.indexOf("另有 1 条") >= 0,
+     "规则展示位: 摆出前 3 条，其余只报个数");
+  state.experiences = [];
+  ok(prepRulesHtml("zy.gongwen") === "", "规则展示位: 这个模块没经验时整块不出现，不留空框");
+  state.experiences = _exp0;
+  ok(PAGE_HTML.indexOf("let html = prepRulesHtml(module);") >= 0,
+     "规则展示位: 作答区上方接上了它（申论一稿页与综应A 作答页共用 draftPanelHtml）");
+
+  /* 自述：先问什么，再落到哪条记录上 */
+  ok(selfAskKind({ hits:[{score:10,awarded:9}] }, 90) === "how", "思路自述: 得高分的题问「凭什么确定」");
+  ok(selfAskKind({ hits:[{score:10,awarded:8}] }, 80) === "how", "思路自述: 八成分数就算高分");
+  ok(selfAskKind({ hits:[{score:10,awarded:4}] }, 40) === "stuck", "思路自述: 丢分的题问「卡在哪一步」");
+  ok(selfAskKind({ hits:[] }, 80) === "how" && selfAskKind({ hits:[] }, 60) === "stuck",
+     "思路自述: 没有采分点的老记录退回总分判");
+  state.history = [{ ts:Date.now(), module:"zy.gongwen", question:current.question, answer:"x", hits:[], grade:{} }];
+  renderGrade({ hits:[{score:10,awarded:9}], comment:"x" }, 90, null, null, "我答了一句。");
+  const _H = el("#docBody").innerHTML;
+  ok(_H.indexOf('id="selfBox"') >= 0 && _H.indexOf("凭什么确定") >= 0 && _H.indexOf("卡在哪一步") < 0,
+     "思路自述: 高分题在批改页上摆出「凭什么确定」（另一问不同时出现）");
+  renderGrade({ hits:[{score:10,awarded:3}], comment:"x" }, 30, null, null, "我答了一句。");
+  ok(el("#docBody").innerHTML.indexOf("卡在哪一步") >= 0, "思路自述: 丢分的题换成「卡在哪一步」");
+  ok(_H.indexOf('id="btnSelfSkip"') >= 0, "思路自述: 旁边就是跳过");
+  /* 记下 → 写进记录；跳过 → 两个字段都不写 */
+  el("#selfNote").value = "  看到主送机关就知道这是通知  ";
+  el("#btnSelfSave").onclick();
+  ok(state.history[0].selfNote === "看到主送机关就知道这是通知" && state.history[0].selfKind === "stuck",
+     "思路自述: 记下落进当前这条记录（去掉首尾空白）");
+  el("#btnSelfSkip").onclick();
+  ok(!("selfNote" in state.history[0]) && !("selfKind" in state.history[0]),
+     "思路自述: 跳过不写字段（归纳时不硬凑）");
+  /* 回填：已写过的再次渲染要带回来；问法不同则不回填，免得两句话串味 */
+  state.history[0].selfNote = "先分层再落笔"; state.history[0].selfKind = "how";
+  ok(selfNoteHtml({ hits:[{score:10,awarded:9}] }, 90).indexOf("先分层再落笔") >= 0,
+     "思路自述: 同一问法再次渲染时回填原文");
+  ok(selfNoteHtml({ hits:[{score:10,awarded:1}] }, 10).indexOf("先分层再落笔") < 0,
+     "思路自述: 换了一问就不带上一问的原文");
+  state.history = [{ ts:Date.now(), module:"zy.gongwen", question:{ background:"别的题", requirements:"别的", score:20 }, answer:"x" }];
+  ok(selfNoteHtml({ hits:[{score:10,awarded:9}] }, 90) === "",
+     "思路自述: 记录不是当前这道题时不出现（不把自述写到别人头上）");
+  state.history = _hist0;
+  ok(PAGE_HTML.indexOf("html += selfNoteHtml(g, total);") >= 0, "思路自述: 接在解析后面（两科共用 gradeHtml）");
+  ok(PAGE_HTML.indexOf("function wireSelfNote(){") >= 0 && (PAGE_HTML.match(/wireSelfNote\(\);/g) || []).length === 2,
+     "思路自述: 申论批改步与综应A 结果页都接了线（两处调用 + 一处定义）");
+}
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
