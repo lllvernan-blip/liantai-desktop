@@ -48,16 +48,20 @@
 
 **流程细节、验包规矩、已知卡点都在 `docs/发布与更新.md`**；这一节只留边界与硬规矩。
 
-- 更新模块 `update.js`，状态机 `idle / checking / available / downloading / downloaded / up-to-date / error / disabled`；壳用 `GET /__update/status` 暴露，页面 `__updatePush()` 接，动作用 `POST /__update/check` / `/download` / `/install`（`/download` 只有 mac 链用）。**POST 一律要求自定义头 `x-liantai: 1`**（跨站会先 OPTIONS 预检）——别改成免头路由。
-- **mac 那条链是自实现的**（`initMacUpdater` + `MAC_INSTALL_SCRIPT`）：① **只查不下、只下不换**（开机 12 秒自查只推「有新版本」，下载与换包各要用户点一次，`status.autoDownload === false`）；② **只从官方域取包**（`github.com` / `*.githubusercontent.com`，明文 http 只放本机回环）；③ **换包要能回滚**（先 `mv` 走旧包再 `mv` 进新包，失败原地搬回并重开旧版）；④ **失败留痕** `<userData>/updates/install.log`，下次启动 `macLastFailure()` 读、`main.js` 灌进首页提示区。坏包改名 `.zip.bad`；下好没换成的包下次启动会认回来（`macScanDownloaded`）。
+- 更新模块 `update.js`；壳用 `GET /__update/status` 暴露，页面 `__updatePush()` 接，动作用 `POST /__update/check` / `/download` / `/install`（`/download` 只有 mac 链用）。**POST 一律要求自定义头 `x-liantai: 1`**（跨站会先 OPTIONS 预检）——别改成免头路由。
+- **mac 那条链是自实现的**（`initMacUpdater` + `MAC_INSTALL_SCRIPT`）：① **只查不下、只下不换**（自查只推「有新版本」，下载与换包各要用户点一次，`status.autoDownload === false`）；② **只从官方域取包**（`github.com` / `*.githubusercontent.com`，明文 http 只放本机回环）；③ **换包要能回滚**（旧的先 `mv` 走，失败原地搬回并重开旧版）；④ **失败留痕** `<userData>/updates/install.log`，下次启动 `macLastFailure()` 读、`main.js` 灌进首页提示区。坏包改名 `.zip.bad`；下好没换成的包下次启动会认回来（`macScanDownloaded`）。
 - **只发 NSIS 安装版，不要再加 `portable`**；免安装版必须禁用自动更新（带 `PORTABLE_EXECUTABLE_FILE` 就置 `disabled`）。
-- 更新不碰用户数据；`nsis.deleteAppDataOnUninstall` 保持 `false`。更新失败绝不阻断：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，出错后 30 分钟重试、常驻每 6 小时，不在启动路径弹阻断对话框。
+- 更新不碰用户数据；`nsis.deleteAppDataOnUninstall` 保持 `false`。更新失败绝不阻断：只进 `logs/startup.log`（`update-*` 行）与设置页一行提示，不在启动路径弹阻断对话框。
 - **备用源与校验下载分离**：主源永远是包内 `app-update.yml`，连不通按 `BACKUP_FEEDS` 顺序换源；元数据取自 `BACKUP_FEEDS[i]`、包地址改写指向 `BACKUP_FEEDS[i+1]`（`installCrossSourceHook`），**相邻两条同时活着才算一条能走通的路**。设了 `LIANTAI_UPDATE_FEED` 就只认它。
 - **差量缓存会错位，每次检查前必须自检**：`installer.exe`（NSIS 写）与 `current.blockmap`（electron-updater 写）可能指向两个版本；`alignDifferentialCache()` 每次检查前核对（blockmap 里 `sizes` 逐块相加 == 安装包大小），对不上就删 `current.blockmap`。
-- **发布**：三个命令 `release` / `release:mac` / `release:check`，**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**：一个 tag 下一整套 = Windows 三件 + mac 六件（dmg / zip / 各自 blockmap / `latest-mac.yml` / zip 的 `.sig`）。
+- **发布**：三个命令 `release` / `release:mac` / `release:check`，**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**（一个 tag 下一整套，缺哪件由 `release:check` 逐件报）。
+- **发版节奏**：改完不立刻发。**常规改善攒够一个主题再发**，**修重要 bug 当天就发**。发之前先给一份测试副本，日常使一两天，确认没问题再走正式发布。
+- **测试副本**（`npm run test:build`，`tools/build-test.mjs`）：与正式版并存、数据分家的那一只 app。
+  - 包内埋 `app/build-test.json`；壳认到它就换 userData 到 `…-test`、固定用 18744 端口（`localStorage` 按 origin 分区，撞上就是又一套空存储）、**不接更新链**（否则自动更新把自己顶成正式版，被测的东西当场消失）。
+  - bundle id 与显示名带 test（Finder 里两个 app 不打架），不写发布源；产物落 `dist-test/`，与 `dist/` 分开。
 - **单发 mac 必须加 `--prerelease`**：只带 mac 资产的 Release 会占住 `/releases/latest`，Windows 用户检查更新就 404（`release-mac.mjs` 默认不自己建 Release，除非 `--create`）。
-- **发布闸门是脚本，不是人肉清单**：`tools/gate.mjs`（`release` / `release:mac` 开头自动跑，也可单跑）——① 工作区干净；② 远端 `main` 的 sha = 本地 HEAD；③ 跟踪文件里没有明文密钥（`sk-` 各家形态 + GitHub 令牌 + PEM 私钥头）。任一不过就停手；`--skip-gates` 是明知故犯时的唯一出口。**第四条 `npm run release:check`（九件齐不齐 + 字节对账）只能在发完之后跑**。演示/测试用的假 Key 靠行内 `gate-allow` 标记放行。**验包不许碰本机那份安装**。
-- **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 六件；④ 任意一端 `npm run release:check` 看九件齐不齐。
+- **发布闸门是脚本，不是人肉清单**：`tools/gate.mjs`（`release` / `release:mac` 开头自动跑，也可单跑）——① 工作区干净；② 远端 `main` 的 sha = 本地 HEAD；③ 跟踪文件里没有明文密钥。任一不过就停手；`--skip-gates` 是明知故犯时的唯一出口。**第四条 `npm run release:check` 只能在发完之后跑**。演示/测试用的假 Key 靠行内 `gate-allow` 标记放行。**验包不许碰本机那份安装**。
+- **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 六件。
 - **mac 包每版都有发布侧签名**（`tools/mac-key.mjs`）：`release:mac` 自动给每个 zip 签出 `.sig` 再传，没私钥就停手不传。**私钥在 `~/.liantai-release-key`，不进仓库、不上传，丢了就只能手动重装一次**；`update.js` 里的 `MAC_UPDATE_KEYS` 钉着公钥，换钥要先把新公钥加进数组发一版。细节与理由见 `tools/mac-key.mjs` 开头。
 - **仓库位置与应用标识只有一处真源（`app-meta.js`）**：壳、更新链、发布工具都从它取 owner/repo/appId/name；`package.json` 的 `build.publish` 与 `build.appId` 是给 electron-builder 的同一份信息，两边对不上由 `tests/shell.mjs` 报错。**运行期不能读 package.json 取这些值**：打包时 electron-builder 会把 `build` 段剥掉。
   - Windows **直连官方 git 协议不通**：拉取用转发站一次性 fetch，**别改 origin、更别用它推送**（推送带令牌）——`git fetch "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop.git" main && git merge --ff-only FETCH_HEAD`；拉完 `git rev-parse HEAD` 必须就是 mac 推的那条 sha，不等就别发。
