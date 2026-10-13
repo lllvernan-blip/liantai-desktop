@@ -1077,6 +1077,11 @@ function sanitizeFlows(list){
 
 /* 练习记录单独存：一次作答 = 材料 + 手写答案 + 阅卷结果，全部不可再生，不该和可再生的缓存挤同一个配额。
    注意：必须定义在 let state = load() 之前——load() 依赖 HISTORY_KEY，放后面会撞 TDZ 被静默吞掉。 */
+/* 划线的可选颜色：normMarkColor 用它，而 normMarkColor 又被 load() 调用（模块顶层就跑）。
+   和下面的 HISTORY_KEY 同理，必须声明在 load() 之前；摆到后面会撞 TDZ，
+   而 load() 那个 catch 会把它吞成默认值，症状就是启动后一切皆空。 */
+const MARK_COLORS = ["#fde68a","#a7f3d0","#bfdbfe","#fbcfe8","#fed7aa"];
+
 const HISTORY_KEY = "gw_history";
 function loadHistory(){
   try{ const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || "null"); return Array.isArray(h) ? h : null; }
@@ -1107,6 +1112,7 @@ function ensureActive(){
   if(moduleKeysOf(curSubject()).indexOf(activeModule) < 0) activeModule = lastModuleOf(curSubject());
 }
 activeModule = lastModuleOf(curSubject());
+
 
 /* 引导游标与划线颜色的取值口径：load（本机存储）与 import（备份文件）两条入口共用，
    免得一个收一个不收——两处不一致时，表现为「同样的数据刷新后一个样、导入后另一个样」。 */
@@ -1185,7 +1191,13 @@ function load(){
     }
     if(migrated){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
     return s;
-  }catch(e){ return structuredClone(DEFAULT_STATE); }
+  }catch(e){
+    // 读失败就整份回默认——但这件事不能不出声。这条路上任何一处抛异常（最典型的是某个符号
+    // 声明在 load() 之后、撞了 TDZ），界面会以空壳启动，接着被 save() 写回去，
+    // 用户看到的只是「数据全没了」。留一条日志，下次能顺着它找到那一行。
+    console.error("[liantai] 读取本地存储失败，已按默认值启动；存储里的原始数据没有被清除。", e);
+    return structuredClone(DEFAULT_STATE);
+  }
 }
 function save(){
   // gw_state 不再含练习记录（见 load 迁移）；写满时优先丢弃可再生的大块：学习卡缓存（手写笔记不在其中）
@@ -4311,7 +4323,6 @@ function onProviderChange(){
   setReasonUI();
   if(hasKey && !cached) fetchModels(true);
 }
-const MARK_COLORS = ["#fde68a","#a7f3d0","#bfdbfe","#fbcfe8","#fed7aa"];
 function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_COLORS[1]); }
 function renderMarkSwatches(){
   $("#markSwatches").innerHTML = MARK_COLORS.map(c=>`<button class="swatch${state.settings.markColor===c?" sel":""}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join("");

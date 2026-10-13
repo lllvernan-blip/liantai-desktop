@@ -2672,6 +2672,24 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(_hexOutside.length === 0, "尺子: CSS 里 :root 外的设计色都进了 token" + (_hexOutside.length? "（" + _hexOutside.join(" ") + "）" : ""));
 }
 
+/* 0.1 启动顺序：load() 引用的每个顶层常量都必须声明在它之前。
+   load() 在模块顶层就被调用；撞 TDZ 时它自己的 catch 会把 ReferenceError 吞成「整份回默认」，
+   界面上只表现为「数据全没了」（2026-10-13 真丢过一次：MARK_COLORS 落到了 load() 后面）。
+   函数声明会提升，不列入检查。 */
+{
+  const _src = PAGE_HTML.slice(PAGE_HTML.indexOf("<script>") + 8, PAGE_HTML.lastIndexOf("</script>"));
+  const _at = _src.indexOf("let state = load();");
+  const _deps = ["DEFAULT_STATE","LEGACY_ORG","DEFAULT_SUBJECT","SUBJECTS","MODULES","MARK_COLORS",
+                 "HISTORY_KEY","SELF_KINDS","SELF_NOTE_MAX","FLOW_STEPS"];
+  const _late = _deps.filter(n => {
+    const m = new RegExp("^(?:const|let|var) " + n + "\\b", "m").exec(_src);
+    return m && m.index > _at;
+  });
+  ok(_at >= 0 && _late.length === 0,
+     "启动顺序: load() 引用的顶层常量都声明在 let state = load() 之前"
+     + (_late.length ? "；落在后面的：" + _late.join("、") : ""));
+}
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
