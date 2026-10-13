@@ -820,6 +820,15 @@ if (process.platform !== "darwin") {
      + (carries.length ? "；还写着：" + carries.join("、") : ""));
 }
 
+/* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿
+   不好预测（可能正好切掉半条约束），所以按它自己写的上限卡住。 */
+{
+  const agents = readFileSync(join(here, "..", "AGENTS.md"));
+  const LIMIT = 32 * 1024;
+  ok(agents.length <= LIMIT,
+     "规则: AGENTS.md 不超过自己写的 " + (LIMIT / 1024) + " KiB（当前 " + agents.length + " B）");
+}
+
 console.log(T.join("\n"));
 const fails = T.filter((x) => x.indexOf("FAIL") === 0);
 console.log("\n== 壳侧 " + (T.length - fails.length) + "/" + T.length + " passed ==");
