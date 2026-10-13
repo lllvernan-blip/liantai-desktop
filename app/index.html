@@ -173,7 +173,7 @@ html,body{margin:0;padding:0;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
-  .qtop button.linkbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);padding:5px 12px;font-size:13px;min-height:28px;}
+  .qtop button.linkbtn,.ghead button.linkbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);padding:5px 12px;font-size:13px;min-height:28px;}
   .qtop button.linkbtn:hover{background:var(--ctl);border-color:var(--gov-red);}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:16px;margin:28px 0 10px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
@@ -287,7 +287,7 @@ html,body{margin:0;padding:0;}
   details.pditem .pdexp{padding:0 12px 9px 38px;}
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
   .grade{margin-top:32px;border-top:1px solid var(--line-strong);padding-top:16px;}
-  .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;position:sticky;top:96px;z-index:6;background:var(--paper);}   /* 往下逐条对采分点时，分数和丢分总数一直贴在顶上 */
+  .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:6px;position:sticky;top:96px;z-index:6;background:var(--paper);}   /* 往下逐条对采分点时，分数一直贴在顶上 */
   /* 有训练链的页面（申论）：让开吸住的链子（41px），否则两条会叠在一起 */
   #docBody:has(.flowrail) .grade .ghead{top:138px;}
   .grade .total{font-family:var(--hei);font-size:30px;color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
@@ -2633,7 +2633,7 @@ function wireCardPage(btnId, onGo){
 function renderZyPage(){
   if(!current || !current.question){ renderStart(); return; }
   const phase = current.phase || "card";
-  let html = qHeadHtml(phase !== "card");
+  let html = phase === "grade"? "" : qHeadHtml(phase !== "card");   // 批改页不重复题面：这一页的头是分数（换一题在分数那一行）
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
@@ -3323,10 +3323,13 @@ function renderFlowStep(){
   const showTl = step === "read";   // 读材料步也把限时摆出来：时钟从「开始作答」就起算，一稿页自己有这一行
   // 步骤条摆在纸面第一行：它说的是「我现在在哪」，不是这道题的题干，不该夹在要求与当前步面板之间
   let html = f? railHtml(f) : "";
-  html += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
-  html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  html += metaLineHtml(question);
+  // 批改步不重复题面：这一页的头是分数（换一题在分数那一行右侧，见 gradeHtml 的 .ghead）
+  if(step !== "review"){
+    html += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
+    html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
+    if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
+    html += metaLineHtml(question);
+  }
   html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
   if(f) html += navHtml(step);
   docBody.innerHTML = html;
@@ -3951,8 +3954,10 @@ function gradeHtml(g, total){
   // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
   const paperScore = Number(current && current.question && current.question.score);
   const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
-  let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`;
-  // 打了分就不再另报「丢 N 分」：两个数说的是同一件事，写两遍只是噪音（2026-10-13）
+  // 分数就是这一页的头：「换一题」落在它右侧；题面（作答要求/分值/难度）不在这一页重复（2026-10-13）
+  let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`
+    + `<button class="linkbtn" id="btnSwitch">换一题</button>`;
+  // 打了分就不再另报「丢 N 分」：两个数说的是同一件事，写两遍只是噪音
   const hits = g.hits || [];
   html += `</div>`;
   const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");

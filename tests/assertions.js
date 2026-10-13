@@ -236,8 +236,8 @@ ok(hitClass({status:"命中"}) === "hit" && hitClass({status:"部分命中"}) ==
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[ {point:"标题含事由",score:5,awarded:5,status:"满分",evidence:"写了标题"},
                    {point:"落款单位与日期",score:5,awarded:0,status:"零分",evidence:"【缺：落款】"} ] }, 50);
 ok(el("#docBody").innerHTML.indexOf("折合 50 分") >= 0, "阅卷页: 总分按采分点口径显示 (5 / 10 分)");
-ok(el("#docBody").innerHTML.indexOf('class="sec-title plain">题目</div>') >= 0,
-   "题目页: 「换一题」与轻题头同行，不再独占一行（作答要求不再被顶低一行）");
+ok(el("#docBody").innerHTML.indexOf("作答要求：") < 0 && el("#docBody").innerHTML.indexOf('id="btnSwitch"') >= 0,
+   "批改页: 不重复题面（作答要求不出现），「换一题」落在分数那一行");
 ok(el("#docBody").innerHTML.indexOf("丢 5 分") < 0 && el("#docBody").innerHTML.indexOf("gtag") < 0,
    "阅卷页: 打了分就不再另报「丢 N 分」（同一个数字不写两遍）");
 ok(el("#docBody").innerHTML.indexOf("维度分") < 0,
@@ -2191,6 +2191,10 @@ ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().
 state.settings.timeLimit = 0;
 current = { module:"zy.guina", subtype:"概括做法", question:{ background:"材".repeat(120), requirements:"不超过300字。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
 renderZyPage();
+ok(dtHtml().indexOf('class="sec-title plain">题目</div>') >= 0 && dtHtml().indexOf("作答要求：") >= 0,
+   "作答页: 「换一题」与轻题头同行（不独占一行，作答要求不被顶低一格）");
+ok(dtHtml().indexOf("作答要求：") < 0 || dtHtml().indexOf("作答要求：") < dtHtml().indexOf("背景材料"),
+   "作答页: 题面在材料之前（先看要求再看材料）");
 ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('value=""') >= 0,
    "限时: 综应A 作答页也有控件（与申论共用同一处渲染）");
 el("#answer").value = "综应A 的一段作答内容，用来验证不限时的时候什么也不报。";
