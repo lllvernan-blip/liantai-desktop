@@ -536,7 +536,15 @@ ok(el("#fabSlot").innerHTML.indexOf("看学习卡") >= 0 && el("#docBody").inner
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "读材料: 笔记不再摊在纸面上（收进抽屉）");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: 不再挂 Next（每一步自带主行动）");
 ok(flowGoStep("organize") === false, "归类: 不再占一步（降级成一稿页上的入口）");
-ok(el("#docBody").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存");
+ok(el("#popSlot").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存（弹窗挂在纸面外）");
+// 与学习卡浮标同一条理由：纸面里的入场动画填充到最后那帧的 transform 是单位矩阵不是 none，
+// 那个盒子就成了 absolute 子元素的定位基准，小窗会被再叠上一次它的偏移
+ok(el("#popSlot").innerHTML.indexOf("markPop") >= 0 && el("#docBody").innerHTML.indexOf("markPop") < 0,
+   "读材料: 划线小窗在纸面之外（纸面里的入场动画会抢走 absolute 的定位基准）");
+ok(/mark\.ms\.on\{[^}]*box-shadow:inset 0 -2px 0/.test(PAGE_HTML) && /\.pt-seg\.picked\{[^}]*box-shadow:inset 0 -2px 0/.test(PAGE_HTML) && PAGE_HTML.indexOf("mark.ms.on.pt-seg.picked{") >= 0,
+   "材料标记: 划线层与找点层是同一套「底色 + 2px 底边线」，叠在一句上时底色归划线、底边线归找点");
+ok((PAGE_HTML.match(/不要自造「江城市」这类看着像真的具体名字/g) || []).length >= 2,
+   "出题: 主观题与快判两条出题要求都写明地名虚化，不写看着像真的具体地名");
 ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
 ok(el("#fabSlot").innerHTML.indexOf("btnCard") >= 0 && el("#fabSlot").innerHTML.indexOf("cardDrawer") >= 0,
    "读材料: 学习卡收成常驻浮标 + 抽屉（不再压在材料上方）");
@@ -1486,8 +1494,10 @@ ok(PAGE_HTML.indexOf('border-radius:var(--r-card)') >= 0,
    "质感: 弹层卡片走统一大圆角 token（SPEC 3.2）");
 ok(PAGE_HTML.indexOf('--r-flat:0; --r-ctl:8px; --r-pill:999px;') >= 0,
    "圆润化: 控件圆角档走 8px（人感 Demo --r-ctl），魔数不落进控件规则");
+ok((function(){ const m = PAGE_HTML.match(/\.railwrap\{[^}]*\}/); return m && m[0].indexOf('sticky') < 0; })(),
+   "训练链: 步骤条不吸顶，跟纸一起滚");
 ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border-radius:6px') >= 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('min-height:calc(100vh - 97px)') >= 0 && m[0].indexOf('rgba(60,50,40,.06)') >= 0; })(),
-   "纸面纪律: .doc 是公文纸不是网页卡片——6px 小圆角 + 放平的阴影 + 撑满视口（clip 保 sticky 步骤条）");
+   "纸面纪律: .doc 是公文纸不是网页卡片——6px 小圆角 + 放平的阴影 + 撑满视口（clip 只裁不接管滚动）");
 ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
    "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
 ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:var(--r-ctl)') >= 0; })()

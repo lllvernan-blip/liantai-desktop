@@ -156,7 +156,7 @@ html,body{margin:0;padding:0;}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
 
   .wrap{max-width:760px;margin:24px auto 24px;padding:0 16px;}
-  /* overflow 用 clip 不用 hidden：railwrap 的步骤条是 sticky，hidden 会把它变成不滚动的容器、粘性失效；clip 只裁不接管滚动 */
+  /* overflow 用 clip 不用 hidden：hidden 会把纸变成一个滚动容器，里面的一切吸顶与 scrollIntoView 都得换基准；clip 只裁不接管滚动 */
   /* 纸面是公文纸不是网页卡片：圆角收小、阴影放平（悬浮感是卡片语言，不是纸的语言），
      高度撑满视口（下方不悬空，纸像真铺在桌上）——2026-10-12 定稿「公文模板的样子不能丢」 */
   .doc{background:var(--paper);border:1px solid var(--line);box-shadow:0 1px 3px rgba(60,50,40,.06), 0 10px 26px rgba(60,50,40,.06);border-radius:6px;overflow:clip;padding:40px 54px 56px;min-height:calc(100vh - 97px);}
@@ -217,11 +217,15 @@ html,body{margin:0;padding:0;}
   @media (max-height:720px){ .material.mat-scroll{max-height:calc(2.05em * 5 + 52.65px);} }
   @media (min-height:1020px){ .material.mat-scroll{max-height:calc(2.05em * 12 + 52.65px);} }
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
-  mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);}
+  /* 材料上的两种标记长成同一套：一块底色 + 一道 2px 底边线。划线用的是设置里选的颜色，
+     底边线由它加深一档（color-mix 让它跟着换色，不为每个颜色再维护一张线色表）。 */
+  mark.ms.on{background:var(--mark,#a7f3d0);color:var(--ink);box-shadow:inset 0 -2px 0 0 color-mix(in srgb, var(--mark,#a7f3d0), var(--ink) 24%);}
   .swatches{display:flex;gap:8px;}
   .swatch{width:26px;height:26px;min-height:0;border-radius:var(--r-pill);border:2px solid var(--line);cursor:pointer;padding:0;}
   .swatch.sel{border-color:var(--gov-red);box-shadow:0 0 0 2px rgba(192,21,26,.2);}
-  .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:var(--r-ctl);padding:4px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}   /* 墨底浮标记压在纸面上，深色表面可超出常规阴影上限 */
+  /* 墨底浮标记压在纸面上，深色表面可超出常规阴影上限。它是绝对定位、按文档坐标摆的，
+     所以必须挂在纸面之外（#popSlot，与学习卡浮标同一个去处）——详见 ensureMarkPop 的注释 */
+  .markpop{position:absolute;z-index:70;display:none;background:var(--ink);border-radius:var(--r-ctl);padding:4px 4px;box-shadow:0 4px 14px rgba(0,0,0,.3);}
   .markpop button{background:transparent;border:none;color:var(--on-dark);font-size:var(--fs-body);padding:4px 12px;cursor:pointer;font-family:var(--fangsong);}
   .markpop button:hover{color:var(--mark,#a7f3d0);}
   /* 字段化：标签占定 5 个字（作答要求／建议结构都是 5 字），值从同一条竖线开始，折行也缩进到那一列。
@@ -489,11 +493,11 @@ html,body{margin:0;padding:0;}
   /* 申论训练链：步骤条要轻，一行小步骤条，当前步高亮 */
   /* 申论训练链：这是一条进度，不是五个按钮——带序号、段间细线分隔、已过打勾、当前步最重。
      步骤条不可点（没有点击处理），所以不给 cursor/hover：看着能点却点不动，比不给反馈更糙 */
-  /* 链子吸在顶部栏下面。外面套一层是因为链子只有 fit-content 宽：背景得横贯纸面，
-     否则滚动的题目文字会从链子右侧穿出来 */
-  .railwrap{position:sticky;top:96px;z-index:5;background:var(--paper);margin:0 0 16px;}
+  /* 外面套一层是因为链子只有 fit-content 宽：横贯纸面的上下边框得有个全宽的盒子来撑。
+     它不吸顶，跟纸一起滚（2026-10-13） */
+  .railwrap{margin:0 0 16px;}
   .railwrap .flowrail{margin:0;}
-  /* 状况条满宽：上下两道细线横贯纸面，它才像「钉在页眉下的状况栏」，而不是漂在正文里的一个胶囊（2026-10-09） */
+  /* 状况条满宽：上下两道细线横贯纸面，它才像一条状况栏，而不是漂在正文里的一个胶囊（2026-10-09） */
   .flowrail{display:flex;flex-wrap:wrap;width:auto;align-items:center;counter-reset:fs;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
   .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:8px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);padding:8px 16px 8px 12px;background:transparent;border:none;border-radius:0;}
   .flowrail .fstep+.fstep{border-left:1px solid var(--line-soft);}
@@ -501,11 +505,14 @@ html,body{margin:0;padding:0;}
   .flowrail .fstep.done::before{content:"✓";background:var(--success-bg);color:var(--success);}
   .flowrail .fstep.active{color:var(--gov-red);background:var(--red-wash);}
   .flowrail .fstep.active::before{background:var(--gov-red);color:var(--on-dark);}
-  /* 找点高亮：与 gw_marks 的划线层（.ms.on）互不覆盖，用独立的蓝色系 */
+  /* 找点高亮：与 gw_marks 的划线层（.ms.on）同一套语言——底色 + 2px 底边线，只是底色换成暖沙 */
   .pt-seg{cursor:pointer;border-radius:var(--r-ctl);}
   .pt-seg:hover{background:var(--wash);}
   /* 已点选：淡蓝是整屏唯一的冷色，还带一道蓝下划线，看着像超链接——换成「铅笔涂过一遍」的暖沙 */
   .pt-seg.picked{background:var(--pick-bg);box-shadow:inset 0 -2px 0 var(--pick-line);}
+  /* 同一句上两种状态叠在一起：底色让给划线（它是更重的那一层）、底边线留给找点。
+     两条规则特异度不够，这里必须点名到三个类，否则底边线会被 mark.ms.on 那条吃掉。 */
+  mark.ms.on.pt-seg.picked{box-shadow:inset 0 -2px 0 var(--pick-line);}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);padding:4px 4px;border-bottom:1px solid var(--line);}
   .pickline button.linkbtn{white-space:nowrap;}   /* 长要点折行时「移除」会被挤成两行竖排 */
   .pickline .ptag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
@@ -614,6 +621,7 @@ html,body{margin:0;padding:0;}
 <div class="wrap">
   <div id="bannerSlot"></div>
   <div id="fabSlot"></div>
+  <div id="popSlot"></div>
 
   <div class="doc" id="doc">
     <div class="redhead">
@@ -1750,7 +1758,7 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
   // 材料一律虚构：模型不知道某地真实做法，放它写「根据某文件」只会编出看着像真的政策名与文号
   const matSpec = `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）
-虚构要求：材料是虚构情境——不得出现真实政策、法规、文件的名称与文号，机关与地点一律写「某市/某县/某镇/某社区」这类模糊主体，不得把编造的内容写成「根据某文件」；数字只作情境设定，不指向任何真实来源。`;
+虚构要求：材料是虚构情境——不得出现真实政策、法规、文件的名称与文号，不得把编造的内容写成「根据某文件」；地名与机关一律虚化，写「某市/某县/某镇/某社区」，或「A 市/A 县」这样的代号，不要自造「江城市」这类看着像真的具体名字；数字只作情境设定，不指向任何真实来源。这条对返回里的每个字段都适用（含学习卡的 example）。`;
   // 字数口径唯一来源是本地表：模块表或文种表里的数字写死进 prompt，生成结果再由 enforceWordLimit 纠偏，不信模型
   const localLimit = localAnsLen(k, subtype);
   const reqSpec = localLimit? `作答要求（含作答身份、对象，明确写「不超过${localLimit}字」）`
@@ -2711,7 +2719,7 @@ function renderZyPage(){
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="material mat-scroll"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div><div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
+    html += `<div class="material mat-scroll"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
     html += draftPanelHtml(null);
   } else {
     html += cardPageHtml({ id:"btnZyAnswer", label:"我已学习，开始作答" });
@@ -2970,7 +2978,7 @@ async function genPDRound(form, theme){
         + "\n每题必须带 form 字段（fact-select / group-summarize / expression-compare），且与题干相符；选项个数：事实选择固定 2 个，分组概括与表达比较 2-3 个。"
       : "\n本次形式：「" + f.name + "」。" + f.spec
         + `\n选项个数：${pdOptWord(f)}，严格照此数量，不得多给或少给（下面 JSON 示例里的个数就是它）。`)
-    + "\n禁令：不得虚构材料里没有的事实、数字、主体、时间；不得出有歧义或多解的题（逐字读一遍必须只有一项成立，两项都说得通就换题）；正确项不得永远最长、不得总在同一个位置；不得出「找原词/同义替换」式的字面题。"
+    + "\n禁令：不得虚构材料里没有的事实、数字、主体、时间；地名与机关一律虚化——写「某市/某县/某镇/某社区」，或「A 市/A 县」这样的代号，不要自造「江城市」这类看着像真的具体名字；不得出有歧义或多解的题（逐字读一遍必须只有一项成立，两项都说得通就换题）；正确项不得永远最长、不得总在同一个位置；不得出「找原词/同义替换」式的字面题。"
     + "\n返回 JSON：\n" + pdSchema(f);
   try{
     const data = await callLLM(sys, user, true, onDelta);
@@ -3420,7 +3428,6 @@ function stepPanelHtml(step, f){
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:12px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
     html += `<div class="material"><div class="label">背景材料 · 读材料与找点</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
-    html += `<div class="markpop" id="markPop"><button id="popMark">划线</button><button id="popPick">选为要点</button></div>`;
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
     html += `<div class="actions" style="margin-top:16px"><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
@@ -3603,9 +3610,25 @@ function draftPanelHtml(f){
 
 /* ============ 申论训练链：交互接线 ============ */
 let _markOutsideHandler = null;   // 每次重渲染都要换一个新的（闭包持有当次面板的 DOM），旧的必须摘掉，否则长会话里越挂越多
+/* 划线小窗为什么不在纸面里：纸面里每个直接子元素都带着入场动画（#docBody>* 的 riseIn），
+   动画填到最后那帧的 transform 算出来是单位矩阵而不是 none——那个盒子因此成了 absolute 子元素的
+   定位基准。小窗的 left/top 本来是按文档坐标算的（选区的 rect + 滚动量），于是又被叠上那个容器的
+   偏移，弹到右下角去（实测偏出 206 / 355 像素）。学习卡浮标早就为同一个坑挂到了纸面外，小窗照它办。 */
+function ensureMarkPop(withPick){
+  const slot = $("#popSlot"); if(!slot) return null;
+  const mode = withPick? "pick" : "mark";
+  let p = $("#markPop");
+  if(!p || p.dataset.mode !== mode){   // 两种页面的按钮数不同（读材料步多一个「选为要点」），换了页就重建
+    slot.innerHTML = `<div class="markpop" id="markPop" data-mode="${mode}">`
+      + `<button id="popMark">划线</button>` + (withPick? `<button id="popPick">选为要点</button>` : "") + `</div>`;
+    p = $("#markPop");
+  }
+  p.style.display = "none";   // 切页时上一次选中留下的那个不能还亮着
+  return p;
+}
 function wireMarks(unmarkOnClick){
   const sig = qSig(current.question);
-  const mbox = $("#materialBox"), pop = $("#markPop");
+  const mbox = $("#materialBox"), pop = ensureMarkPop(unmarkOnClick === false);
   const hidePop = ()=>{ if(pop) pop.style.display = "none"; };
   const charOffset = (node, off) => {
     const sp = node.parentElement && node.parentElement.closest(".ms");
