@@ -166,8 +166,8 @@ html,body{margin:0;padding:0;}
   .redline .bar{flex:1;height:2px;background:var(--gov-red);}
   /* 抬头下的最后一行：左边报「在哪」，右边报文号，同一行收掉——原先各自占一行，中间空出一大截 */
   .docmeta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:8px 4px 8px;}
-  .docno{font-family:var(--fangsong);font-size:var(--fs-body);text-align:right;margin-left:auto;color:var(--ink-soft);}
-  .modlabel{font-family:var(--hei);font-size:var(--fs-note);color:var(--ink-soft);letter-spacing:1px;}
+  .docno{font-family:var(--fangsong);font-size:var(--fs-body);text-align:right;color:var(--ink-soft);}
+  .modlabel,.pdstate{font-family:var(--hei);font-size:var(--fs-note);color:var(--ink-soft);letter-spacing:1px;}
 
   /* 起始区 —— 入口纸面。垂直节奏只用四档（8 / 16 / 24 / 40px），同屏同类间距一致（人感 Demo 的排版纪律） */
   .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
@@ -629,6 +629,7 @@ html,body{margin:0;padding:0;}
       <div class="redline"><span class="bar"></span></div>
       <div class="docmeta">
         <div class="modlabel" id="modLabel">综应A · 公文写作</div>
+        <div class="pdstate" id="pdState" style="display:none"></div>
         <div class="docno" id="docNo">练习台〔2026〕第 001 号</div>
       </div>
     </div>
@@ -2082,6 +2083,13 @@ function renderHeader(){
   const pfx = (_view === "home" && !pdActive)? "练习台"
             : (pdActive? "快判" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
+  // 快判进行中：主题与进度填进红头中段的空位（原先单占一行，左侧「快判」与前后的标识重复）
+  const psBox = $("#pdState");
+  if(psBox){
+    const line = (pdActive && pdRound && !pdRound.done)? pdStateLine(pdRound) : "";
+    psBox.textContent = line;
+    psBox.style.display = line? "" : "none";
+  }
   if(_view === "home"){  // 首页不属于任何科目：文号已带着「练习台」，灰字不再重复，只报「首页」
     $("#modLabel").textContent = "首页";
     return;
@@ -2784,7 +2792,11 @@ const PD_FORMS = {
   }
 };
 const PD_FORM_ORDER = ["fact-select","group-summarize","expression-compare"];
-const PD_TOPICS = ["基层治理","乡村振兴","政务服务","生态环保","科技创新","就业服务","养老托育","文化传承","城市更新","应急管理"];
+const PD_TOPICS = ["基层治理","乡村振兴","政务服务","生态环保","科技创新","就业服务","养老托育","文化传承","城市更新","应急管理","民生保障","数字经济","法治建设","作风建设"];
+// 主题权重：数字越大越常抽到。三档是照考情估的（3 超高频 / 2 高频 / 1 相对冷门），改数字即可改配比
+const PD_TOPIC_WEIGHT = { "基层治理":3, "乡村振兴":3, "政务服务":3, "民生保障":3, "作风建设":3,
+  "生态环保":2, "科技创新":2, "就业服务":2, "数字经济":2, "法治建设":2, "文化传承":2,
+  "城市更新":1, "养老托育":1, "应急管理":1 };
 // 散文口径（pdOptWord）与 JSON 示例（pdOptSample）都从 optCount 生成，所以个数只有一处可以改
 function pdOptWord(f){ const n = f.optCount; return Array.isArray(n)? `${n[0]}-${n[1]} 个选项` : `固定 ${n} 个选项`; }
 function pdOptSample(f){
@@ -2938,8 +2950,11 @@ function pdFormStats(){
   }
   return { st, mixRounds };
 }
-function pdThemeValue(){   // 主题从 PD_TOPICS 随机取（不再提供自选）
-  return PD_TOPICS[Math.floor(Math.random()*PD_TOPICS.length)];
+function pdThemeValue(){   // 主题从 PD_TOPICS 按权重抽（不再提供自选）
+  const w = PD_TOPICS.map(t=> PD_TOPIC_WEIGHT[t] || 1);
+  let r = Math.random() * w.reduce((a,b)=> a+b, 0);
+  for(let i=0;i<PD_TOPICS.length;i++){ r -= w[i]; if(r < 0) return PD_TOPICS[i]; }
+  return PD_TOPICS[PD_TOPICS.length-1];
 }
 function startPDRound(form){
   if(entryBlocked()) return;   // 没 Key / 没选模型都停在原地：不进加载态，也不先把人挪去别的屏
@@ -3054,16 +3069,17 @@ function pdFinish(){
   saveHistory();
   renderPDSummary();
 }
+// 快判的状态行（主题 + 进度 + 已对数）：落在红头中段，不再单占一行
+function pdStateLine(r){
+  return `主题「${r.theme}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题`;
+}
 function renderPDRound(){
   const r = pdRound;
   if(!r || !PD_FORMS[r.form]){ renderHome(); return; }
   pdForm = r.form;
   const it = r.items[r.idx];
-  const head = `主题「${esc(r.theme)}」 · 第 ${r.idx+1}/${r.items.length} 题 · 已对 ${r.correct} 题`;
-  let html = `<div class="secrow"><div class="sec-title">快判</div><span class="secright"><span class="hint">${head}</span></span></div>`;
-  // 快判和大题的关系只写在第一题首行：同一句话不在每道题上反复出现
-  if(r.idx === 0) html += `<p class="hint" style="margin:8px 0 12px">快判练的是从材料里辨认说法，申论和综应的小题练的是同一个动作。</p>`;
-  html += `<div class="material"><div class="label">材料节选</div>${esc(it.context)}</div>`;
+  let html = "";
+  html += `<div class="material" style="margin-top:16px"><div class="label">材料节选</div>${esc(it.context)}</div>`;
   html += `<div class="require" style="margin-top:12px"><b style="min-width:auto">题干：</b>${esc(it.stem)}</div>`;
   html += `<div class="pdopts">` + it.options.map((o,i)=>{
     let cls = "pdopt";

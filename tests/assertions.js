@@ -1334,6 +1334,21 @@ const startThemes = Array.from({length: 20}, ()=> pdThemeValue());
 ok(startThemes.every(t=> PD_TOPICS.indexOf(t) >= 0),
    "快判往上提: 起始页没主题输入框时退回随机主题（不会带着空主题出题）");
 
+/* 主题权重：权重表跟主题表一一对应；加权抽不该退化成等概率（对 Math.random 打点，免抽样噪声） */
+ok(Object.keys(PD_TOPIC_WEIGHT).length === PD_TOPICS.length
+   && PD_TOPICS.every(t=> typeof PD_TOPIC_WEIGHT[t] === "number"),
+   "快判权重: 权重表不多不少，跟主题表一一对应");
+const wtReal = Math.random, wtHit = {}, wtN = 6000;
+try {
+  for (let i = 0; i < wtN; i++){ Math.random = ()=> (i + 0.5) / wtN; const t = pdThemeValue(); wtHit[t] = (wtHit[t] || 0) + 1; }
+} finally { Math.random = wtReal; }
+ok(PD_TOPICS.every(t=> wtHit[t] > 0),
+   "快判权重: 每个主题都抽得到（没有权重漏填导致永不出现的）");
+const wtHeavy = PD_TOPICS.filter(t=> PD_TOPIC_WEIGHT[t] === 3).map(t=> wtHit[t] || 0);
+const wtLight = PD_TOPICS.filter(t=> PD_TOPIC_WEIGHT[t] === 1).map(t=> wtHit[t] || 0);
+ok(wtHeavy.length > 0 && wtLight.length > 0 && Math.min(...wtHeavy) > Math.max(...wtLight),
+   `快判权重: 超高频主题出现次数多于冷门主题（高频最低 ${Math.min(...wtHeavy)} > 冷门最高 ${Math.max(...wtLight)}）`);
+
 /* ③ 一键到题：填了 Key 点「开始快判」直接进 AI 出题；没 Key 被 entryBlocked 拦在原地（不进加载态、不调 AI） */
 const pdStubPrev = callLLM; let pdCalls = 0;
 callLLM = async (...a)=>{ pdCalls++; return pdStubPrev(...a); };
@@ -1359,25 +1374,24 @@ pdActive = true; pdForm = "fact-select";
 pdRound = { form:"fact-select", theme:"测试主题", items:[pdFakeItem], idx:0, correct:0, done:false };
 renderPDRound();
 ok(el("#docBody").innerHTML.indexOf("material") >= 0 && el("#docBody").innerHTML.indexOf("pdopt") >= 0
-   && el("#docBody").innerHTML.indexOf("主题「测试主题」") >= 0,
-   "快判练习页: 一进来就是第一道题（材料 + 选项 + 主题标注）");
-ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") >= 0,
-   "关系说明: 快判练习页第一题说明它和大题的关系");
-/* 关系说明只在第一题出现：其余题不复读（同一意思不写两遍） */
+   && el("#pdState").textContent.indexOf("主题「测试主题」") >= 0,
+   "快判练习页: 一进来就是第一道题（材料 + 选项；主题与进度落红头中段）");
+ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") < 0,
+   "快判一轮页: 不再写「快判和大题是什么关系」那句说明");
+/* 进度在红头中段：翻到第二题要跟着往前走 */
 pdRound.items.push(Object.assign({}, pdFakeItem, { stem:"第二题：下列哪项说法与材料相符？" }));
 pdRound.idx = 1;
 renderPDRound();
-ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") < 0 && el("#docBody").innerHTML.indexOf("第 2/2 题") >= 0,
-   "关系说明: 第二题不再复读关系说明");
+ok(el("#pdState").textContent.indexOf("第 2/2 题") >= 0,
+   "快判一轮页: 翻到第二题，红头中段的进度跟着往前走");
 pdRound.items.pop(); pdRound.idx = 0;
 renderPDRound();
 pdResolve(0); pdNext();
 ok(pdRound.done === true && state.history.length === histBeforePd + 1 && localStorage.getItem("gw_history") !== lsBeforePd
    && el("#docBody").innerHTML.indexOf("本轮小结") >= 0,
    "快判小结: 答完照常出小结并计入练习记录");
-ok(el("#docBody").innerHTML.indexOf("快判练的是从材料里辨认说法") < 0
-   && el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("回首页") >= 0,
-   "关系说明: 小结不再复读关系，收尾按钮是「再来一轮 / 回首页」");
+ok(el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("回首页") >= 0,
+   "快判小结: 收尾按钮是「再来一轮 / 回首页」");
 ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考你") >= 0,
    "快判小结: 答错的承诺「下次再考你」（记录已入账，那条链能兑得现）");
 state.history = state.history.filter(h=> h.track !== "pd"); saveHistory();
@@ -2674,8 +2688,9 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "层级: 「作答区」是容器标签，不比「题目」重");
   ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') >= 0,
      "层级: 两科的题头同一档（综应A 与申论不再各写一套）");
-  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') >= 0,
-     "层级: 快判一轮页有标题（进去第一行就知道在干什么）");
+  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') < 0
+     && PAGE_HTML.indexOf('<div class="pdstate" id="pdState"') >= 0,
+     "层级: 快判一轮页不另起标题行（「快判」已由红头说），主题与进度落红头中段");
   ok(PAGE_HTML.indexOf("标红＝没答到") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
      "层级: 批改页的标注图例挪进标题行（不再每题占一行）");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0,
