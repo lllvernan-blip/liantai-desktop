@@ -673,7 +673,9 @@ for (const j of jobs) {
   catch (e) { err = String((e && (e.code || e.message)) || e); }
   out.push({ key: j.key, usable: !!(r && r.usable !== false), why: String((r && r.why) || ""),
     bad: (Array.isArray(r && r["结果"]) ? r["结果"] : []).filter((x) => x && x["判"] !== "supported")
-      .map((x) => "第 " + (x.i || "?") + " 条[" + (x["判"] || "?") + "] " + String(x["说明"] || "").slice(0, 60)),
+      /* 连正文原句一起报：改稿的人（或交稿方）照着它就能把条改对，不用再抓一次原文、再调一次模型。 */
+      .map((x) => "第 " + (x.i || "?") + " 条[" + (x["判"] || "?") + "] " + String(x["说明"] || "").slice(0, 60)
+        + (x["原句"] ? "（正文原句：" + String(x["原句"]).replace(/\s+/g, " ").slice(0, 120) + "）" : "")),
     judged: Array.isArray(r && r["结果"]) ? r["结果"].length : 0, err: err });
 }
 globalThis.__matIntake = out;
