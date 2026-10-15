@@ -23,7 +23,7 @@
  *
  * 边界：真接口、真花钱（一篇一次提炼调用）。抓下来的原文不落盘，只落骨架。
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, copyFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { tmpdir, homedir } from "node:os";
@@ -34,8 +34,8 @@ const scratch = process.env.LIANTAI_MAT_DIR || join(homedir(), "练习台材料"
 const poolDir = join(here, "..", "materials", "pool");   // 出货的那一份：在仓库里
 const rawDir = join(scratch, "原文");     // 只在 fetch 过程中临时用，跑完不留（规范：只存骨架，不存原文）
 
-if (phase !== "fetch" && phase !== "list" && phase !== "verify" && phase !== "redo") {
-  console.error("用法：node tools/material-pool.mjs fetch <gov|rmw|rmrb> [检索词] [篇数] | list | verify [条数] | redo [篇数|all]");
+if (phase !== "fetch" && phase !== "list" && phase !== "verify" && phase !== "redo" && phase !== "intake") {
+  console.error("用法：node tools/material-pool.mjs fetch <gov|rmw|rmrb> [检索词] [篇数] | list | intake [来源目录名] | verify [条数] | redo [篇数|all]");
   process.exit(1);
 }
 
@@ -481,7 +481,7 @@ for (const j of jobs) {
     fs.renameSync(path.join(outDir, j.file), path.join(outDir, "_" + j.file + ".dropped"));
     continue;
   }
-  const sec = (t, arr) => "## " + t + "\\n" + ((arr && arr.length) ? arr.map((x,i)=> (t==="做法"||t==="建议 / 主张"? (i+1)+". " : "- ") + x).join("\\n") : "- （原文未提及）");
+  const sec = (t, arr) => "## " + t + "\\n" + ((arr && arr.length) ? arr.map((x,i)=> (/^(做法|建议)/.test(t) ? (i+1)+". " : "- ") + x).join("\\n") : "- （原文未提及）");
   const md = [ "# " + j.title, "", "来源：" + j.url, "发布：" + j.pub, "文号：" + (j.wenhao || "（无）"),
     "抓取：" + stamp, "时效：" + (j.wenhao ? "长期框架（有正式文号，按大事件处理）" : "半年（自 " + j.pub + " 起）"),
     "主题：" + ((Array.isArray(sk.topics) && sk.topics.length) ? sk.topics.join("、") : "（未标）"),
@@ -497,6 +497,225 @@ console.log("REDO " + JSON.stringify({ 重写: kept, 转成不合格: dropped })
 `;
   const rsrc = [SKEL_PROMPT, appSrc, rprobe].join("\n");
   await import("data:text/javascript;base64," + Buffer.from(rsrc, "utf8").toString("base64"));
+  process.exit(0);
+}
+
+/* ---------- intake：验收外部模型交来的骨架（收件箱 → 核 → 进池子） ----------
+   为什么要有这一步：材料采编外包出去之后，交上来的东西不能直接信——它可能编、可能把
+   话说得比原文满，也可能整篇本来就该退。这一步就是那道关：格式、重复、原文、入库判断，
+   四样都过了才能进池子。
+   与 fetch 的分工：fetch 是「我抓、我提炼」，intake 是「别人提炼、我只验收」。
+   用法：node tools/material-pool.mjs intake [来源目录名]
+   四种去向：
+     收   → 重排成统一骨架格式，改名进池子；原件挪到 收件箱/已收/
+     退   → 原件挪到 淘汰/，网址记进淘汰名单（下次不再重判）
+     重复 → 原件挪到 收件箱/已收/（池子里已有，或以前判过不合格）
+     待补 → 留在原地并说明缺什么，补好了再跑一次
+   分寸：**编造（正文里根本没这回事）一票否决；说得比正文满的允许收，但逐条列出来**。
+   理由是实测出来的：一篇骨架二十多条，按 8% 的噪声底，要求「一条不错」等于把这条路堵死；
+   而编造与说满的伤害不是一回事。列出来的那几条可以退回给交稿方改，也可能是我自己手动改。
+   收过谁交的记在 收件箱/记录.json：哪一件是哪个来源、哪一天收的、原文件叫什么。 */
+if (phase === "intake") {
+  const INTAKE_SYS = [
+    "有人交来一份材料骨架，你要验收。下面给你这篇新闻的正文，以及从它抽出来的骨架。两件事一起判。",
+    "",
+    "第一件·这篇材料该不该进库（这是个给考生出题的选题池，不是档案馆）：",
+    "  合格的至少占一条——有矛盾（有问题、有争议、有不同做法）、有做法（某个主体为了解决问题已经采取的措施）、有数据（可核的数字，且数字背后是事）、有立场（不同主体态度不一）。",
+    "  只有表态、只有会议消息、只有风景或活动报道、只有案件或纠纷经过的，不合格。",
+    "  专拦成就稿：问一句「这篇里有没有一个还没解决的问题」。只要结果压过问题、通篇找不到一个还没办妥的环节、一处不同意见、一点遗留短板，就是成就稿，不合格。",
+    "  也拦「问题不属于公共管理」那一类：消费类、产品类报道天然会写「某个人的需求没被满足」，那不是问题，是需求。判据：把这个还没解决的问题换成一个政府部门或社区来面对，它成立吗？不成立就不合格。",
+    "  判不合格就停下，不用再核骨架，结果给空数组。",
+    "",
+    "第二件·骨架逐条核（上一件判不合格就不用做）：",
+    "  每条只给三种判决：",
+    "    supported —— 正文有明确依据，附正文原句（照抄，不许改写、不许拼接）。",
+    "    partial —— 正文写了这件事，但条目把话说满了、把两件事并成一件、或改了数字/时间/主体/范围。要说清改了哪里。",
+    "    absent —— 正文里找不到这件事。",
+    "  规矩（按这个开火，别替条目辩护）：",
+    "  1. 判 partial 只看一件事：条目有没有比正文说得更满。只有「向强」的改动算错。",
+    "  2. 条目比正文少，不算错。骨架是一条一条抽的：正文一句里并列的三件事被拆成三条，都是对的。不要因为「遗漏了并列表述」而判 partial。",
+    "  3. 限定语任何一处被抹掉或改写就不是 supported——数字、比例、时间（「今年以来」）、主体（「王某认为」与「相关工作人员说」不是一回事）、地域、程度与语气（「还可参与」不是「积极参与」）。最容易被漏掉的是时间词与语气词。",
+    "  4. 数字逐个核。「近三成」不是「30%」，「十余台」不是「10 台」，算 partial。",
+    "  5. 只凭这一篇正文判。你自己知道的背景知识、常识推断，都不算依据。",
+    "  6. 拿不准的一律不给 supported。",
+    "",
+    '只返回 JSON：{"usable":true|false,"why":"一句话","结果":[{"i":序号,"判":"supported|partial|absent","原句":"...","说明":"..."}]}',
+  ].join("\n");
+
+  const inbox = join(scratch, "收件箱");
+  if (!existsSync(inbox)) { console.error("没有收件箱：" + inbox); process.exit(1); }
+  const only = (process.argv[3] || "").trim();
+  const today = new Date().toISOString().slice(0, 10);
+  const RESERVED = new Set(["README.md", "已入库清单.md", "说明.md", "记录.json"]);
+  /* 五栏的顺序与名字在这里定死：外部模型爱怎么写怎么写，进池子的那一份必须是统一的。 */
+  const CANON = [
+    ["背景", /^背景/],
+    ["做法（已经发生的）", /^做法/],
+    ["成效", /^成效/],
+    ["争议 / 难点", /^争议|^难点/],
+    ["建议 / 主张（还没发生的）", /^建议|^主张/],
+  ];
+  const srcOfUrl = (u) => /paper\.people\.com\.cn/.test(u) ? "rmrb" : /people\.com\.cn/.test(u) ? "rmw" : "gov";
+  const head = (text, k) => { const m = text.match(new RegExp("^" + k + "：(.+)$", "m")); return m ? m[1].trim() : ""; };
+
+  /* 池子里已有的、以及以前判过不合格的，都算重复。重判一遍是白花一次调用。 */
+  const poolUrls = new Set();
+  if (existsSync(poolDir)) for (const f of readdirSync(poolDir)) {
+    if (!f.endsWith(".md")) continue;
+    const m = readFileSync(join(poolDir, f), "utf8").match(/^来源：(\S+)$/m);
+    if (m) poolUrls.add(m[1].trim());
+  }
+  const rejectFile = join(scratch, "淘汰.json");
+  let rejected = {};
+  if (existsSync(rejectFile)) { try { rejected = JSON.parse(readFileSync(rejectFile, "utf8")) || {}; } catch (e) { rejected = {}; } }
+  const recordFile = join(inbox, "记录.json");
+  let record = {};
+  if (existsSync(recordFile)) { try { record = JSON.parse(readFileSync(recordFile, "utf8")) || {}; } catch (e) { record = {}; } }
+
+  const dirs = readdirSync(inbox, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && d.name !== "已收")
+    .map((d) => d.name).filter((n) => !only || n === only).sort();
+  if (!dirs.length) { console.error("收件箱里没有来源文件夹：" + inbox + "（按来源建，比如 豆包 / workbody）"); process.exit(1); }
+
+  const jobs = [], stay = [], again = [];
+  const seen = new Set();
+  for (const src of dirs) {
+    const dir = join(inbox, src);
+    const files = readdirSync(dir).filter((x) => x.endsWith(".md")).sort();
+    if (!files.length) { console.error("  " + src + "：空着"); continue; }
+    console.error("  " + src + "：" + files.length + " 个文件");
+    for (const f of files) {
+      if (RESERVED.has(f)) continue;
+      const at = join(dir, f);
+      const text = readFileSync(at, "utf8");
+      const url = head(text, "来源");
+      const tag = src + "/" + f;
+      if (!url) { stay.push({ tag, why: "没有「来源：」这一行，拿不到正文就核不了" }); continue; }
+      if (poolUrls.has(url) || rejected[url] || seen.has(url)) {
+        again.push({ tag, url, why: poolUrls.has(url) ? "池子里已经有了" : rejected[url] ? "以前判过不合格" : "这次交重了" });
+        continue;
+      }
+      if (!head(text, "主题")) { stay.push({ tag, why: "缺「主题：」这一行——后面按弱项选材要靠它" }); continue; }
+      const cols = {};
+      let cur = null;
+      for (const line of text.split("\n")) {
+        const h = line.match(/^## (.+)$/);
+        if (h) { cur = h[1].trim(); if (!cols[cur]) cols[cur] = []; continue; }
+        if (!cur) continue;
+        const m = line.match(/^(?:- |\d+\. )(.+)$/);
+        if (!m) continue;
+        const t = m[1].trim();
+        if (!t || t.indexOf("原文未提及") === 0) continue;
+        cols[cur].push(t);
+      }
+      const lack = CANON.filter(([, re]) => !Object.keys(cols).some((k) => re.test(k)));
+      if (lack.length) { stay.push({ tag, why: "缺栏位：" + lack.map((x) => x[0]).join("、") }); continue; }
+      const canon = {};
+      for (const [name, re] of CANON) canon[name] = cols[Object.keys(cols).find((k) => re.test(k))] || [];
+      const n = CANON.reduce((a, [name]) => a + canon[name].length, 0);
+      if (!n) { stay.push({ tag, why: "五栏都是空的，一条事实都没有" }); continue; }
+      let body = "";
+      try { body = extractBody(await get(url), srcOfUrl(url)); }
+      catch (e) { stay.push({ tag, why: "抓不到正文：" + ((e && e.message) || e) }); continue; }
+      if (body.replace(/\s/g, "").length < 400) { stay.push({ tag, why: "正文太短或没抓到（" + body.replace(/\s/g, "").length + " 字）" }); continue; }
+      seen.add(url);
+      const items = [];
+      for (const [name] of CANON) for (const t of canon[name]) items.push({ col: name, txt: t });
+      jobs.push({ key: tag, src, f, at, url, title: (text.match(/^# (.+)$/m) || [, f])[1].trim(), canon,
+        pub: head(text, "发布"), wenhao: head(text, "文号"), grab: head(text, "抓取"), topics: head(text, "主题"), why: head(text, "采用"), body, items });
+    }
+  }
+
+  console.error("  待核 " + jobs.length + " 件（重复 " + again.length + " 件，待补 " + stay.length + " 件）");
+
+  const mark = [];
+  if (jobs.length) {
+    const iprobe = `
+const T = await import("node:timers");
+globalThis.setTimeout = T.setTimeout; globalThis.clearTimeout = T.clearTimeout;
+globalThis.setInterval = T.setInterval; globalThis.clearInterval = T.clearInterval;
+state.settings.apiKey = ${JSON.stringify(key)};
+state.settings.baseUrl = "https://api.deepseek.com/v1";
+state.settings.model = ${JSON.stringify(model)};
+state.modelCaps = {};
+const NL = String.fromCharCode(10);
+const INTAKE_SYS = ${JSON.stringify(INTAKE_SYS)};
+const jobs = ${JSON.stringify(jobs)};
+const out = [];
+for (const j of jobs) {
+  const ask = ["【正文】", j.body, "", "【骨架】", j.items.map((x, i) => (i + 1) + ". [" + x.col + "] " + x.txt).join(NL)].join(NL);
+  let r = null, err = "";
+  try { r = await callLLM(INTAKE_SYS, ask, true, null, { temp: 0, level: "quick" }); }
+  catch (e) { err = String((e && (e.code || e.message)) || e); }
+  out.push({ key: j.key, usable: !!(r && r.usable !== false), why: String((r && r.why) || ""),
+    bad: (Array.isArray(r && r["结果"]) ? r["结果"] : []).filter((x) => x && x["判"] !== "supported")
+      .map((x) => "第 " + (x.i || "?") + " 条[" + (x["判"] || "?") + "] " + String(x["说明"] || "").slice(0, 60)),
+    judged: Array.isArray(r && r["结果"]) ? r["结果"].length : 0, err: err });
+}
+globalThis.__matIntake = out;
+`;
+    const isrc = [SKEL_PROMPT, appSrc, iprobe].join("\n");
+    await import("data:text/javascript;base64," + Buffer.from(isrc, "utf8").toString("base64"));
+    mark.push(...(globalThis.__matIntake || []));
+  }
+
+  /* 磁盘上的动作全在外层做：探针只管问模型，搬文件、改名、落账都在这里，看得见也好查。 */
+  const secText = (t, arr) => "## " + t + "\n" + (arr.length
+    ? arr.map((x, i) => (/^(做法|建议)/.test(t) ? (i + 1) + ". " : "- ") + x).join("\n")
+    : "- （原文未提及）");
+  let kept = 0, dropped = 0;
+  mkdirSync(join(inbox, "已收"), { recursive: true });
+  mkdirSync(join(scratch, "淘汰"), { recursive: true });
+  for (const j of jobs) {
+    const m = mark.find((x) => x.key === j.key);
+    if (!m || m.err) {
+      stay.push({ tag: j.key, why: "没核成：" + ((m && m.err) || "探针没回话") });
+      process.exitCode = 1;
+      continue;
+    }
+    const unjudged = Math.max(0, j.items.length - (m.judged || 0));
+    const invented = m.bad.filter((x) => x.indexOf("[absent]") >= 0);
+    if (!m.usable || invented.length || unjudged) {
+      const why = !m.usable ? (m.why || "判为出不了题")
+        : invented.length ? ("有 " + invented.length + " 条正文里根本没有：" + invented.slice(0, 3).join("；"))
+        : ("有 " + unjudged + " 条没给出判决，没核过的不算过");
+      rejected[j.url] = why;
+      renameSync(j.at, join(scratch, "淘汰", "_" + j.src + "-" + j.f + ".dropped"));
+      dropped++;
+      console.log("退  " + j.key + "  " + j.title.slice(0, 26) + "\n     " + why);
+      continue;
+    }
+    const code = srcOfUrl(j.url) === "gov"
+      ? (() => { try { const a = new URL(j.url).hostname.replace(/^www\./, "").split("."); return ((a[a.length - 2] || "") + (a[a.length - 1] || "")).replace(/[^A-Za-z0-9]/g, "").slice(0, 12) || "ext"; } catch (e) { return "ext"; } })()
+      : srcOfUrl(j.url);
+    const id = ((j.url.match(/content_(\d{6,})/) || j.url.match(/(\d{6,})/) || [, ""])[1])
+      || String(jobs.indexOf(j) + 1).padStart(2, "0");
+    const stamp = (j.grab || today).replace(/-/g, "");
+    let name = stamp + "-" + code + "-" + id + ".md", k = 1;
+    while (existsSync(join(poolDir, name))) { k++; name = stamp + "-" + code + "-" + id + "-" + k + ".md"; }
+    const pub = j.pub || today, wenhao = j.wenhao || "（无）", grab = j.grab || today;
+    const md = ["# " + j.title, "", "来源：" + j.url, "发布：" + pub, "文号：" + wenhao, "抓取：" + grab,
+      "时效：" + (wenhao === "（无）" ? "半年（自 " + pub + " 起）" : "长期框架（有正式文号，按大事件处理）"),
+      "主题：" + j.topics, "采用：" + (j.why || "（外部交来，未写理由）"), "",
+      ...CANON.map(([n]) => secText(n, j.canon[n]) + "\n")].join("\n");
+    writeFileSync(join(poolDir, name), md, "utf8");
+    renameSync(j.at, join(inbox, "已收", j.src + "-" + j.f));
+    record[name] = { 来源: j.src, 收于: today, 原文件: j.tag };
+    kept++;
+    console.log("收  " + name + "  " + j.title.slice(0, 26) + "  栏分布 " + CANON.map(([n]) => n.slice(0, 2) + j.canon[n].length).join(" "));
+    if (m.bad.length) console.log("     要盯：有 " + m.bad.length + " 条对不上正文（说得比正文满）\n       " + m.bad.slice(0, 4).join("\n       "));
+  }
+  for (const x of again) {
+    const [s, f] = x.tag.split("/");
+    renameSync(join(inbox, s, f), join(inbox, "已收", "重复-" + s + "-" + f));
+    console.log("重复 " + x.tag + "  " + x.why);
+  }
+  for (const x of stay) console.log("待补 " + x.tag + "  " + x.why);
+
+  writeFileSync(rejectFile, JSON.stringify(rejected, null, 1), "utf8");
+  writeFileSync(recordFile, JSON.stringify(record, null, 1), "utf8");
+  console.log("INTAKE " + JSON.stringify({ 收: kept, 退: dropped, 重复: again.length, 待补: stay.length, 池子: readdirSync(poolDir).filter((x) => x.endsWith(".md")).length }));
+  if (stay.length) console.log("待补的还留在收件箱里，补好了再跑一次 intake 就行。");
   process.exit(0);
 }
 
@@ -592,7 +811,7 @@ for (const it of items) {
   // 真正的判据在 prompt 里（这篇里有没有一个还没解决的问题），所以先量、不拦。
   const nEff = (sk.effects||[]).length, nProb = (sk.background||[]).length + (sk.difficulties||[]).length;
   if (nEff >= 6 && nEff > nProb * 2) console.log("MAYBE-成就稿 " + JSON.stringify({ title: it.title.slice(0,30), 成效: nEff, 问题: nProb }));
-  const sec = (t, arr) => "## " + t + "\\n" + ((arr && arr.length) ? arr.map((x,i)=> (t==="做法"||t==="建议 / 主张"? (i+1)+". " : "- ") + x).join("\\n") : "- （原文未提及）");
+  const sec = (t, arr) => "## " + t + "\\n" + ((arr && arr.length) ? arr.map((x,i)=> (/^(做法|建议)/.test(t) ? (i+1)+". " : "- ") + x).join("\\n") : "- （原文未提及）");
   const md = [
     "# " + it.title,
     "",
