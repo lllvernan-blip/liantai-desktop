@@ -1755,6 +1755,31 @@ function difficultyFor(k){
   if(a == null) return "适中";
   return a >= 80 ? "较难" : (a < 55 ? "简单" : "适中");
 }
+/* 采分点分值校验（2026-10-15）
+   prompt 里写着「子项分值之和必须正好等于 question.score」，但那是要求不是保证——模型偶尔拆出对不上的一项
+   （走查那天实测到「采分点合计 25 分 vs 题目满分 20 分」）。这里当场把分配拉回题目满分：
+   题面写的分值不动（它是用户看得见的那一个），把子项按比例重分，相对分布不变。
+   做法是 0.5 分单位的最大余额法：先各取低、再把余数按小数部分补出去。
+   总分的正确性优先于每项非零——子项数多到 0.5 分都分不到时宁可不动（正式试卷不会遇到）。
+   纯本地算术，不重发请求、不多花一次调用。*/
+function alignPointScores(data){
+  const q = data && data.question, kps = (data && data.keyPoints);
+  if(!q || !Array.isArray(kps) || !kps.length) return data;
+  const paper = Number(q.score);
+  if(!isFinite(paper) || paper <= 0) return data;
+  const scores = kps.map(p=>{ const s = Number(p && p.score); return isFinite(s) && s > 0 ? s : 0; });
+  const sum = scores.reduce((a,b)=>a+b, 0);
+  if(sum <= 0 || Math.abs(sum - paper) < 0.001) return data;   // 对得上就不动
+  const units = Math.round(paper * 2);                          // 总分拆成 0.5 分单位
+  if(kps.length > units) return data;                           // 子项比 0.5 分单位还多，分不下去就别动（正式试卷不会遇到）
+  const raw = scores.map(s => s / sum * units);
+  const out = raw.map(v => Math.floor(v));
+  let left = units - out.reduce((a,b)=>a+b, 0);
+  const order = raw.map((v,i)=>({ i, frac: v - Math.floor(v) })).sort((a,b)=> b.frac - a.frac);
+  for(const o of order){ if(left <= 0) break; out[o.i]++; left--; }
+  kps.forEach((p,i)=>{ if(p && typeof p === "object") p.score = out[i] / 2; });
+  return data;
+}
 async function gen(k, subtype, focusDim, needCard, onDelta){
   const m = MODULES[k];
   const scope = subtype? `${subtypeWord(k)}：「${subtype}」` : `题型：综合`;
@@ -1788,7 +1813,8 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20,"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
     ${kpSchema}
   }`;
-  return await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
+  const data = await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
+  return alignPointScores(data);
 }
 /* 阅卷温度：从 0.3 降到 0（2026-09-29 实测对比，原因见下）。
    基线（0.3 + 旧的百分比阈值）：「写得具体」的卷 5 次 13/11.5×4（极差 1.5）、「只点名不给事实」的卷

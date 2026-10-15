@@ -222,6 +222,35 @@ ok(SCORING_RULES.indexOf("没带 need") >= 0, "阅卷: 子项没带 need 时退�
 ok(SCORING_RULES.indexOf("【缺：") >= 0 && SCORING_RULES.indexOf("△") >= 0 && SCORING_RULES.indexOf("✗") >= 0, "阅卷: prompt 写明三个标注符号");
 ok(SCORING_RULES.indexOf("不倒扣") >= 0, "阅卷: prompt 写明不倒扣");
 ok(GEN_POINT_RULES.indexOf("必须正好等于 question.score") >= 0, "出题: prompt 要求子项分值之和等于题目满分");
+/* 采分点分值校验（2026-10-15）。
+   prompt 里写的要求不是保证：走查那天实测到模型拆出的子项合计 25 分、题目满分却是 20 分。
+   既然这是纯算术，就不该交给模型的自觉——本地当场拉回，不重发请求。 */
+(function(){
+  const mk = (paper, ss)=>({ question:{score:paper}, keyPoints:ss.map(s=>({point:"p",score:s})) });
+  const sumOf = d=> d.keyPoints.reduce((a,p)=>a+p.score, 0);
+  const same = mk(20, [5,5,5,5]);
+  alignPointScores(same);
+  ok(sumOf(same) === 20 && same.keyPoints.every(p=>p.score === 5), "采分点校验: 合计与满分一致时不改动任何子项");
+  const over = mk(20, [8,7,5,5]);
+  alignPointScores(over);
+  ok(sumOf(over) === 20, "采分点校验: 子项合计 25 分对满分 20 分，当场拉回 20 分（不再靠批改页事后提醒）");
+  ok(over.keyPoints[0].score > over.keyPoints[3].score && over.keyPoints[0].score === 6.5,
+     "采分点校验: 按比例重分，原大的仍大（8/7/5/5 对 20 分 → 6.5/5.5/4/4）");
+  const under = mk(25, [4,4,4]);
+  alignPointScores(under);
+  ok(sumOf(under) === 25, "采分点校验: 合计不足满分时同样拉回");
+  const odd = mk(15, [2,2,2,2,2,2,2]);
+  alignPointScores(odd);
+  ok(Math.abs(sumOf(odd) - 15) < 1e-9, "采分点校验: 除不尽的分配也能精确归到满分（不靠四舍五入碰运气）");
+  const cramped = mk(1, new Array(12).fill(1));
+  alignPointScores(cramped);
+  ok(cramped.keyPoints.every(p=>p.score === 1), "采分点校验: 子项多到 0.5 分都分不下去时宁可不动（不编出 0 分项）");
+  ok(alignPointScores(null) === null && alignPointScores({question:{score:20}}).keyPoints === undefined
+     && alignPointScores({question:{score:"x"},keyPoints:[{score:5}]}).keyPoints[0].score === 5,
+     "采分点校验: 缺字段与坏字值都安全放过，不炸也不乱改");
+  ok(/return alignPointScores\(data\);/.test(PAGE_HTML),
+     "采分点校验: gen() 返回前真的过了这道校验（测得到函数不等于拦得住题）");
+})();
 ok(GEN_POINT_RULES.indexOf("85%-95%") >= 0, "出题: prompt 要求子项长度落在字数上限的 85%-95%");
 ok(GEN_POINT_RULES.indexOf("need") >= 0 && GEN_POINT_RULES.indexOf("能对着答案划勾") >= 0,
    "出题: prompt 要求每条子项附一份 need（必须答到的具体情形），且要具体到能划勾");
