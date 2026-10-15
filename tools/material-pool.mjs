@@ -2,9 +2,11 @@
  * 材料池 —— 抓一手材料、提炼成事实骨架、落盘。
  *
  *   node tools/material-pool.mjs fetch gov 养老服务 3   政策文件库（按关键词搜）
- *   node tools/material-pool.mjs fetch rmw 3           人民网社会法治（按栏目拿最新）
+ *   node tools/material-pool.mjs fetch rmw 10          人民网各频道（按栏目拿最新）
+ *   node tools/material-pool.mjs fetch rmrb 10          人民日报电子版（按版面拿最新）
  *   node tools/material-pool.mjs list                    看池子里有什么
  *   node tools/material-pool.mjs verify [条数]           抽几条回原文核（默认 15，规范第七节的验收线）
+ *   node tools/material-pool.mjs redo [篇数|all]          用当前 prompt 重提炼池子里已有的文章
  *
  * 规矩全在 docs/材料规范.md（第五节「提炼」、第八节「时效」）：这里只实现，不另立口径。
  * 与 drift.mjs 同一套路子：把 app/index.html 的脚本抠出来配 DOM 桩跑，所以提炼走的是应用里真实的
@@ -28,8 +30,8 @@ const DIR = process.env.LIANTAI_MAT_DIR || join(homedir(), "练习台材料");
 const poolDir = join(DIR, "池子");
 const rawDir = join(DIR, "原文");     // 只在 fetch 过程中临时用，跑完不留（规范：只存骨架，不存原文）
 
-if (phase !== "fetch" && phase !== "list" && phase !== "verify") {
-  console.error("用法：node tools/material-pool.mjs fetch <gov|rmw> [检索词] [篇数] | list | verify [条数]");
+if (phase !== "fetch" && phase !== "list" && phase !== "verify" && phase !== "redo") {
+  console.error("用法：node tools/material-pool.mjs fetch <gov|rmw|rmrb> [检索词] [篇数] | list | verify [条数] | redo [篇数|all]");
   process.exit(1);
 }
 
@@ -92,18 +94,25 @@ const SOURCES = {
     },
   },
   rmw: {
-    name: "人民网·社会·法治", kind: "news",
+    name: "人民网（多频道）", kind: "news",
     /* 只取正文文章链接。列表页里混着图片新闻、专题页、外链，靠 URL 形态筛：人民网正文是
        /n1/年/月/日/cNNNN-数字.html —— 注意是 .html，而政府网是 .htm，两边正好相反，别拼错。
        图片新闻（“河南睢县：采摘菊花 供应市场”这类）标题里看得出，留给提炼那一步的入库判断去拦。 */
-    /* 2026-10-15 实测：首页一屏 22 条正文链接里，5 条是图片新闻、又有专题页掺着，最后只剩 4 篇能用，
-       扩不到 10 篇。「人民直击」栏目页（GB/428181）才是金的：一页 9 条、全是深度调查。
-       「滚动新闻」与发布会专题页正文链接为 0，不要加。 */
+    /* 2026-10-15 实测：只抓社会法治一栏，一页只能出 7 篇（剩余全是图片新闻与案件警示），
+       而且主题全挤在基层治理与法治上，第三步「选题跟着弱项走」没得选。换成多个频道首页：
+       实测 社会 15 / 财经 18 / 教育 17 / 健康 16 / 生态 2 / 文化 1，共 65 条去重正文链接。
+       时政、法治、IT 三个频道是 GBK 且解析不出正文链接，不列（解码另说：任何一条链接都可能是 GBK，
+       所以 `get()` 自己读字节自己解码，不依赖这里列的编码）。 */
     listUrls: [
       "http://society.people.com.cn/",
-      "http://society.people.com.cn/GB/428181/index.html",
+      "http://finance.people.com.cn/",
+      "http://edu.people.com.cn/",
+      "http://health.people.com.cn/",
+      "http://env.people.com.cn/",
+      "http://culture.people.com.cn/",
+      "http://society.people.com.cn/GB/428181/index.html",   // 人民直击：一页九条，全是深度调查
     ],
-    artRe: /^http:\/\/society\.people\.com\.cn\/n\d\/\d{4}\/\d{4}\/c\d+-\d+\.html$/,
+    artRe: /^https?:\/\/[a-z]+\.people\.com\.cn\/n\d\/\d{4}\/\d{4}\/c\d+-\d+\.html$/,
     async list(){
       const seen = new Set(), items = [];
       for (const page of this.listUrls) {
@@ -120,6 +129,38 @@ const SOURCES = {
         }
       }
       if (!items.length) throw new Error("列表页没解析出正文链接——站点结构可能变了");
+      return items;
+    },
+  },
+  rmrb: {
+    name: "人民日报电子版", kind: "news",
+    /* 版面页每天二十个版、每版 4—10 篇，重 UTF-8，地址完全可拼。只取问题导向的版：
+       各地传真(10) / 社会(14) / 政治(11) / 民主政治(18) / 法治(19) / 文化(13) / 经济(07) / 要闻(01-04,06)。
+       不要的：评论(05) 是观点不是材料，理论(09) 同理，视觉(08)、广告(12,16)、体育(15)、
+       国际(17)、副刊(20)。版面号会随日期变，但半年内实测稳定，取不到就是空、不报错。 */
+    nodes: ["14","10","11","18","19","13","07","01","02","03","04","06"],
+    backDays: 3,
+    async list(){
+      const seen = new Set(), items = [];
+      for (let k = 0; k < this.backDays; k++) {
+        const t = new Date(Date.now() - k * 86400000);
+        const y = t.getFullYear(), mo = String(t.getMonth()+1).padStart(2,"0"), d = String(t.getDate()).padStart(2,"0");
+        const pub = y + "-" + mo + "-" + d;
+        for (const n of this.nodes) {
+          const lu = "http://paper.people.com.cn/rmrb/pc/layout/" + y + mo + "/" + d + "/node_" + n + ".html";
+          let h = "";
+          try { h = await get(lu, false); } catch (e) { continue; }   // 那天没出版、版号不存在，就当空
+          for (const m of h.matchAll(/<a[^>]+href="([^"]*content_\d+\.html)"[^>]*>([\s\S]{2,90}?)<\/a>/g)) {
+            const title = String(m[2] || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+            if (title.length < 10 || /^本版责编/.test(title)) continue;   // 版面页尾部有“本版责编：…”
+            let url; try { url = new URL(m[1], lu).href; } catch (e) { continue; }
+            if (seen.has(url)) continue;
+            seen.add(url);
+            items.push({ title, url, wenhao: "", pub, id: (url.match(/content_(\d+)/) || [,""])[1] });
+          }
+        }
+      }
+      if (!items.length) throw new Error("版面页一篇也没解析出来——地址拼接或结构变了");
       return items;
     },
   },
@@ -150,8 +191,9 @@ if (phase === "list") {
 const srcId = (process.argv[3] || "").trim();
 if (phase === "fetch" && !SOURCES[srcId]) {
   console.error("要一个源：" + Object.keys(SOURCES).join(" | "));
-  console.error("  gov  中国政府网·政策文件库（按关键词搜）   node tools/material-pool.mjs fetch gov 养老服务 3");
-  console.error("  rmw  人民网·社会·法治（按栏目拿最新）     node tools/material-pool.mjs fetch rmw 3");
+  console.error("  gov   中国政府网·政策文件库（按关键词搜）   node tools/material-pool.mjs fetch gov 养老服务 3");
+  console.error("  rmw   人民网（多频道）                    node tools/material-pool.mjs fetch rmw 10");
+  console.error("  rmrb  人民日报电子版                      node tools/material-pool.mjs fetch rmrb 10");
   process.exit(1);
 }
 /* 只有 fetch 用得到这几个：其余两档必须能平安走过这里（verify 的入口在下面，list 在前面已 exit）。 */
@@ -189,6 +231,15 @@ const paraText = seg => [...seg.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
   .filter(s => s.length > 4)
   .join("\n");
 function extractBody(html, src){
+  if (src === "rmrb") {
+    // 人民日报电子版：正文在 id="articleContent" 里，后面紧跟“本版责编：…”，到那里为止
+    const i = html.indexOf('id="articleContent"');
+    if (i < 0) return "";
+    let seg = html.slice(i);
+    const e = seg.indexOf("责编");
+    if (e > 0) seg = seg.slice(0, e);
+    return paraText(seg);
+  }
   if (src === "rmw") {
     // 正文之后还有版权行与整段页脚（报社简介、许可证号），它们同样是 <p>，到“人民日报社概况”为止
     const cut = html.indexOf("人民日报社概况");
@@ -219,10 +270,16 @@ const REFINE_SYS = [
   "第一步·入库判断（这是选题池，不是档案馆，进不了库的抓了也白抓）：",
   "合格的至少占一条——有矛盾（有问题、有争议、有不同做法）、有做法（具体措施与步骤）、有数据（可核的数字，且数字背后是事，不是噱头）、有立场（不同主体态度不一）。",
   "「有做法」这条最容易判错，单独说：",
-  "  做法 = 某个主体为了解决问题采取的措施。反过来，案子怎么发生的、谁骗了谁、现场查到了什么，一律不算做法。",
+  "  做法 = 某个主体为了解决问题采取的措施，**而且必须是已经发生的**。反过来，案子怎么发生的、谁骗了谁、现场查到了什么，一律不算做法。",
+  "  最容易混进来的是「建议」：“要丰富……”“专家建议……”“应建立……”这类话还没有发生，不是做法，归到「建议 / 主张」那一栏。",
   "  自检：把这条里的主体名换掉，还刺不刺下一个别人能借鉴的办法？换掉就没了，说明它只是事件经过。",
-  "  第二道自检：一份材料能不能出「对策题」，就看它有没有可借鉴的做法。不能出对策题的，就算有矛盾、有数据，也只能算半篇。",
-  "只有成绩、只有表态、只有会议消息、只有风景或活动报道、只有案件或纠纷经过（读者看完只能感慨一句，学不到什么东西）的，判不合格。",
+  "  第二道自检：一份材料能不能出「对策题」，就看它有没有可借鉴的做法，或者有没有成形的建议主张。两样都没有，就算有矛盾、有数据，也只能算半篇。",
+  "只有表态、只有会议消息、只有风景或活动报道、只有案件或纠纷经过（读者看完只能感慨一句，学不到什么东西）的，判不合格。",
+  "还有一类要专门拦，而且它靠“有没有成绩”是拦不住的——成就稿（成绩宣传）。这类稿子通篇报告已经做成的好事，而且往往还带上不少做法，所以表面上“有做法也有成效”，看着合格；但它在报告成绩，不在讲一件还没办妥的事，读者学不到什么。",
+  "  判成就稿只看一条：**这篇里有没有一个还没解决的问题？**",
+  "  具体怎么判：把它记下来的事实分成「问题/背景」与「结果/成效」两堆。如果结果那一堆明显压过问题那一堆（例如成效十几条、背景只剩一两条），而且通篇找不到一个还没办妥的环节、一处不同意见、一点遗留短板，就是成就稿，不入库。",
+  "  第二道自问：这篇里有没有「谁正在为某件事发愁」？没有就是成就稿。",
+  "  别误伤：一篇材料成效很多不要紧，只要它同时还写着一个没解决的问题（成效背后还有短板、还有争议、还可能反弹），就算合格。拦的是「只有结果没有问题」。",
   "还要够撑起两道不同题型的题：一篇通篇只有成效的只能出概括题，也不合格。",
   "把结论写进 usable（true/false）与 why（一句话说结论怎么来的）。不合格就不要抽骨架了，各栏给空数组。",
   "",
@@ -233,16 +290,25 @@ const REFINE_SYS = [
   "4. 底线是能出题：评价、意义、表态、套话一律不要，那些出不了题。",
   "5. 「难点」这一栏宁缺勿造。凑不出真实难点，就只写一句「原文未提及」——不许拿上一栏的做法和要求充数。",
   "6. 只从正文抽事实。发布日期、文号、栏目名属于元数据，不是材料事实，不许写进任何条目。",
-  "7. 四栏各归各位，不许串：背景只放「事情为什么会成问题」——放行动过程与现场细节就是串栏；做法只放「为了解决问题做了什么」——放当事人之间发生了什么就是串栏；成效只放「这么做之后出现了什么可核的结果」——把做法换个说法重抄一遍不算成效；难点只放「为什么这事不好办」——放已经解决了的旧问题就是串栏。",
+  "7. 五栏各归各位，不许串：背景只放「事情为什么会成问题」——放行动过程与现场细节就是串栏；做法只放「已经发生的、为了解决问题采取的措施」——放当事人之间发生了什么、放还没发生的建议都是串栏；成效只放「这么做之后出现了什么可核的结果」——把做法换个说法重抄一遍不算成效；难点只放「为什么这事不好办」——放已经解决了的旧问题就是串栏；建议只放「还没做、被提出来的主张」——已经做了的归做法。",
   "8. 一条事实只准出现在一栏。同一件事在「做法」和「成效」里各写一遍，是这份骨架最严重的错：后面出题会把它当成两个采分点，一份答卷答了一条就被算成答了两条。看法：两栏里有没有逐字相同的句子？有就是错了。",
-  "9. 四栏都可以是空的，空着不扣分，凑数才扣分。新闻里大量材料根本没有「可核的成效」（整治还在进行中）和「真实的难点」（只是读者看得出难，原文并未写出）。这种情况下宁可从缺。「原文未提及」是正确答案，不是失败。",
+  "9. 五栏都可以是空的，空着不扣分，凑数才扣分。新闻里大量材料根本没有「可核的成效」（整治还在进行中）和「真实的难点」（只是读者看得出难，原文并未写出）。这种情况下宁可从缺。「原文未提及」是正确答案，不是失败。",
   "10. 交骨架之前逐栏自检一遍，把不该在这一栏的删掉——归不进四栏的事实，宁可丢掉也不要塞进某一栏。最常见的凑数长什么样：",
   "  「背景」里放行动过程与现场细节（“记者跟随执法”“执法人员抵达时大门紧锁”）——这不是为什么事情会成为问题。",
   "  「做法」里放当事人之间的往来（谁引诱谁、谁翻脸、谁逼谁签条）——措施必须是某个主体为了解决问题主动做的。",
+  "  「做法」里放建议（“要丰富……”“应当……”“专家建议……”“下一步应……”）——这些还没发生，归「建议 / 主张」。实测这个错会让出的对策题废掉：整篇建议都抄在材料里，答案现成躺着，考生抄一遍就得分。",
   "  「成效」里放执法发现与原文事实（“查获 POS 机”“无法出示执业证明”“营业执照注册于 7 月 16 日”“签过承诺书”）——发现不等于收效，整治还在进行中的材料本来就可能一条成效都没有。",
   "  「难点」里放调查见闻（“地接人员先问是否本地人”“凭参观证进场”“有人望风”）——那是怎么查出来的，不是难在哪里。难在哪里得是概括性的机制障碍（监管盲区、利益捆绑、违法成本低）。",
+  "11. 限定语照原文写，一个字都不许抹。这一条是三次抽样回链里所有错的总源头，所以写细：",
+  "  先说清为什么重要：后面出题时，这些条目会变成采分点。限定语一改，标准答案就错了，**答对的人反而被扣分**。",
+  "  （一）主体不许上移一层：原文写“王雪认为”，不许写成“有观点认为”；原文写“相关工作人员说”，不许写成“工作室宣称”；原文里是小标题的话，不许归给某个人。",
+  "  （二）语气与程度不许拉高：原文写“还可积极参与”，不许写成“积极参与”；建议、拟、争取、有望这类词不能换成已做到。",
+  "    这一条最阴，连着两回抽检都只载在它上。实测反例：“在很多人的印象里”被写成“很多人认为”，“（陈女士）很纳闷”被写成“质疑”。这类词看着像同义替换，但对考生不是：出题时它会变成一个采分点，而采分点说的是另一件事。拿不准就照抄原词。",
+  "  （三）时间与范围不许丢：原文写“今年以来共查改 125 个”，不许写成“共查改 125 个”。",
+  "  （四）不同主体、不同地区、不同案件的事不许并成一条：甲地套取 9 万元与乙地的另一案，不能合成“套取资金”一条。并在一起就核不了了。",
+  "  注意方向：本条管的是**向强改**（说得比原文满、比原文确定）。反过来，并列的事拆成几条、一条只取并列原因中的一个，都是对的（第 1 条那条规矩）。",
   "",
-  "返回 JSON，字段：usable（布尔）、why（一句话）、topics（这篇适合作哪些主题，从下面这几个里选，可多选：基层治理/乡村振兴/政务服务/生态环保/科技创新/就业服务/养老托育/文化传承/城市更新/应急管理/民生保障/数字经济/法治建设/作风建设）、background（背景）、measures（做法）、effects（成效）、difficulties（争议/难点）。",
+  "返回 JSON，字段：usable（布尔）、why（一句话）、topics（这篇适合作哪些主题，从下面这几个里选，可多选：基层治理/乡村振兴/政务服务/生态环保/科技创新/就业服务/养老托育/文化传承/城市更新/应急管理/民生保障/数字经济/法治建设/作风建设）、background（背景）、measures（做法）、effects（成效）、difficulties（争议/难点）、proposals（建议/主张）。",
   "除 usable 与 why 外每个字段是字符串数组，一项一条；某一栏原文没有就返回空数组（difficulties 除外，它要写「原文未提及」）。",
 ].join("\n");
 
@@ -261,10 +327,12 @@ const VERIFY_SYS = [
   "  partial —— 原文写了这件事，但条目把话说满了、把两件事并成一件、或改了数字/时间/主体/范围。要说清改了哪里。",
   "  absent —— 原文里找不到这件事。",
   "规矩（按这个开火，别替条目辩护）：",
-  "1. 限定语任何一处对不上就不是 supported——数字、比例、时间、主体、地域、程度词。",
-  "2. 数字逐个核。「近三成」不是「30%」，「十余台」不是「10 台」，算 partial。",
-  "3. 只凭这一篇原文判。你自己知道的背景知识、常识推断，都不算依据。",
-  "4. 拿不准的一律不给 supported。",
+  "1. 判 partial 只看一件事：**条目有没有比原文说得更满**（把话说满、把两件事并成一件事、去掉限定语）。只有“向强”的改动算错。",
+  "2. **条目比原文少，不算错。** 骨架是一条一条抽的，不是摘要：原文一句里并列的三件事被拆成三条，或一条只取了并列原因中的一个，**都是对的**。不要因为“遗漏了并列表述”而判 partial。",
+  "3. 限定语任何一处被抹掉或改写就不是 supported——数字、比例、时间（“今年以来”）、主体（“王某认为”与“相关工作人员说”不是一回事）、地域、程度与语气（“还可参与”不是“积极参与”）。最容易被漏掉的是**时间词与语气词**。",
+  "4. 数字逐个核。「近三成」不是「30%」，「十余台」不是「10 台」，算 partial。",
+  "5. 只凭这一篇原文判。你自己知道的背景知识、常识推断，都不算依据。",
+  "6. 拿不准的一律不给 supported。",
   "只返回 JSON：{\"结果\":[{\"i\":序号,\"判\":\"supported|partial|absent\",\"原句\":\"...\",\"说明\":\"...\"}]}",
 ].join("\n");
 
@@ -305,7 +373,7 @@ if (phase === "verify") {
   }
   console.error("抽 " + pick.length + " 条，来自 " + perUrl.size + " 篇（池子共 " + all.length + " 条 / " + byUrl.size + " 篇）");
 
-  const srcOfUrl = u => /society\.people\.com\.cn/.test(u) ? "rmw" : "gov";
+  const srcOfUrl = u => /paper\.people\.com\.cn/.test(u) ? "rmrb" : /society\.people\.com\.cn|people\.com\.cn/.test(u) ? "rmw" : "gov";
   const bodies = {};
   for (const u of perUrl.keys()) {
     try { bodies[u] = extractBody(await get(u), srcOfUrl(u)); }
@@ -350,6 +418,77 @@ if (!n) { console.log("一条也没核成：探针没拿到判决，不要当成
   const vsrc = [SKEL_PROMPT, appSrc, "const VERIFY_SYS = " + JSON.stringify(VERIFY_SYS) + ";", vprobe].join("\n");
   await import("data:text/javascript;base64," + Buffer.from(vsrc, "utf8").toString("base64"));
   process.exit(0);   // verify 到这就结束，不能落到下面的 fetch 段
+}
+
+/* ---------- redo：把池子里已有的文章用当前的 prompt 重新提炼一遍 ---------- 
+   为什么要有：改了提炼规矩就得知道它到底管不管用，而 fetch 会跳过池子里已有的地址。
+   重建整池子太贵，所以要能只重跑已有的那几篇。跑完拿 verify 比一比才知道改动是好是坏。
+   用法：node tools/material-pool.mjs redo [篇数|all]，默认 all。 */
+if (phase === "redo") {
+  if (!existsSync(poolDir)) { console.error("池子是空的：" + poolDir); process.exit(1); }
+  const files = readdirSync(poolDir).filter(f => f.endsWith(".md")).sort();
+  const arg = (process.argv[3] || "all").trim();
+  const chosen = arg === "all" ? files : files.slice(0, Math.max(1, Number(arg) || 1));
+  const jobs = [];
+  const srcOfUrl = u => /paper\.people\.com\.cn/.test(u) ? "rmrb" : /people\.com\.cn/.test(u) ? "rmw" : "gov";
+  for (const f of chosen) {
+    const s = readFileSync(join(poolDir, f), "utf8");
+    const url = (s.match(/^来源：(\S+)$/m) || [, ""])[1];
+    const title = (s.match(/^# (.+)$/m) || [, f])[1];
+    const pub = (s.match(/^发布：(.+)$/m) || [, ""])[1];
+    const wenhao = (s.match(/^文号：(.+)$/m) || [, ""])[1];
+    if (!url) { console.error("  没地址，跳过：" + f); continue; }
+    let body = "";
+    try { body = extractBody(await get(url), srcOfUrl(url)); }
+    catch (e) { console.error("  抓原文失败：" + title.slice(0,24) + " —— " + e.message); continue; }
+    if (body.replace(/\s/g, "").length < 400) { console.error("  正文太短，跳过：" + title.slice(0,24)); continue; }
+    jobs.push({ file: f, url, title, pub, wenhao: wenhao === "（无）" ? "" : wenhao, body });
+  }
+  console.error("重提炼 " + jobs.length + " 篇（fetch 会跳过已有地址，所以这一步只能单独跑）");
+  if (!jobs.length) process.exit(1);
+  const rprobe = `
+const T = await import("node:timers");
+globalThis.setTimeout = T.setTimeout; globalThis.clearTimeout = T.clearTimeout;
+globalThis.setInterval = T.setInterval; globalThis.clearInterval = T.clearInterval;
+state.settings.apiKey = ${JSON.stringify(key)};
+state.settings.baseUrl = "https://api.deepseek.com/v1";
+state.settings.model = ${JSON.stringify(model)};
+state.modelCaps = {};
+const REFINE_SYS = ${JSON.stringify(REFINE_SYS)};
+const fs = await import("node:fs");
+const path = await import("node:path");
+const outDir = ${JSON.stringify(poolDir)};
+const stamp = new Date().toISOString().slice(0, 10);
+const jobs = ${JSON.stringify(jobs)};
+let kept = 0, dropped = 0;
+for (const j of jobs) {
+  let sk = null, err = "";
+  try { sk = await callLLM(REFINE_SYS, "【正文】\\n" + j.body, true, null, { temp: 0, level: "quick" }); }
+  catch (e) { err = String((e && (e.code || e.message)) || e); }
+  if (!sk || typeof sk !== "object") { console.log("FAIL " + j.title.slice(0,30) + " " + err); continue; }
+  if (sk.usable === false) {
+    dropped++;
+    console.log("DROP-now " + JSON.stringify({ title: j.title.slice(0,30), why: String(sk.why || "").slice(0,60) }));
+    fs.renameSync(path.join(outDir, j.file), path.join(outDir, "_" + j.file + ".dropped"));
+    continue;
+  }
+  const sec = (t, arr) => "## " + t + "\\n" + ((arr && arr.length) ? arr.map((x,i)=> (t==="做法"||t==="建议 / 主张"? (i+1)+". " : "- ") + x).join("\\n") : "- （原文未提及）");
+  const md = [ "# " + j.title, "", "来源：" + j.url, "发布：" + j.pub, "文号：" + (j.wenhao || "（无）"),
+    "抓取：" + stamp, "时效：" + (j.wenhao ? "长期框架（有正式文号，按大事件处理）" : "半年（自 " + j.pub + " 起）"),
+    "主题：" + ((Array.isArray(sk.topics) && sk.topics.length) ? sk.topics.join("、") : "（未标）"),
+    "采用：" + (sk.why || ""), "", sec("背景", sk.background), "", sec("做法（已经发生的）", sk.measures), "",
+    sec("成效", sk.effects), "", sec("争议 / 难点", sk.difficulties), "", sec("建议 / 主张（还没发生的）", sk.proposals), "" ].join("\\n");
+  fs.writeFileSync(path.join(outDir, j.file), md, "utf8");
+  kept++;
+  const n = ["background","measures","effects","difficulties","proposals"].reduce((a,k)=> a + ((sk[k]||[]).length), 0);
+  console.log("OK " + JSON.stringify({ title: j.title.slice(0,26), 条数: n,
+    分布: { 背景:(sk.background||[]).length, 做法:(sk.measures||[]).length, 成效:(sk.effects||[]).length, 难点:(sk.difficulties||[]).length, 建议:(sk.proposals||[]).length } }));
+}
+console.log("REDO " + JSON.stringify({ 重写: kept, 转成不合格: dropped }));
+`;
+  const rsrc = [SKEL_PROMPT, appSrc, rprobe].join("\n");
+  await import("data:text/javascript;base64," + Buffer.from(rsrc, "utf8").toString("base64"));
+  process.exit(0);
 }
 
 console.error("抓取 " + SRC.name + (query? "「" + query + "」" : "") + "…");
@@ -421,11 +560,11 @@ for (const it of items) {
   } catch (e) { err = String((e && (e.code || e.message)) || e); }
   if (!sk || typeof sk !== "object") { console.log("FAIL " + JSON.stringify({ title: it.title.slice(0,30), err: err || "没解出骨架" })); continue; }
   // 入库判断不过就不落盘（规范第四节：不合格的不进池子，不是先存下来再筛）
-  if (sk.usable === false) { console.log("DROP " + JSON.stringify({ title: it.title.slice(0,30), why: sk.why || "判为出不了题" })); continue; }
+  if (sk.usable === false) { console.log("DROP " + JSON.stringify({ title: it.title.slice(0,30), url: it.url, why: sk.why || "判为出不了题" })); continue; }
   // 串栏探针（只报不改）：同一件事被写进两栏，出题时会变成两个采分点，一份答卷答一条被算成两条。
   // 先只量不改，看光靠 prompt 的硬约束能不能压住；压不住再上本地去重。
   const dupes = [];
-  const cols = [["背景", sk.background], ["做法", sk.measures], ["成效", sk.effects], ["难点", sk.difficulties]];
+  const cols = [["背景", sk.background], ["做法", sk.measures], ["成效", sk.effects], ["难点", sk.difficulties], ["建议", sk.proposals]];
   const seen = new Map();
   for (const [name, arr] of cols) for (const x of (Array.isArray(arr) ? arr : [])) {
     const k = String(x).replace(/[\s，。、；：,.]+/g, "");
@@ -434,7 +573,11 @@ for (const it of items) {
     else seen.set(k, name);
   }
   if (dupes.length) console.log("DUP " + JSON.stringify({ title: it.title.slice(0,30), n: dupes.length, 例: dupes.slice(0,3) }));
-  const sec = (t, arr) => "## " + t + "\\n" + ((arr && arr.length) ? arr.map((x,i)=> (t==="做法"? (i+1)+". " : "- ") + x).join("\\n") : "- （原文未提及）");
+  // 成就稿探针（只报不改）：成效条数压过「背景+难点」条数就是嫌疑。这只是代理指标，
+  // 真正的判据在 prompt 里（这篇里有没有一个还没解决的问题），所以先量、不拦。
+  const nEff = (sk.effects||[]).length, nProb = (sk.background||[]).length + (sk.difficulties||[]).length;
+  if (nEff >= 6 && nEff > nProb * 2) console.log("MAYBE-成就稿 " + JSON.stringify({ title: it.title.slice(0,30), 成效: nEff, 问题: nProb }));
+  const sec = (t, arr) => "## " + t + "\\n" + ((arr && arr.length) ? arr.map((x,i)=> (t==="做法"||t==="建议 / 主张"? (i+1)+". " : "- ") + x).join("\\n") : "- （原文未提及）");
   const md = [
     "# " + it.title,
     "",
@@ -448,18 +591,20 @@ for (const it of items) {
     "",
     sec("背景", sk.background),
     "",
-    sec("做法", sk.measures),
+    sec("做法（已经发生的）", sk.measures),
     "",
     sec("成效", sk.effects),
     "",
     sec("争议 / 难点", sk.difficulties),
     "",
+    sec("建议 / 主张（还没发生的）", sk.proposals),
+    "",
   ].join("\\n");
   const name = stamp.replace(/-/g, "") + "-" + srcId + "-" + String(it.id || Math.random().toString(36).slice(2,8)) + ".md";
   fs.writeFileSync(path.join(outDir, name), md, "utf8");
-  const n = ["background","measures","effects","difficulties"].reduce((a,k)=> a + ((sk[k]||[]).length), 0);
+  const n = ["background","measures","effects","difficulties","proposals"].reduce((a,k)=> a + ((sk[k]||[]).length), 0);
   console.log("OK " + JSON.stringify({ file: name, title: it.title.slice(0,32), 条数: n,
-    分布: { 背景:(sk.background||[]).length, 做法:(sk.measures||[]).length, 成效:(sk.effects||[]).length, 难点:(sk.difficulties||[]).length },
+    分布: { 背景:(sk.background||[]).length, 做法:(sk.measures||[]).length, 成效:(sk.effects||[]).length, 难点:(sk.difficulties||[]).length, 建议:(sk.proposals||[]).length },
     正文字数: body.replace(/\\s/g,"").length }));
   done.push(name);
 }
