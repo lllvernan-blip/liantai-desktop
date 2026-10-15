@@ -2799,6 +2799,22 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(PAGE_HTML.indexOf("groundedSpec(skel, m, /对策/") < 0,
      "有据: 这条不挂在模块名上（挂了就会漏掉归纳概括里的「并提出建议」）");
 
+  // 事前限量：素材量是材料档的三倍（一条条目实测 41 字），不限就会写出超档的材料
+  const _sk = "## 背景\n" + Array.from({length: 40}, (_, i) => "- 背景事" + i).join("\n")
+    + "\n## 做法（已经发生的）\n" + Array.from({length: 30}, (_, i) => (i + 1) + ". 做法事" + i).join("\n")
+    + "\n## 建议 / 主张（还没发生的）\n" + Array.from({length: 20}, (_, i) => (i + 1) + ". 建议事" + i).join("\n");
+  const _t = trimSkeleton(_sk, 900);
+  const _n = _t.split("\n").filter(Boolean).length;
+  ok(_n === Math.floor(900 / 41), "有据: 按材料档反推最多喂几条（900 字档 → " + _n + " 条）");
+  ok(_t.indexOf("建议事0") >= 0 && _t.indexOf("做法事0") >= 0 && _t.indexOf("背景事0") >= 0,
+     "有据: 限量按栏轮流取，每栏都留得下人（不被背景栏占满）");
+  ok(trimSkeleton("## 背景\n- 事\n", 100).indexOf("事") >= 0 && trimSkeleton("", 900) === "",
+     "有据: 条目少或者没骨架都不报错（下界与空输入都退得住）");
+  ok(trimSkeleton("## 成效\n- （原文未提及）\n", 900).indexOf("原文未提及") < 0,
+     "有据: 占位行不当成事实喂进去");
+  ok(/trimSkeleton\(skel, m\.matLen\[1\]\)/.test(PAGE_HTML),
+     "有据: 限量真的接在 gen 上（写了不接等于没写）");
+
   // 取不到就必须回落，而不是报错：池子空 / 不在桌面壳里都是常态
   const _savedWin = globalThis.window;
   globalThis.window = {};

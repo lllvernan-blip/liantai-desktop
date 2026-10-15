@@ -1816,13 +1816,44 @@ async function poolPick(topics){
   if(!api || !api.poolPick) return null;
   try{ const r = await api.poolPick(topics); return (r && r.text)? r : null; }catch(e){ return null; }
 }
+/* 事前限量：**一条骨架条目实测平均 41 字**（池子 461 条 / 19070 字）。一篇骨架动辄三五十条，
+   素材量是材料档的三倍；模型已经在压缩（那种一篇 1700 字的骨架压到了 1119），只是压不进 900。
+   与其事后裁材料（会把句子砍断），不如**事前就不给那么多**：按档反推最多喂几条，按栏轮流取，
+   保证背景 / 做法 / 成效 / 难点 / 建议各栏都有人，不至于全被背景栏占满。
+   实测（2026-10-15，房车那篇）：54 条喂到 900 字档（取 21 条）后，材料从 1119 字落到 727 字，
+   而且回链核对仍是零加料——少给素材没有伤到事实的覆盖。
+   另外这个函数顺手把头部（标题 / 来源 / 发布 / 文号 / 主题）丢在外面：
+   那些是元数据，进了材料就要费劲虚化，本来就不该给。 */
+const SKEL_PER_ENTRY = 41;
+function trimSkeleton(skel, budget){
+  const max = Math.max(8, Math.floor(budget / SKEL_PER_ENTRY));
+  const cols = [];
+  let cur = null;
+  for(const line of String(skel || "").split("\n")){
+    const h = line.match(/^## (.+)$/);
+    if(h){ const nm = h[1].trim(); cur = nm.indexOf("标题") < 0 ? { items: [] } : null; if(cur) cols.push(cur); continue; }
+    const mm = line.match(/^(?:- |\d+\. )(.+)$/);
+    if(!mm || !cur) continue;
+    const t = mm[1].trim();
+    if(!t || /^[（(]?\s*原文未提及/.test(t)) continue;   // 占位行不是事实（池子里写成「（原文未提及）」，带括号）
+    cur.items.push(t);
+  }
+  const out = [];
+  for(let round = 0; out.length < max; round++){
+    let any = false;
+    for(const c of cols){ if(round < c.items.length){ out.push(c.items[round]); any = true; if(out.length >= max) break; } }
+    if(!any) break;
+  }
+  return out.map(x => "- " + x).join("\n");
+}
 async function gen(k, subtype, focusDim, needCard, onDelta, skel){
   const m = MODULES[k];
   const scope = subtype? `${subtypeWord(k)}：「${subtype}」` : `题型：综合`;
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
   // 材料一律虚构：模型不知道某地真实做法，放它写「根据某文件」只会编出看着像真的政策名与文号
   // 有据模式（skel 不为空）改由池子里的骨架改写而来，虚构那条换成 groundedSpec 的硬要求
-  const matSpec = skel ? groundedSpec(skel, m) : `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）
+  const skelText = skel ? trimSkeleton(skel, m.matLen[1]) : "";
+  const matSpec = skel ? groundedSpec(skelText, m) : `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）
 虚构要求：材料是虚构情境——不得出现真实政策、法规、文件的名称与文号，不得把编造的内容写成「根据某文件」；地名与机关一律虚化，写「某市/某县/某镇/某社区」，或「A 市/A 县」这样的代号，不要自造「江城市」这类看着像真的具体名字；数字只作情境设定，不指向任何真实来源。这条对返回里的每个字段都适用（含学习卡的 example）。`;
   // 字数口径唯一来源是本地表：模块表或文种表里的数字写死进 prompt，生成结果再由 enforceWordLimit 纠偏，不信模型
   const localLimit = localAnsLen(k, subtype);
@@ -1837,7 +1868,7 @@ async function gen(k, subtype, focusDim, needCard, onDelta, skel){
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点（每条附上 need）。")
     + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "")
     + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "");
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined, material: skel || undefined });
+  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined, material: skelText || undefined });
   // 采分点带 need（必须答到的具体情形）：判分不再靠阅卷现场拆点，而是照出题时写死的那几条逐条核
   const kpSchema = `"keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5,"need":["必须答到的具体情形1（只写一个事实）","必须答到的具体情形2","必须答到的具体情形3"]}]`;
   const schema = needCard
