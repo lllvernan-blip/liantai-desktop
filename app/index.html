@@ -207,6 +207,11 @@ html,body{margin:0;padding:0;}
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
   .material{background:var(--mat);padding:24px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
+  /* 「据材料」：材料由真实报道的事实骨架改写而来。一个小标，不加说明句——
+     界面尽量简洁清晰，不因为多了一个来源就多一段文字去解释它 */
+  .material .from-mat{font-family:var(--hei);font-size:var(--fs-tiny);color:var(--gov-red);
+    border:1px solid currentColor;border-radius:var(--r-icon);padding:0 4px;margin-left:8px;
+    letter-spacing:1px;vertical-align:1px;}
   /* 作答页的材料：长材料不再把作答区一路推到屏外——材料在窗内自己滚，作答区跟着上移。
      窗口矮时自动减行，不会把作答区顶到屏幕外。
      高度按「整行数」定，不用 vh：vh 除不尽行高，窗底那行会被切一半。
@@ -1774,12 +1779,48 @@ function alignPointScores(data){
   kps.forEach((p,i)=>{ if(p && typeof p === "object") p.score = out[i] / 2; });
   return data;
 }
-async function gen(k, subtype, focusDim, needCard, onDelta){
+/* ============ 有据出题：材料由「事实骨架」改写而来 ============ */
+/* 材料从哪来，一直只有一条路：让模型自己编。这条路有个天生的弱点——采分点是模型自己配的，
+   「该找的点」不存在于任何地方，它说是就是。走有据这条路，材料站在真实报道的事实上，
+   「该找的点」是那篇报道里客观存在的东西。
+   只存骨架不存原文：骨架是一条一个事实的清单，既省空间，也避开了转载整篇文章的问题。
+   池子空了就回到编材料——是主路 + 兜底，不是二选一。 */
+
+/* 骨架改写的硬要求。里面每一条都有实测来历，不是想当然：
+   ② 字数优先那条：最初写的是「骨架一条都不许丢」，结果和「不许加」「不超字数」打架——
+      骨架动辄三五十条塞不进 800 字，模型选了丢字数，实测两篇超一倍（1176 / 1443 字）。
+      改成「装不下的可以不用」后收到 987。
+   ⑤ 代号唯一那条：实测抓到的假事实——骨架里上海浦东与重庆高新区分得清清楚楚，
+      材料里被并成同一个「D市」干的两件事。加了这一条后重跑，回链核对零加料。
+   ⑦ 建议那条：原文是评论文章时，「做法」栏里装的全是建议（「要丰富…」「专家建议…」）。
+      不分开的话，对策题的答案会现成躺在材料里，拄一遍就得分。 */
+function groundedSpec(skel, m){
+  return `背景材料（${m.matLen[0]}-${m.matLen[1]}字）：user 的 material 字段是一份事实骨架，按「背景 / 做法 / 成效 / 争议难点 / 建议主张」排列。把它改写成背景材料，并据此出题。硬要求：
+① 改写成连贯的书面材料，读起来像试卷上的「给定资料」；不出现栏目名、序号、条目符号、「骨架」这类词。
+② 字数就是试卷上那个字数，控制在 ${m.matLen[0]}-${m.matLen[1]} 字。这是决定项：骨架里装不下的条目可以不用，用了的才必须原样。
+③ 骨架之外的事实一律不许添加：不许补数字、不许补做法、不许补案例、不许补主体、不许补因果。骨架里没有的，材料里就不能有。
+④ 用上的必须原样，限定语一个字都不许改：不许把「印象」写成「认为」、把「很纳闷」写成「质疑」、把「还可参与」写成「已经参与」。
+⑤ 地名与机关一律虚化（写「某市 / 某县」或「A 市 / B 市」）；机构名也虚化（写「某高校」「一行业协会」「有关部门」）。
+   一个代号只能代表一个地方：骨架里有几个地方，材料里就有几个不同代号，不许两位地方共用一个代号，也不许把甲地的事挂到乙地名下。
+⑥ 不得出现真实政策、法规、文件的名称与文号。
+⑦ 骨架里「建议 / 主张」栏的事还没发生，材料里要保留它的建议性质，不许写成已经做到的事。
+⑧ 材料要有场景与细节、含冗余与干扰信息、要点散落各处。
+这条对返回里的每个字段都适用（含学习卡的 example）。`;
+}
+/* 从池子取一篇骨架。取不到（界面不在壳里、池子空、读失败）一律返回 null，由调用方回落到编材料。
+   不在这里抛错：材料出不来是常态，不是异常。 */
+async function poolPick(topics){
+  const api = (typeof window !== "undefined" && window.liantai) || null;
+  if(!api || !api.poolPick) return null;
+  try{ const r = await api.poolPick(topics); return (r && r.text)? r : null; }catch(e){ return null; }
+}
+async function gen(k, subtype, focusDim, needCard, onDelta, skel){
   const m = MODULES[k];
   const scope = subtype? `${subtypeWord(k)}：「${subtype}」` : `题型：综合`;
   const focus = (needCard && focusDim)? `用户当前该模块较弱的维度是「${focusDim}」，学习卡请针对性强化。` : "";
   // 材料一律虚构：模型不知道某地真实做法，放它写「根据某文件」只会编出看着像真的政策名与文号
-  const matSpec = `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）
+  // 有据模式（skel 不为空）改由池子里的骨架改写而来，虚构那条换成 groundedSpec 的硬要求
+  const matSpec = skel ? groundedSpec(skel, m) : `背景材料（${m.matLen[0]}-${m.matLen[1]}字，贴近真实试卷：有场景有细节，含冗余与干扰信息，要点散落各处）
 虚构要求：材料是虚构情境——不得出现真实政策、法规、文件的名称与文号，不得把编造的内容写成「根据某文件」；地名与机关一律虚化，写「某市/某县/某镇/某社区」，或「A 市/A 县」这样的代号，不要自造「江城市」这类看着像真的具体名字；数字只作情境设定，不指向任何真实来源。这条对返回里的每个字段都适用（含学习卡的 example）。`;
   // 字数口径唯一来源是本地表：模块表或文种表里的数字写死进 prompt，生成结果再由 enforceWordLimit 纠偏，不信模型
   const localLimit = localAnsLen(k, subtype);
@@ -1794,7 +1835,7 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
     : "只生成一道贴近真实考试的仿真练习题（换一个与上次不同的场景与设问角度）及其参考采分点（每条附上 need）。")
     + (exps? " 用户在 experiences 里这些点上栽过跟头：出题请针对性覆盖这些点，或在对应处设置陷阱，检验是否已经补上。" : "")
     + (tags.length? ` 用户在批改里最常丢在「${tags.join("、")}」这几类上：本题要能考出这几类——该有的采分点一个不少，格式与表达也要有可判的地方。` : "");
-  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined });
+  const user = JSON.stringify({ scope, difficulty:difficultyFor(k), focus, note: note + libNote, library: lib || undefined, experiences: exps || undefined, weakTags: tags.length? tags : undefined, material: skel || undefined });
   // 采分点带 need（必须答到的具体情形）：判分不再靠阅卷现场拆点，而是照出题时写死的那几条逐条核
   const kpSchema = `"keyPoints":[{"point":"采分点子项1（把整道题的得分点拆成 6-10 个带分值的子项）","score":5,"need":["必须答到的具体情形1（只写一个事实）","必须答到的具体情形2","必须答到的具体情形3"]}]`;
   const schema = needCard
@@ -2624,11 +2665,16 @@ async function loadQuestion(k, subtype){
     const focusDim = weakestDimOf(k);
     const cacheKey = k + (subtype? "::"+subtype : "");
     const cached = state.cache.studyCards[cacheKey];
-    const data = await gen(k, subtype, focusDim, !cached, onDelta);
+    // 有据优先：池子里取得到骨架就用真实报道的事实出题，取不到（池子空 / 不在壳里）就回到编材料。
+    // 这一步不让用户等：取不到马上返回 null，不多花一次调用。
+    const pick = await poolPick();
+    const data = await gen(k, subtype, focusDim, !cached, onDelta, pick? pick.text : null);
     if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
     if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
     if(!data.question) throw {code:"JSON"};
     enforceWordLimit(k, data.question, subtype);   // 字数口径以本地表为准（公文按文种），不信模型
+    // 「据材料」标就挂在题上（不另存一个字段）：跟着题目一起存进练习记录、一起导入导出，不会丢
+    if(pick) data.question.fromPool = pick.title || pick.name;
     current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard || SL_STUDY_CARDS[k], cardPeeks:0, phase:"card" };
     renderHeader(); renderQuestion();
   }catch(e){
@@ -2749,7 +2795,7 @@ function renderZyPage(){
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="material mat-scroll"><div class="label">背景材料 <span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
+    html += `<div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}<span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
     html += draftPanelHtml(null);
   } else {
     html += cardPageHtml({ id:"btnZyAnswer", label:"我已学习，开始作答" });
@@ -3465,7 +3511,7 @@ function stepPanelHtml(step, f){
     let html = "";
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:12px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
-    html += `<div class="material"><div class="label">背景材料 · 读材料与找点</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
+    html += `<div class="material"><div class="label">背景材料 · 读材料与找点 ${fromMatTag(question)}</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
     html += `<div class="actions" style="margin-top:16px"><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
@@ -4748,6 +4794,9 @@ function saveMarks(sig, set){
     localStorage.setItem(MARKS_KEY, JSON.stringify(all));
   }catch(e){ storageFail("划线标记"); }
 }
+/* 「据材料」小标：材料由池子里真实报道的骨架改写而来时挂上。
+   加的是标，不是说明句——界面尽量简洁清晰，不因为多了一个来源就多一段文字去解释它。 */
+function fromMatTag(q){ return (q && q.fromPool)? ' <span class="from-mat">据材料</span>' : ''; }
 function materialHtml(q){
   const text = String((q&&q.background)||"");
   const marks = loadMarks(qSig(q));

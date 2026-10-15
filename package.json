@@ -29,6 +29,7 @@
     ],
     "files": [
       "main.js",
+      "preload.js",
       "shell-policy.js",
       "app-meta.js",
       "update.js",

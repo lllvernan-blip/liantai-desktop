@@ -862,6 +862,33 @@ if (process.platform !== "darwin") {
      "测试副本: 打完撤掉标记（留着会让下一次正式包也变成测试版）");
 }
 
+/* 材料池的通道（preload.js + main.js）：界面是沙箱，拿不到 fs，池子只能从这三个只读口子进。
+   守两件事：开的口子不能多，名字不能用来越出池子目录。 */
+{
+  const pre = readOr(join(here, "..", "preload.js"));
+  const mainJs = readOr(join(here, "..", "main.js"));
+  const exposed = Array.from(pre.matchAll(/exposeInMainWorld\(\s*"([^"]+)"\s*,\s*\{([\s\S]*)\n\}\);/g));
+  ok(exposed.length === 1 && exposed[0][1] === "liantai",
+     "材料池: preload 只往 window.liantai 上挂东西（别的全局名不占）");
+  const names = exposed.length ? Array.from(exposed[0][2].matchAll(/(\w+)\s*:\s*\(/g)).map(m => m[1]) : [];
+  ok(names.length === 3 && ["poolPick","poolList","poolStat"].every(n => names.indexOf(n) >= 0),
+     "材料池: 只开三个口子（取一篇 / 列池子 / 数数量），不开通用 fs（当前 " + names.join("/") + "）");
+  // 只允许 require("electron")：不写 require("fs") 之类，注释里提到 fs 不算
+  const reqs = Array.from(pre.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g)).map(m => m[1]);
+  ok(reqs.length === 1 && reqs[0] === "electron",
+     "材料池: preload 只 require electron（沙箱里本来也 require 不到别的，当前 " + reqs.join("/") + "）");
+
+  ok(/const PRELOAD = path\.join\(__dirname, 'preload\.js'\)/.test(mainJs) && /preload: PRELOAD/.test(mainJs),
+     "材料池: 窗口真的挂上了 preload（写好了不挂等于没写）");
+  ok(/sandbox: true/.test(mainJs) && /contextIsolation: true/.test(mainJs) && /nodeIntegration: false/.test(mainJs),
+     "材料池: 沙箱三条没被为了开通道而放开（页面依旧拿不到 Node）");
+  // 路径校验：只认文件名本身，挡掉 ../ 与绝对路径
+  ok(/s !== path\.basename\(s\)/.test(mainJs) && /\[.\]md\$/.test(mainJs),
+     "材料池: 文件名只认 basename，挡掉 ../ 与绝对路径");
+  ok(/if \(!all\.length\) return null;/.test(mainJs) && /if \(!cands\.length\) return null;/.test(mainJs),
+     "材料池: 池子空与全部用过都返回 null（由界面回落编材料，不是报错）");
+}
+
 /* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿
    不好预测（可能正好切掉半条约束），所以按它自己写的上限卡住。 */
 {

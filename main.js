@@ -11,7 +11,7 @@
  *  - 关键事件追加写入 logs/startup.log，便于在没有截图的情况下验证启动。
  */
 
-const { app, BrowserWindow, Menu, shell, screen } = require('electron');
+const { app, BrowserWindow, Menu, shell, screen, ipcMain } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -21,6 +21,7 @@ const update = require('./update.js');
 const policy = require('./shell-policy.js');
 
 const APP_DIR = path.join(__dirname, 'app');
+const PRELOAD = path.join(__dirname, 'preload.js');
 /* 测试副本：tools/build-test.mjs 打测试包时会埋一个 app/build-test.json（只有测试包里有）。
    发现它就把 userData 换成 "…-test"，与正式版彻底分家——测试版里怎么折腾都碰不到正式版的
    记录，正式版也照常能用。这两行必须排在 LOG_DIR 之前：那行会第一次调 app.getPath('userData')，
@@ -391,6 +392,59 @@ function saveWindowBounds() {
   }, 300);
 }
 
+/* ============ 材料池 ============
+   池子是一堆「事实骨架」（一条一个事实、带数字带限定语的清单）。只存骨架不存原文：既省空间，
+   也避开转载整篇文章的问题。骨架由后台抓取提炼写入，界面出题时来取一篇。
+   位置在 userData/材料池/ —— 测试副本有自己的 userData，池子也就自然跟着分家，互不影响。
+   界面是沙箱拿不到 fs，所以读写都在这里，只通过 preload 的三个口子（见 preload.js）暴露出去。 */
+function poolDir() { return path.join(app.getPath('userData'), '材料池'); }
+function poolUsedFile() { return path.join(app.getPath('userData'), 'pool-used.json'); }
+/* 名字一律只认文件名本身：挡掉 ../ 与绝对路径，越出池子目录的请求一律当没这篇 */
+function poolFile(name) {
+  const s = String(name || '');
+  if (!s || s !== path.basename(s) || !/[.]md$/.test(s)) return null;
+  return path.join(poolDir(), s);
+}
+function poolUsedRead() {
+  try { const j = JSON.parse(fs.readFileSync(poolUsedFile(), 'utf8')); return Array.isArray(j) ? j : []; }
+  catch (e) { return []; }
+}
+function poolListSync() {
+  let names = [];
+  try { names = fs.readdirSync(poolDir()).filter(f => /[.]md$/.test(f)); } catch (e) { return []; }
+  const used = poolUsedRead();
+  return names.map(name => {
+    let head = '';
+    try { head = fs.readFileSync(path.join(poolDir(), name), 'utf8').slice(0, 400); } catch (e) {}
+    const title = ((head.match(/^# (.+)$/m) || [, ''])[1] || '').trim();
+    const topics = (((head.match(/^主题：(.+)$/m) || [, ''])[1] || '')).split('、').map(s => s.trim()).filter(Boolean);
+    return { name, title, topics, used: used.indexOf(name) >= 0 };
+  });
+}
+function poolHandlers() {
+  ipcMain.handle('pool:list', () => poolListSync());
+  ipcMain.handle('pool:stat', () => { const all = poolListSync(); return { total: all.length, unused: all.filter(x => !x.used).length }; });
+  ipcMain.handle('pool:pick', (_e, arg) => {
+    const all = poolListSync();
+    if (!all.length) return null;                    // 池子空：由界面回落到编材料
+    const topics = (arg && Array.isArray(arg.topics)) ? arg.topics : [];
+    // 优先挑主题对得上的；已用过的一律不碰（同一个人不该重复拿到同一篇）
+    let cands = all.filter(x => !x.used && topics.length && x.topics.some(t => topics.indexOf(t) >= 0));
+    if (!cands.length) cands = all.filter(x => !x.used);
+    if (!cands.length) return null;                  // 都用过了：回落编材料，而不是重放旧的
+    const pick = cands[Math.floor(Math.random() * cands.length)];
+    const f = poolFile(pick.name);
+    if (!f) return null;
+    let text = '';
+    try { text = fs.readFileSync(f, 'utf8'); } catch (e) { return null; }
+    try {
+      const used = poolUsedRead();
+      if (used.indexOf(pick.name) < 0) { used.push(pick.name); fs.writeFileSync(poolUsedFile(), JSON.stringify(used), 'utf8'); }
+    } catch (e) {}
+    return { name: pick.name, title: pick.title, text };
+  });
+}
+
 function createWindow() {
   const saved = loadWindowBounds();
   mainWindow = new BrowserWindow({
@@ -407,7 +461,8 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      // 第 1 步不暴露任何 preload API
+      // 界面是沙箱（sandbox: true）：文件系统一律拿不到，需要的东西由 preload.js 那三个只读口子递过去
+      preload: PRELOAD,
       sandbox: true,
     },
   });
@@ -607,6 +662,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    poolHandlers();
     log('app-ready');
     return startServer();
   }).then(() => {

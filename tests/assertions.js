@@ -2774,6 +2774,43 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      + (_late.length ? "；落在后面的：" + _late.join("、") : ""));
 }
 
+/* 0.2 有据出题：材料由骨架改写。
+   这一节的断言守的是「硬约束有没有落地」——光写在 prompt 里不算，
+   （2026-10-15 实测栽过几次：三条约束互相打架、代号合并造出假事实、建议拄成答案） */
+{
+  const _spec = groundedSpec("## 背景\n- 一小事", { matLen: [600, 900] });
+  ok(_spec.indexOf("600-900") >= 0 && _spec.indexOf("决定项") >= 0,
+     "有据: 字数档写进 prompt，且声明它是决定项（骨架装不下可以不用）");
+  ok(_spec.indexOf("一个代号只能代表一个地方") >= 0,
+     "有据: 一个代号只能代表一个地方（实测被并成「D市干了两件事」）");
+  ok(_spec.indexOf("骨架之外的事实一律不许添加") >= 0,
+     "有据: 不许在骨架之外补事实");
+  ok(_spec.indexOf("还没发生") >= 0 && _spec.indexOf("建议性质") >= 0,
+     "有据: 骨架里的建议不许写成已做到的事");
+  ok(_spec.indexOf("印象") >= 0 && _spec.indexOf("纳闷") >= 0,
+     "有据: 限定语不许改（带两次抽检实测的反例）");
+  ok(_spec.indexOf("material") >= 0, "有据: 明说骨架在 user 的 material 字段");
+
+  // 取不到就必须回落，而不是报错：池子空 / 不在桌面壳里都是常态
+  const _savedWin = globalThis.window;
+  globalThis.window = {};
+  const _p = await poolPick();
+  ok(_p === null, "有据: 没有池子通道时 poolPick 回 null（由调用方回落编材料，不报错）");
+  globalThis.window = { liantai: { poolPick: () => { throw new Error("boom"); } } };
+  ok((await poolPick()) === null, "有据: 取骨架抛错也回 null，不让出题挂掉");
+  globalThis.window = { liantai: { poolPick: async () => ({ name: "x.md", title: "x", text: "## 背景\n- a" }) } };
+  const _r = await poolPick();
+  ok(_r && _r.text === "## 背景\n- a", "有据: 取得到就把骨架递回给 gen");
+  globalThis.window = _savedWin;
+
+  // 「据材料」标：挂在题上，跟着题目一起存、一起导入导出
+  ok(fromMatTag({ fromPool: "某篇" }).indexOf("据材料") > 0, "有据: 题上有来源就出「据材料」小标");
+  ok(fromMatTag({}) === "" && fromMatTag(null) === "", "有据: 编材料的题不挂标（不混淆两种材料）");
+  ok(PAGE_HTML.indexOf('class="from-mat"') >= 0, "有据: 小标有样式（加了类却没写样式就是白加）");
+  const _tags = (PAGE_HTML.match(/\$\{fromMatTag\(/g) || []).length;
+  ok(_tags === 2, "有据: 两处材料标题都挂了标（综应A 作答页 + 申论读材料页，当前 " + _tags + " 处）");
+}
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
