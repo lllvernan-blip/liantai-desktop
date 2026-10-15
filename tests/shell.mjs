@@ -1044,8 +1044,10 @@ if (process.platform !== "darwin") {
   /* 随包兜底要真的进得了包，也要真的被播下去——两边缺一样，断网用户的池子就是空的。 */
   const pkg = JSON.parse(readOr(join(here, "..", "package.json"), "{}"));
   const buildFiles = ((pkg.build || {}).files) || [];
-  ok(buildFiles.indexOf("materials/**/*") >= 0,
-     "材料同步: 打包清单里带上了随包兜底（否则装完包里没有 materials/，断网就是空池子）");
+  ok(buildFiles.indexOf("materials/pool/**/*") >= 0,
+     "材料同步: 打包清单里带上了随包兜底（否则装完包里没有 materials/pool，断网就是空池子）");
+  ok(buildFiles.indexOf("materials/**/*") < 0,
+     "材料同步: 打包清单只收池子，不收 materials/ 下别的（提示词、README 不该随包发出去）");
   const updSrc = readOr(join(here, "..", "update.js"));
   ok(/path\.join\(appDir, 'materials', 'pool'\)/.test(updSrc),
      "材料同步: 播种读的就是打包进去的那个位置（appDir/materials/pool）");

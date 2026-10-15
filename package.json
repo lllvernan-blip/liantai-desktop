@@ -35,7 +35,7 @@
       "app-meta.js",
       "update.js",
       "pool-pick.js",
-      "materials/**/*",
+      "materials/pool/**/*",
       "app/**/*"
     ],
     "win": {
