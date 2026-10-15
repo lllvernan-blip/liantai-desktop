@@ -34,6 +34,7 @@
       "shell-policy.js",
       "app-meta.js",
       "update.js",
+      "pool-pick.js",
       "materials/**/*",
       "app/**/*"
     ],

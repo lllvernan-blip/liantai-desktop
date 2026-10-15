@@ -509,8 +509,14 @@ if (existsSync(poolDir)) {
     if (m) used.add(m[1].trim());
   }
 }
-const fresh = hits.filter(it => !used.has(it.url));
-if (used.size) console.error("  池子里已有 " + used.size + " 篇，剩 " + fresh.length + " 条候选");
+/* 进池子的跳过，被拒的更要跳过：入库判断不过的候选，下次换个时候再看见它，多半还是同样的结论，
+   而每一次“再判一遍”都是一次真调用。名单放在仓库外（过程产物，不进池子）。 */
+const rejectFile = join(scratch, "淘汰.json");
+let rejected = {};
+if (existsSync(rejectFile)) { try { rejected = JSON.parse(readFileSync(rejectFile, "utf8")) || {}; } catch (e) { rejected = {}; } }
+const fresh = hits.filter(it => !used.has(it.url) && !rejected[it.url]);
+const nRej = hits.length - used.size - fresh.length;
+if (used.size) console.error("  池子里已有 " + used.size + " 篇，剩 " + fresh.length + " 条候选" + (nRej > 0 ? "（另有 " + nRej + " 条以前判过不合格，跳过）" : ""));
 
 // 正文先抓完（这一步不用 Key、不占模型调用）；下面的探针拼成独立模块，看不到本文件的函数，
 // 所以能传的只有数据。
@@ -564,7 +570,7 @@ for (const it of items) {
   } catch (e) { err = String((e && (e.code || e.message)) || e); }
   if (!sk || typeof sk !== "object") { console.log("FAIL " + JSON.stringify({ title: it.title.slice(0,30), err: err || "没解出骨架" })); continue; }
   // 入库判断不过就不落盘（规范第四节：不合格的不进池子，不是先存下来再筛）
-  if (sk.usable === false) { console.log("DROP " + JSON.stringify({ title: it.title.slice(0,30), url: it.url, why: sk.why || "判为出不了题" })); continue; }
+  if (sk.usable === false) { const why = String(sk.why || "判为出不了题"); console.log("DROP " + JSON.stringify({ title: it.title.slice(0,30), url: it.url, why: why })); const R = globalThis.__matRejected || (globalThis.__matRejected = {}); R[it.url] = why; continue; }
   // 串栏探针（只报不改）：同一件事被写进两栏，出题时会变成两个采分点，一份答卷答一条被算成两条。
   // 先只量不改，看光靠 prompt 的硬约束能不能压住；压不住再上本地去重。
   const dupes = [];
@@ -616,5 +622,11 @@ console.log("DONE " + JSON.stringify({ 落盘: done.length, 目录: outDir }));
 `;
 
 const src = [SKEL_PROMPT, appSrc, probe].join("\n");
-await import("data:text/javascript;base64," + Buffer.from(src, "utf8").toString("base64"));
+/* 探针是独立模块，看不见本文件的变量：被拒的名单通过 globalThis 交进去，跑完再取回来落盘。
+   名单落在仓库外（过程产物，不进池子）——它的唯一用处是别让下次抓取再把同一批废稿重判一遍。 */
+globalThis.__matRejected = rejected;
+try { await import("data:text/javascript;base64," + Buffer.from(src, "utf8").toString("base64")); } finally {
+  rejected = globalThis.__matRejected || rejected;
+  try { writeFileSync(rejectFile, JSON.stringify(rejected, null, 1), "utf8"); } catch (e) {}
+}
 

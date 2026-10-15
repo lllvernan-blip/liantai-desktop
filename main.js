@@ -19,9 +19,12 @@ const crypto = require('crypto');
 const update = require('./update.js');
 /* 导航白名单 / Host 校验 / CSP 三条策略在 shell-policy.js（能拿出来单独跑，见 tests/shell.mjs） */
 const policy = require('./shell-policy.js');
+/* 材料池取哪一篇的规矩（纯函数，好让自检拿各种池子形态真跑着量） */
+const poolPickOne = require('./pool-pick.js');
 
 const APP_DIR = path.join(__dirname, 'app');
 const PRELOAD = path.join(__dirname, 'preload.js');
+
 /* 测试副本：tools/build-test.mjs 打测试包时会埋一个 app/build-test.json（只有测试包里有）。
    发现它就把 userData 换成 "…-test"，与正式版彻底分家——测试版里怎么折腾都碰不到正式版的
    记录，正式版也照常能用。这两行必须排在 LOG_DIR 之前：那行会第一次调 app.getPath('userData')，
@@ -431,18 +434,20 @@ function poolHandlers() {
     const all = poolListSync();
     if (!all.length) return null;                    // 池子空：由界面回落到编材料
     const topics = (arg && Array.isArray(arg.topics)) ? arg.topics : [];
-    // 优先挑主题对得上的；已用过的一律不碰（同一个人不该重复拿到同一篇）
-    let cands = all.filter(x => !x.used && topics.length && x.topics.some(t => topics.indexOf(t) >= 0));
-    if (!cands.length) cands = all.filter(x => !x.used);
-    if (!cands.length) return null;                  // 都用过了：回落编材料，而不是重放旧的
-    const pick = cands[Math.floor(Math.random() * cands.length)];
+    const used = poolUsedRead();
+    const pick = poolPickOne.pickOne(all, used, topics);   // 取哪一篇的规矩在 pool-pick.js
+    if (!pick) return null;
     const f = poolFile(pick.name);
     if (!f) return null;
     let text = '';
     try { text = fs.readFileSync(f, 'utf8'); } catch (e) { return null; }
     try {
-      const used = poolUsedRead();
-      if (used.indexOf(pick.name) < 0) { used.push(pick.name); fs.writeFileSync(poolUsedFile(), JSON.stringify(used), 'utf8'); }
+      /* 记的是**使用次序**：重放一篇时先把它从原来位置摘掉再压到末尾——不只是标「用过」，
+         而是让「最久没用过」这个判断一直准（数组末尾永远是最新的）。 */
+      const i = used.indexOf(pick.name);
+      if (i >= 0) used.splice(i, 1);
+      used.push(pick.name);
+      fs.writeFileSync(poolUsedFile(), JSON.stringify(used), 'utf8');
     } catch (e) {}
     return { name: pick.name, title: pick.title, text };
   });

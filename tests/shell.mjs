@@ -885,8 +885,8 @@ if (process.platform !== "darwin") {
   // 路径校验：只认文件名本身，挡掉 ../ 与绝对路径
   ok(/s !== path\.basename\(s\)/.test(mainJs) && /\[.\]md\$/.test(mainJs),
      "材料池: 文件名只认 basename，挡掉 ../ 与绝对路径");
-  ok(/if \(!all\.length\) return null;/.test(mainJs) && /if \(!cands\.length\) return null;/.test(mainJs),
-     "材料池: 池子空与全部用过都返回 null（由界面回落编材料，不是报错）");
+  ok(/if \(!all\.length\) return null;/.test(mainJs),
+     "材料池: 池子真的空才返回 null（由界面回落编材料，不是报错）；都用过时怎么办见「取材次序」");
 }
 
 /* 材料同步（update.js 的「材料同步」）：池子与版本发布解耦，启动后从 materials Release 拉一份。
@@ -910,7 +910,8 @@ if (process.platform !== "darwin") {
     return readFileSync(p + ".sig", "utf8");
   };
   const packTextOf = (items) => JSON.stringify({ v: 1, at: "2026-10-15T00:00:00Z", git: "abc123", count: items.length, items: items });
-  const oneItem = [{ name: "p1.md", text: "# 甲材料\n主题：基层治理\n\n## 背景\n- 一条真事。\n" }];
+  /* 默认这一轮：发布侧 3 篇、随包 2 篇——发布侧比随包多才叫更新（比随包少的那一路另有断言） */
+  const oneItem = [1, 2, 3].map((i) => ({ name: "p" + i + ".md", text: "# 甲材料" + i + "\n主题：基层治理\n\n## 背景\n- 一条真事。\n" }));
 
   /* 一轮同步：先随包播种，再从假源拉。返回池子里最终有哪些文件。 */
   async function matRound(o) {
@@ -920,6 +921,7 @@ if (process.platform !== "darwin") {
     mkdirSync(join(appDir, "materials", "pool"), { recursive: true });
     writeFileSync(join(appDir, "materials", "pool", "seed-a.md"), "# 兜底甲\n主题：基层治理\n", "utf8");
     writeFileSync(join(appDir, "materials", "pool", "seed-b.md"), "# 兜底乙\n主题：生态环保\n", "utf8");
+    for (let i = 0; i < (o.bundleExtra || 0); i++) writeFileSync(join(appDir, "materials", "pool", "seed-x" + i + ".md"), "# 兜底丙" + i + "\n", "utf8");
     mkdirSync(userData, { recursive: true });
 
     const packText = packTextOf(o.items || oneItem);
@@ -975,7 +977,7 @@ if (process.platform !== "darwin") {
   const seeded = await matRound({});
   ok(seeded.init && seeded.init.seeded === 2,
      "材料同步: 首次运行把随包的兜底播下去（池子本来空，当前播了 " + (seeded.init && seeded.init.seeded) + " 篇）");
-  ok(seeded.files.join(",") === "p1.md",
+  ok(seeded.files.join(",") === "p1.md,p2.md,p3.md",
      "材料同步: 拉下来的一轮里，包里有的写上、包里没有的不留（拉前 seed-a/seed-b，拉后 " + seeded.files.join("/") + "）");
   ok(!seeded.parts.length, "材料同步: 落盘不留 .part 半成品（写临时名再改名，读到的一篇总是完整的）");
   ok(seeded.seen.some((x) => x.indexOf("materials-sync :: ") === 0),
@@ -988,7 +990,8 @@ if (process.platform !== "darwin") {
   const foreign = await matRound({ foreignKey: true });
   ok(foreign.files.join(",") === "seed-a.md,seed-b.md" && /签名验不过/.test(foreign.err),
      "材料同步: 签名不是发布侧的——整包拒收，本机池子不动（当前 " + foreign.files.join("/") + "，原因：" + foreign.err + "）");
-  ok(!foreign.marker, "材料同步: 拒收时不写标记（免得下次误以为已经拿到新的）");
+  ok(foreign.marker.indexOf('"at"') < 0,
+     "材料同步: 拒收时不记「已经同步过」（免得下次误以为拿到新的；播种时记的那笔不算）");
 
   /* 包被改过一个字节（签名没跟着改）：同样拦在验签这一步 */
   const tampered = await matRound({ tamper: true });
@@ -1029,6 +1032,12 @@ if (process.platform !== "darwin") {
   restore2();
   ok(init2.seeded === 0 && readdirSync(join(base2, "ud", "材料池")).join(",") === "live.md",
      "材料同步: 池子已经有东西就不播种（旧兜底把新同步的盖回去就荒唐了）");
+  /* 防回退：改了池子但还没重发材料包时，发布侧那份会比随包的还少——
+     同步默认是镜像（包里没的就删），那一下就是把刚装好的池子换小了。 */
+  const older = await matRound({ bundleExtra: 3 });
+  ok(older.files.length === 5 && older.seen.some((x) => x.indexOf("materials-sync-older") === 0),
+     "材料同步: 发布侧那份比随包的还少就不动本机池子（当前剩 " + older.files.length + " 篇）");
+
   rmSync(base2, { recursive: true, force: true });
   rmSync(keyDir0, { recursive: true, force: true });
 
@@ -1042,6 +1051,72 @@ if (process.platform !== "darwin") {
      "材料同步: 播种读的就是打包进去的那个位置（appDir/materials/pool）");
   ok(/appDir: __dirname/.test(readOr(join(here, "..", "main.js"))),
      "材料同步: 壳把 appDir 真传进去了（写了不传等于没写）");
+}
+
+/* 取材次序（pool-pick.js）：直接拿各种池子形态真跑，不靠正则瞄源码。
+   守两条：没用过的优先；都用过了也要给得出一篇（只是隔开一段）。 */
+{
+  const pp = require(join(here, "..", "pool-pick.js"));
+  const mkPool = (n, topics) => Array.from({ length: n }, (_, i) => ({ name: "m" + i + ".md", topics: topics || [] }));
+  const names = (arr) => arr.map((x) => x.name);
+  const lastN = (arr, n) => arr.slice(Math.max(0, arr.length - n));
+
+  const pool20 = mkPool(20, ["基层治理"]);
+  const hist5 = ["m0.md", "m1.md", "m2.md", "m3.md", "m4.md"];
+  let leaked = 0;
+  for (let i = 0; i < 60; i++) {
+    const p = pp.pickOne(pool20, hist5, [], Math.random);
+    if (hist5.indexOf(p.name) >= 0) leaked++;
+  }
+  ok(leaked === 0, "取材次序: 池子里还有没用过的，就不拿用过的（60 次里漏了 " + leaked + " 次）");
+
+  /* 池子比窗口大：全部用过之后，拿到的不能是「当时最近 20 次」里的
+     （不能用开头那一批算：历史每长一次，队尾的 20 个就换了一批） */
+  const pool45 = mkPool(45, ["生态环保"]);
+  let hitRecent = 0;
+  let hist = names(pool45);
+  for (let i = 0; i < 60; i++) {
+    const recentNow = hist.slice(Math.max(0, hist.length - pp.RECENT));
+    const p = pp.pickOne(pool45, hist, [], Math.random);
+    if (recentNow.indexOf(p.name) >= 0) hitRecent++;
+    hist = hist.filter((n) => n !== p.name).concat(p.name);   // 与主进程记使用次序的方式一致：先摘掉再压末尾
+  }
+  ok(hitRecent === 0,
+     "取材次序: 隔开 " + pp.RECENT + " 道题才会重放（45 篇的池子、连取 60 次，撞上近期材料 " + hitRecent + " 次）");
+
+  /* 池子比窗口小：窗口自己收窄，但绝不能熄火——原来「都用过就回 null」就是在这里熄的 */
+  const pool8 = mkPool(8, []);
+  const hist8 = names(pool8);
+  const got8 = [];
+  let histB = hist8.slice();
+  for (let i = 0; i < 20; i++) {
+    const p = pp.pickOne(pool8, histB, [], Math.random);
+    if (!p) break;
+    got8.push(p.name); histB.push(p.name);
+  }
+  ok(got8.length === 20,
+     "取材次序: 池子比窗口还小也总是给出下一篇（8 篇全用过，连取 20 次取到 " + got8.length + " 次）");
+
+  ok(pp.pickOne([], [], []) === null && pp.pickOne(null, null, null) === null,
+     "取材次序: 池子真的空才回 null（由界面回落编材料）");
+
+  /* 主题对得上优先，但不强求：弱项主题一冷门就取不到材料是不行的 */
+  const mixed = mkPool(30, ["基层治理"]).concat([{ name: "eco.md", topics: ["生态环保"] }, { name: "eco2.md", topics: ["生态环保"] }]);
+  let offTopic = 0;
+  for (let i = 0; i < 40; i++) if (pp.pickOne(mixed, [], ["生态环保"], Math.random).name.indexOf("eco") !== 0) offTopic++;
+  ok(offTopic === 0, "取材次序: 主题对得上的优先（40 次里走开 " + offTopic + " 次）");
+  ok(pp.pickOne(mixed, [], ["这个主题池子里没有"], Math.random) !== null,
+     "取材次序: 主题一个都对不上也照样给一篇（不强求）");
+
+  /* 主进程得真的用它，而且要记得住「使用次序」——只标「用过」的话，「最久没用过」就永远是错的 */
+  const mainSrc = readOr(join(here, "..", "main.js"));
+  ok(/poolPickOne\.pickOne\(all, used, topics\)/.test(mainSrc),
+     "取材次序: 主进程真的用了这个函数（写了不接等于没写）");
+  ok(/used\.splice\(i, 1\)/.test(mainSrc) && /used\.push\(pick\.name\)/.test(mainSrc),
+     "取材次序: 记的是使用次序（重放一篇要先摘掉再压末尾）");
+  const pkgPool = JSON.parse(readOr(join(here, "..", "package.json"), "{}"));
+  ok((((pkgPool.build || {}).files) || []).indexOf("pool-pick.js") >= 0,
+     "取材次序: 打包清单里有 pool-pick.js（漏了就是装完一开就 require 不到）");
 }
 
 /* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿

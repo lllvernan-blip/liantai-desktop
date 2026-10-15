@@ -1261,6 +1261,13 @@ function matSeed(appDir) {
     try { fs.writeFileSync(path.join(matDir(), name), fs.readFileSync(path.join(src, name))); n++; } catch (err) { /* 单篇播不进去不影响其余 */ }
   }
   if (n) log('materials-seed', '随包的兜底材料已就位：' + n + ' 篇');
+  if (n) {
+    /* 把「这批有多少篇」记下来：它是一件防回退的据。打包发出去那份材料可能比随包的旧
+       （改了池子但还没重发材料包，而软件先构建了），那时候同步拿一份更小的包把刚装好的池子
+       换掉就是回退。所以「包里比随包的还少」一律视为「发布侧还没有更新的」，不动文件。 */
+    const seen = matReadMark();
+    matWriteMark(Object.assign({}, seen, { shipped: n }));
+  }
   return n;
 }
 
@@ -1288,6 +1295,18 @@ async function matSyncNow() {
     const sigText = (await matGetBuf(assetUrlOf(sigAsset), MAT_MAX_SIG, 'text/plain')).toString('utf8');
     matVerify(buf, sigText);
     const pack = matParse(buf);
+    /* 防回退：随包那份比发布侧的还多，说明改过池子但还没重发材料包。
+       同步默认是「镜像」（包里没的就删），这时候镜像一次就是回退。 */
+    const seen = matReadMark();
+    const shipped = Number(seen.shipped) || 0;
+    if (shipped && pack.items.length < shipped) {
+      mat.lastAt = Date.now();
+      mat.lastGit = pack.git;
+      matWriteMark(Object.assign({}, seen, { at: mat.lastAt, git: pack.git, packAt: pack.at, count: pack.items.length }));
+      log('materials-sync-older', '发布侧那份（' + pack.items.length + ' 篇）比随包的（' + shipped + ' 篇）还少，不动本机池子');
+      matSchedule(MAT_PERIOD_MS);
+      return null;
+    }
     const r = matApply(pack);
     mat.lastAt = Date.now();
     mat.lastError = '';
