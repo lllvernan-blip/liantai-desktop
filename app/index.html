@@ -13,9 +13,8 @@
     --paper:#fffdf8;
     --canvas:#F4F1EA;    /* 底板：暖浅灰。暖色只住底板层，卷面 --paper 不动（SPEC 3.0） */
     --muted:#5e5e57;
-    --muted-2:#827d72;   /* 第三档灰（≈4.0:1）：证据 / 计数 / 口径说明。只有两档灰时，正文与证据糊在同一层，眼睛没有先看哪里的顺序 */
+    --muted-2:#76746f;   /* 第三档灰（纸面实测 4.60:1，过 WCAG 1.4.3 AA 的 4.5:1）：证据 / 计数 / 口径说明 / 脚注。原来写的 #827d72 只有 4.03:1，没拿门槛对过 */
     --ink-soft:#6E695F;  /* 人感 Demo 同款：纸面屏的说明 / 次级文字（弹层留给下一棒） */
-    --ink-faint:#A29C8F; /* 人感 Demo 同款：纸面屏的脚注 / 弱化文字 */
     /* 淡底四档：悬停 / 展开抬头 / 按钮悬停 / 细条底 —— 原来这里是七八个近似米色各行其是 */
     --wash:#f7f5f0; --wash-2:#fbfaf6; --wash-3:#f3f1ec; --line-soft:#eceae4;
     --head:#f2efe8;      /* 表头与弹层抬头（原来是偏冷的一抹灰，在暖纸面上一块斑） */
@@ -138,7 +137,7 @@ html,body{margin:0;padding:0;}
 /* 科目页/模块落地页尾部的模块切换行：这是次级导航，降半档（小一号、淡色），
    别和上面的文种/形式 chips 平起平坐——同权重会让人读成两级同级的选择（2026-10-12 验收） */
 .start-entry .pdforms .chip[data-mod]{padding:4px 16px;font-size:var(--fs-body);color:var(--ink-soft);border-color:var(--line);background:transparent;}
-.start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--ink-faint);background:transparent;}
+.start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--line-strong);background:transparent;}
 .start-entry .pdforms .chip[data-mod].on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
 .start-entry .pdforms:has([data-mod]){margin-top:24px;}   /* 模块切换行紧跟主按钮，全站 24 档 */
 .pdthemebody{padding:0 0 4px;text-align:center;}
@@ -151,7 +150,7 @@ html,body{margin:0;padding:0;}
   .chip small{font-size:var(--fs-note);color:var(--muted);font-variant-numeric:tabular-nums;}   /* 不写 font-size 就会按浏览器的 smaller 算：13px × 0.833 = 10.8px，六档之外的野字号 */
   /* 入口纸面的 chips（人感 Demo .chip）：胶囊、纸白底、暖灰边——首页 / 模块页 / 快判页同一套，弹层内不动 */
   .startbox .chip{border-color:var(--chip-line);background:var(--paper);color:var(--chip-ink);font-size:var(--fs-body);padding:8px 24px;}
-  .startbox .chip:hover{border-color:var(--ink-faint);color:var(--ink);background:var(--paper);}
+  .startbox .chip:hover{border-color:var(--line-strong);color:var(--ink);background:var(--paper);}
   .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
 
@@ -185,8 +184,8 @@ html,body{margin:0;padding:0;}
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
   .startbox .hero-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
   .startbox .hero-sub{font-size:var(--fs-body);color:var(--ink-soft);line-height:1.7;margin:0 0 24px;}
-  .startbox .hero-foot{font-size:var(--fs-note);color:var(--ink-faint);margin:24px 0 0;}
-  .startbox .hero-sub .arrow{padding:0 4px;color:var(--ink-faint);}   /* 科目页 hero 说明句里的流程箭头（学习卡 → 作答 → 批改） */
+  .startbox .hero-foot{font-size:var(--fs-note);color:var(--muted-2);margin:24px 0 0;}
+  .startbox .hero-sub .arrow{padding:0 4px;color:var(--muted-2);}   /* 科目页 hero 说明句里的流程箭头（学习卡 → 作答 → 批改） */
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
@@ -389,12 +388,12 @@ html,body{margin:0;padding:0;}
   /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
   .setgrp{border-top:1px solid var(--line);margin-top:24px;padding-top:24px;}
   .setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0;}
-  .grp-t{font-size:var(--fs-note);font-weight:600;color:var(--ink-faint);letter-spacing:1px;margin-bottom:16px;}
+  .grp-t{font-size:var(--fs-note);font-weight:600;color:var(--muted-2);letter-spacing:1px;margin-bottom:16px;}
   .field{margin-bottom:16px;}
   .setgrp>:last-child{margin-bottom:0;}
   .field label{display:block;font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--ink);margin-bottom:8px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
-  .field .note,.setgrp>.note{font-size:var(--fs-note);color:var(--ink-faint);line-height:1.6;margin-top:8px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
+  .field .note,.setgrp>.note{font-size:var(--fs-note);color:var(--muted-2);line-height:1.6;margin-top:8px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
   .field .note.long{line-height:1.7;}
   .setgrp .notebox{border-top:none;margin:0;}
   .setgrp .notebox>summary{padding:4px 0;}

@@ -2705,6 +2705,23 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   const _hexOutside = (_css.slice(_rootEnd).match(/#[0-9a-fA-F]{3,8}\b/g) || [])
      .filter(h=> ["#a7f3d0"].indexOf(h.toLowerCase()) < 0);
   ok(_hexOutside.length === 0, "尺子: CSS 里 :root 外的设计色都进了 token" + (_hexOutside.length? "（" + _hexOutside.join(" ") + "）" : ""));
+  // 文字用色的对比度：WCAG 2.2 的 1.4.3（AA）要求正文文字 ≥ 4.5:1。这一条是 2026-10-14 拿标准逐条
+  // 对出来的——此前 --muted-2 是 4.03:1、--ink-faint 是 2.69:1，肉眼完全看不出问题。
+  const _ri = c => c/255 <= 0.03928 ? (c/255)/12.92 : Math.pow(((c/255)+0.055)/1.055, 2.4);
+  const _lum = h => { const a = [1,3,5].map(i=>parseInt(h.substr(i,2),16)).map(_ri);
+                      return 0.2126*a[0] + 0.7152*a[1] + 0.0722*a[2]; };
+  const _contrast = (f,b) => { const x=_lum(f), y=_lum(b);
+                               const hi=Math.max(x,y), lo=Math.min(x,y); return (hi+0.05)/(lo+0.05); };
+  const _tok = n => { const m = PAGE_HTML.match(new RegExp("--" + n + ":\\s*(#[0-9a-fA-F]{6})")); return m ? m[1] : ""; };
+  const _paper = _tok("paper");
+  const _textToks = ["ink","ink-soft","muted","muted-2","gov-red","gov-red-dark","warn","chip-ink","success","danger"];
+  const _lowTok = _textToks.filter(n => { const v = _tok(n); return !v || _contrast(v, _paper) < 4.5; })
+                           .map(n => n + "=" + _tok(n) + "(" + _contrast(_tok(n), _paper).toFixed(2) + ":1)");
+  ok(_paper === "#fffdf8" && _lowTok.length === 0,
+     "对比度: 纸面上每个文字用色都过 WCAG 1.4.3 AA（≥ 4.5:1）" + (_lowTok.length ? "；不达标的：" + _lowTok.join("、") : ""));
+  // 守住 --ink-faint 不再回来：它只有 2.69:1，用途却全是必须看清的正文（脚注、分组小标题、输入框说明字）
+  ok(PAGE_HTML.indexOf("--ink-faint") < 0,
+     "对比度: 2.69:1 的 --ink-faint 已并入 --muted-2，不再回来");
 }
 
 /* 0.1 启动顺序：load() 引用的每个顶层常量都必须声明在它之前。
