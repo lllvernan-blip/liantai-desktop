@@ -55,6 +55,9 @@ const UPDATE_FEED_ENV = 'LIANTAI_UPDATE_FEED';
 /* mac 那条链（update.js 里的 initMacUpdater）查的是 GitHub Releases API。同一个思路：
    不改包也能换一个「谁说有新版」的地方——验收要拿假源把查→下→换→重启走一轮。 */
 const RELEASE_API_ENV = 'LIANTAI_RELEASE_API';
+/* 材料源：同上，不改包也能换一个「材料从哪拉」的地方。验收要拿一个假源把
+   拉→验签→落盘走一轮，拿真 GitHub 跑既慢又不可控。 */
+const MATERIALS_API_ENV = 'LIANTAI_MATERIALS_API';
 const APP = require('./app-meta.js');
 const RELEASES_URL = APP.releasesUrl;
 
@@ -598,6 +601,20 @@ function setupUpdate() {
     });
   } catch (err) {
     log('update-setup-failed', (err && err.stack) || String(err));
+  }
+
+  /* 材料池：与版本发布解耦，启动后安静拉一份最新的。拉不到就用随包兜底（或本机已有的），
+     全程不报错、不弹窗——有据出题是加成，不是前提。见 update.js 的「材料同步」。 */
+  try {
+    const m = update.initMaterials({
+      userDataDir: app.getPath('userData'),
+      appDir: __dirname,
+      api: process.env[MATERIALS_API_ENV] || '',
+      log: log,
+    });
+    if (m && m.seeded) log('materials-seeded', '首次运行，随包兜底 ' + m.seeded + ' 篇');
+  } catch (err) {
+    log('materials-setup-failed', (err && err.stack) || String(err));
   }
 }
 

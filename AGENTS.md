@@ -70,6 +70,7 @@
 - **单发 mac 必须加 `--prerelease`**：只带 mac 资产的 Release 会占住 `/releases/latest`，Windows 用户检查更新就 404。
 - **发布闸门是脚本，不是人肉清单**：`tools/gate.mjs`（`release` / `release:mac` 开头自动跑，也可单跑）——① 工作区干净；② 远端 `main` 的 sha = 本地 HEAD；③ 跟踪文件里没有明文密钥。任一不过就停手；`--skip-gates` 是明知故犯时的唯一出口。**第四条 `npm run release:check` 只能在发完之后跑**。演示 / 测试用的假 Key 靠行内 `gate-allow` 标记放行。**验包不许碰本机那份安装**。
 - **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 六件。
+- **材料的改动进 git，材料单独发**：池子本体是 `materials/pool/`（**审材料就是看 diff**），用 `npm run materials:pack` 发到一个固定 tag 的 prerelease 上，**不跟安装包走**（时效线半年，它有自己的节奏）；应用启动后自己拉，**拉不到一律没声**、回落编材料。签名与 mac 包同一把私钥；`materials/` 有未提交的改动就不许发布。细节见 `docs/发布与更新.md`。
 - **mac 包每版都有发布侧签名**：`release:mac` 自动给每个 zip 签出 `.sig` 再传，没私钥就停手不传。**私钥在 `~/.liantai-release-key`，不进仓库、不上传，丢了就只能手动重装一次**；换钥要先把新公钥发一版。细节与理由见 `docs/发布与更新.md`。
 - **仓库位置与应用标识只有一处真源（`app-meta.js`）**：壳、更新链、发布工具都从它取 owner/repo/appId/name；`package.json` 的 `build.publish` 与 `build.appId` 是给 electron-builder 的同一份信息。**运行期不能读 package.json 取这些值**：打包时 electron-builder 会把 `build` 段剥掉。
   - Windows **直连官方 git 协议不通**：拉取用转发站一次性 fetch，**别改 origin、更别用它推送**（推送带令牌）；拉完 `git rev-parse HEAD` 必须就是 mac 推的那条 sha，不等就别发。

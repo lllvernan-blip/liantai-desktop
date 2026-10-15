@@ -889,6 +889,150 @@ if (process.platform !== "darwin") {
      "材料池: 池子空与全部用过都返回 null（由界面回落编材料，不是报错）");
 }
 
+/* 材料同步（update.js 的「材料同步」）：池子与版本发布解耦，启动后从 materials Release 拉一份。
+   守三件事：①验签——不认来路不明的材料（它要进 prompt 影响出题）；②拒收畸形的包；
+   ③拉不到不影响使用。手法与 mac 换包链一样：起一个回环假源，真签名、真下载、真验。 */
+{
+  const PASS_NAME = "liantai-materials.json";
+  const keyDir0 = mkdtempSync(join(tmpdir(), "liantai-matkey-"));
+  const keyPath0 = join(keyDir0, "k.pem");
+  macKeyTool(["--init", "--key", keyPath0]);
+  const otherPath0 = join(keyDir0, "other.pem");
+  macKeyTool(["--init", "--key", otherPath0]);
+  const pubPem0 = macKeyTool(["--pubkey", "--key", keyPath0]).split("\n\n")[0].trim();
+
+  /* 拿真工具签：测试里不另写一份格式。工具签的与应用验的不是同一串时，这里当场就红。
+     文件名必须是资产名本身——签名覆盖的是「sha256 + 资产名」。 */
+  const signPack = (dir, packText, keyFile) => {
+    const p = join(dir, PASS_NAME);
+    writeFileSync(p, packText, "utf8");
+    macKeyTool(["--sign", p, "--key", keyFile]);
+    return readFileSync(p + ".sig", "utf8");
+  };
+  const packTextOf = (items) => JSON.stringify({ v: 1, at: "2026-10-15T00:00:00Z", git: "abc123", count: items.length, items: items });
+  const oneItem = [{ name: "p1.md", text: "# 甲材料\n主题：基层治理\n\n## 背景\n- 一条真事。\n" }];
+
+  /* 一轮同步：先随包播种，再从假源拉。返回池子里最终有哪些文件。 */
+  async function matRound(o) {
+    const base = mkdtempSync(join(tmpdir(), "liantai-mat-"));
+    const userData = join(base, "ud");
+    const appDir = join(base, "app");
+    mkdirSync(join(appDir, "materials", "pool"), { recursive: true });
+    writeFileSync(join(appDir, "materials", "pool", "seed-a.md"), "# 兜底甲\n主题：基层治理\n", "utf8");
+    writeFileSync(join(appDir, "materials", "pool", "seed-b.md"), "# 兜底乙\n主题：生态环保\n", "utf8");
+    mkdirSync(userData, { recursive: true });
+
+    const packText = packTextOf(o.items || oneItem);
+    const sigText = signPack(base, packText, o.foreignKey ? otherPath0 : keyPath0);
+    const served = o.tamper ? packText + " " : packText;
+    const sigBody = o.bigSig ? "A".repeat(9 * 1024) : sigText;
+    let apiHits = 0;
+    let port = 0;
+    const srv = createServer((req, res) => {
+      const u = String(req.url || "").split("?")[0];
+      if (u === "/api") {
+        apiHits++;
+        if (o.apiBroken) { res.writeHead(500); res.end("nope"); return; }
+        const assets = [{ name: PASS_NAME, size: Buffer.byteLength(served),
+                          browser_download_url: "http://127.0.0.1:" + port + "/dl/" + PASS_NAME }];
+        if (!o.noSig) assets.push({ name: PASS_NAME + ".sig", size: Buffer.byteLength(sigBody),
+                                    browser_download_url: "http://127.0.0.1:" + port + "/dl/" + PASS_NAME + ".sig" });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ tag_name: "materials", prerelease: true, assets: assets }));
+        return;
+      }
+      if (u === "/dl/" + PASS_NAME) {
+        const b = Buffer.from(served, "utf8");
+        res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Length": b.length });
+        res.end(b);
+        return;
+      }
+      if (u === "/dl/" + PASS_NAME + ".sig") { res.writeHead(200); res.end(sigBody); return; }
+      res.writeHead(404); res.end("nope");
+    });
+    await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+    port = srv.address().port;
+
+    const { mod, restore } = loadUpdate({});
+    const seen = [];
+    const init = mod.initMaterials({ userDataDir: userData, appDir: appDir,
+      api: "http://127.0.0.1:" + port + "/api", publicKeys: o.pubKeys === undefined ? [pubPem0] : o.pubKeys,
+      log: (e, d) => seen.push(e + (d === undefined ? "" : " :: " + d)) });
+    await mod.matSyncNow();
+    const twice = await mod.matSyncNow();       // 再来一次：12 小时内不该反复拉
+    let files = [];
+    try { files = readdirSync(join(userData, "材料池")).filter((f) => /[.]md$/.test(f)).sort(); } catch (err) { files = []; }
+    const parts = [];
+    try { parts = readdirSync(join(userData, "材料池")).filter((f) => /[.]part$/.test(f)); } catch (err) {}
+    const marker = readOr(join(userData, "materials-sync.json"), "");
+    const st = mod.materialsStatus();
+    restore();
+    srv.close();
+    rmSync(base, { recursive: true, force: true });
+    return { files, parts, marker, seen, init, apiHits, twice, st, err: st.lastError };
+  }
+
+  const seeded = await matRound({});
+  ok(seeded.init && seeded.init.seeded === 2,
+     "材料同步: 首次运行把随包的兜底播下去（池子本来空，当前播了 " + (seeded.init && seeded.init.seeded) + " 篇）");
+  ok(seeded.files.join(",") === "p1.md",
+     "材料同步: 拉下来的一轮里，包里有的写上、包里没有的不留（拉前 seed-a/seed-b，拉后 " + seeded.files.join("/") + "）");
+  ok(!seeded.parts.length, "材料同步: 落盘不留 .part 半成品（写临时名再改名，读到的一篇总是完整的）");
+  ok(seeded.seen.some((x) => x.indexOf("materials-sync :: ") === 0),
+     "材料同步: 成功时留一行可说清的记（当前 " + (seeded.seen.find((x) => x.indexOf("materials-sync") === 0) || "无") + "）");
+  ok(seeded.marker.indexOf("\"git\":\"abc123\"") >= 0, "材料同步: 写下发的是哪个提交的材料（可追溯）");
+  ok(seeded.apiHits === 1 && seeded.twice === null,
+     "材料同步: 12 小时内不反复拉（这一轮问了 " + seeded.apiHits + " 次，第二次直接跳过）");
+
+  /* 验签：包被换过（这里用另一把私钥签）就整包拒收，池子纹丝不动。 */
+  const foreign = await matRound({ foreignKey: true });
+  ok(foreign.files.join(",") === "seed-a.md,seed-b.md" && /签名验不过/.test(foreign.err),
+     "材料同步: 签名不是发布侧的——整包拒收，本机池子不动（当前 " + foreign.files.join("/") + "，原因：" + foreign.err + "）");
+  ok(!foreign.marker, "材料同步: 拒收时不写标记（免得下次误以为已经拿到新的）");
+
+  /* 包被改过一个字节（签名没跟着改）：同样拦在验签这一步 */
+  const tampered = await matRound({ tamper: true });
+  ok(tampered.files.join(",") === "seed-a.md,seed-b.md" && /签名验不过/.test(tampered.err),
+     "材料同步: 下载途中被改过的包收不下（签名覆盖了整包哈希）");
+
+  ok((await matRound({ noSig: true })).err.indexOf("没有签名文件") >= 0,
+     "材料同步: Release 里没有签名文件就不收（宁可不更新，也不收一份无从校验的材料）");
+  ok((await matRound({ pubKeys: [] })).err.indexOf("没有可用的签名公钥") >= 0,
+     "材料同步: 本机一把公钥都没有时拒收，不是「验不了就先收下」");
+  ok((await matRound({ bigSig: true })).err.indexOf("超过") >= 0,
+     "材料同步: 签名文件尺寸有上限（没有它，一个畸形响应能把内存吃干）");
+
+  const badName = await matRound({ items: [{ name: "../escape.md", text: "# 甲\n" }] });
+  ok(badName.files.join(",") === "seed-a.md,seed-b.md" && /文件名不合法/.test(badName.err),
+     "材料同步: 包里的文件名要是一个裸文件名（挡掉 ../ 与绝对路径，当前 " + badName.err + "）");
+  ok((await matRound({ items: [{ name: "a.md", text: "# x\n" }, { name: "a.md", text: "# y\n" }] })).err.indexOf("重名") >= 0,
+     "材料同步: 包里重名拒收（后者静默盖前者会让池子与包对不上）");
+  ok((await matRound({ items: [{ name: "a.md", text: "   " }] })).err.indexOf("内容是空的") >= 0,
+     "材料同步: 空内容的条目拒收（一篇空骨架拿去出题只会浪费一次调用）");
+  ok((await matRound({ items: [] })).err.indexOf("没有材料") >= 0,
+     "材料同步: 空包拒收（发一个空包不等于「清空池子」）");
+
+  /* 拉不到不影响使用：源挂了就安静地算了，池子用随包兜底 */
+  const down = await matRound({ apiBroken: true });
+  ok(down.files.join(",") === "seed-a.md,seed-b.md" && down.seen.some((x) => x.indexOf("materials-sync-fail") === 0),
+     "材料同步: 源挂了也是没声——池子用随包兜底（当前 " + down.files.join("/") + "）");
+  ok(!down.st.running, "材料同步: 失败后不卡在「正在拉」上，下轮还会自己重试");
+
+  /* 随包兜底只在池子空的时候播：不能把已经同步下来的新池子盖回去 */
+  const base2 = mkdtempSync(join(tmpdir(), "liantai-mat2-"));
+  mkdirSync(join(base2, "app", "materials", "pool"), { recursive: true });
+  writeFileSync(join(base2, "app", "materials", "pool", "seed-a.md"), "# 兜底甲\n", "utf8");
+  mkdirSync(join(base2, "ud", "材料池"), { recursive: true });
+  writeFileSync(join(base2, "ud", "材料池", "live.md"), "# 同步下来的\n", "utf8");
+  const { mod: mod2, restore: restore2 } = loadUpdate({});
+  const init2 = mod2.initMaterials({ userDataDir: join(base2, "ud"), appDir: join(base2, "app"), api: "http://127.0.0.1:9/api" });
+  restore2();
+  ok(init2.seeded === 0 && readdirSync(join(base2, "ud", "材料池")).join(",") === "live.md",
+     "材料同步: 池子已经有东西就不播种（旧兜底把新同步的盖回去就荒唐了）");
+  rmSync(base2, { recursive: true, force: true });
+  rmSync(keyDir0, { recursive: true, force: true });
+}
+
 /* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿
    不好预测（可能正好切掉半条约束），所以按它自己写的上限卡住。 */
 {

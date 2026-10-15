@@ -750,7 +750,7 @@ function cmpVersion(a, b) {
    元数据与包就在那台机器上——不认它，这个开关等于废的（但默认的官方 API 主机会写死在白名单里，
    不靠「懒得写」过关：曾经这里漏了 api.github.com，真机上第一步就被自己拦下）。 */
 function macHostAllowed(host) {
-  return MAC_HOST_OK.test(host) || MAC_LOOPBACK.test(host) || !!(mac && mac.apiHost && host === mac.apiHost);
+  return MAC_HOST_OK.test(host) || MAC_LOOPBACK.test(host) || !!(mac && mac.apiHost && host === mac.apiHost) || !!(mat && mat.apiHost && host === mat.apiHost);
 }
 
 function macAssertUrl(raw) {
@@ -1109,6 +1109,236 @@ function macLastFailure() {
   return last.replace(/^\S+ \S+ /, '').trim();   // 去掉时间戳
 }
 
+/* ============ 材料同步 ============
+   池子（出题用的材料骨架）不随安装包走。材料的时效线是半年，它有自己的更新节奏，
+   每刷新一次就重新打包发版太重；所以单独发在一个固定 tag（materials）的 prerelease 上，
+   应用启动后安静地拉一份最新的。安装包里仍然带一份兜底，只在池子还是空的时候播下去。
+
+   三条底线：
+   1. **拉不到不影响使用**。池子空、网络不通、验签不过——一律没声，界面回落到编材料，
+      全程不报错、不弹窗。有据出题是加成，不是前提。
+   2. **材料必须验签**。它会进 prompt 影响出题，等于发布内容的一部分；光靠 Release 元数据里的
+      sha256 是自证的（元数据被改，地址与期望值会一起被改，校验必然过）。签名只有发布侧那把
+      私钥做得出，公钥钉在上面 MAC_UPDATE_KEYS——与 mac 更新包共用同一把、同一套验签。
+   3. **池子目录整个由这份包管**（有就写、没有就删）。一份被判不合格的材料下架后，本机不能
+      还留着它继续被抽中。
+
+   取数复用 mac 链那一套（macOpen / macGetJson：域名白名单、逐步跟重定向、空闲超时），
+   不另写一份请求——两份下载逻辑早晚会分叉。 */
+const MAT_TAG = 'materials';
+const MAT_PACK = 'liantai-materials.json';
+const MAT_SIG_SUFFIX = '.sig';
+const MAT_DIR_NAME = '材料池';
+const MAT_MARK = 'materials-sync.json';
+const MAT_MAX_PACK = 4 * 1024 * 1024;             // 整包上限：66KB 是当前量级，4MB 已经宽松得多
+const MAT_MAX_SIG = 8 * 1024;
+const MAT_MAX_ITEM = 256 * 1024;                  // 单篇上限：骨架是清单，这么大一定是搞错了
+const MAT_MAX_ITEMS = 400;
+const MAT_NAME_RE = /^[A-Za-z0-9._-]{1,80}\.md$/;
+const MAT_BOOT_DELAY_MS = 20 * 1000;              // 启动后 20 秒再拉：别和启动、更新查询抢带宽
+const MAT_PERIOD_MS = 12 * 60 * 60 * 1000;        // 一天两次足够（时效线是半年）
+const MAT_RETRY_MS = 60 * 60 * 1000;              // 失败一小时后再试
+
+let mat = null;   // null = 没初始化；{...} = 在用
+
+function matDir() { return path.join(mat.userDataDir, MAT_DIR_NAME); }
+function matMarkFile() { return path.join(mat.userDataDir, MAT_MARK); }
+function matApiUrl() { return mat.api; }
+
+function matReadMark() {
+  try {
+    const j = JSON.parse(fs.readFileSync(matMarkFile(), 'utf8'));
+    return (j && typeof j === 'object') ? j : {};
+  } catch (err) { return {}; }
+}
+function matWriteMark(obj) {
+  try { fs.writeFileSync(matMarkFile(), JSON.stringify(obj), 'utf8'); } catch (err) { /* 写不进去只影响下次判断，不影响材料用 */ }
+}
+
+function matSchedule(delayMs) {
+  if (!mat) return;
+  if (mat.timer) { clearTimeout(mat.timer); mat.timer = null; }
+  mat.timer = setTimeout(() => { mat.timer = null; matSyncNow(); }, Math.max(1000, delayMs));
+  if (mat.timer && mat.timer.unref) mat.timer.unref();   // 别为了拉材料把进程吊着不退出
+}
+
+/* 取一份二进制（带上限）。上限是硬闸：没有它，一个畸形的响应能把内存吃干。 */
+async function matGetBuf(url, max, accept) {
+  const res = await macOpen(url, { Accept: accept || 'application/octet-stream' }, MAC_API_TIMEOUT_MS);
+  const code = res.statusCode || 0;
+  if (code !== 200) { res.resume(); throw new Error('取材料回了 HTTP ' + code); }
+  const chunks = [];
+  let n = 0;
+  for await (const c of res) {
+    n += c.length;
+    if (n > max) { res.destroy(); throw new Error('材料包超过 ' + max + ' 字节，不像一份骨架包'); }
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks);
+}
+
+/* 验签：签的是「这份包的 sha256 + 资产名」，与 update.js 的 macSigPayload 同一串格式。 */
+function matVerify(buf, sigText) {
+  if (!mat.keys.length) throw new Error('本机没有可用的签名公钥，这份材料无从校验——拒收');
+  const t = String(sigText || '').trim();
+  if (!t) throw new Error('签名文件是空的');
+  if (!/^[A-Za-z0-9+/=]+$/.test(t)) throw new Error('签名文件内容不是 base64');
+  const sig = Buffer.from(t, 'base64');
+  if (!sig.length) throw new Error('签名解不出来');
+  const hash = crypto.createHash('sha256').update(buf).digest('hex');
+  const payload = Buffer.from(macSigPayload(hash, MAT_PACK), 'utf8');
+  for (const key of mat.keys) {
+    try { if (crypto.verify(null, payload, key, sig)) return; } catch (err) { /* 这把验不了看下一把 */ }
+  }
+  throw new Error('签名验不过——这份材料不是发布侧的（或者下载途中被改过），拒收');
+}
+
+/* 包的结构校验。字段一律当成不可信输入：名字只认裸文件名（挡掉 ../ 与绝对路径），
+   重名、空内容、超大单篇都在这里拦下，不留给下游。 */
+function matParse(buf) {
+  let data = null;
+  try { data = JSON.parse(buf.toString('utf8')); } catch (err) { throw new Error('材料包不是 JSON'); }
+  if (!data || typeof data !== 'object') throw new Error('材料包不是个对象');
+  if (data.v !== 1) throw new Error('材料包的格式版本不认识：' + stringify(data.v));
+  const items = Array.isArray(data.items) ? data.items : null;
+  if (!items || !items.length) throw new Error('材料包里没有材料');
+  if (items.length > MAT_MAX_ITEMS) throw new Error('材料包里的篇数超过上限（' + items.length + '）');
+  const out = [];
+  const seen = Object.create(null);
+  for (const it of items) {
+    const name = String((it && it.name) || '');
+    const text = it && it.text;
+    if (!MAT_NAME_RE.test(name) || name !== path.basename(name)) throw new Error('材料包里有个文件名不合法：' + name);
+    if (seen[name]) throw new Error('材料包里有重名：' + name);
+    if (typeof text !== 'string' || !text.trim()) throw new Error(name + ' 的内容是空的');
+    if (Buffer.byteLength(text, 'utf8') > MAT_MAX_ITEM) throw new Error(name + ' 超过了单篇上限');
+    seen[name] = true;
+    out.push({ name: name, text: text });
+  }
+  return { items: out, git: String(data.git || ''), at: String(data.at || '') };
+}
+
+/* 落盘：逐篇「写临时名 -> 改名就位」。rename 在同一卷上是原子的，读到的一篇要么是旧的
+   一整篇、要么是新的一整篇，不会是半截。写完再把包外的旧篇删掉（池子整个由包管）。 */
+function matApply(pack) {
+  const dir = matDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const keep = Object.create(null);
+  for (const it of pack.items) {
+    const dst = path.join(dir, it.name);
+    const tmp = dst + '.part';
+    fs.writeFileSync(tmp, it.text, 'utf8');
+    fs.renameSync(tmp, dst);
+    keep[it.name] = true;
+  }
+  let removed = 0;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch (err) { return { written: pack.items.length, removed: 0 }; }
+  for (const n of names) {
+    const full = path.join(dir, n);
+    if (n.slice(-5) === '.part') { try { fs.unlinkSync(full); } catch (err) {} continue; }
+    if (n.slice(-3) !== '.md') continue;
+    if (keep[n]) continue;
+    try { fs.unlinkSync(full); removed++; } catch (err) { /* 删不动就先留着，下轮再说 */ }
+  }
+  return { written: pack.items.length, removed: removed };
+}
+
+/* 播种：安装包里那份兜底材料，只在池子还是空的时候播。
+   已经有池子的（上一版播过、或同步下来过）一律不动——一个旧兜底把新同步下来的盖回去就荒唐了。 */
+function matSeed(appDir) {
+  let have = [];
+  try { have = fs.readdirSync(matDir()).filter((f) => /[.]md$/.test(f)); } catch (err) { have = []; }
+  if (have.length) return 0;
+  const src = path.join(appDir, 'materials', 'pool');
+  let names = [];
+  try { names = fs.readdirSync(src).filter((f) => /[.]md$/.test(f)).sort(); } catch (err) { return 0; }
+  if (!names.length) return 0;
+  fs.mkdirSync(matDir(), { recursive: true });
+  let n = 0;
+  for (const name of names) {
+    if (!MAT_NAME_RE.test(name)) continue;
+    try { fs.writeFileSync(path.join(matDir(), name), fs.readFileSync(path.join(src, name))); n++; } catch (err) { /* 单篇播不进去不影响其余 */ }
+  }
+  if (n) log('materials-seed', '随包的兜底材料已就位：' + n + ' 篇');
+  return n;
+}
+
+async function matSyncNow() {
+  if (!mat || mat.running) return null;
+  if (mat.lastAt && (Date.now() - mat.lastAt) < MAT_PERIOD_MS) {
+    matSchedule(MAT_PERIOD_MS - (Date.now() - mat.lastAt) + 1000);
+    return null;
+  }
+  mat.running = true;
+  try {
+    const rel = await macGetJson(matApiUrl());
+    const assets = Array.isArray(rel && rel.assets) ? rel.assets : [];
+    const packAsset = assets.find((a) => assetNameOf(a) === MAT_PACK && assetUrlOf(a));
+    const sigAsset = assets.find((a) => assetNameOf(a) === MAT_PACK + MAT_SIG_SUFFIX && assetUrlOf(a));
+    if (!packAsset) throw new Error('材料 Release 里没有 ' + MAT_PACK);
+    if (!sigAsset) throw new Error('材料 Release 里没有签名文件，按规矩不收');
+    const packUrl = assetUrlOf(packAsset);
+    /* 资产名与下载地址的最后一段必须一致：签名覆盖的是资产名，两个名字对不上，
+       说明这份元数据自己都不自洽（与 mac 链同一条规矩）。 */
+    let urlBase = '';
+    try { urlBase = decodeURIComponent(String(packUrl).split('?')[0].split('/').pop() || ''); } catch (err) { urlBase = ''; }
+    if (urlBase !== MAT_PACK) throw new Error('材料的下载地址与资产名对不上——拒收');
+    const buf = await matGetBuf(packUrl, MAT_MAX_PACK);
+    const sigText = (await matGetBuf(assetUrlOf(sigAsset), MAT_MAX_SIG, 'text/plain')).toString('utf8');
+    matVerify(buf, sigText);
+    const pack = matParse(buf);
+    const r = matApply(pack);
+    mat.lastAt = Date.now();
+    mat.lastError = '';
+    mat.lastGit = pack.git;
+    matWriteMark({ at: mat.lastAt, git: pack.git, packAt: pack.at, count: pack.items.length });
+    log('materials-sync', '已更新 ' + pack.items.length + ' 篇（写了 ' + r.written + '，撤了 ' + r.removed + '）' + (pack.git ? ' @' + pack.git : ''));
+    matSchedule(MAT_PERIOD_MS);
+    return r;
+  } catch (err) {
+    const msg = (err && err.message) || String(err);
+    mat.lastError = msg;
+    /* 失败一律没声：池子照旧用本机已有的（或随包的兜底），界面该回落编材料就回落。 */
+    log('materials-sync-fail', msg);
+    matSchedule(MAT_RETRY_MS);
+    return null;
+  } finally {
+    mat.running = false;
+  }
+}
+
+function initMaterials(options) {
+  const mark = {};
+  mat = {
+    userDataDir: options.userDataDir || '',
+    api: options.api || (APP.apiReleases + '/tags/' + MAT_TAG),
+    apiHost: (() => {
+      try { return new URL(options.api || (APP.apiReleases + '/tags/' + MAT_TAG)).hostname; } catch (err) { return ''; }
+    })(),
+    keys: macParseKeys(options.publicKeys || MAC_UPDATE_KEYS),
+    running: false,
+    timer: null,
+    lastAt: 0,
+    lastError: '',
+    lastGit: '',
+  };
+  if (!mat.userDataDir) { mat = null; return null; }
+  if (options.log) log = options.log;
+
+  const seeded = matSeed(options.appDir || '');
+  const seen = matReadMark();
+  mat.lastAt = Number(seen.at) || 0;
+  mat.lastGit = String(seen.git || '');
+  matSchedule(MAT_BOOT_DELAY_MS);
+  return { seeded: seeded, mark: seen };
+}
+
+function materialsStatus() {
+  if (!mat) return { ok: false };
+  return { ok: true, dir: matDir(), lastAt: mat.lastAt, lastGit: mat.lastGit, lastError: mat.lastError, running: mat.running };
+}
+
 function stringify(m) {
   if (typeof m === 'string') return m;
   try {
@@ -1118,4 +1348,5 @@ function stringify(m) {
   }
 }
 
-module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, macSigPayload, PHASE, BACKUP_FEEDS };
+module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, macSigPayload, PHASE, BACKUP_FEEDS, MAC_UPDATE_KEYS,
+  initMaterials, materialsStatus, matSyncNow };

@@ -36,10 +36,11 @@ mac 版**没有 Apple 开发者证书**，所以不签名、不公证，也不�
 | `update.js` | 自动更新：Windows 走 electron-updater（检查 / 差量下载 / 重启安装 / 连不上时换备用源），macOS 走自实现那条链（查 / 下 zip / 校验 sha256 / 解压换包 / 重新打开）；两平台共用一个状态机，免安装版与开发版自动置为禁用 |
 | `app/index.html` | **应用本体**（单文件 HTML + CSS + JS，零依赖）；业务代码改这里 |
 | `tests/` | 零依赖自检：从 `app/index.html` 抽取唯一 `<script>`，配合 DOM 桩在 Node 里跑 |
+| `materials/` | 出题用的材料池（事实骨架，`pool/` 下每篇一份）与其说明；**它跑在自己那套发布链上**（`npm run materials:pack`），不跟安装包走——所以材料改动进 git，审材料就是看 diff |
 | `docs/` | 协作规则的细节层（逐份说明见 `AGENTS.md` 的「细节在哪」）：`AI调用.md`、`训练机制.md`、`发布与更新.md`、`界面规范.md`、`题型规范.md`（改 `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 必须同步它）、`材料规范.md`、`验证工具.md` |
 | `打包.bat` | 双击自助出包（Windows）：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
 | `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
-| `tools/` | 打包与发布辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版（顺手给 zip 签 `.sig`）；`gate.mjs` 发布闸门（发布脚本开头自动跑）；`mac-key.mjs` 管发布签名密钥；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
+| `tools/` | 打包与发布辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版（顺手给 zip 签 `.sig`）；`gate.mjs` 发布闸门（发布脚本开头自动跑）；`mac-key.mjs` 管发布签名密钥；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`material-pool.mjs` 抓一手材料并提炼成骨架（`npm run materials`）；`materials-pack.mjs` 打包签名发布材料池（`npm run materials:pack`）；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 

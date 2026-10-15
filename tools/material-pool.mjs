@@ -15,7 +15,11 @@
  * 环境变量：
  *   LIANTAI_KEY      不设也能跑——从本机应用数据目录里取已存的 Key（只读，不写仓库、不打印）。
  *   LIANTAI_MODEL    默认 deepseek-flash。
- *   LIANTAI_MAT_DIR  材料池目录，默认 ~/练习台材料。
+ *   LIANTAI_MAT_DIR  淘汰件与临时件的存放处，默认 ~/练习台材料。
+ *
+ * 池子本身在本仓库的 materials/pool/ 里，不在这里。为什么放仓库：池子是要随应用发出去的东西，
+ * 放仓库里就能走 git——改动看得见（审材料就是看 diff）、有历史、能回滚，发布与审计用的是同一份。
+ * 淘汰件、抓取过程中的原文都是过程产物，不进仓库，仍然放在 LIANTAI_MAT_DIR。
  *
  * 边界：真接口、真花钱（一篇一次提炼调用）。抓下来的原文不落盘，只落骨架。
  */
@@ -26,9 +30,9 @@ import { tmpdir, homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const phase = (process.argv[2] || "").trim();
-const DIR = process.env.LIANTAI_MAT_DIR || join(homedir(), "练习台材料");
-const poolDir = join(DIR, "池子");
-const rawDir = join(DIR, "原文");     // 只在 fetch 过程中临时用，跑完不留（规范：只存骨架，不存原文）
+const scratch = process.env.LIANTAI_MAT_DIR || join(homedir(), "练习台材料");
+const poolDir = join(here, "..", "materials", "pool");   // 出货的那一份：在仓库里
+const rawDir = join(scratch, "原文");     // 只在 fetch 过程中临时用，跑完不留（规范：只存骨架，不存原文）
 
 if (phase !== "fetch" && phase !== "list" && phase !== "verify" && phase !== "redo") {
   console.error("用法：node tools/material-pool.mjs fetch <gov|rmw|rmrb> [检索词] [篇数] | list | verify [条数] | redo [篇数|all]");
