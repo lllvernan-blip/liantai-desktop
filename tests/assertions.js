@@ -1510,8 +1510,8 @@ ok(PAGE_HTML.indexOf('--r-flat:0; --r-ctl:8px; --r-pill:999px;') >= 0,
    "圆润化: 控件圆角档走 8px（人感 Demo --r-ctl），魔数不落进控件规则");
 ok((function(){ const m = PAGE_HTML.match(/\.railwrap\{[^}]*\}/); return m && m[0].indexOf('sticky') < 0; })(),
    "训练链: 步骤条不吸顶，跟纸一起滚");
-ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border-radius:6px') >= 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('min-height:calc(100vh - 97px)') >= 0 && m[0].indexOf('rgba(60,50,40,.06)') >= 0; })(),
-   "纸面纪律: .doc 是公文纸不是网页卡片——6px 小圆角 + 放平的阴影 + 撑满视口（clip 只裁不接管滚动）");
+ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border') < 0 && m[0].indexOf('box-shadow') < 0 && m[0].indexOf('border-radius') < 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('min-height:calc(100vh - 97px)') >= 0; })(),
+   "纸面纪律: .doc 光板——不描边不投影不圆角，靠 --paper 对底板的色差与撑满视口立成一张纸（clip 只裁不接管滚动）");
 ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
    "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
 ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:var(--r-ctl)') >= 0; })()
