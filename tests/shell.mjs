@@ -1031,6 +1031,17 @@ if (process.platform !== "darwin") {
      "材料同步: 池子已经有东西就不播种（旧兜底把新同步的盖回去就荒唐了）");
   rmSync(base2, { recursive: true, force: true });
   rmSync(keyDir0, { recursive: true, force: true });
+
+  /* 随包兜底要真的进得了包，也要真的被播下去——两边缺一样，断网用户的池子就是空的。 */
+  const pkg = JSON.parse(readOr(join(here, "..", "package.json"), "{}"));
+  const buildFiles = ((pkg.build || {}).files) || [];
+  ok(buildFiles.indexOf("materials/**/*") >= 0,
+     "材料同步: 打包清单里带上了随包兜底（否则装完包里没有 materials/，断网就是空池子）");
+  const updSrc = readOr(join(here, "..", "update.js"));
+  ok(/path\.join\(appDir, 'materials', 'pool'\)/.test(updSrc),
+     "材料同步: 播种读的就是打包进去的那个位置（appDir/materials/pool）");
+  ok(/appDir: __dirname/.test(readOr(join(here, "..", "main.js"))),
+     "材料同步: 壳把 appDir 真传进去了（写了不传等于没写）");
 }
 
 /* 规则文件自己的尺寸上限：超了会被 Codex 系指令链按字节截断，而截断点落在哪儿
