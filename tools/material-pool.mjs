@@ -34,6 +34,19 @@ const scratch = process.env.LIANTAI_MAT_DIR || join(homedir(), "练习台材料"
 const poolDir = join(here, "..", "materials", "pool");   // 出货的那一份：在仓库里
 const rawDir = join(scratch, "原文");     // 只在 fetch 过程中临时用，跑完不留（规范：只存骨架，不存原文）
 
+/* 空栏的占位行是标记，不是事实。规范里写的是「（原文未提及）」（带全角括号），外面还可能
+   写成「未提及」，判据都得认——认不出来它就会被当成一条真事实送去核，核不过按「编造」整篇
+   退掉，还会记进淘汰名单。verify 与 intake 两条路共用这一处。 */
+function isBlankMark(t){
+  const s = String(t == null ? "" : t).replace(/^[\s（(【\[]+/, "").replace(/[\s）)】\]]+$/, "");
+  return !s || /^(原文)?未提及/.test(s);
+}
+/* 同一篇的网址可能写法不同（http/https、尾斜杠、大小写）：去重一律按归一化后的比，否则同篇
+   换个写法再交会白核一次，还会在池子里躺成两篇。已有的键照旧存原串。 */
+function urlKey(u){
+  return String(u == null ? "" : u).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
+
 if (phase !== "fetch" && phase !== "list" && phase !== "verify" && phase !== "redo" && phase !== "intake") {
   console.error("用法：node tools/material-pool.mjs fetch <gov|rmw|rmrb> [检索词] [篇数] | list | intake [来源目录名] | verify [条数] | redo [篇数|all]");
   process.exit(1);
@@ -221,7 +234,16 @@ async function readText(r){
   return new TextDecoder(enc).decode(buf);
 }
 async function get(url, asJson){
-  const r = await fetch(url, { headers: { "User-Agent": UA } });
+  /* https 回落 http：这台机器上到 society.people.com.cn 的 https 会被 DNS 指到别人家的 CDN
+     节点（证书链上全是别人的域名），而 http 一直通。外发的骨架常用 https 写网址，所以不能
+     硬碰——先按原样取，取不到再换协议重试一次。两次都失败才当真失败。 */
+  let r;
+  try { r = await fetch(url, { headers: { "User-Agent": UA } }); }
+  catch (e) {
+    const alt = url.startsWith("https://") ? url.replace(/^https:/, "http:") : null;
+    if (!alt) throw e;
+    r = await fetch(alt, { headers: { "User-Agent": UA } });
+  }
   if (!r.ok) throw new Error("HTTP " + r.status + " " + url);
   if (asJson) return r.json();
   return readText(r);
@@ -362,7 +384,7 @@ if (phase === "verify") {
       const m = line.match(/^(?:- |\d+\. )(.+)$/);
       if (!m || !col || col === "标题") continue;
       const txt = m[1].trim();
-      if (!txt || txt.indexOf("原文未提及") === 0) continue;
+      if (isBlankMark(txt)) continue;
       if (!byUrl.has(url)) byUrl.set(url, []);
       byUrl.get(url).push({ col, txt });
     }
@@ -563,7 +585,7 @@ if (phase === "intake") {
   if (existsSync(poolDir)) for (const f of readdirSync(poolDir)) {
     if (!f.endsWith(".md")) continue;
     const m = readFileSync(join(poolDir, f), "utf8").match(/^来源：(\S+)$/m);
-    if (m) poolUrls.add(m[1].trim());
+    if (m) poolUrls.add(urlKey(m[1].trim()));
   }
   const rejectFile = join(scratch, "淘汰.json");
   let rejected = {};
@@ -572,6 +594,7 @@ if (phase === "intake") {
   let record = {};
   if (existsSync(recordFile)) { try { record = JSON.parse(readFileSync(recordFile, "utf8")) || {}; } catch (e) { record = {}; } }
 
+  const rejectedKeys = new Set(Object.keys(rejected).map(urlKey));
   const dirs = readdirSync(inbox, { withFileTypes: true })
     .filter((d) => d.isDirectory() && d.name !== "已收")
     .map((d) => d.name).filter((n) => !only || n === only).sort();
@@ -591,8 +614,9 @@ if (phase === "intake") {
       const url = head(text, "来源");
       const tag = src + "/" + f;
       if (!url) { stay.push({ tag, why: "没有「来源：」这一行，拿不到正文就核不了" }); continue; }
-      if (poolUrls.has(url) || rejected[url] || seen.has(url)) {
-        again.push({ tag, url, why: poolUrls.has(url) ? "池子里已经有了" : rejected[url] ? "以前判过不合格" : "这次交重了" });
+      const ukey = urlKey(url);
+      if (poolUrls.has(ukey) || rejectedKeys.has(ukey) || seen.has(ukey)) {
+        again.push({ tag, url, why: poolUrls.has(ukey) ? "池子里已经有了" : rejectedKeys.has(ukey) ? "以前判过不合格" : "这次交重了" });
         continue;
       }
       if (!head(text, "主题")) { stay.push({ tag, why: "缺「主题：」这一行——后面按弱项选材要靠它" }); continue; }
@@ -605,7 +629,7 @@ if (phase === "intake") {
         const m = line.match(/^(?:- |\d+\. )(.+)$/);
         if (!m) continue;
         const t = m[1].trim();
-        if (!t || t.indexOf("原文未提及") === 0) continue;
+        if (isBlankMark(t)) continue;
         cols[cur].push(t);
       }
       const lack = CANON.filter(([, re]) => !Object.keys(cols).some((k) => re.test(k)));
@@ -618,7 +642,7 @@ if (phase === "intake") {
       try { body = extractBody(await get(url), srcOfUrl(url)); }
       catch (e) { stay.push({ tag, why: "抓不到正文：" + ((e && e.message) || e) }); continue; }
       if (body.replace(/\s/g, "").length < 400) { stay.push({ tag, why: "正文太短或没抓到（" + body.replace(/\s/g, "").length + " 字）" }); continue; }
-      seen.add(url);
+      seen.add(ukey);
       const items = [];
       for (const [name] of CANON) for (const t of canon[name]) items.push({ col: name, txt: t });
       jobs.push({ key: tag, src, f, at, url, title: (text.match(/^# (.+)$/m) || [, f])[1].trim(), canon,
@@ -688,22 +712,27 @@ globalThis.__matIntake = out;
     const code = srcOfUrl(j.url) === "gov"
       ? (() => { try { const a = new URL(j.url).hostname.replace(/^www\./, "").split("."); return ((a[a.length - 2] || "") + (a[a.length - 1] || "")).replace(/[^A-Za-z0-9]/g, "").slice(0, 12) || "ext"; } catch (e) { return "ext"; } })()
       : srcOfUrl(j.url);
-    const id = ((j.url.match(/content_(\d{6,})/) || j.url.match(/(\d{6,})/) || [, ""])[1])
+    /* 文章号在 .html 前面：直接取「第一个 6 位以上的数字串」会拿到频道号（c428181），
+       所以先认 content_ 那形，再认 .html 前那一形，最后才退到任意数字串。 */
+    const id = ((j.url.match(/content_(\d{6,})/) || j.url.match(/-(\d{6,})\.html?/) || j.url.match(/(\d{6,})/) || [, ""])[1])
       || String(jobs.indexOf(j) + 1).padStart(2, "0");
     const stamp = (j.grab || today).replace(/-/g, "");
     let name = stamp + "-" + code + "-" + id + ".md", k = 1;
     while (existsSync(join(poolDir, name))) { k++; name = stamp + "-" + code + "-" + id + "-" + k + ".md"; }
     const pub = j.pub || today, wenhao = j.wenhao || "（无）", grab = j.grab || today;
+    /* 「说得比正文满」的条目要留痕：只打在终端上，换个会话就没人知道还欠着。写在文件头部，
+       跟着材料走、进 git diff；修掉了就把这一行删掉。 */
+    const fixNote = m.bad.length ? ["待修：" + m.bad.join("；")] : [];
     const md = ["# " + j.title, "", "来源：" + j.url, "发布：" + pub, "文号：" + wenhao, "抓取：" + grab,
       "时效：" + (wenhao === "（无）" ? "半年（自 " + pub + " 起）" : "长期框架（有正式文号，按大事件处理）"),
-      "主题：" + j.topics, "采用：" + (j.why || "（外部交来，未写理由）"), "",
+      "主题：" + j.topics, "采用：" + (j.why || "（外部交来，未写理由）"), ...fixNote, "",
       ...CANON.map(([n]) => secText(n, j.canon[n]) + "\n")].join("\n");
     writeFileSync(join(poolDir, name), md, "utf8");
     renameSync(j.at, join(inbox, "已收", j.src + "-" + j.f));
     record[name] = { 来源: j.src, 收于: today, 原文件: j.tag };
     kept++;
     console.log("收  " + name + "  " + j.title.slice(0, 26) + "  栏分布 " + CANON.map(([n]) => n.slice(0, 2) + j.canon[n].length).join(" "));
-    if (m.bad.length) console.log("     要盯：有 " + m.bad.length + " 条对不上正文（说得比正文满）\n       " + m.bad.slice(0, 4).join("\n       "));
+    if (m.bad.length) console.log("     要盯：有 " + m.bad.length + " 条对不上正文（说得比正文满，已写进文件头的「待修：」）\n       " + m.bad.slice(0, 4).join("\n       "));
   }
   for (const x of again) {
     const [s, f] = x.tag.split("/");
@@ -714,7 +743,20 @@ globalThis.__matIntake = out;
 
   writeFileSync(rejectFile, JSON.stringify(rejected, null, 1), "utf8");
   writeFileSync(recordFile, JSON.stringify(record, null, 1), "utf8");
-  console.log("INTAKE " + JSON.stringify({ 收: kept, 退: dropped, 重复: again.length, 待补: stay.length, 池子: readdirSync(poolDir).filter((x) => x.endsWith(".md")).length }));
+  /* 已入库清单是交给外部模型防重复的唯一依据（收件箱 README 明说靠它对照），手写必然漂，
+     所以每次验收完按池子重写一份：四列与原来一致，抓取日期新的在前。 */
+  const listRows = readdirSync(poolDir).filter((x) => x.endsWith(".md")).sort().reverse().map((f) => {
+    const s = readFileSync(join(poolDir, f), "utf8");
+    const at = (k) => ((s.match(new RegExp("^" + k + "：(.+)$", "m")) || [, ""])[1] || "").trim();
+    const title = ((s.match(/^# (.+)$/m) || [, f])[1] || f).trim();
+    return "| " + (at("发布") || "（未标）") + " | " + title + " | " + at("来源") + " | " + (at("主题") || "（未标）") + " |";
+  });
+  writeFileSync(join(inbox, "已入库清单.md"), ["# 已入库材料清单（" + listRows.length + " 篇）", "",
+    "池子里现有的全部材料。**抓之前先对照，别重复抓同一篇。**", "",
+    "| 发布 | 标题 | 正文页网址 | 主题 |", "| --- | --- | --- | --- |"].concat(listRows, [""]).join("\n"), "utf8");
+  const pendingFix = readdirSync(poolDir).filter((x) => x.endsWith(".md"))
+    .filter((f) => /^待修：/m.test(readFileSync(join(poolDir, f), "utf8"))).length;
+  console.log("INTAKE " + JSON.stringify({ 收: kept, 退: dropped, 重复: again.length, 待补: stay.length, 池子: readdirSync(poolDir).filter((x) => x.endsWith(".md")).length, 待修: pendingFix }));
   if (stay.length) console.log("待补的还留在收件箱里，补好了再跑一次 intake 就行。");
   process.exit(0);
 }
@@ -730,7 +772,7 @@ if (existsSync(poolDir)) {
   for (const f of readdirSync(poolDir)) {
     if (!f.endsWith(".md")) continue;
     const m = readFileSync(join(poolDir, f), "utf8").match(/^来源：(\S+)$/m);
-    if (m) used.add(m[1].trim());
+    if (m) used.add(urlKey(m[1].trim()));
   }
 }
 /* 进池子的跳过，被拒的更要跳过：入库判断不过的候选，下次换个时候再看见它，多半还是同样的结论，
@@ -738,7 +780,8 @@ if (existsSync(poolDir)) {
 const rejectFile = join(scratch, "淘汰.json");
 let rejected = {};
 if (existsSync(rejectFile)) { try { rejected = JSON.parse(readFileSync(rejectFile, "utf8")) || {}; } catch (e) { rejected = {}; } }
-const fresh = hits.filter(it => !used.has(it.url) && !rejected[it.url]);
+const rejKeys = new Set(Object.keys(rejected).map(urlKey));
+const fresh = hits.filter(it => !used.has(urlKey(it.url)) && !rejKeys.has(urlKey(it.url)));
 const nRej = hits.length - used.size - fresh.length;
 if (used.size) console.error("  池子里已有 " + used.size + " 篇，剩 " + fresh.length + " 条候选" + (nRej > 0 ? "（另有 " + nRej + " 条以前判过不合格，跳过）" : ""));
 
