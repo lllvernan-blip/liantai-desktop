@@ -679,18 +679,6 @@ html,body{margin:0;padding:0;}
           <div class="note" id="modelNote">填上 Key 后可拉取候选名单，也可以直接输入模型名。</div>
         </div>
       </section>
-      <section class="setgrp">
-        <div class="grpt">批改偏好</div>
-        <div class="field">
-          <label>推理程度</label>
-          <div class="seg" id="segReason">
-            <button type="button" data-lv="quick">快速</button>
-            <button type="button" data-lv="standard">标准</button>
-            <button type="button" data-lv="deep">深入</button>
-          </div>
-          <div class="note" id="reasonNote"></div>
-        </div>
-      </section>
       <div class="actions">
         <button class="primary" id="btnSaveSet">保存</button>
         <button class="ghost" id="btnTest">测试连接</button>
@@ -950,7 +938,7 @@ const LEGACY_ORG = "综应" + "练习台";
 const DEFAULT_STATE = {
   // model 默认为空：名字一律等实拉，不预置任何可能已经过期的模型名
   settings:{ provider:"deepseek", baseUrl:"https://api.deepseek.com/v1", model:"",
-             apiKey:"", reasonLevel:"standard", temperature:0.7, orgName:"模拟练习专用", markColor:"#a7f3d0",
+             apiKey:"", orgName:"模拟练习专用", markColor:"#a7f3d0",
              timeLimit:0,   // 作答限时的默认值（分钟，0 = 不限）：选过一次，下一题按同样时长起
              keyNoticeDismissed:false,   // 首页欢迎条的「关闭」：点了就不再弹，填上 Key 保存后复位
              subject:DEFAULT_SUBJECT },
@@ -1154,8 +1142,6 @@ function load(){
     const s = JSON.parse(raw);
     let migrated = false;   // 任何一处旧数据被改写 -> 整份回写一次（幂等：改完的键下次就匹配不上）
     s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings||{});
-    if(!s.settings.reasonLevel){ const t=Number(s.settings.temperature); s.settings.reasonLevel = (t<=0.35?"quick":(t<=0.95?"standard":"deep")); }
-    if(["quick","standard","deep"].indexOf(s.settings.reasonLevel)<0) s.settings.reasonLevel="standard";
     if(s.settings.orgName === LEGACY_ORG) s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
     s.settings.markColor = normMarkColor(s.settings.markColor);   // 只认自己那几个色，别的值会让 --mark 变成一句废 CSS
     if(!SUBJECTS[s.settings.subject]) s.settings.subject = DEFAULT_SUBJECT;       // 旧数据没有科目这一层，补默认
@@ -1241,11 +1227,25 @@ function persistFlush(){
 }
 
 /* ============ AI 调用（含档位自适应与兼容降级） ============ */
+/* 推理程度不再让用户选（2026-10-15）：三档各管一件事，用户不需要知道，也不该被拉去纠结选哪个。
+   现在每处调用按用途内置一个档位（下面五条常量），改档位改这里，别改调用点。
+   一档同时管两件事：思考强度（发给模型的 reasoning_effort / thinking_budget 之类）与温度。
+   取名仍用 quick / standard / deep，是因为发请求那条路（THINK_FAMILIES）按这三个名字转参数。 */
 const REASON_LEVELS = {
-  quick:   { label:"快速", temp:0.3 },
-  standard:{ label:"标准", temp:0.7 },
-  deep:    { label:"深入", temp:1.0 }
+  quick:   { temp:0.3 },
+  standard:{ temp:0.7 },
+  deep:    { temp:1.0 }
 };
+/* 内置档位的分工。
+   **出题要设计**（编材料、分采分点、定分值）所以给 standard；其余四处都是「照着给定的东西做判断或抽取」——
+   材料在手、目标明确，quick 够用且更稳：思考量小就不容易把输出额度吃光。这不是理论，是实测过的：
+   deepseek-flash 在 standard 档想过 1.8 万字，撞上 16384 的输出上限就是一次空输出（fetchModelAnswer 就是这么坏的）。
+   批改一直是 quick（GRADE_LEVEL），这次只是把它从「藏在 grade() 里」拿到这里与其余四档并列。 */
+const GEN_LEVEL     = "standard";  // 出题：编材料、设计采分点与分值
+const GRADE_LEVEL   = "quick";     // 批改：对照 need 数点
+const ANSWER_LEVEL  = "quick";     // 范文：把采分点写成一篇成文（写作不是推理，不需要 1.8 万字的琢磨）
+const DISTILL_LEVEL = "quick";     // 经验提炼：从批改结论里抽经验
+const PD_LEVEL      = "quick";     // 快判：五道判别题，题干短、判断直
 /* 各家「思考」的开法不一样：特殊家族（参数长得不一样的）在这里各写各的发法；
    其余所有模型一律默认按「思考强度」（reasoning_effort）试探——是否真支持以实测为准，
    被拒会记进 modelCaps 并自动改按温度发，不再拿名字猜能力（曾因 deepseek-flash 不带 v4 被冤枉过）。
@@ -1269,25 +1269,14 @@ function reasonFamily(m){
   return THINK_FAMILIES.find(f=>f.re.test(m)) || DEFAULT_FAMILY;
 }
 /* 档位有效性观测：参数被收下（200）≠ 模型真把它当回事。
-   能拿到的客观信号是思考量的差异——按「模型×档位」累计思考字数与耗时，
-   攒够两档的数据后直接给结论：差距大=切换有效，几乎无差=如实告知存疑。 */
+   能拿到的客观信号是思考量的差异——按「模型×档位」累计思考字数与耗时。
+   用户不再选档位，所以它不再往界面上报（原来那句「快速≈Xs，深入≈Ys」是给“该选哪个”服务的）；
+   但数据照旧累计：tools/drift.mjs 的 PROBE 行读它，调档位时靠它看实况。 */
 function recordProbe(model, level, reasonChars, secs){
   state.modelProbe = state.modelProbe || {};
   const m = state.modelProbe[model] = state.modelProbe[model] || {};
   const e = m[level] = m[level] || { n:0, reason:0, secs:0 };
   e.n++; e.reason += reasonChars; e.secs += secs;
-}
-function probeNote(model){
-  const p = state.modelProbe && state.modelProbe[model]; if(!p) return "";
-  const q = p.quick, d = p.deep;
-  if(!q || !d || !q.n || !d.n) return "";   // 两档都有实测才下结论，不瞎猜
-  const qr = Math.round(q.reason/q.n), dr = Math.round(d.reason/d.n);
-  const qs = Math.round(q.secs/q.n), ds = Math.round(d.secs/d.n);
-  const ratio = qr>0 ? dr/qr : (dr>0? Infinity : 0);
-  const verdict = ratio >= 1.5 ? "档位差异明显，切换有效"
-                : ratio <= 1.1 ? "两档实测差别不大——这个模型可能不区分推理程度"
-                : "有一定差异，但不算大";
-  return `实测：快速≈${qs}s，深入≈${ds}s——${verdict}。`;
 }
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
@@ -1440,11 +1429,13 @@ async function callLLM(system, user, expectJson, onDelta, opts){
   const fam = reasonFamily(model);
   state.modelCaps = state.modelCaps || {};
   const cap = state.modelCaps[model];
-  // 默认都按思考参数试探；被拒收过的（cap=rejected）直接按标准温度发，不再白发
+  // 默认都按思考参数试探；被拒收过的（cap=rejected）直接按标准温度发，不再白发。
   const adaptive = cap !== "rejected";
-  const r = (opts && isFinite(opts.temp))? { temp: opts.temp } : (REASON_LEVELS[adaptive ? s.reasonLevel : "standard"] || REASON_LEVELS.standard);
-  // 思考强度档位默认跟用户的设置走；阅卷那条路会指定 quick——见 GRADE_LEVEL
-  const level = (opts && opts.level) || s.reasonLevel;
+  // 思考强度档位由调用方指定（每处内置一个，见 REASON_LEVELS 上面那张注释）。
+  // 不再兜底到用户设置：那会让「哪处调用用了哪个档」变成配置组合，实测数据也对不上号。
+  const level = (opts && opts.level) || "standard";
+  // 温度跟着档位走，除非调用方显式钉死（阅卷与范文都把温度钉到 0：同一份卷子每次该判差不多）。
+  const r = (opts && isFinite(opts.temp))? { temp: opts.temp } : (REASON_LEVELS[adaptive ? level : "standard"] || REASON_LEVELS.standard);
   const streaming = typeof onDelta === "function";
 
   // 首选仍可能被某家拒收：先降回纯 temperature，再退到最裸的请求体，保证任何模型都能跑通。
@@ -1504,8 +1495,8 @@ async function callLLM(system, user, expectJson, onDelta, opts){
       // 记的是「实际发的那个档位」（level）——阅卷那条路会指定 quick，不能按用户的设置记，
       // 不然设置页那个「两档实测差多少」的结论就建在一份对不上号的样本上
       if(!rejected) recordProbe(model, REASON_LEVELS[level]? level : "standard", out.reasonChars||0, (Date.now()-rungT0)/1000);
-      save(); setReasonUI();
-      if(rejected) banner(`实测「${esc(model)}」不接受「推理程度」这一项，已自动改按默认方式发送（已记住，之后不再尝试）。`);
+      save();
+      if(rejected) banner(`实测「${esc(model)}」不接受思考参数，已自动改按默认方式发送（已记住，之后不再尝试）。`);
     }
     // 输出坏了就重发，两种坏法分开对付（各留 BODY_RETRY_MAX 次）：
     // ① content 为空：finish=length 就是被额度截断了（空的那一次连正文都没轮到）；不是 length 的（服务端抽风）原样重发。
@@ -1514,16 +1505,19 @@ async function callLLM(system, user, expectJson, onDelta, opts){
     // 「多要一点额度」才是对付截断的正解（实测摘掉思考参数并不真能关掉思考）。
     // 「只重发一次」是 2026-09-29 真机暴露的坑：连坏两次时整道题的批改就白做了，多花一次调用的钱远比白做便宜。
     // 重发后还坏才往外抛：空输出抛 {code:"EMPTY"}、坏 JSON 抛 {code:"JSON"}，上层各按各的说法提示，不存在“静默吞掉”。
-    if(expectJson){
-      if(!out.content){
-        if(bodyRetries < BODY_RETRY_MAX){
-          bodyRetries++;
-          if(out.finish === "length") outCap = Math.min(outCap*2, MAX_OUT_TOKENS_HARD);
-          llmFailNote("空输出", out);
-          ri--; continue;
-        }
-        throw {code:"EMPTY"};
+    // 空输出这条两条路都会撞上（要  JSON 的、范文那种要纯文本的），所以判在 expectJson 之外。
+    // 2026-10-15 修：原先它写在 if(expectJson) 里，范文那条路（expectJson=false）撞了额度既不重发也不加额度，
+    // 直接空手回去——真机上表现为「范文时有时无」，而且因为 finish 是写死的 ""，日志里永远是 ?，看不出是撞额度还是服务端抽风。
+    if(!out.content){
+      if(bodyRetries < BODY_RETRY_MAX){
+        bodyRetries++;
+        if(out.finish === "length") outCap = Math.min(outCap*2, MAX_OUT_TOKENS_HARD);
+        llmFailNote("空输出", out);
+        ri--; continue;
       }
+      if(expectJson) throw {code:"EMPTY"};
+    }
+    if(expectJson){
       try{ return parseJsonLoose(out.content); }
       catch(e){
         if(bodyRetries < BODY_RETRY_MAX){
@@ -1813,7 +1807,7 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20,"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
     ${kpSchema}
   }`;
-  const data = await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta);
+  const data = await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta, { level: GEN_LEVEL });
   return alignPointScores(data);
 }
 /* 阅卷温度：从 0.3 降到 0（2026-09-29 实测对比，原因见下）。
@@ -1823,14 +1817,13 @@ async function gen(k, subtype, focusDim, needCard, onDelta){
    阅卷本来就该是“同一份卷子每次判差不多”，而 0 是唯一能把采样噪声拔干净的那个旋钮；
    出题那边依旧发敞（温度跟着档位走），两者互不影响。 */
 const GRADE_TEMP = 0;
-/* 阅卷的思考强度档位（2026-09-29）。为什么要单独指定：思考与正文共用一个输出额度，
-   真机实测一次批改的思考能吞 12k~20k 字符（约 4k~7k token）——想得越久，留给正文的越少，
-   撞上限时正文被截成半截 JSON，重发只是把同一个赌局再摇一次。而阅卷这道题是「对照 need 逐条核」，
-   不需要长链推理（要创造力的是出题）。降到 quick 实测每次批改 36~56 秒 → 20~39 秒，分数不变。 */
-const GRADE_LEVEL = "quick";
+/* 阅卷的思考强度：常量已提到顶部与其余四档并列（GRADE_LEVEL），这里只留为什么是 quick。
+   为什么要单独指定：思考与正文共用一个输出额度，真机实测一次批改的思考能吞 12k~20k 字符
+   （约 4k~7k token）——想得越久，留给正文的越少，撞上限时正文被截成半截 JSON，重发只是把同一个赌局再摇一次。
+   而阅卷这道题是「对照 need 逐条核」，不需要长链推理（要创造力的是出题）。
+   降到 quick 实测每次批改 36~56 秒 → 20~39 秒，分数不变。 */
 async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline){
   const m = MODULES[k];
-  const gradeOpts = { temp: GRADE_TEMP, level: GRADE_LEVEL };   // 阅卷的思考强度见 GRADE_LEVEL（额度被思考吃光就交不出分数）
   // organizeOutline：考生作答前的归类提纲，只进 prompt 供诊断，绝不参与 hits / 总分
   const exps = expBlock(k);   // 经验闭环：请阅卷特别核对用户是否又犯这些错，两科都注入
   // 错因回执：请阅卷顺手判定「带进去的这几条错因这次犯没犯」。只用于经验状态跟进，不进分数
@@ -1858,7 +1851,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     `\n同一份答卷重复阅卷时必须给同一结论：判「半分」的先在 evidence 里逐条列出答到的具体点，列不出来就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按**低一档**判（宁可少给，不凭整体印象抬分），并在 evidence 里写清差在哪。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
     `\n返回 JSON：\n` + schema;
-  const g = await callLLM(sys, user, true, onDelta, gradeOpts);
+  const g = await callLLM(sys, user, true, onDelta, { temp: GRADE_TEMP, level: GRADE_LEVEL });   // 阅卷的思考强度见 GRADE_LEVEL（额度被思考吃光就交不出分数）
   // 参考答案（范文）另起一次调用：它占输出大头，塞进主请求会把主请求顶到模型输出上限（见下面的 fetchModelAnswer）。
   // 范文失败只当没写过：留空，折叠区自然不会出现，绝不让附属内容拖垮一次批改。
   try{ if(g && typeof g === "object") g.modelAnswer = await fetchModelAnswer(k, subtype, question, keyPoints, answer); }
@@ -1880,13 +1873,14 @@ async function fetchModelAnswer(k, subtype, question, keyPoints, answer){
   const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, keyPoints:keyPoints||[], answer: answer||"" });
   for(let i=0; i<2; i++){
     try{
-      const txt = String(await callLLM(sys, user, false, null, { temp: GRADE_TEMP }) || "").trim();
+      // 空输出、撞额度都在 callLLM 里重发过（带真实 finish），这里不重复记流水；只有两轮都空才留一条。
+      const txt = String(await callLLM(sys, user, false, null, { temp: GRADE_TEMP, level: ANSWER_LEVEL }) || "").trim();
       if(txt) return txt;
-      llmFailNote("范文空输出", { finish:"" });
     }catch(e){
       llmFailNote("范文单独调用失败", { finish:(e && e.code) || "" });
     }
   }
+  llmFailNote("范文最终为空", {});
   return "";
 }
 
@@ -1932,7 +1926,7 @@ async function distillExperience(mod, subtype, g, q){
   const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）；type 为错因时还要给 kind，从这几类里选一个——" + GRADE_TAG_LINE + "（其余 type 填 -）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。只输出 JSON。"
     + (existTitles.length? " 考生已有这些经验：" + existTitles.join("；") + "。若本次要提炼的经验与已有经验本质相同，必须原样返回已有经验的 title 原文（不要换措辞、不要新造条目），只给出更新后的 body；确有新经验才新增。" : "");
   const schema = '{\n  "experiences": [ { "type": "错因 / 规则 / 表达", "kind": "type 为错因时从这几类里选一个：' + GRADE_TAG_KEYS.join(" / ") + '（其余填 -）", "title": "要点（≤30字）", "body": "具体经验：错在哪、下次怎么办（≤220字）" } ]\n}';
-  const data = await callLLM(sys, user + "\n返回 JSON：\n" + schema, true);
+  const data = await callLLM(sys, user + "\n返回 JSON：\n" + schema, true, null, { level: DISTILL_LEVEL });
   const list = (data && Array.isArray(data.experiences))? data.experiences : [];
   const out = [];
   for(const e of list.slice(0,2)){
@@ -3024,7 +3018,7 @@ async function genPDRound(form, theme){
     + "\n禁令：不得虚构材料里没有的事实、数字、主体、时间；地名与机关一律虚化——写「某市/某县/某镇/某社区」，或「A 市/A 县」这样的代号，不要自造「江城市」这类看着像真的具体名字；不得出有歧义或多解的题（逐字读一遍必须只有一项成立，两项都说得通就换题）；正确项不得永远最长、不得总在同一个位置；不得出「找原词/同义替换」式的字面题。"
     + "\n返回 JSON：\n" + pdSchema(f);
   try{
-    const data = await callLLM(sys, user, true, onDelta);
+    const data = await callLLM(sys, user, true, onDelta, { level: PD_LEVEL });
     if(mySeq !== reqSeq) return;   // 已被更晚的请求取代：丢弃结果
     const items = sanitizePDItems(data && data.items, form);
     if(!items.length) throw {code:"JSON"};
@@ -4344,17 +4338,6 @@ function wireProfileNav(){   // 一级行与「返回」的接线只有一份；
 }
 
 /* ============ 设置 ============ */
-function setReasonUI(){
-  const lv = state.settings.reasonLevel || "standard";
-  const model = $("#setModel").value.trim();
-  const cap = (state.modelCaps||{})[model];
-  $("#segReason").style.display = cap === "rejected" ? "none" : "";   // 只有实测被拒过才收档
-  document.querySelectorAll("#segReason button").forEach(b=> b.classList.toggle("active", b.dataset.lv===lv));
-  const note = $("#reasonNote"); if(!note) return;
-  const txt = (cap === "rejected"? "这个模型不接受「推理程度」，已改按默认方式发送。" : "") + (cap !== "rejected"? probeNote(model) : "");
-  note.textContent = txt;
-  note.style.display = txt? "" : "none";   // 没话说就不留一行空白
-}
 function fillProviderSelect(){
   $("#setProvider").innerHTML = PROVIDERS.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
 }
@@ -4374,7 +4357,7 @@ function modelMenuShow(show){
    click 路径由键盘 Enter/空格触发；鼠标路径 mousedown 已选中过一次，这里再走一遍是幂等的。 */
 function pickModelItem(b){
   const inp = $("#setModel");
-  if(inp){ inp.value = b.dataset.m; setReasonUI(); inp.focus(); }
+  if(inp){ inp.value = b.dataset.m; inp.focus(); }
   modelMenuShow(false);
 }
 function useCachedModels(base){
@@ -4405,7 +4388,6 @@ function onProviderChange(){
   renderModelList(cached || []);
   $("#setModel").value = cached? pickFast(cached) : "";
   $("#modelNote").textContent = modelNoteText(hasKey, cached);
-  setReasonUI();
   if(hasKey && !cached) fetchModels(true);
 }
 function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_COLORS[1]); }
@@ -4425,8 +4407,6 @@ function fillSettings(){
   const cached = cachedModels(baseKey());
   renderModelList(cached || []);
   $("#modelNote").textContent = modelNoteText(!!state.settings.apiKey, cached);
-  state.settings.reasonLevel = state.settings.reasonLevel || "standard";
-  setReasonUI();
   $("#setOrg").value = state.settings.orgName||"";
   renderMarkSwatches();
 }
@@ -4435,8 +4415,6 @@ function applyForm(){
   state.settings.baseUrl = $("#setBase").value.trim();
   state.settings.model = $("#setModel").value.trim();
   state.settings.apiKey = $("#setKey").value.trim();
-  state.settings.reasonLevel = state.settings.reasonLevel || "standard";
-  state.settings.temperature = (REASON_LEVELS[state.settings.reasonLevel] || REASON_LEVELS.standard).temp;
   state.settings.orgName = $("#setOrg").value.trim() || DEFAULT_STATE.settings.orgName;   // 回落到现行默认值，不回落到已被迁移掉的旧默认名
 }
 // 从实拉名单里挑个“跑得快”的做默认：优先轻量款，否则取第一个
@@ -4524,7 +4502,7 @@ async function testConnection(){
   applyForm();
   const msg = $("#setMsg"); msg.textContent = "测试中…";
   try{
-    const r = await callLLM("你是一个测试助手。", "只回复两个字：正常", false);
+    const r = await callLLM("你是一个测试助手。", "只回复两个字：正常", false, null, { level: "quick" });
     msg.textContent = "连接成功 ✓ 返回：" + String(r).replace(/\s+/g," ").slice(0,16);
     if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
   }catch(e){
@@ -5123,7 +5101,6 @@ renderChangelog();
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
   setModelEl.addEventListener("click", ()=> modelMenuShow(true));
   setModelEl.addEventListener("input", ()=>{
-    setReasonUI();
     const q = setModelEl.value.trim().toLowerCase();
     const menu = $("#modelMenu");
     if(menu) menu.querySelectorAll(".model-item").forEach(b=>{ b.style.display = (!q || b.dataset.m.toLowerCase().includes(q)) ? "" : "none"; });
@@ -5169,7 +5146,6 @@ renderChangelog();
       pickModelItem(b);
     });
   }
-  document.querySelectorAll("#segReason button").forEach(b=> b.onclick = ()=>{ state.settings.reasonLevel = b.dataset.lv; setReasonUI(); });
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
   $("#btnSettings").onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };

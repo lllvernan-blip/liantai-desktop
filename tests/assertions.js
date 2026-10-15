@@ -454,32 +454,28 @@ onProviderChange();
 ok(el("#setModel").value === "" && el("#modelMenu").innerHTML.indexOf("deepseek") < 0,
    "换服务商: 模型栏留空等实拉，不含任何写死的名字");
 
-/* 8.3 推理程度随模型适配：认得出的家族按各自发法，认不出的不带档位也不显三档 */
+/* 8.3 档位→请求参数的映射（档位不再由用户选，改由每处调用内置并显式传 level） */
 state.settings.apiKey = "sk-test";
 const capBodies = [];
 const realFetch8 = globalThis.fetch;
 globalThis.fetch = (url, opt) => { capBodies.push(JSON.parse(opt.body));
   return mockRes({ json: async()=>({ choices:[{ message:{ content:"ok" } }] }) }); };
-state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "standard";
-await callLLM("s","u",false);
+state.settings.model = "deepseek-v4-pro";
+await callLLM("s","u",false, null, { level:"standard" });
 ok(capBodies.at(-1).reasoning_effort === "medium", "适配: effort 家族标准档=reasoning_effort medium");
-state.settings.reasonLevel = "deep";
-await callLLM("s","u",false);
+await callLLM("s","u",false, null, { level:"deep" });
 ok(capBodies.at(-1).reasoning_effort === "high", "适配: 深入档=high");
-state.settings.model = "qwen3-32b"; state.settings.reasonLevel = "quick";
-await callLLM("s","u",false);
+state.settings.model = "qwen3-32b";
+await callLLM("s","u",false, null, { level:"quick" });
 ok(capBodies.at(-1).enable_thinking === false, "适配: qwen3 快速档=直接关闭思考");
-state.settings.reasonLevel = "deep";
-await callLLM("s","u",false);
+await callLLM("s","u",false, null, { level:"deep" });
 ok(capBodies.at(-1).enable_thinking === true && capBodies.at(-1).thinking_budget === 24576, "适配: qwen3 深入档=大思考预算");
-state.settings.model = "gpt-4o-mini"; state.settings.reasonLevel = "standard";
-await callLLM("s","u",false);
+state.settings.model = "gpt-4o-mini";
+await callLLM("s","u",false, null, { level:"standard" });
 ok(capBodies.at(-1).reasoning_effort === "medium" && capBodies.at(-1).temperature === 0.7,
    "适配: 未识别的模型也按思考强度试探，是否支持以实测为准");
-el("#setModel").value = "deepseek-v4-pro"; setReasonUI();
-ok(el("#segReason").style.display !== "none", "适配: 有档位的模型显示三档");
-el("#setModel").value = "gpt-4o-mini"; setReasonUI();
-ok(el("#segReason").style.display !== "none", "适配: 未识别的模型默认也显示三档（被拒才收）");
+await callLLM("s","u",false);
+ok(capBodies.at(-1).reasoning_effort === "medium", "适配: 调用方不传 level 时按标准档走，不读用户设置");
 globalThis.fetch = realFetch8;
 
 /* 8.4 档位实测记忆：被拒过就记住，之后不再白发被拒请求 */
@@ -488,37 +484,30 @@ capBodies.length = 0;
 globalThis.fetch = (url, opt) => { const b = JSON.parse(opt.body); capBodies.push(b);
   if(b.reasoning_effort) return mockRes({ ok:false, status:400, text: async()=>"bad param" });
   return mockRes({ json: async()=>({ choices:[{ message:{ content:"ok" } }] }) }); };
-state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
-await callLLM("s","u",false);
+state.settings.model = "deepseek-v4-pro";
+await callLLM("s","u",false, null, { level:"deep" });
 ok(capBodies.filter(b=>b.reasoning_effort).length === 1 && state.modelCaps["deepseek-v4-pro"] === "rejected",
    "实测记忆: 参数被拒自动降级成功，并记住此模型拒收思考参数");
-ok(el("#bannerSlot").innerHTML.indexOf("不接受「推理程度」") >= 0,
+ok(el("#bannerSlot").innerHTML.indexOf("不接受思考参数") >= 0,
    "实测记忆: 探针被拒有界面提示（不再是静默降级）");
 const nB84 = capBodies.length;
-await callLLM("s","u",false);
+await callLLM("s","u",false, null, { level:"deep" });
 ok(capBodies.length === nB84 + 1 && !("reasoning_effort" in capBodies.at(-1)),
    "实测记忆: 之后直接按温度发，不再白发一次被拒请求");
-el("#setModel").value = "deepseek-v4-pro"; setReasonUI();
-ok(el("#segReason").style.display === "none" && el("#reasonNote").textContent.indexOf("不接受") >= 0,
-   "实测记忆: 界面收起三档并说明原因");
 globalThis.fetch = (url, opt) => { const b = JSON.parse(opt.body); capBodies.push(b);
   return mockRes({ json: async()=>({ choices:[{ message:{ content:"ok" } }] }) }); };
 state.settings.model = "deepseek-v4-flash";
-await callLLM("s","u",false);
+await callLLM("s","u",false, null, { level:"deep" });
 ok(state.modelCaps["deepseek-v4-flash"] === "ok" && "reasoning_effort" in capBodies.at(-1),
    "实测记忆: 参数被接受则记住 ok，一次请求就成功");
 globalThis.fetch = realFetch84;
 
-/* 8.5 档位有效性观测：思考量/耗时按模型×档位累计，两档对比给结论 */
+/* 8.5 档位实测累计：用户不再选档位，但数据照旧按模型×档位累计（调档位时看实况用） */
 state.modelProbe = {};
 recordProbe("m-x","quick",100,10); recordProbe("m-x","quick",100,10); recordProbe("m-x","deep",2000,80);
-let pn85 = probeNote("m-x");
-ok(pn85.indexOf("快速≈10s") >= 0 && pn85.indexOf("深入≈80s") >= 0 && pn85.indexOf("切换有效") >= 0,
-   "档位观测: 两档思考量差距大 → 明确告知切换有效");
-recordProbe("m-y","quick",500,10); recordProbe("m-y","deep",520,11);
-ok(probeNote("m-y").indexOf("可能不区分推理程度") >= 0,
-   "档位观测: 两档几乎无差 → 如实提示存疑，不假装生效");
-ok(probeNote("m-none") === "", "档位观测: 没有实测数据不下结论");
+ok(state.modelProbe["m-x"].quick.n === 2 && state.modelProbe["m-x"].quick.reason === 200
+   && state.modelProbe["m-x"].deep.n === 1 && state.modelProbe["m-x"].deep.secs === 80,
+   "档位观测: 思考量与耗时按模型×档位分别累计");
 ok(sseReasonDelta('data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}') === "思考中"
    && sseDelta('data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}') === "",
    "档位观测: SSE 思考增量单独可提取，不混入正文");
@@ -526,11 +515,25 @@ state.modelProbe = {};
 delete state.modelCaps["deepseek-v4-pro"];   // 清掉 8.4 记下的拒收，不然探测被跳过
 const realFetch85 = globalThis.fetch;
 globalThis.fetch = (url, opt) => mockRes({ json: async()=>({ choices:[{ message:{ content:"ok", reasoning_content:"思考思考思考思考" } }] }) });
-state.settings.model = "deepseek-v4-pro"; state.settings.reasonLevel = "deep";
-await callLLM("s","u",false);
+state.settings.model = "deepseek-v4-pro";
+await callLLM("s","u",false, null, { level:"deep" });
 ok(state.modelProbe["deepseek-v4-pro"] && state.modelProbe["deepseek-v4-pro"].deep && state.modelProbe["deepseek-v4-pro"].deep.reason === 8,
    "档位观测: 响应中的思考内容按模型×档位累计");
 globalThis.fetch = realFetch85;
+
+/* 8.6 档位内置：用户不再选档位（2026-10-15），每处调用必须自己带 level。
+   这条是静态检查，防的是「新增了一个调用点忘了传」——那会静默落到 standard，
+   而 standard 的思考量刚好在输出额度边缘（实测想过 1.8 万字），范文就是这么坏的。 */
+{
+  const lines = PAGE_HTML.split("\n").filter(l => l.indexOf("callLLM(") >= 0 && l.indexOf("function callLLM") < 0);
+  const noLevel = lines.filter(l => l.indexOf("level") < 0);
+  ok(lines.length >= 5, "档位: 找到全部 callLLM 调用点（漏查会让这条形同虚设）");
+  ok(noLevel.length === 0, "档位: 每处 callLLM 调用都显式带 level" + (noLevel.length? " —— 漏了：" + noLevel[0].trim().slice(0, 60) : ""));
+  ok([GEN_LEVEL, GRADE_LEVEL, ANSWER_LEVEL, DISTILL_LEVEL, PD_LEVEL].every(lv => lv in REASON_LEVELS),
+     "档位: 内置的五个档位都是 REASON_LEVELS 认得的名字（写错会让请求发不出思考参数）");
+  ok(state.settings.reasonLevel === undefined && state.settings.temperature === undefined,
+     "档位: 用户设置里不再存档位与温度（旧字段已清）");
+}
 ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
   const kk = state.settings.apiKey, mm = state.settings.model;
   state.settings.apiKey = "sk-test"; state.settings.model = "";
@@ -2087,7 +2090,7 @@ state.experiences = [];
 /* 18.1 传输层失败：同一档静默重发一次就成，不让一次练习作废 */
 const realFetch18 = globalThis.fetch;
 state.settings.apiKey = "sk-test"; state.settings.model = "m-chat"; state.settings.baseUrl = "https://x/v1";
-state.settings.reasonLevel = "standard"; state.modelCaps = {};
+state.modelCaps = {};
 let calls18 = 0;
 globalThis.fetch = () => {
   calls18++;

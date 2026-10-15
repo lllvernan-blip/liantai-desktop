@@ -18,15 +18,25 @@
 - 重发还坏才抛：空输出 `{code:"EMPTY"}`、坏 JSON `{code:"JSON"}`，`handleErr` 各按各的说法提示，不许静默吞。坏输出走 `llmFailNote()` 记控制台。
 - `sseFinish()` 是拿 `finish_reason` 用的，别当无用解析删。
 
+## 档位（推理程度）
+
+- **用户不再选档位**（2026-10-15）。设置页那个三档开关已移除，`settings.reasonLevel` 与 `settings.temperature` 两个字段一并清掉。
+- 每处调用自己传 `{ level: … }`，常量集中在 `REASON_LEVELS` 旁边：`GEN_LEVEL = "standard"`（出题）；`GRADE_LEVEL` / `ANSWER_LEVEL` / `DISTILL_LEVEL` / `PD_LEVEL` 都是 `"quick"`。
+- 一个档位同时管两件事：思考强度（`THINK_FAMILIES` 按档位名转 `reasoning_effort` / `thinking_budget` 之类）与温度（`REASON_LEVELS[lv].temp`，除非调用方用 `opts.temp` 钉死）。
+- **`callLLM` 不再兜底到用户设置**：不传 `level` 就当 `standard`。新增调用点记得带 `level`——不带会静默落到 standard，而 standard 的思考量刚好在输出额度边缘（实测想过 1.8 万字），范文就是这么坏的。测试有一条静态断言守着这事。
+- **`modelProbe` 照旧累计**（模型 × 档位 → 思考字数 / 耗时）：它不再往界面上报（原来那句「快速≈Xs，深入≈Ys」是给「该选哪个」服务的），但 `tools/drift.mjs` 的 `PROBE` 行读它，调档位时靠它看实况。
+
 ## 输出额度
 
 - 首次 `MAX_OUT_TOKENS = 16384`，`finish=length` 就翻倍（→32768→65536，封顶 `MAX_OUT_TOKENS_HARD`）。思考与正文共用一个额度。
-- 阅卷思考档单独降 `GRADE_LEVEL = "quick"`。
+- **空输出的重发对两条路都生效**（2026-10-15 修）：原先它写在 `if(expectJson)` 里面，范文那条路（`expectJson=false`）撞了额度既不重发也不加额度，直接空手回去——真机表现为「范文时有时无」（edge 卷 5 次里 4 次空）。
+- **日志必须带真实 `finish`**：原来 `llmFailNote("范文空输出", { finish:"" })` 把 finish 写死成空串，日志里永远是 `?`，看不出是撞额度还是服务端抽风（据此误判过一次）。
 
 ## 范文
 
 - `fetchModelAnswer()` 在批改成功后另发一次，**要纯文本不要 JSON**。
 - 那次失败只当没写过（catch 掉、留空，`renderGrade` 不渲染空范文）。
+- **它必须自己带 `{ temp: GRADE_TEMP, level: ANSWER_LEVEL }`**：2026-10-15 那次它只传了 `temp`，于是落到 standard 档、思考想过 1.8 万字，撞上输出额度直接空手回去（edge 卷 5 次里 4 次没有范文），而当时空输出的重发又只对 `expectJson=true` 生效，双重漏洞叠在一起。
 
 ## 超时
 
