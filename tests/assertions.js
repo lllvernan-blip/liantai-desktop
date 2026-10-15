@@ -1506,8 +1506,8 @@ ok(PAGE_HTML.indexOf('class="foot"') < 0,
    "顶栏: 页脚式说明行不进主界面（数据仅存本地说在设置页，SPEC 3.2）");
 ok(PAGE_HTML.indexOf('border-radius:var(--r-card)') >= 0,
    "质感: 弹层卡片走统一大圆角 token（SPEC 3.2）");
-ok(PAGE_HTML.indexOf('--r-flat:0; --r-ctl:8px; --r-pill:999px;') >= 0,
-   "圆润化: 控件圆角档走 8px（人感 Demo --r-ctl），魔数不落进控件规则");
+ok(/--r-ctl:8px;/.test(PAGE_HTML) && !/border-radius:\s*[0-9]/.test(PAGE_HTML),
+   "圆润化: 圆角一律走 token，规则里不落裸数字（2026-10-15 收敛：原来散着 8 处，尖准的 6px/12px/1px 没人说得出来）");
 ok((function(){ const m = PAGE_HTML.match(/\.railwrap\{[^}]*\}/); return m && m[0].indexOf('sticky') < 0; })(),
    "训练链: 步骤条不吸顶，跟纸一起滚");
 ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border') < 0 && m[0].indexOf('box-shadow') < 0 && m[0].indexOf('border-radius') < 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('min-height:calc(100vh - 97px)') >= 0; })(),

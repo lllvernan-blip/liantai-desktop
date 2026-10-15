@@ -41,7 +41,9 @@
     /* 控件内边距：普通与矮一档各一种，不再一个控件一套 */
     --pad-ctl:8px 12px; --pad-ctl-sm:6px 12px;
     /* 语义别名：同一个 hex 只在 :root 出现一次，改一处即全站生效 */
-    --line-strong:#8f8b81;   /* 3.3:1 —— 表单控件的可辨识边界（分隔线不受 3:1 约束，控件边界受） */
+    --line-strong:#8f8b81;   /* 3.3:1 —— 只给「靠边才能认出是输入框」的那几个（select / input / 作答区 / 笔记框）。
+                                WCAG 1.4.11 只管「识别控件所必需的视觉信息」：文案自明的按钮不受约束，
+                                空框输入框靠边指示可输入、边就必须 ≥ 3:1（Understanding 的 Boundaries 节与 Fig 31/32/34） */
     --line-hover:#b9b2a2;    /* 悬停时的描边加深一档（浮标） */
     --chip-line:#d8d2c6; --chip-ink:#55504a;   /* 纸面上的胶囊：比全局 --line / --muted 略重，白底上才咬得住 */
     --text-disabled:#9a968d; /* 2.9:1 —— placeholder 与禁用文字（门槛 2:1） */
@@ -57,9 +59,10 @@
     --scrim:rgba(25,22,16,.45);   /* 引导挖孔外的暗遮罩（暖调，与纸面同族） */
     --sh-tip:0 10px 30px rgba(25,22,16,.28), 0 2px 6px rgba(25,22,16,.18);   /* 墨底气泡的柔影 */
     --tip-dim:rgba(255,253,248,.55); --tip-dim-2:rgba(255,253,248,.6);   /* 墨底上的次级白字两档 */
-    --r-card:16px;   /* 卡片/弹层/纸面统一大圆角（人感 Demo --r-card） */
-    /* 圆角只要三档：直角 / 控件（人感 Demo --r-ctl=8px）/ 胶囊 */
-    --r-flat:0; --r-ctl:8px; --r-pill:999px;
+    /* 圆角六档：一档直角给文档类元素（清单行 / 步骤条格子 / 虚线输入），剩下五档按元素尺寸排——
+       22px 图标 / 控件 / 大按钮 / 弹层 / 胶囊。同一类元素必须同档，不同尺寸的元素圆角要成比例。
+       原来散成 7 档、其中 3 档是裸数字（这档到底为什么会是 6px/12px/1px，没人说得出来），2026-10-15 收敛 */
+    --r-flat:0; --r-icon:6px; --r-ctl:8px; --r-hero:12px; --r-card:16px; --r-pill:999px;
     --fangsong:"FangSong","仿宋","STFangsong","FangSong_GB2312","KaiTi","serif";
     --yahei:"Microsoft YaHei","Microsoft YaHei UI","PingFang SC","sans-serif";
     --song:"SimSun","宋体","STSong","serif";
@@ -70,7 +73,7 @@
   /* 滚动条：系统默认的灰色宽条压在暖白纸面上很扎眼，改成细的暖灰拇指、透明轨道 */
   ::-webkit-scrollbar{width:10px;height:10px;}
   ::-webkit-scrollbar-track{background:transparent;}
-  ::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border:3px solid transparent;background-clip:content-box;border-radius:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border:3px solid transparent;background-clip:content-box;border-radius:var(--r-ctl);}
   ::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover);background-clip:content-box;}
   ::-webkit-scrollbar-corner{background:transparent;}
 html,body{margin:0;padding:0;}
@@ -103,7 +106,7 @@ html,body{margin:0;padding:0;}
   .toolbar button.linkbtn{padding:8px 12px;font-size:var(--fs-body);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-ctl);}
   /* 品牌位是应用图标（SPEC 3.0：禁止单字印章式代标）+ 文字；图标 data URI 内联，不引外部资源 */
-  .toolbar .brand img{width:22px;height:22px;border-radius:6px;margin-right:8px;vertical-align:-4px;display:inline-block;}
+  .toolbar .brand img{width:22px;height:22px;border-radius:var(--r-icon);margin-right:8px;vertical-align:-4px;display:inline-block;}
   .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);color:var(--gov-red);letter-spacing:1.5px;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:var(--fs-note);letter-spacing:0;margin-left:8px;}
   /* 品牌名就是回家的路（2026-10-08）：首页不属于任何科目，得有个不挑科目的落点 */
@@ -118,7 +121,7 @@ html,body{margin:0;padding:0;}
   .subjbtn.active:hover{background:var(--red-wash-2);}
     /* 悬浮提示（SPEC 3.2）：图标无框，悬浮才现文字说明；纯 CSS，零依赖 */
   [data-tip]{position:relative;}
-  [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);right:-4px;background:var(--ink);color:var(--paper);font-size:var(--fs-note);line-height:1;padding:8px 8px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-2px);transition:opacity .12s ease .18s,transform .12s ease .18s;z-index:40;}
+  [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);right:-4px;background:var(--ink);color:var(--paper);font-size:var(--fs-note);line-height:1;padding:8px 8px;border-radius:var(--r-ctl);white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-2px);transition:opacity .12s ease .18s,transform .12s ease .18s;z-index:40;}
   [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translateY(0);}
   /* 全局工具区（SPEC 3.2 桌面质感）：图标无框，悬浮才现底色 */
   .toolbar .iconbtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:30px;border:none;background:transparent;color:var(--muted);border-radius:var(--r-ctl);cursor:pointer;padding:0;min-height:0;}
@@ -177,7 +180,7 @@ html,body{margin:0;padding:0;}
   .startbox p{color:var(--ink-soft);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
   /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
-  .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:12px;box-shadow:0 6px 18px rgba(190,59,43,.28);}
+  .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
   .startbox .actions{justify-content:center;margin-top:24px;}
   .startbox.start-hero .actions{margin-top:0;}   /* hero 说明句自带 24px 下边距，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」） */
@@ -245,7 +248,7 @@ html,body{margin:0;padding:0;}
   /* 节标题带记号：左缘 3px 短竖条——「有哪几节」先跳出来，不用读完标题才知道换节了 */
   .card-body h4{font-family:var(--hei);font-size:var(--fs-note);letter-spacing:.3px;margin:24px 0 8px;color:var(--ink);}
   .csec>h4{display:flex;align-items:center;gap:8px;}
-  .csec>h4::before{content:"";width:3px;height:13px;background:var(--bar);border-radius:1px;flex:0 0 auto;}
+  .csec>h4::before{content:"";width:3px;height:13px;background:var(--bar);border-radius:var(--r-pill);flex:0 0 auto;}
   /* 两节靠「记号颜色」分义：要点是中性灰 + 序号，失分点是焦橙 + 序号（同一个清单语言，一眼分得清） */
   .clist{list-style:none;margin:0;padding:0;counter-reset:ci;}
   .card-body .clist li{display:grid;grid-template-columns:18px 1fr;gap:8px;padding:8px 0;border-top:1px solid var(--line-soft);}
@@ -441,7 +444,7 @@ html,body{margin:0;padding:0;}
   .mrow{font-size:var(--fs-body);}
   .mrow .mmeta,.mrow .mnone,.mrow .mweak{font-size:var(--fs-note);}
   /* 画像一级的行是入口（点进去看明细），不是折叠件：尾部用 › 而不是三角，方形、无底色、整行可点 */
-  .navrow{display:flex;align-items:center;gap:12px;width:100%;padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;text-align:left;cursor:pointer;}
+  .navrow{display:flex;align-items:center;gap:12px;width:100%;padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-radius:var(--r-flat);background:none;text-align:left;cursor:pointer;}
   .navrow:hover{background:var(--wash);}
   .navrow::after{content:"›";margin-left:auto;flex:0 0 auto;font-size:var(--fs-body);color:var(--line-strong);}
   .profback{margin:0 0 8px;}
@@ -498,7 +501,7 @@ html,body{margin:0;padding:0;}
   .railwrap .flowrail{margin:0;}
   /* 状况条满宽：上下两道细线横贯纸面，它才像一条状况栏，而不是漂在正文里的一个胶囊（2026-10-09） */
   .flowrail{display:flex;flex-wrap:wrap;width:auto;align-items:center;counter-reset:fs;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
-  .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:8px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);padding:8px 16px 8px 12px;background:transparent;border:none;border-radius:0;}
+  .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:8px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);padding:8px 16px 8px 12px;background:transparent;border:none;border-radius:var(--r-flat);}
   .flowrail .fstep+.fstep{border-left:1px solid var(--line-soft);}
   .flowrail .fstep::before{content:counter(fs);display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;font-size:var(--fs-note);font-variant-numeric:tabular-nums;border-radius:var(--r-pill);background:var(--wash-3);color:var(--muted);}
   .flowrail .fstep.done::before{content:"✓";background:var(--success-bg);color:var(--success);}
@@ -530,7 +533,7 @@ html,body{margin:0;padding:0;}
   .ogcat i{font-style:normal;font-size:var(--fs-note);color:var(--muted);margin-left:8px;font-variant-numeric:tabular-nums;}
   .ogcat.on i{color:var(--gov-red);}
   .ognew{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-  .ognew input{flex:1 1 240px;min-width:0;border:none;border-bottom:1px dashed var(--line-strong);background:transparent;padding:8px 4px;font-family:var(--hei);font-size:var(--fs-body);border-radius:0;}
+  .ognew input{flex:1 1 240px;min-width:0;border:none;border-bottom:1px dashed var(--line-strong);background:transparent;padding:8px 4px;font-family:var(--hei);font-size:var(--fs-body);border-radius:var(--r-flat);}
   .ognew input:focus{outline:none;border-bottom-color:var(--gov-red);}
   .ogline.cur{background:var(--wash);}
   .ogline.cur .ptag{background:var(--red-wash);color:var(--gov-red);}
