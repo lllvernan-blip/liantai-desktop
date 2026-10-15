@@ -9,6 +9,8 @@
     "start": "electron .",
     "dist": "node tools/stamp-build.mjs && electron-builder --win nsis --publish never",
     "test:build": "node tools/build-test.mjs",
+    "drift": "node tools/drift.mjs",
+    "materials": "node tools/material-pool.mjs",
     "dist:mac": "node tools/stamp-build.mjs && ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder --mac --publish never",
     "icon:mac": "python3 tools/make-mac-icon.py",
     "release": "node tools/release.mjs",

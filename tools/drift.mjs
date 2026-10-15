@@ -1,10 +1,14 @@
 /*
  * 阅卷漂移探针 —— 同一道题 + 同一批采分点 + 同一份答卷，反复批改，量出总分摆动。
  *
- *   $env:LIANTAI_KEY="sk-..."; node tools/drift.mjs prepare      # 用真接口出一道题，存成 %TEMP%\liantai-drift-case.json
+ *   node tools/drift.mjs prepare      # 用真接口出一道题，落成 <临时目录>/liantai-drift-case.json
  *   # 打开那个 JSON，把 answers 里每一份答卷写好（clear = 覆盖清楚的，edge = 刻意骑在档位临界线上的）
- *   $env:LIANTAI_KEY="sk-..."; node tools/drift.mjs run 5        # 每份答卷批 5 次，打印每次得分、极差、以及哪几个子项在摆
- *   $env:LIANTAI_DRIFT_CASE="C:\...\别的 case.json"             # 想拿两份 case 做对照（比如同一道题带 need / 不带 need）时指定另一份
+ *   node tools/drift.mjs run 5        # 每份答卷批 5 次，打印每次得分、极差、以及哪几个子项在摆
+ *
+ * 环境变量：
+ *   LIANTAI_KEY        不设也能跑——本机已填过 Key 时直接从应用数据目录里取（只读，不写仓库、不打印）。
+ *   LIANTAI_MODEL      默认 deepseek-flash。
+ *   LIANTAI_DRIFT_CASE 指定另一份 case.json，用来做两份对照（比如同一道题带 need / 不带 need）。
  *
  * 为什么要两份答卷：2026-09-29 第一次基线跑下来「覆盖清楚」那种答卷 5 次一字不差（11.5/20，极差 0），
  * 而 2026-09-27 真机又确实量到过摆动（折百分制 45/53/45）。差别在答卷——会摆的是**卡在档位临界点**的
@@ -13,23 +17,53 @@
  * 边界：真接口、真花钱（一次批改几分钱）。它走的是 app 里真实的 gen() / grade()（不是另写一份 prompt），
  * 所以在 DOM 桩子里把 app/index.html 的脚本抠出来跑，跟 tests/run.mjs 同一套路子。
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const key = process.env.LIANTAI_KEY || "";
-if (!key) {
-  console.error("没给 Key：先在环境变量里设 LIANTAI_KEY（这个探针不把 Key 写进仓库）。");
-  process.exit(1);
-}
 const phase = (process.argv[2] || "").trim();
 if (phase !== "prepare" && phase !== "run") {
   console.error("用法：node tools/drift.mjs prepare | run [次数]");
   process.exit(1);
 }
+
+/* Key 从三个地方按顺序找：环境变量 → 应用数据目录（测试副本优先，它更新得勤）。
+   读本地存储是为了把「跑一次探针」的摩擦降到 0——要人先设环境变量，探针就永远不会被跑。 */
+function keysFromLocal(){
+  const out = [];
+  let base = process.env.HOME ? join(homedir(), "Library", "Application Support") : "";
+  if (base && existsSync(base)) {
+    for (const app of ["liantai-desktop-test", "liantai-desktop"]) {
+      const dir = join(base, app, "Local Storage", "leveldb");
+      if (!existsSync(dir)) continue;
+      for (const f of readdirSync(dir)) {
+        if (!f.endsWith(".ldb") && !f.endsWith(".log")) continue;
+        const s = readFileSync(join(dir, f)).toString("utf16le");
+        const m = s.match(/sk-[A-Za-z0-9]{20,}/);
+        if (m && !out.includes(m[0])) out.push(m[0]);
+      }
+    }
+  }
+  return out;
+}
+async function pickKey(){
+  const explicit = process.env.LIANTAI_KEY || "";
+  if (explicit) return explicit;
+  const cands = keysFromLocal();
+  for (const k of cands) {
+    try {
+      const r = await fetch("https://api.deepseek.com/v1/models", { headers: { Authorization: "Bearer " + k } });
+      if (r.ok) { console.error("用本机已存的 Key（尾号 " + k.slice(-4) + "）"); return k; }
+    } catch (e) { /* 换下一个 */ }
+  }
+  console.error("没找到能用的 Key（本机存了 " + cands.length + " 个，都不可用）：在环境变量里设 LIANTAI_KEY。");
+  process.exit(1);
+}
+const key = await pickKey();
 const times = Math.max(1, Number(process.argv[3]) || 5);
+const model = process.env.LIANTAI_MODEL || "deepseek-flash";
 const casePath = process.env.LIANTAI_DRIFT_CASE || join(tmpdir(), "liantai-drift-case.json");
 if (phase === "run" && !existsSync(casePath)) {
   console.error("还没有 case：" + casePath + " —— 先跑 prepare 并写好 answers。");
@@ -50,7 +84,7 @@ const fs = await import("node:fs");
 const CASE = ${JSON.stringify(casePath)};
 state.settings.apiKey = ${JSON.stringify(key)};
 state.settings.baseUrl = "https://api.deepseek.com/v1";
-state.settings.model = "deepseek-flash";
+state.settings.model = ${JSON.stringify(model)};
 state.settings.reasonLevel = "standard";
 state.history = []; state.experiences = []; state.modelCaps = {};
 if (${JSON.stringify(phase)} === "prepare") {
