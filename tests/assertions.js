@@ -2790,6 +2790,14 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(_spec.indexOf("印象") >= 0 && _spec.indexOf("纳闷") >= 0,
      "有据: 限定语不许改（带两次抽检实测的反例）");
   ok(_spec.indexOf("material") >= 0, "有据: 明说骨架在 user 的 material 字段");
+  ok(_spec.indexOf("骨架里没有主语的") >= 0,
+     "有据: 骨架里没主语的不许给它安一个（实测被写成「有专家提出」）");
+  // 对策题的材料里不许把建议整段抄进去——那等于把答案写在题面上。
+  // 判据挂题干不挂模块名：归纳概括模块也会出「概括问题并提出建议」（实测就是它漏的）
+  ok(_spec.indexOf("答案写在题面上") >= 0 && _spec.indexOf("看的是题干，不是模块名") >= 0,
+     "有据: 题干要考生提建议时，材料不许整段抄建议");
+  ok(PAGE_HTML.indexOf("groundedSpec(skel, m, /对策/") < 0,
+     "有据: 这条不挂在模块名上（挂了就会漏掉归纳概括里的「并提出建议」）");
 
   // 取不到就必须回落，而不是报错：池子空 / 不在桌面壳里都是常态
   const _savedWin = globalThis.window;
