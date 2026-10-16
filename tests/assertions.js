@@ -599,6 +599,26 @@ el("#btnToDraft").onclick();    // 再回来
 ok(activeFlow().orgOpen === false && el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("回到一稿") < 0,
    "归类入口: 走开再回到一稿，面板自动收起（不揣着上一屏的状态回来）");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: 一稿不摆 Next（靠「提交阅卷」推进）");
+/* 归类两段的接线：点一步走一步（第一段归点、第二段命名） */
+const wf = activeFlow();
+wf.orgOpen = true; wf.selections = [{text:"甲点"},{text:"乙点"}]; wf.groups = []; wf.orgIdx = 0; wf.orgPhase = "group";
+renderFlowStep();
+ok(el("#docBody").innerHTML.indexOf("新建一组") >= 0 && el("#docBody").innerHTML.indexOf("newCatName") < 0,
+   "归类接线: 第一段只给「新建一组」，不摆命名输入框");
+el("#btnNewCat").onclick();
+ok(wf.groups.length === 1 && wf.groups[0].name === "" && wf.groups[0].facts.join(",") === "0",
+   "归类接线: 新建一组就把当前点归进去，组名还是空的");
+el("#btnOrgNext").onclick();
+el("#btnOrgNext").onclick();
+ok(wf.orgPhase === "name" && el("#docBody").innerHTML.indexOf('data-ogname="0"') >= 0,
+   "归类接线: 点走完进命名那一段，每组一行输入框");
+el("#btnBackToGroup").onclick();
+ok(wf.orgPhase === "group" && el("#docBody").innerHTML.indexOf("btnNewCat") >= 0,
+   "归类接线: 能回第一段改分组");
+el("#btnOrgNext").onclick();
+el("#btnOrgDone").onclick();
+ok(wf.orgOpen === false && el("#docBody").innerHTML.indexOf("提交阅卷") >= 0,
+   "归类接线: 「写完了」收起面板回到一稿");
 ok(el("#fabSlot").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡浮标在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
@@ -1098,14 +1118,16 @@ renderStart();
 ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") < 0, "恢复现场: 超 24h 的链不再提示");
 state.flows = []; _flowId = null;
 
-/* 12.8 归类：逐点走 —— 一屏一个点，点已建的类归入（可多归），走完生成提纲 */
+/* 12.8 归类：分两段 —— 第一段把点归成组（组名先空着），第二段给每组写上位概括词 */
 const fOrg = { selections:[{text:"甲点"},{text:"乙点"}], groups:[], question:{background:"x"} };
 const orgHtml = organizePanelHtml(fOrg);
 const curBlock = h => (String(h).match(/<div class="ogcur">[\s\S]*?<\/div>/) || [""])[0];
 ok(curBlock(orgHtml).indexOf("甲点") >= 0 && curBlock(orgHtml).indexOf("乙点") < 0,
    "归类: 当前点区只摆这一个点的原文");
 ok(orgHtml.indexOf("已归 0 / 2 个点") >= 0, "归类: 报出已归进度");
-ok(orgHtml.indexOf("还没有类") >= 0 && orgHtml.indexOf("data-og=") < 0, "归类: 一个类都没建时给明确空态");
+ok(orgHtml.indexOf("还没有组") >= 0 && orgHtml.indexOf("data-og=") < 0, "归类: 一个组都没建时给明确空态");
+ok(orgHtml.indexOf("上位概括词") < 0,
+   "归类: 第一段不问上位概括词（问它就是「先填词再点材料」那个读反）");
 ok(orgHtml.indexOf('data-jump="1"') >= 0, "归类: 已找的点收在折叠清单里，能跳回去重归");
 ok(organizePanelHtml({ selections:[], groups:[] }).indexOf("回到一稿") >= 0, "归类: 没有找到点时给回到一稿的出口");
 // 选中态跟着当前点走
@@ -1118,17 +1140,24 @@ const orgHtml2 = organizePanelHtml({ selections:[{text:"甲点",free:true}], gro
 ok((orgHtml2.match(/class="ogcat on"/g) || []).length === 2 && orgHtml2.indexOf("划选") >= 0,
    "归类: 一个点能同时归进两类，且保留划选/整句标记");
 ok(orgHtml2.indexOf("已归 1 / 1 个点") >= 0, "归类: 归好后进度跟上");
-// 最后一个点的主动作是生成提纲，不是「下一个点」
-ok(organizePanelHtml({ selections:[{text:"甲点"}], groups:[] }).indexOf("回到一稿") >= 0,
-   "归类: 走到最后一个点就是回到一稿（它不再是一步）");
-// 归类是从一稿页上打开的工具：走到一半也得能收起来（末点的主动作就是回到一稿，那里不再重复一个链接）
-const orgMid = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[], orgIdx:0 });
-ok(orgMid.indexOf("btnCloseOrg") >= 0 && (orgMid.match(/回到一稿/g) || []).length === 1,
-   "归类: 没走到末点时角落里有「回到一稿」，随时能收起来");
+// 走完最后一个点：主动作是去命名，不是回一稿（回一稿永远在角落那个链接上）
 const orgEnd = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[], orgIdx:1 });
-ok(orgEnd.indexOf("btnCloseOrg") < 0 && (orgEnd.match(/回到一稿/g) || []).length === 1,
-   "归类: 走到末点时这个去处只写一遍（主动作已经是它）");
+ok(orgEnd.indexOf("分组完毕，去命名") >= 0, "归类: 点走完的主动作是「去命名」");
+ok(orgEnd.indexOf("btnCloseOrg") >= 0 && (orgEnd.match(/回到一稿/g) || []).length === 1,
+   "归类: 哪一段都能收起来（角落的「回到一稿」只写一遍）");
+const orgMid = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[], orgIdx:0 });
+ok(orgMid.indexOf("btnCloseOrg") >= 0, "归类: 没走到末点也能随时收起来");
 ok(orgHtml.indexOf("下一个点") >= 0, "归类: 没走完时给「下一个点」");
+// 第二段：一屏给每一组写上位概括词，组里的点先摆出来
+const orgName = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"",facts:[0,1]}], orgPhase:"name" });
+ok(orgName.indexOf('data-ogname="0"') >= 0 && orgName.indexOf("甲点") >= 0 && orgName.indexOf("乙点") >= 0,
+   "归类: 命名那一段把整组的内容摆出来（概括才有的放矢）");
+ok(orgName.indexOf("btnNewCat") < 0 && orgName.indexOf("btnBackToGroup") >= 0,
+   "归类: 命名那一段不再归点，给「回去改分组」的路");
+ok(orgName.indexOf("提纲预览") >= 0, "归类: 提纲预览落在命名那一段");
+ok(PAGE_HTML.indexOf('id="newCatName"') < 0, "归类: 「新建一组」不再要求当场写名字");
+ok(orgPhaseOf({}) === "group" && orgPhaseOf({orgPhase:"name"}) === "name" && orgPhaseOf({orgPhase:"乱写"}) === "group",
+   "归类: 老链没有段位字段时按第一段算");
 // 归属反查表：一个点被哪几类收着
 const sel3 = [{text:"甲点",free:true},{text:"乙点"}];
 const grp3 = [{name:"甲组",facts:[0]},{name:"",facts:[0,1]}];
