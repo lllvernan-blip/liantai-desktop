@@ -337,13 +337,15 @@ html,body{margin:0;padding:0;}
   /* 批改页题头分两层：只有「我的答案」用重题头（红竖线），参考答案与解析降成细线上方的
      墨灰小标题——一屏三个同重标题，眼睛找不到主次（2026-10-13）。 */
   .grade .sec-title.lite{margin:24px 0 8px;padding:12px 0 0;border-top:1px solid var(--line);border-left:none;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
-  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。**有分的句子标红**（红笔批改的样子），
-     分跟在句末；没分的句子什么都不挂。所以这一页的「红色」意思是「这里拿到分了」——
-     全站其他地方的红仍是体例与警示，只有批改页这一处反用（2026-10-16 定的口径）。
+  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。**有分的句子标色**——没拿满的标红
+     （红笔批改的样子），拿满的标焦橙；没分的句子什么都不挂。所以这一页的红色意思是「这里还差一点」、
+     焦橙是「这里拿满了」，全站其他地方的红仍是体例与警示（2026-10-16 定的口径）。
      用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
   .answerreview{margin-top:8px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
   .answerreview .asent.got{color:var(--gov-red);}
+  .answerreview .asent.got.full{color:var(--warn);}
   .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
+  .answerreview .asc.full{color:var(--warn);}
   .comment{margin-top:16px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
   .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:24px;}
 
@@ -4184,6 +4186,7 @@ function locateFrag(text, frag){
 /* 逐句标注的底账：分数是**派生**出来的，不额外问 AI 一次——
    每条采分项的证据里都带着考生原句，把它定位回答卷，得分就加到落上的那一句；
    一句覆盖多条时得分相加，所以「句末那些分加起来」就是页头那个总分。
+   full 只用来分两色：拿满的标焦橙、没拿满的标红。
    兜底只剩最后一档：证据整片对不上答卷（老记录、模型没按格式写）就只摆答案；
    半对不上不再退回——那一条本就该尽力落到最像的句子上。 */
 function answerMarks(hits, answer){
@@ -4191,7 +4194,7 @@ function answerMarks(hits, answer){
   const parts = splitAnswer(text);
   const starts = []; let off = 0;
   for(const p of parts){ starts.push(off); off += p.length; }
-  const got = new Array(parts.length).fill(0);
+  const got = new Array(parts.length).fill(0), full = new Array(parts.length).fill(0);
   let need = 0, ok = 0;
   for(const h of (hits||[])){
     const fs = evidenceFrags(h && h.evidence);
@@ -4203,11 +4206,13 @@ function answerMarks(hits, answer){
     ok++;
     let i = 0; while(i + 1 < parts.length && starts[i+1] <= at) i++;
     got[i] += Number(h.awarded) || 0;
+    full[i] += Number(h.score) || 0;
   }
-  return { parts, got, need, ok, usable: !need || ok / need >= 0.5 };
+  return { parts, got, full, need, ok, usable: !need || ok / need >= 0.5 };
 }
-/* 我的答案（逐句批注）：**有分的句子标红**，分跟在句末；没分的句子什么都不挂——
-   0 分不写 +0，素色本身就是「这里没分」。所以把标红处的分加起来就是页头那个总分，当场能验算。 */
+/* 我的答案（逐句批注）：**有分的句子标色**——没拿满的标红、拿满的标焦橙，分跟在句末；
+   没分的句子什么都不挂（0 分不写 +0，素色本身就是「这里没分」）。
+   所以把标色的那些分加起来就是页头那个总分，当场能验算。 */
 function answerReviewHtml(g, answer){
   const text = String(answer||"").trim();
   if(!text) return "";
@@ -4219,9 +4224,11 @@ function answerReviewHtml(g, answer){
   m.parts.forEach((p, i)=>{
     if(p === "\n"){ body += "<br>"; return; }
     if(!p.trim()){ body += esc(p); return; }
-    const sc = Math.round(m.got[i] * 10) / 10;
+    const sc = Math.round(m.got[i] * 10) / 10, fu = Math.round(m.full[i] * 10) / 10;
     const on = m.usable && sc > 0;
-    body += `<span class="asent${on? " got":""}">${esc(p)}</span>` + (on? `<i class="asc">+${sc}</i>` : "");
+    const full = on && fu > 0 && sc >= fu - 0.001;   // 这一句覆盖的采分项都拿满了
+    body += `<span class="asent${on? " got":""}${full? " full":""}">${esc(p)}</span>`
+      + (on? `<i class="asc${full? " full":""}">+${sc}</i>` : "");
   });
   // 不自带小标题：标题由 gradeHtml 用 .sec-title 给出，三块共用一套题头
   return head + `<div class="answerreview">${body}</div>`;
@@ -4315,7 +4322,7 @@ function gradeHtml(g, total){
   // 一页把「你写了什么、本该写成什么样、为什么」摆全，不另造清单，也不把两篇文章折起来（2026-10-13）。
   const ansReview = answerReviewHtml(g, lastGrade && lastGrade.answer);
   if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
-    + `<span class="secright"><span class="hint">红色＝这句有分 · <i class="asc">+N</i>＝拿到的分，加起来＝总分</span></span></div>` + ansReview;
+    + `<span class="secright"><span class="hint">红＝这句没拿满 · 焦橙＝这句拿满 · <i class="asc">+N</i> 相加＝总分</span></span></div>` + ansReview;
   if(g.modelAnswer) html += `<div class="sec-title lite">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
   if(g.comment) html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
   html += selfNoteHtml(g, total);   // 趁印象还在问一句（可跳过）
