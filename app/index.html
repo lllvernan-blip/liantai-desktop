@@ -337,12 +337,13 @@ html,body{margin:0;padding:0;}
   /* 批改页题头分两层：只有「我的答案」用重题头（红竖线），参考答案与解析降成细线上方的
      墨灰小标题——一屏三个同重标题，眼睛找不到主次（2026-10-13）。 */
   .grade .sec-title.lite{margin:24px 0 8px;padding:12px 0 0;border-top:1px solid var(--line);border-left:none;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
-  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。只有**没拿满**的句子才有标记——
-     零分标红、半分在句末报出拿到多少分（焦橙）；满分句什么都不挂，读的时候不必一路跳过
-     「（+4）（+4）」这类符号。用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
+  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。**有分的句子标红**（红笔批改的样子），
+     分跟在句末；没分的句子什么都不挂。所以这一页的「红色」意思是「这里拿到分了」——
+     全站其他地方的红仍是体例与警示，只有批改页这一处反用（2026-10-16 定的口径）。
+     用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
   .answerreview{margin-top:8px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
-  .answerreview .asent.miss{background:var(--danger-bg);box-shadow:inset 0 -2px 0 var(--danger-line);color:var(--danger);}
-  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--warn);margin-left:4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
+  .answerreview .asent.got{color:var(--gov-red);}
+  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
   .comment{margin-top:16px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
   .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:24px;}
 
@@ -1907,7 +1908,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     { module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[], organizeOutline: organizeOutline || "" },
     exps? { experiences:exps, expNote } : {}));
   const schema = `{
-    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"考生答案中的对应表述；没答到的用【缺：xxx】标注"}],
+    "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"答到的：逐字照抄考生原句，用「」括起来，一个字都不许改（标点也别改，抄整句不截断）；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
     "strengths":["优点1"],
     "weaknesses":["缺点1"],${exps? `
@@ -4078,33 +4079,71 @@ function splitAnswer(text){
 const ANS_QUOTED = /[「『“"]([^」』”"]{4,})[」』”"]/g;
 function evidenceFrags(ev){
   const out = []; let m; ANS_QUOTED.lastIndex = 0;
-  while((m = ANS_QUOTED.exec(String(ev||"")))){ const t = m[1].trim(); if(t) out.push(t); }
+  const raw = String(ev||"");
+  while((m = ANS_QUOTED.exec(raw))){ const t = m[1].trim(); if(t) out.push(t); }
+  // 没按格式写（整条证据一个引号都没有）时退一步：剥掉固定符号，拿剩下的话去定位
+  if(!out.length){
+    const t = raw.replace(/【[^】]*】/g, " ").replace(/^(答到|命中|得分)[：:]\s*/, "").replace(/[△✗].*$/s, "").trim();
+    if(t.length >= 4) out.push(t);
+  }
   return out;
 }
 /* 「【缺：xxx】」这类标注说的是「这一处答卷里压根没有」，逐句标注用不上它：
    模型写的「缺 X」不是考生写的字，拿它去定位就是瞎标，这里只保证它不被当成可定位的原文。 */
-/* 在答卷里找这段证据：先整段逐字找，再退到最长可匹配前缀——至少 6 字，再短就会随手配到别处 */
+/* 比较时把空白与标点都抹掉——模型抄句子最容易改的就是这两样——同时留一张位置映射表，
+   这样抹掉之后还能回到原文里那个字。 */
+const MATCH_DROP = "，。；：、？！,:;?!「」『』“”‘’（）()【】[]…·—\"'\\-";
+function normForMatch(t){
+  const chars = [], map = [];
+  for(let i = 0; i < t.length; i++){
+    const c = t[i];
+    if(/\s/.test(c) || MATCH_DROP.indexOf(c) >= 0) continue;
+    chars.push(c); map.push(i);
+  }
+  return { s: chars.join(""), map };
+}
+/* 最长公共子串：返回 {len, at}（at 是 a 里的起点） */
+function longestCommonRun(a, b){
+  let best = 0, bestStart = -1;
+  const row = new Array(b.length + 1).fill(0);
+  for(let i = 1; i <= a.length; i++){
+    let diag = 0;
+    for(let j = 1; j <= b.length; j++){
+      const cur = row[j];
+      row[j] = a[i-1] === b[j-1]? diag + 1 : 0;
+      if(row[j] > best){ best = row[j]; bestStart = i - row[j]; }
+      diag = cur;
+    }
+  }
+  return { len: best, at: bestStart };
+}
+/* 在答卷里找这段证据，三级：① 逐字找（照抄到位就该走这条）；② 抹掉空白标点后找；
+   ③ 模型改编过的——取最长公共段，成段（≥6 字且覆盖该片段六成）就算落在它身上。
+   定位这一层要尽力：分是采分点判出来的，句子只是它的落点，落不上就等于把分丢了。 */
 function locateFrag(text, frag){
   const f = String(frag||"").trim();
   if(f.length < 4) return -1;
   const at = text.indexOf(f);
   if(at >= 0) return at;
-  for(let k = Math.min(f.length, 40); k >= 6; k--){
-    const p = text.indexOf(f.slice(0, k));
-    if(p >= 0) return p;
-  }
+  const N = normForMatch(text), F = normForMatch(f);
+  if(!F.s.length) return -1;
+  const hit = N.s.indexOf(F.s);
+  if(hit >= 0) return N.map[hit];
+  const run = longestCommonRun(N.s, F.s);
+  if(run.at >= 0 && run.len >= Math.max(6, Math.ceil(F.s.length * 0.6))) return N.map[run.at];
   return -1;
 }
 /* 逐句标注的底账：分数是**派生**出来的，不额外问 AI 一次——
    每条采分项的证据里都带着考生原句，把它定位回答卷，得分就加到落上的那一句；
-   一句覆盖多条时得分与满分都相加，这样「这句拿满没有」还看得出来。
-   兜底：该定位的证据里定位不到一半，就整块退回「只摆答案」——宁可不说，不能瞎标。 */
+   一句覆盖多条时得分相加，所以「句末那些分加起来」就是页头那个总分。
+   兜底只剩最后一档：证据整片对不上答卷（老记录、模型没按格式写）就只摆答案；
+   半对不上不再退回——那一条本就该尽力落到最像的句子上。 */
 function answerMarks(hits, answer){
   const text = String(answer||"");
   const parts = splitAnswer(text);
   const starts = []; let off = 0;
   for(const p of parts){ starts.push(off); off += p.length; }
-  const got = new Array(parts.length).fill(0), full = new Array(parts.length).fill(0);
+  const got = new Array(parts.length).fill(0);
   let need = 0, ok = 0;
   for(const h of (hits||[])){
     const fs = evidenceFrags(h && h.evidence);
@@ -4116,16 +4155,11 @@ function answerMarks(hits, answer){
     ok++;
     let i = 0; while(i + 1 < parts.length && starts[i+1] <= at) i++;
     got[i] += Number(h.awarded) || 0;
-    full[i] += Number(h.score) || 0;
   }
-  return { parts, got, full, need, ok, usable: !need || ok / need >= 0.5 };
+  return { parts, got, need, ok, usable: !need || ok / need >= 0.5 };
 }
-/* 「一、xxxx。」这类序号小标题：它是那一条的题头，不是一条作答。
-   分落在紧随的正文上，小标题自己当然是 0——拿它去标红就是在冤枉人。 */
-const ANS_HEADING = /^(?:[一二三四五六七八九十百]+[、.．]|\d+[、.．)])/;
-function isNumHeading(p){ return ANS_HEADING.test(String(p||"").trim()); }
-/* 我的答案（逐句批注）：只有没拿满的句子才有标记——没对上的标红，拿了一半的在句末报出
-   拿到几分。满分句什么都不挂：「（+4）」这种符号人人有份，读的时候只能一路跳过去。 */
+/* 我的答案（逐句批注）：**有分的句子标红**，分跟在句末；没分的句子什么都不挂——
+   0 分不写 +0，素色本身就是「这里没分」。所以把标红处的分加起来就是页头那个总分，当场能验算。 */
 function answerReviewHtml(g, answer){
   const text = String(answer||"").trim();
   if(!text) return "";
@@ -4133,18 +4167,13 @@ function answerReviewHtml(g, answer){
   // 标注图例改挂在「我的答案」标题行右侧（2026-10-13）：它每题都说一遍，占一行太贵；
   // 真正要留一行说明的只有「证据没对准」这种异常，那才留在正文上方。
   const head = m.usable? "" : `<div class="hint" style="margin-top:4px">这次的证据没能逐句对回答卷，只把作答原文摆出来。</div>`;
-  const nextReal = i => { for(let k = i + 1; k < m.parts.length; k++){ if(m.parts[k] !== "\n") return k; } return -1; };
   let body = "";
   m.parts.forEach((p, i)=>{
     if(p === "\n"){ body += "<br>"; return; }
     if(!p.trim()){ body += esc(p); return; }
-    const sc = Math.round(m.got[i] * 10) / 10, fu = Math.round(m.full[i] * 10) / 10;
-    // 下一句不属于同一个「条」就不算题头：光一条序号、后面接的是别的条目，它自己就是那条作答
-    const nx = nextReal(i);
-    const heading = isNumHeading(p) && nx >= 0 && !isNumHeading(m.parts[nx]) && m.got[nx] > 0;
-    const short = fu > 0 && sc < fu - 0.001;   // 没拿满：满分的句子不挂任何标记
-    const cls = !m.usable? "" : (sc <= 0? (heading? "" : " miss") : (short? " part" : ""));
-    body += `<span class="asent${cls}">${esc(p)}</span>` + ((m.usable && sc > 0 && short)? `<i class="asc">+${sc}</i>` : "");
+    const sc = Math.round(m.got[i] * 10) / 10;
+    const on = m.usable && sc > 0;
+    body += `<span class="asent${on? " got":""}">${esc(p)}</span>` + (on? `<i class="asc">+${sc}</i>` : "");
   });
   // 不自带小标题：标题由 gradeHtml 用 .sec-title 给出，三块共用一套题头
   return head + `<div class="answerreview">${body}</div>`;
@@ -4220,7 +4249,8 @@ function gradeHtml(g, total){
   const paperScore = Number(current && current.question && current.question.score);
   const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
   // 分数就是这一页的头：「换一题」落在它右侧；题面（作答要求/分值/难度）不在这一页重复（2026-10-13）
-  let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分（折合 ${total} 分）` : "/ 100 分"}</small></div>`
+  // 只报卷面分（实得 / 子项满分）：折百分制是给画像比较用的，摆在批改页只会跟这个数打架（2026-10-16）
+  let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分` : "/ 100 分"}</small></div>`
     + `<button class="linkbtn" id="btnSwitch">换一题</button>`;
   // 打了分就不再另报「丢 N 分」：两个数说的是同一件事，写两遍只是噪音
   const hits = g.hits || [];
@@ -4237,7 +4267,7 @@ function gradeHtml(g, total){
   // 一页把「你写了什么、本该写成什么样、为什么」摆全，不另造清单，也不把两篇文章折起来（2026-10-13）。
   const ansReview = answerReviewHtml(g, lastGrade && lastGrade.answer);
   if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
-    + `<span class="secright"><span class="hint">标红＝没答到 · <i class="asc">+N</i>＝没拿满</span></span></div>` + ansReview;
+    + `<span class="secright"><span class="hint">红色＝这句有分 · <i class="asc">+N</i>＝拿到的分，加起来＝总分</span></span></div>` + ansReview;
   if(g.modelAnswer) html += `<div class="sec-title lite">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
   if(g.comment) html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
   html += selfNoteHtml(g, total);   // 趁印象还在问一句（可跳过）

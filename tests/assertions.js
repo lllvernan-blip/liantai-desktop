@@ -186,13 +186,15 @@ renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送�
                      {point:"落款单位与日期",score:2,awarded:1,status:"半分",evidence:"答到：「遵照执行」只写了要求，【缺：成文日期】"} ],
               comment:"继续加油", modelAnswer:"关于调整作息的通知。各科室请遵照执行。" },
             60, null, null, "关于调整作息的通知。各科室请注意作息调整，请遵照执行。特此通知。");
-ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody").innerHTML.indexOf("asent miss") >= 0,
+ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody").innerHTML.indexOf("asent got") >= 0,
    "批改页: 首屏就是带标注的「我的答案」（2026-10-13）");
-ok(el("#docBody").innerHTML.indexOf("asent miss") >= 0, "批改页: 没对上采分点的句子标红");
-ok(el("#docBody").innerHTML.indexOf('class="asc">+1<') >= 0 && el("#docBody").innerHTML.indexOf("（+4）") < 0,
-   "批改页: 只有没拿满的句子在句末报分（满分的句子什么都不挂）");
-ok(el("#docBody").innerHTML.indexOf("（+0）") < 0 && el("#docBody").innerHTML.indexOf("+0<") < 0,
-   "批改页: 没得分的不标 +0（红本身就是结论）");
+ok(el("#docBody").innerHTML.indexOf("asent got") >= 0, "批改页: 有分的句子标红（红＝这句拿到分了）");
+ok(el("#docBody").innerHTML.indexOf('class="asc">+4<') >= 0 && el("#docBody").innerHTML.indexOf('class="asc">+1<') >= 0,
+   "批改页: 凡有分的句子都在句末报分（满分句也报，2026-10-16）");
+ok(el("#docBody").innerHTML.indexOf("+0<") < 0, "批改页: 没分的不标 +0（素色本身就是「这里没分」）");
+const ascSum = (el("#docBody").innerHTML.match(/class="asc">\+([\d.]+)</g) || [])
+  .reduce((a, s)=> a + Number(s.replace(/[^\d.]/g, "")), 0);
+ok(Math.abs(ascSum - 5) < 1e-9, "批改页: 句末分数加起来就是页头总分（5 = 4 + 1）");
 ok(el("#docBody").innerHTML.indexOf("漏掉的采分点") < 0 && el("#docBody").innerHTML.indexOf("missline") < 0,
    "批改页: 旧版「漏答清单」的措辞没有回来（那时的清单不带分值也不带错因）");
 ok(el("#docBody").innerHTML.indexOf("全部采分点对照") < 0 && el("#docBody").innerHTML.indexOf("先改这几条") < 0,
@@ -205,13 +207,16 @@ ok(el("#expLine").innerHTML.indexOf("这次提炼了 1 条经验") >= 0 && el("#
    "批改页: 提炼结果就地补一行，并给去画像的入口");
 _lastDistilled = []; paintExpLine();
 ok(el("#expLine").innerHTML === "", "批改页: 这次没提炼出经验就不留空行");
-/* 序号小标题不算作答：它后面还有内容时永不标红（红是给「你写的这句没分」的） */
-ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:4,status:"满分",evidence:"答到：「正文内容」"}] }, "一、开头小标题。正文内容到这里。").indexOf("asent miss") < 0,
-   "逐句标注: 序号小标题不标红（它是这条的题头，分落在后面的正文上）");
-ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:0,status:"零分",evidence:"【缺：无】"}] }, "四、加强宣传引导。").indexOf("asent miss") >= 0,
-   "逐句标注: 光一行序号、一分没得，照样标红（它这条本来就是作答）");
-ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:4,status:"满分",evidence:"答到：「正文内容」"}] }, "一、开头小标题。\n正文内容到这里。").indexOf("asent miss") < 0,
-   "逐句标注: 小标题自己占一行也照样跟正文算一条（分落在下一行上，不是它的错）");
+/* 编号小标题的特判撤了（2026-10-16）：0 分不再有任何标记，「冤枉题头」这件事自然不存在 */
+ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:4,status:"满分",evidence:"答到：「正文内容」"}] }, "一、开头小标题。正文内容到这里。").indexOf('class="asent got"') >= 0,
+   "逐句标注: 分落在哪一句就标哪一句（有分的标红）");
+ok(answerReviewHtml({ hits:[{point:"点",score:4,awarded:0,status:"零分",evidence:"【缺：无】"}] }, "四、加强宣传引导。").indexOf("asent got") < 0,
+   "逐句标注: 一分没得的句子不挂任何标记（含编号小标题）");
+/* 定位三级：照抄走逐字、改标点走归一化、改编过走最长公共段（2026-10-16 改展示的底子） */
+ok(locateFrag("各科室请遵照执行。特此通知。", "各科室请，遵照执行") >= 0, "定位: 只差标点也认");
+ok(locateFrag("各科室请遵照执行。特此通知。", "各科室请遵照执行的落实情况") >= 0, "定位: 模型改写/加字也能落到最像的那句");
+ok(locateFrag("各科室请遵照执行。", "与本卷毫无关系的另一段话") < 0, "定位: 真对不上的不许硬落（成段门槛挡住瞎标）");
+ok(evidenceFrags("答到：关于调整作息的通知").length === 1, "证据片段: 模型没打引号时剥掉符号照用");
 ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0, "批改页: 范文仍在页面上（现在收在可展开区里）");
 ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
 
@@ -264,7 +269,8 @@ ok(hitClass({status:"满分"}) === "hit" && hitClass({status:"半分"}) === "par
 ok(hitClass({status:"命中"}) === "hit" && hitClass({status:"部分命中"}) === "part" && hitClass({status:"未命中"}) === "miss", "采分点: 旧档位名仍能归类");
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[ {point:"标题含事由",score:5,awarded:5,status:"满分",evidence:"写了标题"},
                    {point:"落款单位与日期",score:5,awarded:0,status:"零分",evidence:"【缺：落款】"} ] }, 50);
-ok(el("#docBody").innerHTML.indexOf("折合 50 分") >= 0, "阅卷页: 总分按采分点口径显示 (5 / 10 分)");
+ok(el("#docBody").innerHTML.indexOf("/ 10 分") >= 0 && el("#docBody").innerHTML.indexOf("折合") < 0,
+   "阅卷页: 只报卷面分（5 / 10 分），折百分制不再显示（2026-10-16）");
 ok(el("#docBody").innerHTML.indexOf("作答要求：") < 0 && el("#docBody").innerHTML.indexOf('id="btnSwitch"') >= 0,
    "批改页: 不重复题面（作答要求不出现），「换一题」落在分数那一行");
 ok(el("#docBody").innerHTML.indexOf("丢 5 分") < 0 && el("#docBody").innerHTML.indexOf("gtag") < 0,
@@ -2599,8 +2605,8 @@ ok(H22.indexOf(">我的答案</div>") >= 0 && H22.indexOf(">参考答案</div>")
 ok(H22.indexOf(">我的答案</div>") < H22.indexOf(">参考答案</div>")
    && H22.indexOf(">参考答案</div>") < H22.indexOf(">解析</div>"),
    "批改页: 次序是我的答案 → 参考答案 → 解析");
-ok(H22.indexOf("asent miss") >= 0 && H22.indexOf('class="asc">+1<') >= 0 && H22.indexOf('class="asc">+4<') < 0,
-   "批改页: 逐句标注只标丢分处（零分标红、半分报分、满分不挂标记）");
+ok(H22.indexOf("asent got") >= 0 && H22.indexOf('class="asc">+1<') >= 0 && H22.indexOf('class="asc">+4<') >= 0,
+   "批改页: 逐句标注标的是得分处（满分句也报分，加起来＝页头总分）");
 ok(H22.indexOf('class="sec-title">我的答案</div>') >= 0 && H22.indexOf('class="sec-title lite">参考答案</div>') >= 0
    && H22.indexOf('class="sec-title lite">解析</div>') >= 0,
    "批改页: 只有「我的答案」用重题头，参考答案与解析降一级");
@@ -2723,7 +2729,7 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') < 0
      && PAGE_HTML.indexOf('<div class="pdstate" id="pdState"') >= 0,
      "层级: 快判一轮页不另起标题行（「快判」已由红头说），主题与进度落红头中段");
-  ok(PAGE_HTML.indexOf("标红＝没答到") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
+  ok(PAGE_HTML.indexOf("红色＝这句有分") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
      "层级: 批改页的标注图例挪进标题行（不再每题占一行）");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0,
      "层级: 「我的答案」也是标题行带右侧图例");
