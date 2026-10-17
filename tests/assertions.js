@@ -1245,7 +1245,12 @@ const curBlock = h => (String(h).match(/<div class="ogcur">[\s\S]*?<\/div>/) || 
 ok(curBlock(orgHtml).indexOf("甲点") >= 0 && curBlock(orgHtml).indexOf("乙点") < 0,
    "归类: 当前点区只摆这一个点的原文");
 ok(orgHtml.indexOf("已归 0 / 2 个点") >= 0, "归类: 报出已归进度");
-ok(orgHtml.indexOf("还没有组") >= 0 && orgHtml.indexOf("data-og=") < 0, "归类: 一个组都没建时给明确空态");
+ok(orgHtml.indexOf("+ 新建一组") >= 0 && orgHtml.indexOf("data-og=") < 0,
+   "归类: 一个组都没建时只给「+ 新建一组」");
+ok(orgHtml.indexOf('id="ogCats"') < orgHtml.indexOf('class="ogcur"'),
+   "归类: 规范词在句子上面（先看归到哪，再看这个点）");
+ok(PAGE_HTML.indexOf(".ogcard .ptag,.ogname .ptag{background:var(--paper)") >= 0,
+   "归类: 卡里的「整句」标签换成纸色（不再跟后面的句子糊在一起）");
 ok(orgHtml.indexOf("上位概括词") < 0,
    "归类: 第一段不问上位概括词（问它就是「先填词再点材料」那个读反）");
 ok(orgHtml.indexOf('data-jump="1"') >= 0, "归类: 已找的点收在折叠清单里，能跳回去重归");

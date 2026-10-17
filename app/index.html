@@ -535,10 +535,10 @@ html,body{margin:0;padding:0;}
   .ognow{margin-top:16px;}
   .ogprog{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}
   .ogcard{background:var(--wash);border-radius:var(--r-card);padding:16px;}
-  .ogcur{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);line-height:1.8;padding:0 0 12px;}
+  .ogcur{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);line-height:1.8;padding:12px 0 0;}
   .ogcur .atext{flex:1 1 auto;}
   .ogcats{display:flex;flex-wrap:wrap;gap:8px;}
-  .ogcat{font-family:var(--hei);font-size:var(--fs-body);padding:8px 12px;border:1px solid var(--line);background:var(--ctl);border-radius:var(--r-pill);cursor:pointer;}
+  .ogcat{font-family:var(--hei);font-size:var(--fs-note);padding:4px 12px;min-height:28px;border:1px solid var(--line);background:var(--ctl);border-radius:var(--r-pill);cursor:pointer;}
   .ogcat:hover{border-color:var(--gov-red);}
   .ogcat.on{border-color:var(--gov-red);background:var(--red-wash);color:var(--gov-red);}   /* 已归入本类：再点一次就取消 */
   .ogcat i{font-style:normal;font-size:var(--fs-note);color:var(--muted);margin-left:8px;font-variant-numeric:tabular-nums;}
@@ -559,6 +559,9 @@ html,body{margin:0;padding:0;}
   .ogline.cur .ptag{background:var(--red-wash);color:var(--gov-red);}
   /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
   .pickline .ptag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
+  /* 卡片是浅灰底：标签再用浅灰就糊在一起，看着像跟后面的句子连成一句；
+     卡里给它换成纸色，才看得出是一个标签。 */
+  .ogcard .ptag,.ogname .ptag{background:var(--paper);color:var(--muted-2);}
   .fnav{display:flex;gap:12px;margin-top:16px;align-items:center;flex-wrap:wrap;}
   /* 判别轨：可点的行块选项，判完对的绿、错的红、正解标出（沿用克制的红绿，不加新色） */
   .pdopts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
@@ -3511,13 +3514,11 @@ function orgGroupPanelHtml(f, groups, sels){
     const on = inGroups(idx).indexOf(i) >= 0;
     return `<button class="ogcat${on? " on":""}" data-og="${i}" aria-pressed="${on? "true":"false"}">${esc(groupLabel(groups, i))}<i>${(g.facts||[]).length}</i></button>`;
   }).join("");
-  const empty = groups.length? "" : '<p class="hint">还没有组——点「+ 新建一组」。</p>';
   return `${orgHeadHtml("把这个点归进某一组 · 已归 " + doneCnt + " / " + sels.length + " 个点")}
     <div class="ognow">
       <div class="ogcard">
-        <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
-        ${empty}
         <div class="ogcats" id="ogCats">${cats}<button class="ogcat ognew" id="btnNewCat">+ 新建一组</button></div>
+        <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
       </div>
       <div class="actions">
         <button id="btnOrgPrev"${idx? "":" disabled"}>上一个点</button>
