@@ -630,8 +630,8 @@ function setupUpdate() {
    上次换包失败 = 「点了更新，应用关掉又打开，还是老版本」——不说一句就没有任何解释。 */
 function collectStartupNotices() {
   if (serverPort !== PREFERRED_PORT) {
-    startupNotices.push('<b>注意：</b>本次启动端口 ' + serverPort +
-      ' 被占用，你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
+    startupNotices.push('<b>注意：</b>本次启动端口 ' + PREFERRED_PORT +
+      ' 被占用，本次退到 ' + serverPort + '，你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
       '关掉占用端口的程序后重新打开本应用即可恢复。');
     log('port-fallback-notice', '已把端口退让的事写进首页提示');
   }

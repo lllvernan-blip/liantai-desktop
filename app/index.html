@@ -1793,7 +1793,10 @@ function alignPointScores(data){
   if(!q || !Array.isArray(kps) || !kps.length) return data;
   const paper = Number(q.score);
   if(!isFinite(paper) || paper <= 0) return data;
-  const scores = kps.map(p=>{ const s = Number(p && p.score); return isFinite(s) && s > 0 ? s : 0; });
+  /* 每条都得是可核的正数才谈得上按比例重分：缺一条就整块放弃。
+     否则缺的那条会被写成 0 分项——答对也永远拿不到分，等于凭空造一个 0 分项。 */
+  if(kps.some(p => !(Number(p && p.score) > 0))) return data;
+  const scores = kps.map(p=>Number(p.score));
   const sum = scores.reduce((a,b)=>a+b, 0);
   if(sum <= 0 || Math.abs(sum - paper) < 0.001) return data;   // 对得上就不动
   const units = Math.round(paper * 2);                          // 总分拆成 0.5 分单位
@@ -2063,7 +2066,7 @@ function storeExperiences(items, mod, subtype, q){
     const rawKind = String((it && it.kind) || "").trim();
     const kind = (it.type === "错因" && GRADE_TAG_KEYS.indexOf(rawKind) >= 0)? rawKind : "";
     const exist = state.experiences.find(e=> e && e.module === mod && expTitleSame(e.title, it.title));
-    if(exist){ exist.type = it.type; if(kind) exist.kind = kind; exist.body = it.body; exist.ts = now; exist.sourceSig = sig; exist.disabled = false; continue; }   // 同模块同义（归一化判重）：更新不新增，title 保留原文；kind 只在这次给了才覆盖，不给就留着
+    if(exist){ exist.type = it.type; if(kind) exist.kind = kind; exist.body = it.body; exist.ts = now; exist.sourceSig = sig; continue; }   // 同模块同义（归一化判重）：更新不新增，title 保留原文；kind 只在这次给了才覆盖，不给就留着；**disabled 不动**——停用只能由用户重新启用
     state.experiences.unshift({ id:"exp_"+now.toString(36)+Math.random().toString(36).slice(2,7),
       type:it.type, kind, title:it.title, body:it.body, scope:"module", module:mod, subject:subjectOf(mod)||"",
       ts:now, disabled:false, sourceSig:sig });
@@ -2331,9 +2334,9 @@ function banner(html, kind){
   if(bo) bo.onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
   // 首页的小更新提示也直接带动作：看得到版本号就点得到「更新」，不用先去找设置页
   const bu = $("#bnrUpdate");
-  if(bu) bu.onclick = ()=>{ bu.disabled = true; pullUpdate(); };
+  if(bu){ bu.disabled = false; bu.onclick = ()=>{ bu.disabled = true; pullUpdate(); }; }
   const bi = $("#bnrInstall");
-  if(bi) bi.onclick = ()=>{ bi.disabled = true; runInstall(); };
+  if(bi){ bi.disabled = false; bi.onclick = ()=>{ bi.disabled = true; runInstall(); }; }
 }
 function showLoading(t, tail){
   // 第二行原来写死「长文阅卷通常 10-60 秒」——但这里是**出题**在等，屏幕上却在说阅卷（2026-10-08 复查）
@@ -2429,6 +2432,7 @@ function renderHome(){
 }
 function renderStart(){
   _view = "start";
+  pdActive = false;   // 回起始页 = 退出判别轨（同 renderHome）：不然抬头还挂着「快判」
   reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
   activeModule = null; renderHeader();   // 起始页灰字如实报「综合 · 智能出题」，不再挂着上次练的模块名（页面下方写的不是它）
   renderTabs();   // 起始页纸面不挂当前模块：chips 不带 on
@@ -3414,13 +3418,29 @@ function addFreeSelectionRecord(f, s, e){
   f.selections.push({ text, start:s, end:e, sentenceId: snapSentence(sentenceTable(f.question), s, e), valid:null, point:-1, free:true });
   return true;
 }
+/* 删点必须同步重映射归类组的 facts：facts 存的是 selections 的下标，
+   只从数组里删会让后面的组指向别的句子（删到末尾还会越界成空组）。 */
+function dropSelections(f, drop){
+  if(!f || !Array.isArray(f.selections)) return false;
+  const keep = [], map = new Map();
+  f.selections.forEach((sl, i)=>{ if(drop(sl, i)) return; map.set(i, keep.length); keep.push(sl); });
+  if(keep.length === f.selections.length) return false;
+  f.selections = keep;
+  for(const g of (f.groups || [])){
+    if(!Array.isArray(g.facts)) continue;
+    g.facts = g.facts.filter(si => map.has(si)).map(si => map.get(si));
+  }
+  const oi = Number(f.orgIdx);
+  if(Number.isFinite(oi) && oi >= keep.length) f.orgIdx = Math.max(0, keep.length - 1);
+  return true;
+}
 function toggleSentenceSelection(f, sid, ridStr){
   const rids = String(ridStr || "").split(",").filter(Boolean);
   if(rids.length){
     // 点在已高亮的段上：移除覆盖它的所有选区记录
     const freeIdx = new Set(), sentIds = new Set();
     for(const r of rids){ if(/^s\d+$/.test(r)) sentIds.add(Number(r.slice(1))); else freeIdx.add(Number(r)); }
-    f.selections = f.selections.filter((sl,i)=> sl.free? !freeIdx.has(i) : !sentIds.has(sl.sentenceId));
+    dropSelections(f, (sl,i)=> sl.free? freeIdx.has(i) : sentIds.has(sl.sentenceId));
     return true;
   }
   const s = sentenceTable(f.question).find(x=>x.id === sid);
@@ -4008,7 +4028,7 @@ function wireStep(step, f){
       if(!addFreeSelectionRecord(fl, s, e2)){
         const idx = fl.selections.findIndex(sl => sl.free && sl.start === s && sl.end === e2);
         if(idx < 0) return;
-        fl.selections.splice(idx, 1);   // 同一选区再点一次=取消要点
+        dropSelections(fl, (_sl,i)=> i === idx);   // 同一选区再点一次=取消要点（组里的下标同步前移）
       }
       save(); renderFlowStep();
     };
@@ -4035,7 +4055,7 @@ function installFlowListeners(){
     const pick = e.target.closest("[data-pick]");
     if(pick){
       const f = activeFlow();
-      if(f && f.step === "read"){ f.selections.splice(Number(pick.dataset.pick), 1); save(); renderFlowStep(); }
+      if(f && f.step === "read"){ dropSelections(f, (_sl,i)=> i === Number(pick.dataset.pick)); save(); renderFlowStep(); }
       return;
     }
     const sp = e.target.closest(".pt-seg");
@@ -5179,7 +5199,6 @@ function loadBuildNote(){
    下载与换包在 mac 上都要用户点（status.autoDownload === false），Windows 那边是壳自己下好了再问他。 */
 const UPDATE_API = "/__update";
 let updateInfo = null;
-let updateAnnounced = "";
 
 function updateApiReady(){
   return typeof fetch === "function" && typeof location !== "undefined" && /^https?:$/.test(location.protocol);
@@ -5254,35 +5273,26 @@ function renderUpdateNote(){
    设置页那行才写完整解释。 */
 function updateNoticeHtml(s){
   if(!s || !s.supported) return "";
+  /* 下载完成两平台都说同一句：按钮都走 /install（Windows 是 quitAndInstall，mac 是换包脚本） */
+  if(s.phase === "downloaded"){
+    return "新版本 v" + esc(s.latestVersion||"") + " 已下载完成。" + '<button class="linkbtn" id="bnrInstall">重启并更新</button>';
+  }
   if(s.autoDownload === false && s.phase === "available"){
     if(!s.latestVersion) return "";   // 拿不到版本号就不渲染：横幅上不许出现「更新到 v」这种残句
     return "发现新版本 v" + esc(s.latestVersion) + "。" +
       '<button class="linkbtn" id="bnrUpdate">更新到 v' + esc(s.latestVersion) + '</button>';
   }
-  if(s.autoDownload === false && s.phase === "downloaded"){
-    return "新版本 v" + esc(s.latestVersion||"") + " 已下载好。" + '<button class="linkbtn" id="bnrInstall">重启并更新</button>';
-  }
   return "";
 }
 
-/* 壳推来的状态。有新版本 / 下载完成只提示一次，不反复打扰。 */
+/* 壳推来的状态。首页提示区只有一个写手 renderStartNotices()：把所有提示重新聚合一次。
+   以前这里直接 banner()，会把壳灌进来的端口退让告警整片冲掉；同一条状态只播一次，
+   按钮点过 disabled 之后也再不会被重画。 */
 function __updatePush(s){
   if(!s || typeof s !== "object") return;
   updateInfo = s;
   renderUpdateNote();
-  const key = s.phase + ":" + (s.latestVersion || "");
-  if(updateAnnounced === key) return;
-  if(s.phase === "downloaded"){
-    updateAnnounced = key;
-    banner("新版本 v" + esc(s.latestVersion||"") + " 已下载完成。" + (s.autoDownload === false
-      ? '<button class="linkbtn" id="bnrInstall">重启并更新</button>'
-      : "到「设置 → 版本与更新」点「重启并更新」即可生效（下次打开也会自动生效）。"));
-    return;
-  }
-  if(s.phase === "available" && s.autoDownload === false){
-    updateAnnounced = key;
-    banner(updateNoticeHtml(s));
-  }
+  renderStartNotices();
 }
 
 function pollUpdateStatus(){

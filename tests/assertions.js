@@ -3086,6 +3086,54 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "材料来源: 小标有样式（加了类却没写样式就是白加）");
 }
 
+/* ============ 收尾修复回归 ============ */
+
+/* 判别轨退出：renderStart 必须复位 pdActive，否则整场抬头挂「快判」 */
+state.flows = []; _flowId = null; current = null;
+pdActive = true; pdRound = null;
+renderStart();
+ok(pdActive === false, "判别轨: renderStart 复位 pdActive（抬头不再挂「快判」）");
+
+/* 删点后归类组的下标同步前移 */
+const fDrop = { selections:[{text:"甲"},{text:"乙"},{text:"丙"}], groups:[{facts:[0]},{facts:[1,2]}], orgIdx:2 };
+dropSelections(fDrop, (_sl,i)=> i === 1);
+ok(fDrop.selections.length === 2 && fDrop.selections[1].text === "丙"
+   && fDrop.groups[0].facts.join(",") === "0" && fDrop.groups[1].facts.join(",") === "1"
+   && fDrop.orgIdx === 1,
+   "归类: 删点后组里的下标同步前移（不再指向别的句子）");
+dropSelections(fDrop, (_sl,i)=> i === 1);
+ok(fDrop.groups[1].facts.length === 0, "归类: 删到末尾时组里不会留下越界下标");
+
+/* 停用经验不被同义提炼重新启用 */
+state.experiences = [{ id:"e_dis", type:"错因", kind:"", title:"漏写落款", body:"旧", scope:"module", module:"sl.guina", subject:"sl", ts:1, disabled:true, sourceSig:"s" }];
+storeExperiences([{ type:"错因", title:"漏写落款", body:"新" }], "sl.guina", null, { background:"停用题。", requirements:"r" });
+ok(state.experiences[0].disabled === true && state.experiences[0].body === "新",
+   "经验: 停用之后同义提炼只更新正文，不偷偷重新启用");
+state.experiences = [];
+
+/* 分值缺一条就整块不动，不造 0 分项 */
+const noScore = { question:{ score:20 }, keyPoints:[{ score:5 }, { title:"缺分值" }, { score:5 }] };
+alignPointScores(noScore);
+ok(noScore.keyPoints[1].score === undefined && noScore.keyPoints[0].score === 5,
+   "采分点: 有一条没分值就整块不动（不把缺的那条写成 0 分项）");
+
+/* 首页提示区只有一个写手：壳的告警与更新提示并列；按钮重画时复位 */
+const _savedWinUpd = globalThis.window;
+globalThis.window = { __otaStartupNotices: ["<b>端口告警</b>"] };
+state.settings.apiKey = "sk-test";
+updateInfo = null;
+__updatePush({ supported:true, phase:"downloaded", latestVersion:"9.9.9", currentVersion:"1.0.0", autoDownload:false });
+const _bhtml = el("#bannerSlot").innerHTML;
+ok(_bhtml.indexOf("端口告警") >= 0 && _bhtml.indexOf("已下载完成") >= 0,
+   "更新: 壳的启动提示与更新提示并列，不互相覆盖");
+el("#bnrInstall").disabled = true;
+__updatePush({ supported:true, phase:"available", latestVersion:"9.9.10", currentVersion:"1.0.0", autoDownload:false });
+ok(el("#bnrUpdate").disabled === false && el("#bannerSlot").innerHTML.indexOf("bnrUpdate") >= 0,
+   "更新: 重新推送时按钮复位（不会点过一次就永久卡死）");
+ok(updateNoticeHtml({ supported:true, phase:"downloaded", latestVersion:"1.0.1", autoDownload:true }).indexOf("bnrInstall") >= 0,
+   "更新: Windows 下载完成后首页也给「重启并更新」");
+globalThis.window = _savedWinUpd;
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
