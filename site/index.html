@@ -87,11 +87,11 @@
   /* 折叠只用一套：收纳件是实体容器（1px + 8px 档圆角），三角 12.5px 淡灰、float:right
      ——照抄应用里的 details.more（.notebox 同款），序也一致：收起 ▸、展开 ▾ */
   .more{margin-top:8px;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;}
-  .more>summary{list-style:none;cursor:pointer;font-size:var(--fs-note);color:var(--muted);padding:8px 12px;}
+  .more>summary{list-style:none;cursor:pointer;text-align:left;font-size:var(--fs-note);color:var(--muted);padding:8px 12px;}
   .more>summary::-webkit-details-marker{display:none;}
   .more>summary::after{content:"▸";float:right;font-size:var(--fs-note);color:var(--line-strong);}
   .more[open]>summary::after{content:"▾";}
-  .more .inner{padding:4px 12px 12px;}
+  .more .inner{padding:4px 12px 12px;text-align:left;}
   .more .list{margin-top:0;}
 
   .shots{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
@@ -150,9 +150,18 @@
       <div class="dlmeta" id="dlMeta">0.0.22 · 2026-10-17 · 83 MB · Windows 安装包（.exe）</div>
       <div class="hint">装过一次就不用再回来：应用启动会自己查新版，查到在首页出一条提示，点「重启并更新」。</div>
       <div class="hint">不是这台电脑？<a id="dlOther"
-        href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-0.0.22-arm64.dmg">下载 macOS 版</a><br>
-        下不动就换一条：<a id="srcAlt" href="https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">gh-proxy.com</a>
-        · <a id="srcDirect" href="https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">直连 GitHub</a>（慢）</div>
+        href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-0.0.22-arm64.dmg">下载 macOS 版</a></div>
+      <!-- 下不动时的出路：不写镜像域名（用户不需要知道），只给「再等等」与官方发布页两步。
+           主按钮本身已经走在加速线路上，这一块是那条线路整个抽掉时的退路。 -->
+      <details class="more" id="dlStuck">
+        <summary>点了没反应？</summary>
+        <div class="inner">
+          <div class="list">
+            <div class="row"><div class="k">再等一会</div><div class="v">安装包有 80–100 MB，线路忙的时候会卡在「准备中」不动——过两分钟再看，或者换个时间点。</div></div>
+            <div class="row"><div class="k">还是不行</div><div class="v">去<a href="https://github.com/lllvernan-blip/liantai-desktop/releases/latest">发布页</a>自己挑一个包下，是同一个版本。</div></div>
+          </div>
+        </div>
+      </details>
       <div class="only-narrow">这一页要在电脑上打开才能装——下载下来的是电脑版应用（Windows / macOS），手机用不了。</div>
     </div>
 
@@ -252,9 +261,10 @@
    而这个仓库拿 prerelease 表示「只发了一个平台」，用它会给用户看一个落后好几版的号。
    两级都拿不到：保持页面上写死的那个数，不显示拿不准的东西。 */
 const REPO = 'lllvernan-blip/liantai-desktop';
-/* 下载先走加速镜像：与应用内更新（update.js 的 feed）同一批，这里只用前两个。
-   下面「换一条」那行给的就是第二条和直连——镜像挂了的时候，直连慢也比没有强。 */
-const MIRRORS = ['https://ghproxy.net/', 'https://gh-proxy.com/'];
+/* 下载先走加速线路（与应用内更新用的是同一批源）：直连 github.com 实测只有 ~29 KB/s，
+   一个 100 MB 的包要下很久。**域名不在页面上写出来**——用户只需要那个按钮；
+   这条线路整个抽掉时，退路是「点了没反应？」那个折叠里的官方发布页。 */
+const MIRROR = 'https://ghproxy.net/';
 const PLAT = { windows:{ who:'Windows', kind:'Windows 安装包（.exe）' },
                mac:{ who:'macOS', kind:'Apple 芯片（arm64）' } };
 const FALLBACK = { version:'0.0.22', date:'2026-10-17',
@@ -262,7 +272,7 @@ const FALLBACK = { version:'0.0.22', date:'2026-10-17',
   mac:{ version:'0.0.22', tag:'v0.0.22', date:'2026-10-17', file:'liantai-desktop-0.0.22-arm64.dmg', size:100813509 } };
 
 const mb = n => Math.round(Number(n) / 1048576) + ' MB';
-const dlUrl = (it, mirror) => (mirror || '') + 'https://github.com/' + REPO + '/releases/download/' + it.tag + '/' + it.file;
+const dlUrl = it => MIRROR + 'https://github.com/' + REPO + '/releases/download/' + it.tag + '/' + it.file;
 const cmpVer = (a, b) => { const p = String(a).split('.').map(Number), q = String(b).split('.').map(Number);
   for(let i = 0; i < 3; i++) if((p[i] || 0) !== (q[i] || 0)) return (p[i] || 0) - (q[i] || 0); return 0; };
 
@@ -278,15 +288,13 @@ function paint(j){
   const me = platform(), other = me === 'windows' ? 'mac' : 'windows';
   const a = j[me], b = j[other];
   const btn = document.getElementById('dlBtn');
-  btn.href = dlUrl(a, MIRRORS[0]);
+  btn.href = dlUrl(a);
   btn.textContent = '下载 ' + PLAT[me].who + ' 版';
   document.getElementById('dlMeta').textContent =
     [a.version, a.date, a.size? mb(a.size) : '', PLAT[me].kind].filter(Boolean).join(' · ');
   const alt = document.getElementById('dlOther');
-  alt.href = dlUrl(b, MIRRORS[0]);
+  alt.href = dlUrl(b);
   alt.textContent = '下载 ' + PLAT[other].who + ' 版';
-  document.getElementById('srcAlt').href = dlUrl(a, MIRRORS[1]);
-  document.getElementById('srcDirect').href = dlUrl(a);
 }
 
 async function readLatest(){

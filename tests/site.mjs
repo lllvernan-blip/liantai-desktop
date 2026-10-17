@@ -57,7 +57,6 @@ async function run(opts) {
     "  btnHref: __els.dlBtn.href, btnText: __els.dlBtn.textContent,",
     "  meta: __els.dlMeta.textContent,",
     "  otherHref: __els.dlOther.href, otherText: __els.dlOther.textContent,",
-    "  srcAlt: __els.srcAlt.href, srcDirect: __els.srcDirect.href,",
     "  clRows: (__els.clList.innerHTML.match(/<div class=\"row\">/g) || []).length,",
     "  clN: __els.clN.textContent };",
   ].join("\n");
@@ -76,19 +75,22 @@ const bothPlatforms = {
   mac: { version: "0.0.22", tag: "v0.0.22", date: "2026-10-17", file: DMG, size: 100813509 },
 };
 
+/* 页面可见部分（去掉注释与脚本）——文案层面的断言都打在这里 */
+const visible = html.replace(/<!--[\s\S]*?-->/g, "").replace(/<script>[\s\S]*?<\/script>/g, "");
+
 /* 一级：站点自带的 latest.json（线上正常情形） */
 let v = await run({ ua: WIN_UA, latest: bothPlatforms, api: null });
 ok(endsWith(v.btnHref, "releases/download/v0.0.22/" + EXE), "取数一级: Windows 打开时，主按钮就是这个版本的 .exe");
-ok(v.btnHref.indexOf("https://ghproxy.net/https://github.com/") === 0, "取数一级: 主按钮先走加速镜像，不是直连 github.com");
+ok(v.btnHref.indexOf("https://ghproxy.net/https://github.com/") === 0, "取数一级: 主按钮先走加速线路，不是直连 github.com");
 ok(v.btnText === "下载 Windows 版", "取数一级: 主按钮文案跟着这台电脑的平台走");
 ok(v.meta.indexOf("0.0.22") === 0 && v.meta.indexOf("2026-10-17") > 0 && v.meta.indexOf("83 MB") > 0,
    "取数一级: 版本 / 日期 / 大小写在按钮下面（这是这个包的数，不是另一个平台的）");
 ok(endsWith(v.otherHref, "releases/download/v0.0.22/" + DMG) && v.otherText === "下载 macOS 版",
    "取数一级: 「不是这台电脑？」给的是另一个平台的包");
-ok(endsWith(v.srcAlt, "v0.0.22/" + EXE) && v.srcAlt.indexOf("https://gh-proxy.com/") === 0,
-   "取数一级: 换源第一条指向第二个镜像，包还是同一个");
-ok(endsWith(v.srcDirect, "v0.0.22/" + EXE) && v.srcDirect.indexOf("https://github.com/") === 0,
-   "取数一级: 换源最后一条是直连 GitHub（镜像全挂了也下得到）");
+ok(!/gh-proxy|gh\.xxooo|gh\.nxnow|直连|镜像/.test(visible),
+   "页面可见部分不写加速线路的域名：用户面前只有一个下载按钮");
+ok(/id="dlStuck"/.test(visible) && visible.indexOf("releases/latest") > 0,
+   "「点了没反应？」里给的是官方发布页（那条线路整个抽掉时的退路）");
 ok(v.clRows === 4 && v.clN === "18", "更新日志: 读不到 changelog.json 时用页面内联那份，最近 4 条在外、其余折叠");
 
 /* 同一份数据，换一台 Mac 打开：按钮该换过来 */
@@ -123,8 +125,6 @@ v = await run({ ua: WIN_UA, latest: null, api: null });
 ok(endsWith(v.btnHref, "v0.0.22/" + EXE) && v.meta.indexOf("0.0.22") === 0,
    "取数兜底: 两级都拿不到时用页面里写死的版本，按钮照样能下载");
 ok(v.btnHref.indexOf("/v0.0.21/") < 0, "取数兜底: 写死的版本号不是上一版（旧版号会让用户下到旧包）");
-ok(html.indexOf('href="https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.21') < 0,
-   "页面源码里没有残留指向 v0.0.21 安装包的链接");
 
 console.log(T.join("\n"));
 const fails = T.filter((x) => x.indexOf("FAIL") === 0);
