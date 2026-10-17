@@ -421,10 +421,10 @@ function poolListSync() {
   const used = poolUsedRead();
   return names.map(name => {
     let head = '';
-    try { head = fs.readFileSync(path.join(poolDir(), name), 'utf8').slice(0, 400); } catch (e) {}
-    const title = ((head.match(/^# (.+)$/m) || [, ''])[1] || '').trim();
-    const topics = (((head.match(/^主题：(.+)$/m) || [, ''])[1] || '')).split('、').map(s => s.trim()).filter(Boolean);
-    return { name, title, topics, used: used.indexOf(name) >= 0 };
+    try { head = fs.readFileSync(path.join(poolDir(), name), 'utf8'); } catch (e) {}
+    /* 头部解析（标题 / 主题 / 来源媒体 / 发布日）在 pool-pick.js：纯函数，测试拿真文件就能断言 */
+    const m = poolPickOne.parsePoolHead(head);
+    return { name, title: m.title, topics: m.topics, media: m.media, date: m.date, used: used.indexOf(name) >= 0 };
   });
 }
 function poolHandlers() {
@@ -449,7 +449,9 @@ function poolHandlers() {
       used.push(pick.name);
       fs.writeFileSync(poolUsedFile(), JSON.stringify(used), 'utf8');
     } catch (e) {}
-    return { name: pick.name, title: pick.title, text };
+    /* media / date / topics 一起递回界面：材料区那行小标题要标「素材：哪家媒体 · 哪天 · 主题」。
+       界面只做展示，域名 → 媒体名在 pool-pick.js 里映射（认不出来的原样给域名）。 */
+    return { name: pick.name, title: pick.title, text, media: pick.media, date: pick.date, topics: pick.topics };
   });
 }
 

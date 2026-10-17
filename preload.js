@@ -6,7 +6,9 @@
  * 界面只读结果。
  *
  * 只开三个口子，且都限定在「材料池」这一个目录里：
- *   poolPick(topics)  取一篇还没用过的骨架（取完就标为已用），返回 { name, title, text } 或 null
+ *   poolPick(topics) 取一篇还没用过的骨架（取完就标为已用），
+ *                    返回 { name, title, text, media, date, topics } 或 null
+ *                    media/date/topics 供材料区标「素材：哪家媒体 · 哪天 · 主题」
  *   poolList()        列出池子里有什么（调试与将来选题用）
  *   poolStat()        池子有多少篇、各主题几篇（界面只用来决定走有据还是编材料）
  *

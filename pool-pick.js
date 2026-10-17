@@ -44,4 +44,35 @@ function pickOne(all, history, topics, rand) {
   return one(preferTopic(queue));
 }
 
-module.exports = { pickOne: pickOne, RECENT: RECENT };
+/* ============ 材料骨架的头部解析 ============
+   池子里每篇的头几行固定是「# 标题 / 来源：URL / 发布：日期 / 主题：a、b」。
+   抽成纯函数是为了能拿真文件直接断言——main.js 是 electron 入口，测试 require 不进来。 */
+
+/* 域名 → 媒体名。只认得出来的；认不出来的原样返回域名，不假装认识。 */
+function mediaName(host){
+  const h = String(host || "").toLowerCase();
+  if(!h) return "";
+  if(h === "paper.people.com.cn") return "人民日报";
+  if(/(^|\.)people\.com\.cn$/.test(h)) return "人民网";
+  return h;
+}
+function sourceHost(url){
+  const m = /^https?:\/\/([^\/?#]+)/i.exec(String(url || "").trim());
+  return m ? m[1].toLowerCase() : "";
+}
+function parsePoolHead(text){
+  const head = String(text || "").slice(0, 400);
+  const grab = (re)=> (((head.match(re) || [])[1] || "")).trim();
+  const sourceUrl = grab(/^来源：(.+)$/m);
+  const host = sourceHost(sourceUrl);
+  return {
+    title: grab(/^# (.+)$/m),
+    topics: grab(/^主题：(.+)$/m).split("、").map(s=>s.trim()).filter(Boolean),
+    media: mediaName(host),
+    date: grab(/^发布：(.+)$/m),
+    sourceUrl,
+    host,
+  };
+}
+
+module.exports = { pickOne: pickOne, RECENT: RECENT, parsePoolHead: parsePoolHead, mediaName: mediaName, sourceHost: sourceHost };

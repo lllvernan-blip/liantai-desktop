@@ -1110,6 +1110,21 @@ if (process.platform !== "darwin") {
   ok(pp.pickOne(mixed, [], ["这个主题池子里没有"], Math.random) !== null,
      "取材次序: 主题一个都对不上也照样给一篇（不强求）");
 
+  /* 材料头解析：拿真池子文件断言，不靠正则瞄源码 */
+  const _realRmw = readFileSync(join(here, "..", "materials", "pool", "20261015-rmw-40812288.md"), "utf8");
+  const _hdRmw = pp.parsePoolHead(_realRmw);
+  ok(_hdRmw.media === "人民网" && /^\d{4}-\d{2}-\d{2}$/.test(_hdRmw.date) && _hdRmw.topics.indexOf("就业服务") >= 0,
+     "材料头: 解析出媒体 / 日期 / 主题（真文件）");
+  ok(pp.parsePoolHead(readFileSync(join(here, "..", "materials", "pool", "20261015-rmrb-30185834.md"), "utf8")).media === "人民日报",
+     "材料头: 人民网与人民日报按域名分开");
+  ok(pp.parsePoolHead("来源：https://example.com/a\n发布：2026-01-01\n主题：x").media === "example.com",
+     "材料头: 认不出来的域名原样显示（不假装认识）");
+  ok(pp.parsePoolHead("").title === "" && pp.parsePoolHead(null).topics.length === 0,
+     "材料头: 空 / 坏输入不抛，回空");
+  const _mainSrc2 = readOr(join(here, "..", "main.js"));
+  ok(/poolPickOne\.parsePoolHead\(head\)/.test(_mainSrc2) && /media: pick\.media/.test(_mainSrc2),
+     "材料头: 主进程真的用了这套解析，并把媒体 / 日期 / 主题递给界面");
+
   /* 主进程得真的用它，而且要记得住「使用次序」——只标「用过」的话，「最久没用过」就永远是错的 */
   const mainSrc = readOr(join(here, "..", "main.js"));
   ok(/poolPickOne\.pickOne\(all, used, topics\)/.test(mainSrc),

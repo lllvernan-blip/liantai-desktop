@@ -2968,6 +2968,25 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(_tags === 2, "有据: 两处材料标题都挂了标（综应A 作答页 + 申论读材料页，当前 " + _tags + " 处）");
 }
 
+/* 0.4 材料来源标注：有 src 说三样，老记录不追加，没证据就说仿真编写 */
+{
+  const qSrc = { background:"材料", requirements:"r", fromPool:"标题",
+    src:{ media:"人民网", date:"2026-10-11", topics:["就业服务","民生保障","数字经济"] } };
+  ok(matSrcTag(qSrc).indexOf("素材：人民网") >= 0 && matSrcTag(qSrc).indexOf("2026-10-11") >= 0
+     && matSrcTag(qSrc).indexOf("主题：就业服务、民生保障") >= 0 && matSrcTag(qSrc).indexOf("等") >= 0,
+     "材料来源: 媒体 / 日期 / 主题都出，主题最多两个、多的用「等」收");
+  ok(matSrcTag({ background:"b", requirements:"r", fromPool:"标题" }) === "",
+     "材料来源: 老记录只有「据材料」，不追加来源（不把真材料说成仿真）");
+  ok(matSrcTag({ background:"b", requirements:"r" }).indexOf("本题材料为仿真编写") >= 0,
+     "材料来源: 没有证据就明说仿真编写");
+  ok(PAGE_HTML.indexOf("matSrcTag(current.question)") >= 0 && PAGE_HTML.indexOf("matSrcTag(question)") >= 0,
+     "材料来源: 两处材料行都接了（综应A 作答页 + 申论读材料页）");
+  ok(PAGE_HTML.indexOf("matSrcTag(it") < 0,
+     "材料来源: 快判那行「材料节选」不标（它不是池子素材，是逐题生成的）");
+  ok(PAGE_HTML.indexOf(".material .from-src{") >= 0,
+     "材料来源: 小标有样式（加了类却没写样式就是白加）");
+}
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");

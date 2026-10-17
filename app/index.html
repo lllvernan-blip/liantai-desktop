@@ -209,9 +209,12 @@ html,body{margin:0;padding:0;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
   /* 「据材料」：材料由真实报道的事实骨架改写而来。一个小标，不加说明句——
      界面尽量简洁清晰，不因为多了一个来源就多一段文字去解释它 */
-  .material .from-mat{font-family:var(--hei);font-size:var(--fs-tiny);color:var(--gov-red);
+  .material .from-mat{font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);
     border:1px solid currentColor;border-radius:var(--r-icon);padding:0 4px;margin-left:8px;
     letter-spacing:1px;vertical-align:1px;}
+  /* 材料来源：取自池子时写「素材：哪家媒体 · 哪天 · 主题」；没人给它出处就明说是编的。
+    只用文字、不挂链接——材料是虚化改写的，挂真链接等于让人以为能点开看原文。 */
+  .material .from-src{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);letter-spacing:.5px;}
   /* 作答页的材料：长材料不再把作答区一路推到屏外——材料在窗内自己滚，作答区跟着上移。
      窗口矮时自动减行，不会把作答区顶到屏幕外。
      高度按「整行数」定，不用 vh：vh 除不尽行高，窗底那行会被切一半。
@@ -2719,6 +2722,9 @@ async function loadQuestion(k, subtype){
     enforceWordLimit(k, data.question, subtype);   // 字数口径以本地表为准（公文按文种），不信模型
     // 「据材料」标就挂在题上（不另存一个字段）：跟着题目一起存进练习记录、一起导入导出，不会丢
     if(pick) data.question.fromPool = pick.title || pick.name;
+    /* 来源单独存一条（fromPool 保持字符串原样：它是「据材料」小标的判据，老记录也认它）。
+       只有主进程递回了媒体/日期/主题才存——取不到就不存，界面按「没有证据」处理。 */
+    if(pick) data.question.src = { media: pick.media || "", date: pick.date || "", topics: Array.isArray(pick.topics)? pick.topics : [] };
     current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard || SL_STUDY_CARDS[k], cardPeeks:0, phase:"card" };
     renderHeader(); renderQuestion();
   }catch(e){
@@ -2839,7 +2845,7 @@ function renderZyPage(){
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}<span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
+    html += `<div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}<span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
     html += draftPanelHtml(null);
   } else {
     html += cardPageHtml({ id:"btnZyAnswer", label:"我已学习，开始作答" });
@@ -3617,7 +3623,7 @@ function stepPanelHtml(step, f, lg){
     let html = "";
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:12px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
-    html += `<div class="material"><div class="label">背景材料 · 读材料与找点 ${fromMatTag(question)}</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
+    html += `<div class="material"><div class="label">背景材料 · 读材料与找点 ${fromMatTag(question)}${matSrcTag(question)}</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
     html += `<div class="actions" style="margin-top:16px"><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
@@ -4970,6 +4976,23 @@ function saveMarks(sig, set){
 /* 「据材料」小标：材料由池子里真实报道的骨架改写而来时挂上。
    加的是标，不是说明句——界面尽量简洁清晰，不因为多了一个来源就多一段文字去解释它。 */
 function fromMatTag(q){ return (q && q.fromPool)? ' <span class="from-mat">据材料</span>' : ''; }
+/* 来源标注：有 src 才说媒体/日期/主题（主题最多摆两个，多的用「等」收）。
+   老记录只有 fromPool、没有 src——那是真材料，不追加任何来源，更不能标成仿真。
+   两样都没有 = 这份材料是模型编的，明说一句，别让考生把编的当成真事。 */
+function matSrcTag(q){
+  const src = (q && q.src && typeof q.src === "object")? q.src : null;
+  const bits = [];
+  if(src){
+    const media = String(src.media || "").trim();
+    const date = String(src.date || "").trim();
+    const tp = (Array.isArray(src.topics)? src.topics : []).map(s=>String(s||"").trim()).filter(Boolean);
+    if(media) bits.push("素材：" + media);
+    if(date) bits.push(date);
+    if(tp.length) bits.push("主题：" + tp.slice(0,2).join("、") + (tp.length > 2? "等" : ""));
+  }
+  if(bits.length) return ' <span class="from-src">' + esc(bits.join(" · ")) + '</span>';
+  return (q && q.fromPool)? "" : ' <span class="from-src">本题材料为仿真编写</span>';
+}
 function materialHtml(q){
   const text = String((q&&q.background)||"");
   const marks = loadMarks(qSig(q));
