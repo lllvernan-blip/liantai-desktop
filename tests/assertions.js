@@ -1213,6 +1213,29 @@ state.flows = []; _flowId = null;
      "恢复: 「继续上次没做完的题」把学习卡一起带回来");
   delete state.cache.studyCards["sl.guina::概括问题"];
 }
+
+/* 12.7g 迁移：gw_history 是空数组时也要把 gw_state 里的旧记录迁过去（空数组 = 没有数据） */
+{
+  localStorage.setItem("gw_history", "[]");
+  localStorage.setItem("gw_state", JSON.stringify({ history:[{ ts:1, module:"zy.guina",
+    question:{ background:"旧副本题", requirements:"r" }, answer:"a", grade:{ total:60, scores:{} } }] }));
+  const sM = load();
+  ok(sM.history.length === 1 && sM.history[0].answer === "a",
+     "迁移: gw_history 为空数组时也把 gw_state 里的旧记录迁过去（不能一条不迁就清掉）");
+  localStorage.setItem("gw_history", "[]");
+  localStorage.removeItem("gw_state");
+}
+
+/* 12.7h 交卷清草稿：只清「还是刚才交的那份」 */
+{
+  saveDraft("sigA", "交上去的那一份");
+  ok(clearDraftIfSubmitted("sigA", "交上去的那一份") === true && loadDraft("sigA") === "",
+     "草稿: 内容没变就清掉");
+  saveDraft("sigA", "等待期间又补了一句");
+  ok(clearDraftIfSubmitted("sigA", "交上去的那一份") === false && loadDraft("sigA") === "等待期间又补了一句",
+     "草稿: 阅卷期间补写过就保留（那些字不在记录里）");
+  clearDraft("sigA");
+}
 state.flows = []; _flowId = null; state.history = []; lastGrade = null; current = null;
 
 /* 12.8 归类：分两段 —— 第一段把点归成组（组名先空着），第二段给每组写上位概括词 */
@@ -1811,6 +1834,17 @@ ok(state.settings.provider === "deepseek" && state.settings.apiKey === __keyAtIm
 ok(JSON.stringify(state.profile.modules) === "{}" && JSON.stringify(state.profile.lastModules) === "[]", "导入: profile 非对象丢用默认值");
 ok(state.cache.studyCards && typeof state.cache.studyCards === "object", "导入: cache 非对象丢用默认值");
 ok(Array.isArray(state.experiences) && Array.isArray(state.flows) && Array.isArray(state.history), "导入: experiences/flows/history 非数组丢用默认值");
+
+/* 14.11b 导入时草稿与划线同口径：本机已有的那份不被旧备份覆盖 */
+saveDraft("qImpDraft", "本机较新的草稿");
+importJSON('{"drafts":{"qImpDraft":{"text":"备份里的旧草稿"}}}');
+ok(loadDraft("qImpDraft") === "本机较新的草稿", "导入: 本机已有的草稿不被旧备份覆盖");
+clearDraft("qImpDraft");
+
+/* 14.11c 选完文件清空 input.value：同一个文件再选一次仍会触发 change */
+const _fakeFile = { files: ["这不是 JSON"], value: "C:\\fakepath\\a.json" };
+el("#fileImport").onchange({ target: _fakeFile });
+ok(_fakeFile.value === "", "导入: 选完就清空 input.value（同一份备份能连着导第二次）");
 
 /* 14.12 输入防抖：笔记输入即时进内存，persistFlush 立即落盘（失焦/关页兜底） */
 saveNote("zy.gongwen", "通知", "防抖笔记");

@@ -1179,7 +1179,8 @@ function load(){
     let hist = loadHistory();
     if(Array.isArray(s.history) && s.history.length){
       let moved = false;
-      if(!hist){ hist = s.history; try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); moved = true; }catch(e){} }
+      // 新 key 为空数组也算「没有数据」：否则会把 gw_state 里那份旧记录当副本清掉，一条都没迁
+      if(!hist || !hist.length){ hist = s.history; try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); moved = true; }catch(e){} }
       else moved = true;  // 新 key 已有数据，旧副本直接清
       if(moved){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
     }
@@ -4089,9 +4090,9 @@ async function submitAnswer(){
     if(state.history.length>200) state.history.length=200;
     if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline });   // 批改门槛的事实源
     clearInterval(tick);
-    // 草稿只在记录确实落盘后才清：写不进 localStorage 时留着草稿，用户还能再交一次，
-    // 不然「记录只活在内存里 + 草稿已删」这个窗口里被强杀，手写答案就不可再生地没了。
-    if(saveHistory()){ clearDraft(qSig(q)); }
+    // 草稿只在记录确实落盘后才清，而且只清「还是我刚才交的那份」：阅卷那 10-60 秒里
+    // 又敲进去的字不能跟着一起删掉（那些字不在记录里，删了就再也找不回来）。
+    if(saveHistory()){ clearDraftIfSubmitted(qSig(q), ans); }
     else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
@@ -4831,7 +4832,8 @@ function importJSON(file){
       if(dr){
         for(const k of Object.keys(dr)){
           const v = plainObj(dr[k]);
-          if(v && typeof v.text === "string" && v.text) saveDraft(k, v.text);
+          // 与划线同口径：本机已有的那份不覆盖（备份往往是旧的，手写草稿不可再生）
+          if(v && typeof v.text === "string" && v.text && !loadDraft(k)) saveDraft(k, v.text);
         }
       }
       const mk = plainObj(s.marks);
@@ -4904,6 +4906,14 @@ function clearDraft(sig){
     if(sig == null){ localStorage.removeItem(DRAFT_KEY); return; }
     const all = loadDrafts(); delete all[sig]; localStorage.setItem(DRAFT_KEY, JSON.stringify(all));
   }catch(e){}
+}
+/* 交卷后清草稿：只清「还是刚才交的那份」。阅卷那段时间里又写进去的字不在记录里，
+   跟着草稿一起删掉就再也找不回来——内容变了就留着，下次进这一题还能恢复。 */
+function clearDraftIfSubmitted(sig, ans){
+  const cur = loadDraft(sig);
+  if(cur && cur.trim() !== String(ans || "").trim()) return false;
+  clearDraft(sig);
+  return true;
 }
 // 从作答要求里解析字数上限（"不超过300字" / "300字以内" / "字数450左右"）
 function wordLimit(q){
@@ -5402,7 +5412,8 @@ renderChangelog();
   document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModals(); });
   $("#btnExport").onclick = exportJSON;
   $("#btnImport").onclick = ()=> $("#fileImport").click();
-  $("#fileImport").onchange = e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); };
+  // 选完就把 value 清空：不清的话，同一个文件再选一次浏览器不触发 change，导入会静默不发生
+  $("#fileImport").onchange = e=>{ const f = e.target.files && e.target.files[0]; e.target.value = ""; if(f) importJSON(f); };
   // 输入防抖的兼底：关页/刷新前把挂起的落盘立即写掉
   if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("beforeunload", persistFlush);
 }
