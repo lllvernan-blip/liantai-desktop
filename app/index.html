@@ -14,7 +14,6 @@
     --canvas:#F4F1EA;    /* 底板：暖浅灰。暖色只住底板层，卷面 --paper 不动（SPEC 3.0） */
     --muted:#5e5e57;
     --muted-2:#76746f;   /* 第三档灰（纸面实测 4.60:1，过 WCAG 1.4.3 AA 的 4.5:1）：证据 / 计数 / 口径说明 / 脚注。原来写的 #827d72 只有 4.03:1，没拿门槛对过 */
-    --ink-soft:#6E695F;  /* 人感 Demo 同款：纸面屏的说明 / 次级文字（弹层留给下一棒） */
     /* 淡底四档：悬停 / 展开抬头 / 按钮悬停 / 细条底 —— 原来这里是七八个近似米色各行其是 */
     --wash:#f7f5f0; --wash-2:#fbfaf6; --wash-3:#f3f1ec; --line-soft:#eceae4;
     --head:#f2efe8;      /* 表头与弹层抬头（原来是偏冷的一抹灰，在暖纸面上一块斑） */
@@ -138,13 +137,15 @@ html,body{margin:0;padding:0;}
   /* mac 无边框标题栏：左边给红绿灯让位；上下边距让这行内容的正中对准圆点中心（距顶约 20px） */
   .shell-mac .toolbar{padding-left:84px;padding-top:8px;padding-bottom:12px;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
+  .start-entry .subtypechips{max-width:720px;}   /* 入口页的文种/子类型一行装得下，别剩一颗孤零零居中 */
+  .start-entry .subtypechips .chip{padding:8px 16px;}
 /* 快判落地页：主行动 → 顶部形式入口 → 默认收起的主题设置。 */
 .pdforms{margin-top:24px;}
 /* 科目页/模块落地页尾部的模块切换行：这是次级导航，降半档（小一号、淡色），
    别和上面的文种/形式 chips 平起平坐——同权重会让人读成两级同级的选择（2026-10-12 验收） */
-.start-entry .pdforms .chip[data-mod]{padding:4px 16px;font-size:var(--fs-body);color:var(--ink-soft);border-color:var(--line);background:transparent;}
+.start-entry .pdforms .chip[data-mod]{padding:4px 12px;font-size:var(--fs-note);color:var(--muted);border-color:transparent;background:transparent;}
 .start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--line-strong);background:transparent;}
-.start-entry .pdforms .chip[data-mod].on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
+.start-entry .pdforms .chip[data-mod].on{border-color:transparent;color:var(--gov-red);background:transparent;}
 .start-entry .pdforms:has([data-mod]){margin-top:24px;}   /* 模块切换行紧跟主按钮，全站 24 档 */
 .pdthemebody{padding:0 0 4px;text-align:center;}
   .chip{border:1px solid var(--line);background:var(--ctl);padding:var(--pad-ctl-sm);cursor:pointer;font-size:var(--fs-body);border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
@@ -171,8 +172,8 @@ html,body{margin:0;padding:0;}
   .redline .bar{flex:1;height:2px;background:var(--gov-red);}
   /* 抬头下的最后一行：左边报「在哪」，右边报文号，同一行收掉——原先各自占一行，中间空出一大截 */
   .docmeta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:8px 4px 8px;}
-  .docno{font-family:var(--fangsong);font-size:var(--fs-body);text-align:right;color:var(--ink-soft);}
-  .modlabel,.pdstate{font-family:var(--hei);font-size:var(--fs-note);color:var(--ink-soft);letter-spacing:1px;}
+  .docno{font-family:var(--fangsong);font-size:var(--fs-body);text-align:right;color:var(--muted);}
+  .modlabel,.pdstate{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);letter-spacing:1px;}
 
   /* 起始区 —— 入口纸面。垂直节奏只用四档（8 / 16 / 24 / 40px），同屏同类间距一致（人感 Demo 的排版纪律） */
   .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
@@ -180,7 +181,7 @@ html,body{margin:0;padding:0;}
   .startbox.start-entry{padding:48px 36px 56px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
     .startbox.start-home{padding:48px 36px 48px;}   /* 首页 hero：红头在上方，hero 接着往下走；大标题首行、主按钮、次级行与科目页共用同一套锚位 */
   .startbox h2{font-family:var(--hei);font-size:var(--fs-hero);margin:0 0 8px;letter-spacing:1px;}
-  .startbox p{color:var(--ink-soft);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
+  .startbox p{color:var(--muted);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
   /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
   .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
@@ -189,7 +190,7 @@ html,body{margin:0;padding:0;}
   .startbox.start-home .actions,.startbox.start-hero .actions{margin-top:0;}   /* hero 说明句自带 24px 下边距，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」）。首页与科目页同一条：主按钮都包在 .actions 里，几何一样宽 */
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
   .startbox .hero-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
-  .startbox .hero-sub{font-size:var(--fs-body);color:var(--ink-soft);line-height:1.7;margin:0 0 24px;}
+  .startbox .hero-sub{font-size:var(--fs-body);color:var(--muted);line-height:1.7;margin:0 0 24px;}
   .startbox .hero-foot{font-size:var(--fs-note);color:var(--muted-2);margin:24px 0 0;}
   .startbox .hero-sub .arrow{padding:0 4px;color:var(--muted-2);}   /* 科目页 hero 说明句里的流程箭头（学习卡 → 作答 → 批改） */
 
@@ -203,21 +204,29 @@ html,body{margin:0;padding:0;}
   .secrow .sec-title{margin:0;}   /* 标题自带的上 24 下 12 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
   /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
   .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
-  .secright{display:flex;align-items:center;gap:12px;}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
+  .secright{display:flex;align-items:center;gap:12px;}
+  .secright button.linkbtn{min-height:var(--h-ctl-sm);}   /* 限时那一行：输入框与按钮同高 */
+  .tlcap{font-size:var(--fs-note);color:var(--muted);}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
   /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
   ::selection{background:rgba(192,21,26,.16);}
   /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
   .material{background:var(--mat);border-radius:var(--r-card);padding:24px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
-  /* 「据材料」：材料由真实报道的事实骨架改写而来。一个小标，不加说明句——
-     界面尽量简洁清晰，不因为多了一个来源就多一段文字去解释它 */
-  .material .from-mat{font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);
-    border:1px solid currentColor;border-radius:var(--r-icon);padding:0 4px;margin-left:8px;
-    letter-spacing:1px;vertical-align:1px;}
+  /* 划线说明与「分值/难度」同一行：左边报事实，右边说怎么用，各自成组，不塞进材料块 */
+  .metarow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;}
+  .metarow .meta{display:flex;gap:24px;font-size:var(--fs-body);}
+  .metarow .meta b{font-family:var(--hei);font-weight:700;margin-right:4px;}
+  .mathint{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);text-align:right;letter-spacing:.5px;}
+  .metarow .mathint{margin:0;}
+  /* 「据材料」：材料由真实报道的事实骨架改写而来。只在没有来源明细的老记录上出现——
+     有来源时「素材：…」已经说清，再挂一个标就是同一件事说两遍。 */
+  .material .from-mat{font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:8px;letter-spacing:.5px;}
   /* 材料来源：取自池子时写「素材：哪家媒体 · 哪天 · 主题」；没人给它出处就明说是编的。
     只用文字、不挂链接——材料是虚化改写的，挂真链接等于让人以为能点开看原文。 */
-  .material .from-src{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);letter-spacing:.5px;}
+  .material .from-src{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);letter-spacing:.5px;}
+  /* 抬头与来源之间一道细线：两件事，不连成一句 */
+  .material .label .from-mat,.material .label .from-src{margin-left:8px;padding-left:8px;border-left:1px solid var(--line-strong);}
   /* 作答页的材料：长材料不再把作答区一路推到屏外——材料在窗内自己滚，作答区跟着上移。
      窗口矮时自动减行，不会把作答区顶到屏幕外。
      高度按「整行数」定，不用 vh：vh 除不尽行高，窗底那行会被切一半。
@@ -225,9 +234,12 @@ html,body{margin:0;padding:0;}
      正文第一行顶到窗底那段必须是行高的整倍数。（下内边距 20 在滚动内容底部，不参与）
      900 视口下 8 行——加上作答框刚好一屏（9 行就差 29px，多这一行要拿“看得见作答框”换）；窗口更矮就减行，更高就加行。
      不加 overscroll-behavior:contain——材料窗滚到底后让滚动接着带动页面，作答框正好被带上来 */
-  .material.mat-scroll{max-height:calc(2.05em * 8 + 52.65px);overflow-y:auto;}
+  .material.mat-scroll{display:flex;flex-direction:column;max-height:calc(2.05em * 8 + 52.65px);overflow:hidden;}
+  .material.mat-scroll #materialBox{overflow-y:auto;min-height:0;}
   @media (max-height:860px){ .material.mat-scroll{max-height:calc(2.05em * 7 + 52.65px);} }
   @media (max-height:720px){ .material.mat-scroll{max-height:calc(2.05em * 5 + 52.65px);} }
+  @media (max-height:820px){ .material.mat-scroll{max-height:calc(2.05em * 3 + 52.65px);} }   /* 矮窗：材料只露三行、内部可滚，作答区才进首屏 */
+  @media (max-height:820px){ .require,.metarow{margin-top:8px;} }   /* 矮窗：题面几行收紧一档，把首屏留给作答区 */
   @media (min-height:1020px){ .material.mat-scroll{max-height:calc(2.05em * 12 + 52.65px);} }
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   /* 材料上的两种标记长成同一套：一块底色 + 一道 2px 底边线。划线用的是设置里选的颜色，
@@ -248,6 +260,7 @@ html,body{margin:0;padding:0;}
   .require{margin-top:12px;font-size:var(--fs-body);white-space:pre-wrap;padding-left:5em;text-indent:-5em;}
   .require b{font-family:var(--hei);display:inline-block;min-width:5em;text-indent:0;}
   .require br{display:none;}   /* 标签后面那个换行去掉：值接在标签后，但仍对齐到值那一列 */
+  .savebar{flex:0 0 auto;margin:0;padding:12px 24px;background:var(--paper);border-top:1px solid var(--line-soft);}   /* 设置在弹层里滚，保存固定在这块底部，永远够得着 */
 
   /* 学习卡不再内嵌：读材料与作答两步都走「常驻浮标 + 抽屉」（见 cardFabHtml） */
   /* details.card（申论读材料步的内嵌学习卡）已下线：那一步改走常驻浮标 + 抽屉，卡本体只在抽屉里 */
@@ -255,6 +268,8 @@ html,body{margin:0;padding:0;}
      ① 每节都有节标题、节与节之间拉开——先看清「有哪几节」；
      ② 要点与失分点不再是一条条「•＋长句」，改成顶线清单：一条一格，能数得清；
      ③ 框架与示例收成引文块（左缘细线），不再和清单长一个样。 */
+  /* 学习卡在纸面上是一张卡：浅底 + 大圆角，和内容页的圆角分组同一套语言 */
+  .card{background:var(--wash);border-radius:var(--r-card);margin-top:8px;}
   .card-body{padding:16px 16px 16px;font-size:var(--fs-body);line-height:1.75;}
   /* 节标题带记号：左缘 3px 短竖条——「有哪几节」先跳出来，不用读完标题才知道换节了 */
   .card-body h4{font-family:var(--hei);font-size:var(--fs-note);letter-spacing:.3px;margin:24px 0 8px;color:var(--ink);}
@@ -297,7 +312,7 @@ html,body{margin:0;padding:0;}
   .tlrow{display:flex;align-items:center;gap:8px;}
   /* 时长不分档：一个数字框，多少分钟都行；留空就是「不限时」，单位只在填了数字时才露出来 */
   .tlset{display:inline-flex;align-items:center;gap:4px;}
-  .tlin{width:62px;height:var(--h-ctl);font-family:var(--yahei);font-size:var(--fs-body);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);padding:0 8px;text-align:right;font-variant-numeric:tabular-nums;}
+  .tlin{width:62px;height:var(--h-ctl-sm);font-family:var(--yahei);font-size:var(--fs-body);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);padding:0 8px;text-align:right;font-variant-numeric:tabular-nums;}
   .tlin::-webkit-outer-spin-button,.tlin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}   /* 系统上下箭头在 36px 的框里太原生 */
   .tlin:placeholder-shown + .tlunit{display:none;}
   .tlunit{font-size:var(--fs-note);color:var(--muted);}
@@ -353,7 +368,7 @@ html,body{margin:0;padding:0;}
   .answerreview{margin-top:0;background:var(--wash);border-radius:var(--r-card);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
   .answerreview .asent.got{color:var(--gov-red);}
   .answerreview .asent.got.full{color:var(--warn);}
-  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
+  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin:0 8px 0 4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
   .answerreview .asc.full{color:var(--warn);}
   .comment{margin-top:16px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
   .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
@@ -362,6 +377,7 @@ html,body{margin:0;padding:0;}
   .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:hidden;}
   .modal[hidden]{display:none;}
   .modal .box{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden;width:100%;max-width:760px;box-shadow:var(--sh-3);display:flex;flex-direction:column;max-height:90vh;}
+  .modal .box:focus{outline:none;}   /* 弹层打开时把焦点交给容器：容器不是可操作控件，不要画浏览器默认焦点环 */
   .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--head);font-family:var(--hei);font-weight:700;font-size:var(--fs-body);letter-spacing:1px;flex:0 0 auto;}
   .mhead .x{border:none;background:transparent;font-size:var(--fs-body);cursor:pointer;color:var(--muted);width:30px;height:30px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-ctl);}
   .mhead .x:hover{background:var(--wash-3);color:var(--gov-red);}
@@ -372,6 +388,7 @@ html,body{margin:0;padding:0;}
   .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:16px 16px 24px;}
   .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:var(--r-ctl);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);font-family:var(--hei);}
+  @media (max-width:1240px){ .fab .fabcount{display:none;} .fab{padding:8px 12px;} }   /* 窄窗纸两侧没地方：浮标只留动作名，仍挂在纸外 */
   .fab:hover{background:var(--ctl);border-color:var(--line-hover);}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--ink);}
   .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:var(--r-ctl);box-shadow:0 0 0 200vmax var(--scrim);outline:2px solid var(--gov-red);display:none;}
@@ -408,19 +425,19 @@ html,body{margin:0;padding:0;}
   /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
   .setgrp{margin-top:16px;padding:16px;background:var(--wash);border-radius:var(--r-card);}
   .setgrp:first-of-type{margin-top:0;}
-  .grpt{font-size:var(--fs-note);font-weight:600;color:var(--muted-2);letter-spacing:1px;margin-bottom:16px;}
+  .grpt{font-size:var(--fs-note);font-weight:600;color:var(--muted);letter-spacing:1px;margin-bottom:16px;}
   .field{margin-bottom:16px;}
   .setgrp>:last-child{margin-bottom:0;}
   .field label{display:block;font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--ink);margin-bottom:8px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
-  .field .note,.setgrp>.note{font-size:var(--fs-note);color:var(--muted-2);line-height:1.6;margin-top:8px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
+  .field .note,.setgrp>.note{font-size:var(--fs-note);color:var(--muted);line-height:1.6;margin-top:8px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
   .field .note.long{line-height:1.7;}
   .setgrp .notebox{background:transparent;border-radius:var(--r-flat);padding:0;margin:0;}
   .setgrp .notebox>summary{padding:4px 0;}
   .setgrp .notebox .notebody{padding:4px 0 0;font-size:var(--fs-note);line-height:1.7;}
   #updateField .note{margin:0 0 8px;}
   /* 次级按钮（ghost）：透明底细边、与 primary 同高——「测试连接」不该和「保存」一个重量 */
-  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-soft);min-height:40px;font-size:var(--fs-body);}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);min-height:40px;font-size:var(--fs-body);}
   button.ghost:hover{background:var(--wash-3);color:var(--ink);}
   #modalSettings .actions{gap:12px;}
   /* 地址与 Key 是技术串：仿宋里 l / 1 / I 长得一样，这两格单独换雅黑 */
@@ -449,6 +466,10 @@ html,body{margin:0;padding:0;}
   .mrow .mavg{flex:0 0 84px;text-align:right;font-variant-numeric:tabular-nums;}
   .mrow .mbar{flex:1 1 auto;height:4px;border-radius:var(--r-pill);background:var(--line-soft);min-width:48px;overflow:hidden;}
   .mrow .mbar>i{display:block;height:100%;border-radius:var(--r-pill);background:var(--bar);}
+  .emptybox{margin:0 0 16px;padding:24px;background:var(--wash);border-radius:var(--r-card);text-align:center;}
+  .emptybox p{color:var(--muted);font-size:var(--fs-body);margin:0 0 16px;}
+  .hist tbody tr.histrow{cursor:pointer;}
+  .hist tbody tr.histrow:hover{background:var(--wash);}
   .mrow .mbar>i.lo{background:var(--danger);}
   .mrow .mmeta{flex:0 0 84px;text-align:right;color:var(--muted-2);font-variant-numeric:tabular-nums;}
   .mrow .mweak{flex:0 0 120px;text-align:right;color:var(--danger);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
@@ -456,7 +477,7 @@ html,body{margin:0;padding:0;}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   /* 画像弹层：标题降一档（纸面的红边大标题不进弹层），统计数字与说明字分层 */
   #modalProfile .sec-title{border-left:none;padding-left:0;font-size:var(--fs-body);letter-spacing:1px;margin:24px 0 12px;}
-  #modalProfile .notebody{font-size:var(--fs-note);line-height:1.7;color:var(--ink-soft);}
+  #modalProfile .notebody{font-size:var(--fs-note);line-height:1.7;color:var(--muted);}
   #profileBody>details.notebox:first-child{border-top:none;}
   .mrow{font-size:var(--fs-body);}
   .mrow .mmeta,.mrow .mnone,.mrow .mweak{font-size:var(--fs-note);}
@@ -506,7 +527,8 @@ html,body{margin:0;padding:0;}
      之前「欢迎」和「接口超时」长得一模一样，是全屏最像 bug 的一处 */
   .banner{background:var(--wash-2);border:1px solid var(--line);border-left:3px solid var(--gov-red);color:var(--ink);padding:12px 16px;font-size:var(--fs-note);margin-bottom:16px;border-radius:var(--r-ctl);}
   .banner.error{background:var(--danger-bg);border-color:var(--danger-line);border-left-color:var(--danger);color:var(--danger);}
-  .loading{font-size:var(--fs-note);color:var(--muted);padding:40px 0;text-align:center;}
+  .loading{font-size:var(--fs-body);color:var(--ink);padding:40px 0;text-align:center;}
+  .loading .hint{display:inline-block;margin-top:4px;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
   .peek{display:none;max-height:130px;overflow:hidden;margin:12px auto 0;padding:8px 12px;text-align:left;background:var(--wash);border:1px dashed var(--line);border-radius:var(--r-ctl);font-size:var(--fs-note);line-height:1.8;white-space:pre-wrap;color:var(--ink);}
   /* 申论训练链：步骤条要轻，一行小步骤条，当前步高亮 */
@@ -617,10 +639,7 @@ html,body{margin:0;padding:0;}
   @keyframes pdMarked{from{opacity:.55;}to{opacity:1;}}
   .pdopt.good,.pdopt.bad{animation:pdMarked .22s ease-out both;}
 
-  /* 等 AI 时：一条慢慢呼吸的短线，只说“在等”，不是进度条 */
-  @keyframes breathe{0%,100%{opacity:.25;}50%{opacity:.75;}}
-  .loading{position:relative;}
-  .loading::after{content:"";display:block;width:56px;height:2px;margin:12px auto 0;background:var(--gov-red);border-radius:var(--r-ctl);animation:breathe 1.6s ease-in-out infinite;}
+  /* 等 AI 时：只留一行安静的状态文字；全应用没有循环主动效 */
 
   /* 悬停只给红按钮上浮一档：其余控件换色换边就行，一排东西各飞各的不叫精致 */
   .chip:active,.subjbtn:active{background:var(--wash-3);}
@@ -632,7 +651,6 @@ html,body{margin:0;padding:0;}
     html{scroll-behavior:auto;}
     *{transition:none !important;}
     #docBody>*,.modal:not([hidden]) .box,.drawer:not([hidden]) .sheet,.pdopt.good,.pdopt.bad{animation:none !important;}
-    .loading::after{animation:none;opacity:.5;}
   }
 </style>
 </head>
@@ -710,11 +728,6 @@ html,body{margin:0;padding:0;}
           <div class="note" id="modelNote">填上 Key 后可拉取候选名单，也可以直接输入模型名。</div>
         </div>
       </section>
-      <div class="actions">
-        <button class="primary" id="btnSaveSet">保存</button>
-        <button class="ghost" id="btnTest">测试连接</button>
-        <span class="hint" id="setMsg" aria-live="polite"></span>
-      </div>
       <section class="setgrp">
         <div class="grpt">纸面样式</div>
         <div class="field"><label>练习抬头（仅显示在练习页顶部）</label><input type="text" id="setOrg" placeholder="建议明显虚构，避免像真实单位，如：XX 市第零综合服务中心"><div class="note">只做界面装饰，不是真实公文；建议用明显虚构的名字。</div></div>
@@ -750,6 +763,11 @@ html,body{margin:0;padding:0;}
         </details>
       </section>
         <div id="buildNote" style="margin:16px 0 0;text-align:center;font-size:var(--fs-note);color:var(--text-disabled)"></div>
+      </div>
+      <div class="actions savebar">
+        <button class="primary" id="btnSaveSet">保存</button>
+        <button class="ghost" id="btnTest">测试连接</button>
+        <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
     </div>
   </div>
@@ -2226,8 +2244,9 @@ function renderHeader(){
     return;
   }
   const mn = (activeModule !== "__all" && MODULES[activeModule])? MODULES[activeModule].name : "综合 · 智能出题";
-  // 灰字报「模块 · 子类型」；科目名不进这行——科目按钮亮着、文号也带着科目名，再写第三遍是凑数
-  $("#modLabel").textContent = mn + ((current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
+  // 灰字报「模块 · 子类型」；科目名不进这行——科目按钮亮着、文号也带着科目名，再写第三遍是凑数。
+  // 子类型只在作答页报：落地页还没选子类型，带出上一题的子类型就是谎报。
+  $("#modLabel").textContent = mn + ((_view === "q" && current && current.subtype && current.module === activeModule)?` · ${current.subtype}`:"");
 }
 function renderTabs(){
   // 模块入口都在纸面 chips 上（startBoxHtml / renderModuleLanding），顶栏只剩科目栏。
@@ -2327,8 +2346,10 @@ document.addEventListener("keydown", e=>{
   else if(!e.shiftKey && cur === last){ e.preventDefault(); first.focus(); }
 });
 const OPEN_SETTINGS_BTN = ' <button class="linkbtn" id="bnrOpenSettings">打开设置</button>';
-function banner(html, kind){
+let _bannerSrc = "";   // 横幅写手：app = 页面消息；notices = 起始页提示区
+function banner(html, kind, src){
   $("#bannerSlot").innerHTML = html? `<div class="banner${kind==="error"?" error":""}">${html}</div>`:"";
+  _bannerSrc = html? (src || "app") : "";
   // 提示里得能直接点到设置：只说右上角有个设置，等于让用户自己找路
   const bo = $("#bnrOpenSettings");
   if(bo) bo.onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
@@ -2348,14 +2369,20 @@ function showLoading(t, tail){
    · 首页（`_view === "home"`，没选科目）：整屏居中 hero——大标题「今天练什么？」、主按钮「开始快判」、
      两枚点名科目的 chips、一行必备声明；公文红头在首页整块让位（renderHeader 里收）。
    · 科目首页（综应A / 申论）：红按钮是**本科目的主行动**（走 `startSmart`）。快判不在这里抢红：
-     它不是科目内容，是另一种练法，入口常驻顶栏最左那颗「快判」，在科目页里再放一遍就是同一条路开两个门。
+     它不是科目内容，是另一种练法，入口只在首页那颗「开始快判」红按钮。
    两处没填 Key 时红按钮一律换成「先填 API Key」：出题这条路当下走不通，红按钮就带他去真能走的那一步。 */
 function startBoxHtml(rf){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
   const flow = curSubject() === "sl"? ["学习卡","读材料找点","一稿","批改"] : ["学习卡","作答","批改"];
   const flowHtml = flow.map((step,i)=>`${i? `<span class="arrow" aria-hidden="true">→</span>`:""}<span>${step}</span>`).join("");
-  const bigs = SUBJECT_ORDER.map(id=>`<button class="chip" data-big="${id}">${id==="zy"? esc(SUBJECTS[id].name)+" 练一轮" : "写一篇"+esc(SUBJECTS[id].name)}</button>`).join("");
+  const bigs = SUBJECT_ORDER.map(id=>{
+    const name = SUBJECTS[id].name;
+    const label = canStart()
+      ? (id==="zy"? esc(name)+" 练一轮" : "写一篇"+esc(name))
+      : ("去" + esc(name));   // 没 Key 时不承诺出题：点了只进科目页
+    return `<button class="chip" data-big="${id}">${label}</button>`;
+  }).join("");
   /* 脚注跟着有没有 Key 说话：填完还写「填好 API Key 就能开始」，界面就在说谎。
      「没有账号，数据都在本地」是必备声明，两种情况都留。 */
   const foot = state.settings.apiKey
@@ -2391,7 +2418,12 @@ function wireStartBox(){
   const q = $("#btnQuick"); if(q) q.onclick = ()=> startPDRound(PD_MIX);
   const sm = $("#btnSmart"); if(sm) sm.onclick = startSmart;
   const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时起始页那颗：说了「先填 Key」就真把人送到设置页
-  docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=> startSubjectTask(b.dataset.big));
+  docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=>{
+    if(!canStart()){   // 没 Key：只把人送到该科目的起始页，不说「开始练」
+      state.settings.subject = b.dataset.big; save(); renderTabs(); renderStart(); return;
+    }
+    startSubjectTask(b.dataset.big);
+  });
   docBody.querySelectorAll("[data-mod]").forEach(b=> b.onclick = ()=> tabClick(b.dataset.mod));
   const br = $("#btnResume");
   if(br) br.onclick = ()=>{
@@ -2463,7 +2495,7 @@ const TUT_SEQ = [
   // home：打开软件就落在这里，所以第一组是它——先点快判，再告诉两句大题各去哪个科目
   { scr:"home", sel:"#btnQuick", text:"点这里直接开始：从材料里挑出对的说法，点选即判，一轮 5 题。",
     nk:{ sel:"#btnSetup", text:"点这里填 API Key，出题和阅卷都要；填好就能开练。" } },
-  { scr:"home", sel:"[data-big='zy']", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。",
+  { scr:"home", sel:".chiprow", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。",
     nk:{ text:"想练整篇：这两句各自去综应或申论，都要先填 API Key。" } },
   { scr:"home", sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
   // zy / sl：科目页的红按钮是本科目的主行动（快判不进顶栏、也没有自己的落地页，唯一入口是首页那颗红按钮，不在纸面上再放一个）。
@@ -2472,12 +2504,12 @@ const TUT_SEQ = [
   // 末尾那步（也在讲 Key）整步去掉（onlyKey）——同一个元素讲两遍也是废话。
   { scr:"zy", sel:"#btnSmart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。",
     nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）。" } },
-  { scr:"zy", sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
+  { scr:"zy", sel:".pdforms .subtypechips", text:"想只练某一类，点下面那排里的模块。" },
   { scr:"zy", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
   { scr:"zy", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
   { scr:"sl", sel:"#btnSmart", text:"点这里开始：先读材料划出要点，再归类成稿；交卷后按采分点逐条给分。",
     nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）。" } },
-  { scr:"sl", sel:".pdforms .chip[data-mod]", text:"想只练某一类，点下面那排里的模块。" },
+  { scr:"sl", sel:".pdforms .subtypechips", text:"想只练某一类，点下面那排里的模块。" },
   { scr:"sl", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
   { scr:"sl", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
 ];
@@ -2666,11 +2698,12 @@ function renderModuleLanding(k){
     .every(t=> subs.some(s=> s.indexOf(t) >= 0));
   // 三个入口页共用同一套骨架：大标题、说明句、主按钮、次级选项。
   // 文种有二十来个，摆在主按钮前面会把主行动挤出第一屏——它是「自己挑一个」的次级入口，排在后面。
+  const blocked = !canStart();
   let html = `<div class="startbox start-entry start-hero">
-    <div class="hero-big">${esc(m.name)} 练什么？</div>
+    <div class="hero-big">这类题怎么练？</div>
     <div class="hero-sub">${noteRedundant? "每题都按采分点打分，写完就有分" : esc(m.note) + "，写完就有分"}</div>
-    <div class="actions"><button class="primary big" id="btnLandStart">开始练习（智能选${subtypeWord(k)}）</button></div>
-    <div class="hint" style="margin-top:16px">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过，点下面的文种可以直接开始。"}</div>
+    <div class="actions"><button class="primary big" id="btnLandStart">${blocked? "先填 API Key（出题和阅卷都要）" : "开始练习"}</button></div>
+    <div class="hint" style="margin-top:16px">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过"}</div>
     <div class="subtypechips" style="margin-top:16px">
     ${subs.map(t=>{
       const st = subtypeStat(k,t);
@@ -2681,8 +2714,8 @@ function renderModuleLanding(k){
   </div>`;
   docBody.innerHTML = html;
   paintFab();
-  $("#btnLandStart").onclick = ()=> loadQuestion(k, pickSubtypeFor(k));
-  docBody.querySelectorAll(".chip[data-t]").forEach(b=> b.onclick = ()=> loadQuestion(k, b.dataset.t));
+  $("#btnLandStart").onclick = ()=> blocked? openModal("modalSettings") : loadQuestion(k, pickSubtypeFor(k));
+  docBody.querySelectorAll(".chip[data-t]").forEach(b=> b.onclick = ()=>{ if(blocked) openModal("modalSettings"); else loadQuestion(k, b.dataset.t); });
   docBody.querySelectorAll("[data-mod]").forEach(b=> b.onclick = ()=> tabClick(b.dataset.mod));
 }
 
@@ -2691,9 +2724,13 @@ function renderModuleLanding(k){
    而且那句大题是「先切科目再出题」，人还被从首页拽进综应A（文号变成「综应A〔2026〕…」），他却什么都没练到。
    现在出题路（首页两句大题 / 起始页与快判页红按钮 / 模块落地页的胶囊与「开始练习」）都先过这里：
    原地提示，不切科目、不点灯、不进加载态。快判与出题同规：没 Key 也停在原地。 */
+function canStart(){
+  const s = state.settings;
+  return !!(s.apiKey && s.model);
+}
 function entryBlocked(){
   const s = state.settings;
-  if(s.apiKey && s.model) return false;
+  if(canStart()) return false;
   // 没 Key 与没选模型是两件事，各说各的实话
   banner((s.apiKey
     ? "还没选定模型：到设置页点「拉取模型列表」，点一个真实存在的名字，选好就能开始。"
@@ -2820,21 +2857,22 @@ function renderQuestion(){
 
 /* ============ 综应A 两阶段：学习卡（折叠+笔记+翻卡计数）→ 我已学习，开始作答 → 作答页；结果页与申论共用 gradeHtml ============ */
 // 不建训练链、不渲染步骤条；翻卡计次照旧进练习记录、参与调度（PEEK_WEIGHT）。
-function metaLineHtml(q){
-  // 分值与难度本属同一层元信息，各占一行会把题面抬得很高，并成一行更省版面
+function metaLineHtml(q, right){
+  // 分值与难度并成一行；右侧可挂同一层级的页面说明（如划线用法），各成一组
   const parts = [];
-  if(q && q.score) parts.push(`<b>分值：</b>${esc(q.score)} 分`);
-  if(q && q.difficulty) parts.push(`<b>难度：</b>${esc(q.difficulty)}`);
-  return parts.length? `<div class="require">${parts.join("　　")}</div>` : "";
+  if(q && q.score) parts.push(`<span><b>分值</b>${esc(q.score)} 分</span>`);
+  if(q && q.difficulty) parts.push(`<span><b>难度</b>${esc(q.difficulty)}</span>`);
+  if(!parts.length && !right) return "";
+  return `<div class="metarow"><div class="meta">${parts.join("")}</div>${right || ""}</div>`;
 }
-function qHeadHtml(showQuestion){
+function qHeadHtml(showQuestion, metaRight){
   const {question} = current;
   let html = `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
   // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）；这行只剩一颗按钮，不必带题头
-  if(showQuestion === false) return `<div class="qtop"><button class="linkbtn" id="btnSwitch">换一题</button></div>`;
+  if(showQuestion === false) return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  html += metaLineHtml(question);
+  html += metaLineHtml(question, metaRight);
   return html;
 }
 /* 学习卡整页：综应A 的学习阶段与申论链的开头共用这一屏（先记知识点再动手，做的时候忘了还能随时翻）。
@@ -2865,11 +2903,11 @@ function wireCardPage(btnId, onGo){
 function renderZyPage(){
   if(!current || !current.question){ renderStart(); return; }
   const phase = current.phase || "card";
-  let html = phase === "grade"? "" : qHeadHtml(phase !== "card");   // 批改页不重复题面：这一页的头是分数（换一题在分数那一行）
+  let html = phase === "grade"? "" : qHeadHtml(phase !== "card", phase === "answer"? '<span class="mathint">选中文字即可划线，点高亮处取消</span>' : "");   // 批改页不重复题面：这一页的头是分数（换一题在分数那一行）
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}<span class="hint">（选中几个字即可划线，点高亮处取消）</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
+    html += `<div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}</div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
     html += draftPanelHtml(null);
   } else {
     html += cardPageHtml({ id:"btnZyAnswer", label:"我已学习，开始作答" });
@@ -3320,11 +3358,13 @@ function resumableFlow(){
   return null;
 }
 /* 一条链的批改结果从练习记录里取：记录才是唯一事实源（lastGrade 只是当次提交留下的缓存，
-   刷新、重开、换设备都没有它）。先按链 id 精确匹配；没有 flowId 的老记录退到题目签名。 */
+   刷新、重开、换设备都没有它）。先按链 id 精确匹配；老记录（flowId 是 migrateHistory 补的 legacy-*）
+   退到题目签名。 */
 function gradeForFlow(f){
   if(!f) return null;
   const sig = f.sig || qSig(f.question);
-  const hit = state.history.find(r => r && (r.flowId === f.id || (!r.flowId && r.question && qSig(r.question) === sig)));
+  const legacy = r => /^legacy-/.test(String((r && r.flowId) || ""));
+  const hit = state.history.find(r => r && (r.flowId === f.id || ((!r.flowId || legacy(r)) && r.question && qSig(r.question) === sig)));
   if(!hit || !hit.grade) return null;
   return {
     // hits 存在记录顶层（grade 里只有分数与点评），拼回来才够 gradeHtml 用
@@ -3422,16 +3462,21 @@ function addFreeSelectionRecord(f, s, e){
    只从数组里删会让后面的组指向别的句子（删到末尾还会越界成空组）。 */
 function dropSelections(f, drop){
   if(!f || !Array.isArray(f.selections)) return false;
+  const oi = Number(f.orgIdx);
   const keep = [], map = new Map();
-  f.selections.forEach((sl, i)=>{ if(drop(sl, i)) return; map.set(i, keep.length); keep.push(sl); });
+  let removedBefore = 0;
+  f.selections.forEach((sl, i)=>{
+    if(drop(sl, i)){ if(Number.isFinite(oi) && i < oi) removedBefore++; return; }
+    map.set(i, keep.length); keep.push(sl);
+  });
   if(keep.length === f.selections.length) return false;
   f.selections = keep;
   for(const g of (f.groups || [])){
     if(!Array.isArray(g.facts)) continue;
     g.facts = g.facts.filter(si => map.has(si)).map(si => map.get(si));
   }
-  const oi = Number(f.orgIdx);
-  if(Number.isFinite(oi) && oi >= keep.length) f.orgIdx = Math.max(0, keep.length - 1);
+  // 当前点跟着前移：删掉它前面的点后仍停在同一个点上，删到末尾夹回最后一个
+  if(Number.isFinite(oi)) f.orgIdx = Math.max(0, Math.min(oi - removedBefore, keep.length - 1));
   return true;
 }
 function toggleSentenceSelection(f, sid, ridStr){
@@ -3580,7 +3625,7 @@ function orgNamePanelHtml(groups, sels){
       + `</div>`;
   }).join("");
   return `${orgHeadHtml("给每一组起个名（可跳过，不计分）")}
-    ${rows || '<p class="hint">还没有分组，先回去把点归一下。</p>'}
+    ${rows ? `<div class="ognames">${rows}</div>` : '<p class="hint">还没有分组，先回去把点归一下。</p>'}
     <div class="actions">
       <button id="btnBackToGroup">回去改分组</button>
       <button class="primary" id="btnOrgDone">写完了，回到一稿</button>
@@ -3718,7 +3763,7 @@ function ensureLimitStart(){   // 开始作答就起算：整一道题只起算�
 }
 function limitRowHtml(){
   const cur = curLimitMin();
-  return `<span class="tlrow"><span class="tlleft" id="timeLeft"></span><span class="tlset">` +
+  return `<span class="tlrow"><span class="tlcap">限时</span><span class="tlleft" id="timeLeft"></span><span class="tlset">` +
     `<input class="tlin" id="inpLimit" type="number" min="1" max="${LIMIT_MAX}" step="1" inputmode="numeric"` +
     ` placeholder="不限时" value="${cur? cur : ""}" title="作答限时（分钟，留空为不限时）" aria-label="作答限时（分钟）">` +
     `<span class="tlunit">分钟</span></span></span>`;
@@ -3774,7 +3819,9 @@ function startTimeLeft(){
 }
 function setTimeLimit(m){
   m = normLimitMin(m);
-  setLimitState(m, m? Date.now() : 0);
+  // 同一道题的时钟从「开始作答」起算：已起算就沿用起点，换时长只换总时长
+  const started = curLimitFrom();
+  setLimitState(m, m? (started || Date.now()) : 0);
   state.settings.timeLimit = m; save();   // 记住这个选择：下一题按同样时长起
   _timeUpSaid = false;
   const inp = $("#inpLimit");
@@ -3795,7 +3842,7 @@ function paintFab(act, count){
   slot.innerHTML = act? (cardFabHtml(act, count) + cardDrawerHtml()) : "";
 }
 function cardFabHtml(act, count){
-  return `<button class="fab" id="btnCard">${act}${count? ` · 已翻 <b>${current.cardPeeks||0}</b> 次` : ""}</button>`;
+  return `<button class="fab" id="btnCard">${act}${count? `<span class="fabcount"> · 已翻 <b>${current.cardPeeks||0}</b> 次</span>` : ""}</button>`;
 }
 function cardDrawerHtml(){
   return `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
@@ -3996,16 +4043,13 @@ function wireOrganize(f){
   };
   const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> backToDraft();
   const bk = $("#btnCloseOrg"); if(bk) bk.onclick = ()=> backToDraft();
-  // 第二段（命名）：组名边写边存、不重渲（重渲会把光标顶掉）；离开输入框再重画一次，提纲预览跟上
+  // 第二段（命名）：组名边写边存。失焦不重画——change 先于 click 触发，重画会把紧随其后的按钮换掉，
+  // 第一次点击就落在已分离的节点上。提纲在一稿页按现值渲染，不需要在这里跟着重画。
   if(box) box.oninput = ev=>{
     const inp = (ev.target && ev.target.closest)? ev.target.closest("[data-ogname]") : null;
     if(!inp) return;
     const g = (f.groups || [])[Number(inp.dataset.ogname)]; if(!g) return;
     g.name = String(inp.value || ""); save();
-  };
-  if(box) box.onchange = ev=>{
-    const inp = (ev.target && ev.target.closest)? ev.target.closest("[data-ogname]") : null;
-    if(inp) renderFlowStep();
   };
   const bg = $("#btnBackToGroup"); if(bg) bg.onclick = ()=>{ f.orgPhase = "group"; save(); renderFlowStep(); };
   const dn = $("#btnOrgDone"); if(dn) dn.onclick = ()=> backToDraft();
@@ -4136,7 +4180,8 @@ async function submitAnswer(){
       usedSec: usedSec == null? undefined : usedSec,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       expCheck: (expCheck.again.length || expCheck.fixed.length)? { again:expCheck.again.slice(), fixed:expCheck.fixed.slice() } : undefined,
-      grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment } });
+      grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment,
+              modelAnswer:g.modelAnswer || "" } });   // 范文进记录：批改页从记录派生时才不丢「参考答案」
     if(state.history.length>200) state.history.length=200;
     if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline });   // 批改门槛的事实源
     clearInterval(tick);
@@ -4228,7 +4273,8 @@ function evidenceFrags(ev){
   while((m = ANS_QUOTED.exec(raw))){ const t = m[1].trim(); if(t) out.push(t); }
   // 没按格式写（整条证据一个引号都没有）时退一步：剥掉固定符号，拿剩下的话去定位
   if(!out.length){
-    const t = raw.replace(/【[^】]*】/g, " ").replace(/^(答到|命中|得分)[：:]\s*/, "").replace(/[△✗].*$/s, "").trim();
+    const t = raw.replace(/【[^】]*】/g, " ").trim()
+      .replace(/^(答到|命中|得分)[：:]\s*/, "").replace(/[△✗].*$/s, "").trim();
     if(t.length >= 4) out.push(t);
   }
   return out;
@@ -4300,14 +4346,15 @@ function answerMarks(hits, answer){
     if(at < 0) continue;
     ok++;
     let i = 0; while(i + 1 < parts.length && starts[i+1] <= at) i++;
-    got[i] += Number(h.awarded) || 0;
-    full[i] += Number(h.score) || 0;
+    const sc = Number(h && h.score), aw = Number(h && h.awarded);
+    got[i] += isFinite(aw)? Math.max(0, isFinite(sc)? Math.min(aw, sc) : aw) : 0;   // 与 pointsOf 同一口径：实得分夹在 [0, 该子项满分]
+    full[i] += isFinite(sc)? sc : 0;
   }
   return { parts, got, full, need, ok, usable: !need || ok / need >= 0.5 };
 }
 /* 我的答案（逐句批注）：**有分的句子标色**——没拿满的标红、拿满的标焦橙，分跟在句末；
    没分的句子什么都不挂（0 分不写 +0，素色本身就是「这里没分」）。
-   所以把标色的那些分加起来就是页头那个总分，当场能验算。 */
+   每条采分项的证据都定位到答卷时，标色的分加起来等于页头总分；有定位不到的项时，页头仍按全部采分点计分。 */
 function answerReviewHtml(g, answer){
   const text = String(answer||"").trim();
   if(!text) return "";
@@ -4342,7 +4389,7 @@ function paintExpLine(){
    落在 state.history[0].selfNote / selfKind（步骤 1 的地基）；跳过的题不写字段，归纳时不硬凑。 */
 const SELF_ASK = {
   how:   ["这道你凭什么确定了？", "是一眼看出的，还是排除了别的？哪一步让你确定——一句话，可跳过"],
-  stuck: ["这道卡在哪一步？",   "读材料、找点、还是落笔时卡的——一句话，可跳过"]
+  stuck: ["这道题卡在哪一步？",   "读材料、找点、还是落笔时卡的——一句话，可跳过"]
 };
 function selfAskKind(g, total){
   const pts = pointsOf(g && g.hits);
@@ -4382,14 +4429,20 @@ function wireSelfNote(){
     if(!t){ delete r.selfNote; delete r.selfKind; }
     else { r.selfNote = t; r.selfKind = kind; }
     // 改的是记录（history），不是 state 上的聚合：只有 saveHistory 才把它写进 gw_history。
-    // 调 save() 的话界面照样说「已记下」，磁盘上那份一个字都没动，重开就没了。
-    saveHistory();
-    return !!t;
+    // 写没写进去要回给界面：存储写满时不许说「已记下」。
+    return saveHistory();
   };
   const b = $("#btnSelfSave");
-  if(b) b.onclick = ()=>{ if(write(ta && ta.value) && st) st.textContent = "已记下。攒够一个模块的量，就能看出你的做题习惯"; };
+  if(b) b.onclick = ()=>{
+    const v = ta && ta.value;
+    if(!st) return;
+    if(!write(v)) { st.textContent = "没能保存到本地：本地存储已满"; return; }
+    st.textContent = String(v || "").trim()
+      ? "已记下。攒够一个模块的量，就能看出你的做题习惯"
+      : "已跳过，这题不参与归纳";
+  };
   const sk = $("#btnSelfSkip");
-  if(sk) sk.onclick = ()=>{ write(""); if(ta) ta.value = ""; if(st) st.textContent = "已跳过，这题不参与归纳"; };
+  if(sk) sk.onclick = ()=>{ const ok = write(""); if(ta) ta.value = ""; if(st) st.textContent = ok? "已跳过，这题不参与归纳" : "没能保存到本地：本地存储已满"; };
 }
 /* 解析按句切行（。！？；后断行）：长句拆开读不费劲，没有动画。
    旧记录里留着的是更短的一句话点评，切行同样适用。 */
@@ -4421,9 +4474,12 @@ function gradeHtml(g, total){
   }
   // —— 正文三段 ——：我的答案（逐句标注）· 参考答案 · 解析。
   // 一页把「你写了什么、本该写成什么样、为什么」摆全，不另造清单，也不把两篇文章折起来（2026-10-13）。
-  const ansReview = answerReviewHtml(g, lastGrade && lastGrade.answer);
+  const ansText = String((lastGrade && lastGrade.answer) || "");
+  const ansReview = answerReviewHtml(g, ansText);
+  const am = answerMarks(g.hits, ansText);
+  const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
   if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
-    + `<span class="secright"><span class="hint">红＝这句没拿满 · 焦橙＝这句拿满 · <i class="asc">+N</i> 相加＝总分</span></span></div>` + ansReview;
+    + `<span class="secright"><span class="hint">${am.usable? "红＝这句没拿满 · 焦橙＝这句拿满 · <i class=\"asc\">+N</i> " + (allLocated? "相加＝总分" : "是本句得分") : ""}</span></span></div>` + ansReview;
   if(g.modelAnswer) html += `<div class="sec-title lite">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
   if(g.comment) html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
   html += selfNoteHtml(g, total);   // 趁印象还在问一句（可跳过）
@@ -4484,25 +4540,10 @@ function profBack(){ profPage = null; renderProfile(); }
 function renderProfile(){
   // 二级页也要接经验行的停用/删除：那两颗按钮只长在二级页上（一级页只有一行入口），漏了就是点不动的死按钮
   if(profPage){ $("#profileBody").innerHTML = profilePageHtml(profPage); wireProfileNav(); wireExperiences(); return; }
-  let html = `<details class="notebox" style="margin:0"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；维度分只用来诊断弱在哪，不参与均分。</div></details>`;
-  for(const sid of SUBJECT_ORDER){
-    const subj = SUBJECTS[sid];
-    html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div><div class="mrowbox">`;
-    for(const k of subj.modules){
-      const avg=moduleAvg(k);
-      let n = 0; for(const h of state.history) if(h.module === k) n++;
-      // 没练过的模块只占一行：无维度可看，铺开五张「未练」卡只是占地方
-      if(avg == null){
-        html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">未练</span></button>`;
-        continue;
-      }
-      // 一级行上只挂一条最该先补的短板（或强项）；维度条、常错类型、文种统计都在二级页面里
-      const { weak, strong } = dimScan(k);
-      const head = weak.length? { cls:"", text:`短板·${esc(weak[0])}` } : (strong.length? { cls:" good", text:`强项·${esc(strong[0])}` } : null);
-      html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak${head? head.cls : ""}">${head? head.text : ""}</span></button>`;
-    }
-    html += `</div>`;
-  }
+  const empty = !state.history.length;
+  let html = "";
+  // 一级先给「现在能做什么」：空态入口在前，模块明细在后；有记录时也是先看汇总再看模块
+  if(empty) html += `<div class="emptybox"><p>还没有练习记录。先练一道，批改完这里就有数据。</p><button class="primary" id="profGoHome">回首页练一道</button></div>`;
   // 判别轨单独一节：记录带 track:'pd'，不进 dims 维度画像，不与综应A/申论混算
   const pds = pdFormStats();
   const qAll = PD_FORM_ORDER.reduce((s,id)=> s + pds.st[id].q, 0);
@@ -4524,6 +4565,26 @@ function renderProfile(){
   html += `<div class="sec-title">练习记录</div><div class="mrowbox"><button class="mrow navrow" data-prof="hist">` +
     (histAll? `<span class="mavg">共 ${histAll} 条</span><span class="mnone">最近一次 ${lastTxt} · ${esc(h0.track === "pd"? "快判" : moduleName(h0.module))}</span>`
             : `<span class="mavg">还没有</span>`) + `</button></div>`;
+  for(const sid of SUBJECT_ORDER){
+    const subj = SUBJECTS[sid];
+    html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div><div class="mrowbox">`;
+    for(const k of subj.modules){
+      const avg=moduleAvg(k);
+      let n = 0; for(const h of state.history) if(h.module === k) n++;
+      // 没练过的模块只占一行：无维度可看，铺开五张「未练」卡只是占地方
+      if(avg == null){
+        html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">未练</span></button>`;
+        continue;
+      }
+      // 一级行上只挂一条最该先补的短板（或强项）；维度条、常错类型、文种统计都在二级页面里
+      const { weak, strong } = dimScan(k);
+      const head = weak.length? { cls:"", text:`短板·${esc(weak[0])}` } : (strong.length? { cls:" good", text:`强项·${esc(strong[0])}` } : null);
+      html += `<button class="mrow navrow" data-prof="mod:${esc(k)}"><span class="mname">${esc(MODULES[k].name)}</span><span class="mavg">均分 ${Math.round(avg)}</span><span class="mbar"><i class="${Math.round(avg)<70? "lo":""}" style="width:${Math.round(avg)}%"></i></span><span class="mmeta">${n} 次</span><span class="mweak${head? head.cls : ""}">${head? head.text : ""}</span></button>`;
+    }
+    html += `</div>`;
+  }
+  // 口径说明退到一级页末尾：入口屏先给入口，解释按需展开
+  html += `<details class="notebox" style="margin:0"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；维度分只用来诊断弱在哪，不参与均分。</div></details>`;
   $("#profileBody").innerHTML = html;
   wireExperiences();
   wireProfileNav();
@@ -4591,23 +4652,45 @@ function profileHistHtml(){
   const histAll = state.history.length;
   if(!histAll) return PROF_BACK + `<div class="sec-title">练习记录</div><div class="hint">还没有练习记录。回首页或科目页练一道，批改完就记在这里。</div>`;
   const histShown = state.history.slice(0, histLimit);
-  let html = PROF_BACK + `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
-  for(const h of histShown){
+  let html = PROF_BACK + `<div class="sec-title">练习记录</div><div class="hint" style="margin:-4px 0 8px">点一行打开那次批改。</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
+  histShown.forEach((h, idx)=>{
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     if(h.track === "pd"){   // 判别轨行：形式当模块、主题当子类型，总分列是「对/总题数」
       html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td class="num">—</td><td>—</td></tr>`;
-      continue;
+      return;
     }
     const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
-    html += `<tr><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
-  }
+    const openable = !!(h.question && h.grade);
+    html += `<tr${openable? ` class="histrow" data-hist="${idx}" title="点开看这次批改"`:""}><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
+  });
   html += `</tbody></table></div><div class="histfoot">` + (histAll > HIST_PAGE
     ? (histLimit < histAll? `<button class="linkbtn" id="btnHistMore">展开全部 ${histAll} 条</button>` : `<button class="linkbtn" id="btnHistLess">只看最近 ${HIST_PAGE} 条</button>`)
     : "<span></span>") + `<span class="hint">共 ${histAll} 条</span></div>`;
   return html;
 }
+/* 从记录打开一次批改：记录是唯一事实源，这里不重新调 AI */
+function openHistRecord(h){
+  if(!h || !h.question || !h.grade) return;
+  const hits = Array.isArray(h.hits)? h.hits : [];
+  const g = Object.assign({ hits }, h.grade);
+  const pts = pointsOf(hits);
+  const total = h.grade.total != null? h.grade.total : (pts? Math.round(pts.got/pts.max*100) : 0);
+  lastGrade = { g, total, expCheck: h.expCheck || null,
+    time: (h.usedSec != null)? { min: h.timeLimit || 0, usedSec: h.usedSec } : null,
+    answer: String(h.answer || ""), flowId: null };
+  _flowId = null;
+  activeModule = h.module;
+  current = { module:h.module, subtype:h.subtype || "", question:h.question, keyPoints:h.keyPoints || [], cardPeeks:0 };
+  _view = "q";
+  closeModals();
+  renderTabs(); renderHeader();
+  if(usesFlowChain(h.module)) renderFlowStep();
+  else { current.phase = "grade"; current.grade = { g, total }; renderZyPage(); }
+}
 function wireProfileNav(){   // 一级行与「返回」的接线只有一份；二级页里的展开全部也在这里接
   document.querySelectorAll("[data-prof]").forEach(b=> b.onclick = ()=>{ const v = String(b.dataset.prof).split(":"); profGo(v[0], v[1] || ""); });
+  document.querySelectorAll("[data-hist]").forEach(tr=> tr.onclick = ()=>{ openHistRecord(state.history[Number(tr.dataset.hist)]); });
+  const gh = $("#profGoHome"); if(gh) gh.onclick = ()=>{ closeModals(); renderHome(); };
   const bk = $("#profBack"); if(bk) bk.onclick = profBack;
   const hm = $("#btnHistMore"); if(hm) hm.onclick = ()=>{ histLimit = state.history.length; renderProfile(); };
   const hl = $("#btnHistLess"); if(hl) hl.onclick = ()=>{ histLimit = HIST_PAGE; renderProfile(); };
@@ -5034,8 +5117,17 @@ function saveMarks(sig, set){
   }catch(e){ storageFail("划线标记"); }
 }
 /* 「据材料」小标：材料由池子里真实报道的骨架改写而来时挂上。
-   加的是标，不是说明句——界面尽量简洁清晰，不因为多了一个来源就多一段文字去解释它。 */
-function fromMatTag(q){ return (q && q.fromPool)? ' <span class="from-mat">据材料</span>' : ''; }
+   有来源明细时由「素材：…」说清，不再重复挂标；老记录（fromPool 但无 src）才用这个标。 */
+function matSrcHas(q){
+  const src = (q && q.src && typeof q.src === "object")? q.src : null;
+  if(!src) return false;
+  return !!(String(src.media || "").trim() || String(src.date || "").trim()
+    || (Array.isArray(src.topics) && src.topics.some(x => String(x || "").trim())));
+}
+function fromMatTag(q){
+  if(!q || !q.fromPool) return "";
+  return matSrcHas(q)? "" : ' <span class="from-mat">据材料</span>';
+}
 /* 来源标注：有 src 才说媒体/日期/主题（主题最多摆两个，多的用「等」收）。
    老记录只有 fromPool、没有 src——那是真材料，不追加任何来源，更不能标成仿真。
    两样都没有 = 这份材料是模型编的，明说一句，别让考生把编的当成真事。 */
@@ -5051,7 +5143,7 @@ function matSrcTag(q){
     if(tp.length) bits.push("主题：" + tp.slice(0,2).join("、") + (tp.length > 2? "等" : ""));
   }
   if(bits.length) return ' <span class="from-src">' + esc(bits.join(" · ")) + '</span>';
-  return (q && q.fromPool)? "" : ' <span class="from-src">本题材料为仿真编写</span>';
+  return (q && q.fromPool)? "" : ' <span class="from-src">仿真编写</span>';
 }
 function materialHtml(q){
   const text = String((q&&q.background)||"");
@@ -5151,6 +5243,7 @@ function handleErr(e, keepView){
 
 /* 更新日志：发版时在最上面加一条；纯静态不联网，走哪个更新源都能看。 */
 const CHANGELOG = [
+  ["0.0.22", "归类页重做：分组与命名换成全站同一套圆角语言，提纲移到一稿页按需展开；批改页逐句标分（标在句末）；画像汇总入口在前，记录行可直接点开那次批改；材料标出来源；矮窗口自动收档"],
   ["0.0.21", "修复升级后练习记录读不出来的问题；另修复了一些问题"],
   ["0.0.20", "批改页重做：分数摆在最前、只标答漏的地方，答题后还能记一句思路；另修复了一些问题"],
   ["0.0.19", "界面整体焕新：顶栏收成一行，模块与快判形式选择落进纸面；另修复了多处细节问题"],
@@ -5199,6 +5292,7 @@ function loadBuildNote(){
    下载与换包在 mac 上都要用户点（status.autoDownload === false），Windows 那边是壳自己下好了再问他。 */
 const UPDATE_API = "/__update";
 let updateInfo = null;
+let _updateFailNote = "";   // 更新动作失败的原因：留到下一次动作，状态推送不覆盖它
 
 function updateApiReady(){
   return typeof fetch === "function" && typeof location !== "undefined" && /^https?:$/.test(location.protocol);
@@ -5257,7 +5351,7 @@ function updateNoteText(s, mac){
 
 function renderUpdateNote(){
   const el = $("#updateNote");
-  if(el) el.textContent = updateNoteText(updateInfo);
+  if(el) el.textContent = _updateFailNote || updateNoteText(updateInfo);
   const s = updateInfo || {};
   const canCheck = !!s.supported && (s.phase === "idle" || s.phase === "up-to-date" || s.phase === "error");
   const canPull = s.autoDownload === false && s.phase === "available";   // 「点更新它就自己拉」＝ 只有这条链需要手动触发下载
@@ -5265,7 +5359,7 @@ function renderUpdateNote(){
   const showLink = !!s.releasesUrl;
   const bc = $("#btnCheckUpdate"); if(bc){ bc.hidden = !canCheck; bc.disabled = s.phase === "checking"; }
   const bp = $("#btnPullUpdate"); if(bp){ bp.hidden = !canPull || !s.latestVersion; bp.disabled = false; bp.textContent = "更新到 v" + (s.latestVersion||""); }   // 没有版本号就不亮按钮：不给「更新到 v」残句
-  const bi = $("#btnInstallUpdate"); if(bi) bi.hidden = !canInstall;
+  const bi = $("#btnInstallUpdate"); if(bi){ bi.hidden = !canInstall; bi.disabled = false; }
   const bl = $("#btnOpenReleases"); if(bl) bl.hidden = !showLink;
 }
 
@@ -5285,14 +5379,14 @@ function updateNoticeHtml(s){
   return "";
 }
 
-/* 壳推来的状态。首页提示区只有一个写手 renderStartNotices()：把所有提示重新聚合一次。
-   以前这里直接 banner()，会把壳灌进来的端口退让告警整片冲掉；同一条状态只播一次，
-   按钮点过 disabled 之后也再不会被重画。 */
+/* 壳推来的状态：设置页那行与起始页提示区各刷新一次。
+   起始页提示只在起始页写；题目页上的横幅归页面自己，更新状态不碰它。 */
 function __updatePush(s){
   if(!s || typeof s !== "object") return;
+  if(s.phase === "downloading") _updateFailNote = "";   // 壳真的开始拉了：失败提示让位给进度
   updateInfo = s;
   renderUpdateNote();
-  renderStartNotices();
+  if(_view === "home" || _view === "start") renderStartNotices();
 }
 
 function pollUpdateStatus(){
@@ -5302,25 +5396,27 @@ function pollUpdateStatus(){
 /* 「下载新版」和「重启并更新」两个动作都要能在两处点：设置页按钮 + 首页小提示里的按钮。
    动作就这两份，两处按钮都调它们；失败了要说清当前壳侧状态（否则就是“点了没反应”）。 */
 function pullUpdate(){
+  _updateFailNote = "";
   const el = $("#updateNote");
   if(el) el.textContent = "正在让应用把新版拉下来…";
   postUpdateAction("download").then(r =>{
     if(r && r.ok) return;   // 进度由壳推回来
     const st = (r && r.status) || updateInfo || {};
     if(st && typeof st === "object") __updatePush(st);
-    if(el) el.textContent = "没能开始下载（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或点「打开发布页」自己下。";
+    _updateFailNote = "没能开始下载（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或点「打开发布页」自己下。";
     renderUpdateNote();
   });
 }
 
 function runInstall(){
+  _updateFailNote = "";
   const el = $("#updateNote");
   if(el) el.textContent = "正在重启并安装…（应用会自动关掉再重新打开）";
   postUpdateAction("install").then(r =>{
     if(r && r.ok) return;
     const st = (r && r.status) || updateInfo || {};
     if(st && typeof st === "object") __updatePush(st);
-    if(el) el.textContent = "没能开始换包（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或点「打开发布页」手动装。";
+    _updateFailNote = "没能开始换包（壳侧当前状态：" + (st.phase || "未知") + "）。可以再点一次，或点「打开发布页」手动装。";
     renderUpdateNote();
   });
 }
@@ -5330,6 +5426,7 @@ function initUpdateUi(){
   const bc = $("#btnCheckUpdate");
   if(bc) bc.onclick = ()=>{
     bc.disabled = true;
+    _updateFailNote = "";
     const el = $("#updateNote"); if(el) el.textContent = "正在检查更新…";
     postUpdateAction("check").then(r =>{
       bc.disabled = false;
@@ -5354,8 +5451,10 @@ function initUpdateUi(){
 /* 首页顶部那几条并列提示（壳要说的话 + 小更新提示 + 预览窗警告 + 还没填 Key）。启动时铺一次；
    填完 Key 保存后要能当场收掉——以前它挂在顶上说「还没填」，要重启才消失。
    提示可以并列，不能互相覆盖。壳灌进来的那几条（端口退让 / 上次换包失败）由壳自己保证已是 HTML，
-   页面只补 own 这几条（自己拼的串）。 */
+   页面只补 own 这几条（自己拼的串）。
+   起始页提示不覆盖别的写手留下的横幅：错误、时间到这类消息比更新提示重要，等它自己让位。 */
 function renderStartNotices(){
+  if(_bannerSrc && _bannerSrc !== "notices") return;
   const notices = [];
   const fromShell = (typeof window !== "undefined" && window.__otaStartupNotices) || [];
   for(let i=0;i<fromShell.length;i++) notices.push(fromShell[i]);
@@ -5364,7 +5463,7 @@ function renderStartNotices(){
   if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
   // 欢迎条自带「关闭」：不想要这条的人当场就能收掉（小更新提示、预览窗警告不受它影响，照旧）
   if(!state.settings.apiKey && !state.settings.keyNoticeDismissed) notices.push("欢迎。填上 API Key 就能练大题与快判。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN + '<button class="linkbtn" id="btnKeyNoticeOff">关闭</button>');
-  banner(notices.length? notices.join("<br>") : "");
+  banner(notices.length? notices.join("<br>") : "", "", "notices");
   const kn = $("#btnKeyNoticeOff");
   if(kn) kn.onclick = ()=>{ state.settings.keyNoticeDismissed = true; save(); renderStartNotices(); };
 }
@@ -5460,13 +5559,17 @@ renderChangelog();
 /* 纸面按窗口宽度等比放大：760px 的纸不拉宽（每行仍约 36 字），整张纸连字号、控件一起放大。
    1050 以下不放大，上限 1.5。只缩 #doc（纸）：弹层、浮标、划线小窗、引导框都在纸外，
    它们按视口坐标定位，跟着缩会错位。顶栏与纸宽用同一个 --paper-scale，两边仍对齐纸边。 */
-function paperScaleFor(w){
+function paperScaleFor(w, h){
   const n = Number(w) || 1024;
-  return Math.min(1.5, Math.max(1, n / 1050));
+  let s = Math.min(1.5, Math.max(1, n / 1050));
+  // 矮窗先收一档：按宽度放到 1.39 时作答区和判后动作会掉出首屏
+  if(h && h < 780) s = Math.min(s, 1.15);
+  else if(h && h < 820) s = Math.min(s, 1.2);
+  return s;
 }
 function applyPaperScale(){
   if(typeof window === "undefined" || typeof document === "undefined" || !document.documentElement) return;
-  const s = paperScaleFor(window.innerWidth);
+  const s = paperScaleFor(window.innerWidth, window.innerHeight);
   document.documentElement.style.setProperty("--paper-scale", String(Math.round(s * 1000) / 1000));
 }
 

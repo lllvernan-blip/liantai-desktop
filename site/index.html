@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>练习台 · 下载</title>
+
+<!--
+  练习台官网（单文件、零依赖）
+  ============================================================================
+  视觉取自 app/index.html 的 :root 与 docs/界面规范.md：字号五档、间距五档、颜色只走 token
+  （:root 外不写 hex）、纸面 760px 居中、控件雅黑 / 纸上的字仿宋、清单不套框。
+  三张截图取自应用内实际界面，文件在 site/assets/。
+
+  取数与日志是两级：
+    · 一级读 site/latest.json / site/changelog.json（发布脚本产出）；
+    · 二级退 GitHub API / 内联日志。两级都拿不到就保持页面上的数。
+  上线：把 site/ 提交进仓库，Pages 用 GitHub Actions 部署（细节见 docs/发布与更新.md）。
+-->
+<style>
+  :root{
+    /* —— 与 app/index.html 的 :root 同源，值不许改（改了就与项目对不上） —— */
+    --gov-red:#c0151a; --gov-red-dark:#9c1115;
+    --ink:#2C2925; --line:#d9d6cf; --paper:#fffdf8; --canvas:#F4F1EA;
+    --muted:#5e5e57; --muted-2:#76746f;
+    --wash:#f7f5f0; --wash-3:#f3f1ec; --line-soft:#eceae4;
+    --ctl:#fffefb; --on-dark:#fff; --line-strong:#8f8b81;
+    --focus-halo:0 0 0 3px rgba(192,21,26,.07);
+    --h-ctl:36px; --h-ctl-sm:30px;
+    --fs-display:30px; --fs-hero:26px; --fs-title:16px; --fs-body:14px; --fs-note:12.5px;
+    --pad-ctl:8px 12px;
+    --sh-1:0 1px 3px rgba(31,31,31,.06);
+    --r-flat:0; --r-icon:6px; --r-ctl:8px; --r-hero:12px; --r-card:16px; --r-pill:999px;
+    --fangsong:"FangSong","仿宋","STFangsong","FangSong_GB2312","KaiTi",serif;
+    --yahei:"Microsoft YaHei","Microsoft YaHei UI","PingFang SC",sans-serif;
+    --hei:"SimHei","黑体","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:var(--fs-body);line-height:1.7;
+       -webkit-font-smoothing:antialiased;
+       background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:22px 22px;}
+  a{color:var(--gov-red);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+
+  /* 顶栏两端贴窗口边，纸面 760px 居中：一屏里只允许这两个左右基准 */
+  .toolbar{display:flex;align-items:center;gap:8px;padding:8px max(16px,calc((100% - 760px)/2 + 16px));}
+  .toolbar .brand{font-family:var(--hei);font-size:var(--fs-body);letter-spacing:1px;color:var(--ink);}
+  .toolbar .kicker{font-family:var(--fangsong);font-size:var(--fs-note);color:var(--muted-2);}
+  .toolbar .spacer{flex:1 1 auto;}
+  .toolbar .linkbtn{display:inline-flex;align-items:center;min-height:var(--h-ctl-sm);padding:8px 12px;font-size:var(--fs-body);
+                    color:var(--muted);border-radius:var(--r-ctl);}
+  .toolbar .linkbtn:hover{background:var(--wash-3);color:var(--ink);text-decoration:none;}
+
+  .wrap{max-width:760px;margin:24px auto 24px;padding:0 16px;}
+  /* 纸面：无边框、无阴影、无圆角，靠自己的色与高度立住（与 .doc 同一套话） */
+  .doc{background:var(--paper);padding:48px 54px 40px;}
+
+  .rh{text-align:center;}
+  .rh h1{font-family:var(--fangsong);font-size:var(--fs-display);font-weight:600;letter-spacing:2px;margin:0 0 12px;}
+  .lede{font-family:var(--fangsong);font-size:var(--fs-title);line-height:2.05;margin:0;color:var(--ink);}
+
+  .dl{margin-top:24px;text-align:center;}
+  /* 一屏里只允许一个这种重量级的东西：主行动 */
+  .dl a.primary{display:inline-flex;align-items:center;justify-content:center;min-height:54px;min-width:320px;
+                padding:16px 58px;font-size:var(--fs-title);font-weight:600;letter-spacing:1px;color:var(--on-dark);
+                background:var(--gov-red);border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
+  .dl a.primary:hover{background:var(--gov-red-dark);text-decoration:none;}
+  .dlmeta{margin-top:12px;font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}
+  .hint{margin-top:8px;font-size:var(--fs-note);color:var(--muted-2);line-height:1.9;}
+  /* 手机上装了也没用：这一句只在窄屏出现，桌面端不占地方 */
+  .only-narrow{display:none;margin-top:12px;font-size:var(--fs-note);color:var(--muted-2);}
+
+  /* 清单一套语言：一条顶线 + 行间细线，不套框 */
+  .list{margin-top:24px;border-top:1px solid var(--line);}
+  .row{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-soft);}
+  .row .k{flex:0 0 84px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);line-height:1.9;}
+  .row .v{flex:1 1 auto;line-height:1.9;}
+  .row .v b{font-weight:600;}
+
+  .step{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-soft);}
+  .step .idx{flex:0 0 auto;width:22px;height:22px;border-radius:var(--r-pill);background:var(--gov-red);color:var(--on-dark);
+             font-size:var(--fs-note);line-height:1;display:flex;align-items:center;justify-content:center;margin-top:2px;}
+  .step .body{flex:1 1 auto;line-height:1.9;}
+  .cmd{margin-top:8px;padding:8px 12px;background:var(--wash-3);border-radius:var(--r-ctl);font-size:var(--fs-note);
+       color:var(--ink);user-select:all;white-space:pre-wrap;overflow-wrap:anywhere;}
+
+  .sec .hint{margin-top:12px;}
+  /* 折叠只用一套：收纳件是实体容器（1px + 8px 档圆角），三角 12.5px 淡灰、float:right
+     ——照抄应用里的 details.more（.notebox 同款），序也一致：收起 ▸、展开 ▾ */
+  .more{margin-top:8px;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;}
+  .more>summary{list-style:none;cursor:pointer;font-size:var(--fs-note);color:var(--muted);padding:8px 12px;}
+  .more>summary::-webkit-details-marker{display:none;}
+  .more>summary::after{content:"▸";float:right;font-size:var(--fs-note);color:var(--line-strong);}
+  .more[open]>summary::after{content:"▾";}
+  .more .inner{padding:4px 12px 12px;}
+  .more .list{margin-top:0;}
+
+  .shots{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+  .shot{margin:0;background:var(--wash-3);border-radius:var(--r-card);overflow:hidden;display:flex;flex-direction:column;}
+  .shot .imgwrap{aspect-ratio:16/10;overflow:hidden;background:var(--wash-3);}
+  .shot.wide{grid-column:1 / -1;}
+  .shot.wide .imgwrap{aspect-ratio:16/7;}
+  .shot img{display:block;width:100%;height:100%;object-fit:cover;}
+  .shot figcaption{padding:8px 12px;font-size:var(--fs-note);color:var(--muted);line-height:1.6;background:var(--paper);}
+
+  .sec{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);}
+  .sec h2{font-family:var(--hei);font-size:var(--fs-title);font-weight:600;margin:0 0 12px;letter-spacing:1px;}
+  .secrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+
+  .foot{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);font-size:var(--fs-note);color:var(--muted-2);line-height:1.9;}
+
+  /* 窄屏（手机上先看到链接、再回电脑下载，这条很常见）：只做「不撑破、不漏字」，不另设一套版面。
+     纸面的大留白缩到 24/16，主行动改满宽——它原本 min-width:320px 在窄屏会顶出纸面。 */
+  @media (max-width:760px){
+    .doc{padding:24px 16px;}
+    .rh h1{font-size:var(--fs-hero);}
+    .lede{font-size:var(--fs-body);line-height:1.9;}
+    .dl a.primary{min-width:0;width:100%;padding:16px 24px;}
+    .shots{grid-template-columns:1fr;}
+    .shot.wide .imgwrap{aspect-ratio:16/10;}
+    .row{gap:4px;}
+    .step{gap:8px;}
+    .row{flex-direction:column;}
+    .row .k{flex:0 0 auto;}
+    .only-narrow{display:block;}
+    .toolbar .kicker{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="brand">练习台</span>
+  <span class="kicker">综应 · 申论</span>
+  <span class="spacer"></span>
+  <a class="linkbtn" href="#changelog">更新日志</a>
+  <a class="linkbtn" href="https://github.com/lllvernan-blip/liantai-desktop/issues">遇到问题</a>
+</div>
+
+<div class="wrap">
+  <div class="doc">
+
+    <div class="rh">
+      <h1>练习台</h1>
+      <p class="lede">给备考公务员与事业单位的人练综应A与申论：读材料、找点、写成篇，AI 按采分点逐句批改。
+        练习记录与画像只存本地。</p>
+    </div>
+
+    <div class="dl">
+      <a class="primary" id="dlBtn"
+         href="https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.21/liantai-desktop-0.0.21-arm64.dmg">下载 macOS 版</a>
+      <div class="dlmeta" id="dlMeta">0.0.21 · 2026-10-13 · 96 MB · Apple 芯片（arm64）</div>
+      <div class="hint">装过一次就不用再回来：应用启动会自己查新版，查到在首页出一条提示，点「重启并更新」。</div>
+      <div class="only-narrow">这一页要在电脑上打开才能装——下载下来的是 Mac 应用，手机用不了。</div>
+    </div>
+
+    <div class="sec">
+      <h2>它能干什么</h2>
+      <div class="list">
+        <div class="row">
+          <div class="k">快判</div>
+          <div class="v">一轮 5 题：看材料点选就判，练的是从材料里辨认说法——申论和综应A 的小题吃的也是这个动作。只记正确率，不进画像。</div>
+        </div>
+        <div class="row">
+          <div class="k">综应A</div>
+          <div class="v">一轮走完学习卡 → 作答 → 批改，覆盖公文写作、归纳概括、综合分析、提出对策、案例实务五类。</div>
+        </div>
+        <div class="row">
+          <div class="k">申论</div>
+          <div class="v">一篇走完学习卡 → 读材料找点 → 把点归成提纲 → 一稿 → 批改；批改会逐句标出哪一句拿到了分，加起来的数就是总分。</div>
+        </div>
+        <div class="row">
+          <div class="k">材料</div>
+          <div class="v">材料是人工采编的真实报道骨架，一篇一篇入库；每条事实都能回到原文核对，出处与发布日期都记在库里。</div>
+        </div>
+        <div class="row">
+          <div class="k">限时</div>
+          <div class="v">作答可以设限时，读材料、归类、写都算在里面，交卷停表；批改页会报用了多久、超了多少。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>装上要三步</h2>
+      <div class="list">
+        <div class="step">
+          <span class="idx">1</span>
+          <div class="body">下载 dmg，双击打开，把「练习台」拖进「应用程序」。</div>
+        </div>
+        <div class="step">
+          <span class="idx">2</span>
+          <div class="body">第一次打开：在「应用程序」里<strong>右键点「练习台」→「打开」</strong>，弹窗里再点一次「打开」。
+            不是从 App Store 装的应用，macOS 第一次都会先问这么一次。</div>
+        </div>
+        <div class="step">
+          <span class="idx">3</span>
+          <div class="body">要是第 2 步还是不让开：打开「终端」，把下面这一行粘进去回车，再打开一次就行。
+            <div class="cmd">xattr -dr com.apple.quarantine "/Applications/练习台.app"</div>
+          </div>
+        </div>
+      </div>
+      <div class="hint">装的时候不动你的数据：更新只换程序文件，练习记录、画像、草稿、填过的 Key 都还在原处。</div>
+    </div>
+
+    <div class="sec">
+      <h2>长什么样</h2>
+      <div class="shots">
+        <figure class="shot wide">
+          <div class="imgwrap"><img src="assets/read.png" alt="作答页：题目、背景材料与出处、划线提示、作答区"></div>
+          <figcaption>作答页：题目与背景材料同屏，材料标明出处；选中文字即可划线。</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="imgwrap"><img src="assets/outline.png" alt="一稿页展开的归类提纲"></div>
+          <figcaption>一稿页：归类得到的提纲，需要时展开。</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="imgwrap"><img src="assets/grade.png" alt="批改页：分数、逐句标注、参考答案与解析"></div>
+          <figcaption>批改页：分数在前，逐句标注，句末分数相加就是总分。</figcaption>
+        </figure>
+      </div>
+      <div class="hint">截图取自应用内实际界面。</div>
+    </div>
+
+    <div class="sec" id="changelog">
+      <div class="secrow">
+        <h2>更新日志</h2>
+        <a href="https://github.com/lllvernan-blip/liantai-desktop/releases">各版安装包 →</a>
+      </div>
+      <div class="list" id="clList"></div>
+      <details class="more" id="clMore">
+        <summary>看全部 <span id="clN">…</span> 条</summary>
+        <div class="inner"><div class="list" id="clRest"></div></div>
+      </details>
+      <div class="hint">这份日志与应用里「设置 → 更新日志」是同一份（应用内离线可看，不联网）。</div>
+    </div>
+
+    <div class="foot">
+      出题与阅卷要用你自己在「设置」里填的模型 Key——那一步会把题目与你写的答案发给那个模型服务；练习记录、画像、草稿只存在你电脑上。<br>
+      发现问题或者有建议：<a href="https://github.com/lllvernan-blip/liantai-desktop/issues">在这里说一句</a>。
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* 最新版取数，两级（他 2026-10-16 定的是 c）：
+   一级读站点自带的 latest.json —— 发布时生成，不赌访客能不能连上 github.com，也不吃 API 限额；
+   二级退 GitHub API —— 必须自己筛：GitHub 的 releases/latest 只认「非 prerelease」，
+   而这个仓库 0.0.18 之后全是 prerelease，用它会给用户看一个落后好几版的号。
+   两级都拿不到：保持页面上写死的那个数，不显示拿不准的东西。 */
+const REPO = 'lllvernan-blip/liantai-desktop';
+const FALLBACK = { version:'0.0.21', date:'2026-10-13', size:100800653,
+  url:'https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.21/liantai-desktop-0.0.21-arm64.dmg' };
+
+const mb = n => Math.round(Number(n) / 1048576) + ' MB';
+
+function paint(j){
+  if(!j || !j.version) return;
+  const btn = document.getElementById('dlBtn');
+  if(j.url) btn.href = j.url;
+  document.getElementById('dlMeta').textContent =
+    [j.version, j.date, j.size? mb(j.size) : '', 'Apple 芯片（arm64）'].filter(Boolean).join(' · ');
+}
+
+async function readLatest(){
+  try{
+    const r = await fetch('./latest.json', {cache:'no-store'});
+    if(r.ok){ const j = await r.json(); if(j && j.version) return j; }
+  }catch(e){ /* 本地预览或还没生成：往下走 */ }
+  try{
+    const r = await fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=30',
+                          {headers:{Accept:'application/vnd.github+json'}});
+    if(!r.ok) return null;
+    const list = await r.json();
+    const picks = list.filter(x => !x.draft && /^v\d/.test(x.tag_name))
+                      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+    for(const rel of picks){
+      const dmg = (rel.assets || []).find(a => /arm64\.dmg$/.test(a.name));
+      if(dmg) return { version: rel.tag_name.replace(/^v/, ''), date: rel.published_at.slice(0, 10),
+                       size: dmg.size, url: dmg.browser_download_url };
+    }
+  }catch(e){ /* 网络不通：保持写死的数 */ }
+  return null;
+}
+
+(async () => { paint(await readLatest() || FALLBACK); })();
+
+/* 更新日志：与应用里「设置 → 更新日志」同一份——那份是 app/index.html 里的 CHANGELOG 数组，
+   发版时在最上面加一条，应用内离线可看。站点不另写一份，落地时由发布脚本抽成 changelog.json
+   （单一真源），这里先内联一份照抄，保证没网也能看。
+   为什么不直接链 GitHub Releases：那儿的正文是发版模板（三版一字未改），不是「这版改了什么」。 */
+const CHANGELOG_FALLBACK = [
+  ["0.0.22", "归类页重做：分组与命名换成全站同一套圆角语言，提纲移到一稿页按需展开；批改页逐句标分（标在句末）；画像汇总入口在前，记录行可直接点开那次批改；材料标出来源；矮窗口自动收档"],
+  ["0.0.21", "修复升级后练习记录读不出来的问题；另修复了一些问题"],
+  ["0.0.20", "批改页重做：分数摆在最前、只标答漏的地方，答题后还能记一句思路；另修复了一些问题"],
+  ["0.0.19", "界面整体焕新：顶栏收成一行，模块与快判形式选择落进纸面；另修复了多处细节问题"],
+  ["0.0.18", "抬头收成一行；申论全链与学习卡统一；更新与发版链加固"],
+  ["0.0.17", "打开就能做快判，没填 Key 也能先试一轮"],
+  ["0.0.16", "macOS 版可在应用内更新"],
+  ["0.0.15", "新增 macOS 版"],
+  ["0.0.14", "新增作答限时与用时记录；入口页文案精简、画像改两级；批改更快更稳，同文重测的分数更集中"],
+  ["0.0.13", "新用户分步引导；设置页新增 API Key 申请教程与备份入口；批改偶发空白已修"],
+  ["0.0.12", "画像、批改、沉淀改成一行一条、点开看明细；批改页丢分与逐条标记不再互相矛盾"],
+  ["0.0.11", "修复部分网络环境下无法检查更新的问题"],
+  ["0.0.10", "申论学习卡前置展开；沉淀步新增「完成，回首页」出口"],
+  ["0.0.9", "申论流程简化：批改后直接沉淀；申论学习卡上线"],
+  ["0.0.8", "一批稳定性加固；安装包瘦身；新增更新日志"],
+  ["0.0.7", "界面与交互打磨"],
+  ["0.0.6", "划线回顾、作答笔记、参考答案全文"],
+  ["0.0.5", "界面细节修复"],
+  ["0.0.4", "「判别轨」更名为「快判」"],
+  ["0.0.3", "更新下载更稳"],
+  ["0.0.2", "自动更新上线"],
+  ["0.0.1", "首个发布版本"]
+];
+const RECENT = 4;   // 最近四条摆在外面，剩下的折起来（与应用里那个 <details> 同一招）
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clRow = it => '<div class="row"><div class="k">v' + esc(it[0]) + '</div><div class="v">' + esc(it[1]) + '</div></div>';
+
+function paintChangelog(list){
+  const rows = (list || []).filter(it => it && it[0]);
+  if(!rows.length) return;
+  document.getElementById('clList').innerHTML = rows.slice(0, RECENT).map(clRow).join('');
+  document.getElementById('clRest').innerHTML = rows.slice(RECENT).map(clRow).join('');
+  document.getElementById('clN').textContent = rows.length - RECENT;
+}
+
+async function readChangelog(){
+  try{
+    const r = await fetch('./changelog.json', {cache:'no-store'});
+    if(r.ok){ const j = await r.json(); if(j && Array.isArray(j.entries) && j.entries.length) return j.entries; }
+  }catch(e){ /* 本地预览或还没生成：用内联那份 */ }
+  return CHANGELOG_FALLBACK;
+}
+
+(async () => { paintChangelog(await readChangelog()); })();
+</script>
+</body>
+</html>

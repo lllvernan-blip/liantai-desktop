@@ -219,6 +219,8 @@ ok(locateFrag("各科室请遵照执行。特此通知。", "各科室请，遵�
 ok(locateFrag("各科室请遵照执行。特此通知。", "各科室请遵照执行的落实情况") >= 0, "定位: 模型改写/加字也能落到最像的那句");
 ok(locateFrag("各科室请遵照执行。", "与本卷毫无关系的另一段话") < 0, "定位: 真对不上的不许硬落（成段门槛挡住瞎标）");
 ok(evidenceFrags("答到：关于调整作息的通知").length === 1, "证据片段: 模型没打引号时剥掉符号照用");
+ok(evidenceFrags("【缺：成文日期】答到：关于调整作息的通知")[0] === "关于调整作息的通知",
+   "证据片段: 【缺】写在前面时也剥掉「答到：」前缀");
 ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0, "批改页: 范文仍在页面上（现在收在可展开区里）");
 ok(el("#docBody").innerHTML.indexOf("继续加油") >= 0, "阅卷页: 点评渲染");
 
@@ -701,9 +703,9 @@ renderQuestion(); el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("插入公文骨架") >= 0, "公文: 骨架按钮在场，占位提示与按钮一致");
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 }, cardPeeks:0 };
 renderQuestion();
-ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") < 0, "题目页: 卡阶段不亮分值（题面未出）");
+ok(el("#docBody").innerHTML.indexOf("<b>分值</b>20 分") < 0, "题目页: 卡阶段不亮分值（题面未出）");
 el("#btnZyAnswer").onclick();
-ok(el("#docBody").innerHTML.indexOf("分值：</b>20 分") >= 0, "题目页: 题目满分对考生可见（作答阶段亮出）");
+ok(el("#docBody").innerHTML.indexOf("<b>分值</b>20 分") >= 0, "题目页: 题目满分对考生可见（作答阶段亮出）");
 state.history = [];
 
 /* 8.6 翻卡次数参与出题调度 */
@@ -738,7 +740,20 @@ ok(el(".redhead").style.display === "", "科目页: 公文红头照旧（卷面�
 renderHome();
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
+ok(el("#docBody").innerHTML.indexOf("开始练习（智能选") < 0, "落地页: 主按钮只写「开始练习」，不带机制后缀");
 ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
+{
+  const kk = state.settings.apiKey, mm = state.settings.model;
+  state.settings.apiKey = ""; state.settings.model = "";
+  renderModuleLanding("zy.guina");
+  const landNo = el("#docBody").innerHTML;
+  ok(landNo.indexOf('id="btnLandStart">先填 API Key（出题和阅卷都要）') >= 0 && landNo.indexOf("开始练习") < 0,
+     "落地页（没 Key）: 主按钮改说「先填 API Key」，不承诺开始");
+  el("#btnLandStart").onclick();
+  ok(el("#modalSettings").hidden === false, "落地页（没 Key）: 主按钮真把人送到设置页");
+  closeModals();
+  state.settings.apiKey = kk; state.settings.model = mm;
+}
 state.history = [{ module:"zy.guina", subtype:"概括原因", grade:{ total:60, scores: scoresFor("zy.guina",12) }, cardPeeks:4 }];
 const orRand2 = Math.random; Math.random = () => 0.9;
 ok(pickSubtypeFor("zy.guina") === "概括原因", "调度: 非公文题型同样按翻卡优先 (got " + pickSubtypeFor("zy.guina") + ")");
@@ -1195,9 +1210,40 @@ state.flows = []; _flowId = null;
   const rec = JSON.parse(localStorage.getItem("gw_history") || "[]");
   ok(rec[0] && rec[0].selfNote === "我先看要求再找点" && rec[0].selfKind === "how",
      "自述: 「已记下」真的写进 gw_history，重开还在");
+  /* 存储写满：磁盘上没写进去，界面就不许说「已记下」 */
+  const _realSetSelf = localStorage.setItem;
+  localStorage.setItem = ()=>{ throw new Error("quota"); };
+  el("#selfNote").value = "这句写不进磁盘";
+  el("#btnSelfSave").onclick();
+  localStorage.setItem = _realSetSelf;
+  ok(el("#selfState").textContent.indexOf("已记下") < 0 && el("#selfState").textContent.indexOf("没能保存") >= 0,
+     "自述: 存储写满时不说「已记下」");
   /* DOM 桩是全文件共用的：dataset 改了要还原，否则后面的自述用例会拿到这里的 kind */
   el("#selfBox").dataset.kind = "";
   el("#selfNote").value = "";
+  el("#selfState").textContent = "";
+  state.history[0].selfNote = "我先看要求再找点"; state.history[0].selfKind = "how";
+}
+
+/* 12.7e2 范文随批改结果入库：批改页从记录派生时「参考答案」还在 */
+{
+  state.flows = []; _flowId = null; state.history = []; lastGrade = null;
+  state.settings.apiKey = "sk-test"; state.settings.model = "m";
+  const qM = { background:"范文材料。", requirements:"不超过250字。", score:20 };
+  current = { module:"sl.guina", subtype:"概括问题", question:qM, keyPoints:[], cardPeeks:0 };
+  renderQuestion();
+  const fM = activeFlow(); fM.cardSeen = true; flowGoStep("draft");
+  el("#answer").value = "这是一段超过二十个字的作答内容，用来验证范文入库。";
+  el("#btnSubmit").disabled = false;
+  const realGradeM = grade;
+  grade = async ()=>({ hits:[{point:"p",score:20,awarded:18,status:"部分命中",evidence:"「这是一段超过二十个字的作答内容」"}],
+    scores:{}, strengths:[], weaknesses:[], comment:"解析。", modelAnswer:"范文正文。" });
+  await submitAnswer();
+  grade = realGradeM;
+  ok(state.history[0] && state.history[0].grade.modelAnswer === "范文正文。", "记录: 范文随批改结果入库");
+  const gM = gradeForFlow(activeFlow() || fM);
+  ok(gM && gM.g.modelAnswer === "范文正文。", "恢复: 从记录派生时范文还在");
+  state.flows = []; _flowId = null; state.history = []; lastGrade = null; current = null;
 }
 
 /* 12.7f 恢复现场要把学习卡一起带回来（卡缓存在 cache 里，没搬过来卡页就说「本题没有学习卡」） */
@@ -1281,6 +1327,8 @@ ok(orgName.indexOf("btnNewCat") < 0 && orgName.indexOf("btnBackToGroup") >= 0,
    "归类: 命名那一段不再归点，给「回去改分组」的路");
 ok(orgName.indexOf("提纲预览") < 0 && orgName.indexOf("outlinePrev") < 0 && orgName.indexOf("outlineBox") < 0,
    "归类: 提纲不在归类页（产地在这里，摆的地方是一稿页）");
+const orgName2 = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"甲",facts:[0]},{name:"乙",facts:[1]}], orgPhase:"name" });
+ok(orgName2.indexOf('class="ognames"') >= 0, "归类: 命名页的组卡共用一个容器（组间留出间距）");
 ok(PAGE_HTML.indexOf('id="newCatName"') < 0, "归类: 「新建一组」不再要求当场写名字");
 ok(orgPhaseOf({}) === "group" && orgPhaseOf({orgPhase:"name"}) === "name" && orgPhaseOf({orgPhase:"乱写"}) === "group",
    "归类: 老链没有段位字段时按第一段算");
@@ -1522,9 +1570,11 @@ el("#btnSetup").onclick();
 ok(el("#modalSettings").hidden === false,
    "首页（没填 Key）: 那颗按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
 closeModals();
-ok(startUp.indexOf('data-big="zy">综应A 练一轮') >= 0 && startUp.indexOf('data-big="sl">写一篇申论') >= 0
+ok(startUp.indexOf('data-big="zy">去综应A') >= 0 && startUp.indexOf('data-big="sl">去申论') >= 0
    && startUp.indexOf("练一道大题（综应 / 申论）") < 0,
-   "快判往上提: 两枚 chips 各自点名科目（数据仍走 startSubjectTask），不再写含糊的「综应 / 申论」");
+   "快判往上提: 没 Key 时两枚 chips 只承诺「去某科」，不承诺出题");
+ok(wireStartBox.toString().indexOf("canStart()") >= 0,
+   "首页大题: 没 Key 时 chip 只切科目、不进加载态");
 state.settings.apiKey = "sk-test";
 renderHome();
 ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
@@ -1940,6 +1990,7 @@ ok(state.settings.apiKey === __keyCanary, "导入: 文件没带 Key 也不清空
 state.settings.apiKey = __keyBefore;
 
 /* 15.5 版本与更新：文案与入口都是纯函数，不需要真壳就能核 */
+_view = "start"; banner("");
 ok(typeof __updatePush === "function" && typeof updateNoteText === "function" && typeof initUpdateUi === "function",
    "更新: 页面暴露壳状态入口（__updatePush / updateNoteText / initUpdateUi）");
 ok(updateNoteText(null).indexOf("正在读取") >= 0, "更新: 状态未到时给占位文案，不报错");
@@ -2443,7 +2494,7 @@ ok(/^剩余 (30:0\d|29:5\d)$/.test(el("#timeLeft").textContent), "限时: 立刻
 
 /* 19.2b 时长不分档：写多少分钟就是多少；空 / 0 / 乱填 = 不限时，小数取整，超上限按上限 */
 el("#inpLimit").value = "45"; el("#inpLimit").onchange();
-ok(curLimitMin() === 45, "限时: 45 分钟这种非整十的时长照样收（不再只有几档）");
+ok(curLimitMin() === 45 && curLimitFrom() === tlAnchor, "限时: 改时长沿用同一起算点（从开始作答起算）");
 el("#inpLimit").value = "12.7"; el("#inpLimit").onchange();
 ok(curLimitMin() === 13 && el("#inpLimit").value === "13", "限时: 小数取整并回写进框 -> " + el("#inpLimit").value);
 el("#inpLimit").value = "9999"; el("#inpLimit").onchange();
@@ -2541,7 +2592,8 @@ ok(startSmart.toString().indexOf("entryBlocked()") >= 0 && startSubjectTask.toSt
 ok(startSubjectTask.toString().indexOf("entryBlocked()") < startSubjectTask.toString().indexOf("pdActive = false"),
    "没 Key 不进加载态: 先判再动状态（不然人被挪到科目页，当前抬头还被换掉）");
 const _eb = entryBlocked.toString();
-ok(_eb.indexOf("s.apiKey && s.model") >= 0 && _eb.indexOf("OPEN_SETTINGS_BTN") >= 0 && _eb.indexOf("banner(") >= 0,
+ok(_eb.indexOf("canStart()") >= 0 && _eb.indexOf("OPEN_SETTINGS_BTN") >= 0 && _eb.indexOf("banner(") >= 0
+   && canStart.toString().indexOf("s.apiKey && s.model") >= 0,
    "没 Key 不进加载态: 提示里带「打开设置」的去路，且模型没选也拦");
 ok(renderPDSummary.toString().indexOf("本轮小结 · ") < 0,
    "快判小结: 纸面不再把形式名写第二遍（抬头已报「快判 · 综合快判」）");
@@ -2851,6 +2903,18 @@ ok(PAGE_HTML.indexOf('"comment":"解析（100 字以内）') >= 0,
    "阅卷 prompt: comment 改口径为「解析」（只讲这题怎么答，不评价答卷）");
 ok(PAGE_HTML.indexOf("一句话（40 字内）") < 0,
    "阅卷 prompt: 一句话点评的口径不在了（它撑不起「解析」这个位置）");
+/* 句末分数与页头同口径：模型多给的分也夹住；有采分项定位不到时不宣称「相加＝总分」 */
+ok(answerMarks([{score:5,awarded:8,evidence:"答到：「关于调整作息的通知」"}], "关于调整作息的通知。").got.reduce((a,b)=>a+b,0) === 5,
+   "逐句标注: 句末分按子项满分夹住（与页头同一口径）");
+renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x",
+  hits:[{point:"a",score:5,awarded:8,evidence:"答到：「关于调整作息的通知」"},
+        {point:"b",score:5,awarded:5,evidence:"答到：「答卷里没有的句子」"}] }, 10, null, null, "关于调整作息的通知。");
+const H22b = el("#docBody").innerHTML;
+ok(H22b.indexOf("相加＝总分") < 0 && H22b.indexOf("是本句得分") >= 0,
+   "批改页: 有采分项定位不到时不宣称「相加＝总分」");
+ok(H22b.indexOf('class="asc full">+5<') >= 0, "批改页: 模型多给分时句末按满分显示（+5 不是 +8）");
+renderGrade({ hits:[{point:"a",score:5,awarded:5,evidence:"答到：「关于调整作息的通知」"}] }, 5, null, null, "关于调整作息的通知。");
+ok(el("#docBody").innerHTML.indexOf("相加＝总分") >= 0, "批改页: 全部定位成功时才说「相加＝总分」");
 /* 全满分：三段照常，不留空块 */
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x",
   hits:[{point:"a",score:5,awarded:5,status:"满分",evidence:"答到：「a」"}] }, 50, null, null, "我答了一句。");
@@ -2961,8 +3025,9 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
   const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
   ok(_deadVars.length === 0, "尺子: 没有定义了却没人用的 CSS 变量" + (_deadVars.length? "（" + _deadVars.join("、") + "）" : ""));
-  ok(paperScaleFor(1040) === 1 && Math.abs(paperScaleFor(1470) - 1.4) < 0.01 && paperScaleFor(1920) === 1.5 && paperScaleFor(0) === 1,
-     "纸面: 按窗口宽度等比放大（≤1050 不放大 / 1470 约 1.4 / 超宽封顶 1.5）");
+  ok(paperScaleFor(1040) === 1 && Math.abs(paperScaleFor(1470) - 1.4) < 0.01 && paperScaleFor(1920) === 1.5 && paperScaleFor(0) === 1
+     && Math.abs(paperScaleFor(1470, 800) - 1.2) < 0.01 && Math.abs(paperScaleFor(1470, 756) - 1.15) < 0.01,
+     "纸面: 按窗口宽度等比放大（≤1050 不放大 / 1470 约 1.4 / 超宽封顶 1.5）；矮窗再收一档");
   // :root 外不写设计色 hex（用户可选的划线色是运行时变量，另算）
   const _css = PAGE_HTML.slice(PAGE_HTML.indexOf("<style>"), PAGE_HTML.indexOf("</style>"));
   const _rootEnd = _css.indexOf("}", _css.indexOf(":root{"));
@@ -2978,7 +3043,7 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
                                const hi=Math.max(x,y), lo=Math.min(x,y); return (hi+0.05)/(lo+0.05); };
   const _tok = n => { const m = PAGE_HTML.match(new RegExp("--" + n + ":\\s*(#[0-9a-fA-F]{6})")); return m ? m[1] : ""; };
   const _paper = _tok("paper");
-  const _textToks = ["ink","ink-soft","muted","muted-2","gov-red","gov-red-dark","warn","chip-ink","success","danger"];
+  const _textToks = ["ink","muted","muted-2","gov-red","gov-red-dark","warn","chip-ink","success","danger"];
   const _lowTok = _textToks.filter(n => { const v = _tok(n); return !v || _contrast(v, _paper) < 4.5; })
                            .map(n => n + "=" + _tok(n) + "(" + _contrast(_tok(n), _paper).toFixed(2) + ":1)");
   ok(_paper === "#fffdf8" && _lowTok.length === 0,
@@ -3076,7 +3141,7 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "材料来源: 媒体 / 日期 / 主题都出，主题最多两个、多的用「等」收");
   ok(matSrcTag({ background:"b", requirements:"r", fromPool:"标题" }) === "",
      "材料来源: 老记录只有「据材料」，不追加来源（不把真材料说成仿真）");
-  ok(matSrcTag({ background:"b", requirements:"r" }).indexOf("本题材料为仿真编写") >= 0,
+  ok(matSrcTag({ background:"b", requirements:"r" }).indexOf("仿真编写") >= 0,
      "材料来源: 没有证据就明说仿真编写");
   ok(PAGE_HTML.indexOf("matSrcTag(current.question)") >= 0 && PAGE_HTML.indexOf("matSrcTag(question)") >= 0,
      "材料来源: 两处材料行都接了（综应A 作答页 + 申论读材料页）");
@@ -3084,6 +3149,78 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "材料来源: 快判那行「材料节选」不标（它不是池子素材，是逐题生成的）");
   ok(PAGE_HTML.indexOf(".material .from-src{") >= 0,
      "材料来源: 小标有样式（加了类却没写样式就是白加）");
+  ok(fromMatTag({ fromPool:"标题", src:{ media:"人民网", date:"2026-10-15", topics:["乡村振兴"] } }) === "",
+     "材料来源: 有来源明细时不再重复挂「据材料」");
+  ok(fromMatTag({ fromPool:"标题", src:{ media:"", date:"", topics:[] } }).indexOf("据材料") >= 0,
+     "材料来源: 空 src 不吞掉「据材料」（来源行不会显示）");
+  ok(PAGE_HTML.indexOf('class="mathint"') >= 0 && PAGE_HTML.indexOf('class="mathelp"') < 0 && PAGE_HTML.indexOf('class="mathead"') < 0,
+     "材料头: 划线说明写在材料块外，材料块里只有来源");
+  ok(PAGE_HTML.indexOf('<span class="hint">（选中几个字即可划线') < 0,
+     "材料头: 划线说明不再拼在来源行里");
+}
+
+/* 学习卡页：卡有容器与标题；弹层容器不带浏览器焦点环；几处视觉细节 */
+{
+  const _cur = current, _phase = _view;
+  state.cache.studyCards["zy.guina::概括问题"] = { title:"卡", points:["a"] };
+  current = { module:"zy.guina", subtype:"概括问题", question:{ background:"b", requirements:"r", score:20 }, keyPoints:[], cardPeeks:0, phase:"card", studyCard:{ title:"卡", points:["a"] } };
+  renderZyPage();
+  const HC = el("#docBody").innerHTML;
+  ok(HC.indexOf('<div class="card">') >= 0 && HC.indexOf('class="sec-title">学习卡</div>') >= 0 && HC.indexOf('id="btnSwitch"') >= 0,
+     "学习卡页: 卡有容器，标题行报「学习卡」，换一题同行");
+  ok((PAGE_HTML.match(/\.card\{background:var\(--wash\)/) || [""])[0].length > 0, "学习卡: .card 有浅底与圆角规则");
+  current = _cur; _view = _phase;
+  delete state.cache.studyCards["zy.guina::概括问题"];
+}
+ok(PAGE_HTML.indexOf(".modal .box:focus{outline:none") >= 0, "弹层: 容器被聚焦时不画浏览器默认焦点环");
+ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*margin:0 8px 0 4px/) || [""])[0].length > 0, "批改页: 句末分数与下一句之间留出间距");
+ok(PAGE_HTML.indexOf("这道题卡在哪一步") >= 0 && PAGE_HTML.indexOf('"这道卡在哪一步') < 0, "批改页: 自述问句是「这道题卡在哪一步？」");
+ok(PAGE_HTML.indexOf('<span class="mathint">选中文字即可划线') >= 0
+   && PAGE_HTML.indexOf('<span class="mathint">选中文字即可划线') < PAGE_HTML.indexOf('<div class="material mat-scroll">'),
+   "材料头: 划线说明与分值同一行，在材料之前");
+ok(PAGE_HTML.indexOf('class="metarow"') >= 0 && PAGE_HTML.indexOf("<b>分值</b>") >= 0 && PAGE_HTML.indexOf("分值：</b>") < 0,
+   "题面: 分值与难度同一行、标签紧贴值（不再用 5em 悬挂缩进拉开）");
+ok(PAGE_HTML.indexOf("这类题怎么练？") >= 0 && PAGE_HTML.indexOf("${esc(m.name)} 练什么？") < 0,
+   "落地页: 标题只说「这类题怎么练」，不复述抬头里的模块名");
+ok(renderHeader.toString().indexOf('_view === "q"') >= 0, "抬头: 子类型只在作答页报，落地页不带上一题的子类型");
+ok(PAGE_HTML.indexOf("@keyframes breathe") < 0 && PAGE_HTML.indexOf("animation:breathe") < 0,
+   "加载页: 去掉循环呼吸线（全应用没有循环主动效）");
+ok(PAGE_HTML.indexOf('class="actions savebar"') >= 0, "设置: 保存是弹层底部固定条，滚到哪都够得着");
+ok(TUT_SEQ[1] && TUT_SEQ[1].sel === ".chiprow" && TUT_SEQ.every(s2 => String(s2.sel).indexOf(".chip[data-mod]") < 0),
+   "引导: 整排 chip 一起挖孔，不再只罩第一颗");
+ok(PAGE_HTML.indexOf(".material .label .from-mat,.material .label .from-src{") >= 0, "材料头: 抬头与来源之间用细线分开");
+ok(PAGE_HTML.indexOf("--ink-soft") < 0 && PAGE_HTML.indexOf("var(--ink-soft)") < 0, "颜色: 灰收回三档（--ink-soft 已并进 --muted）");
+{
+  const _c = current; current = { cardPeeks: 2 };
+  ok(cardFabHtml("翻学习卡", true).indexOf('class="fabcount"') >= 0 && PAGE_HTML.indexOf(".fab .fabcount{display:none") >= 0,
+     "窄窗: 浮标只留动作名（仍挂在纸外）");
+  current = _c;
+}
+ok(limitRowHtml().indexOf(">限时<") >= 0 && PAGE_HTML.indexOf(".tlin{width:62px;height:var(--h-ctl-sm)") >= 0,
+   "限时: 控件带「限时」标签，与同行按钮同高");
+{
+  const _h = state.history.slice();
+  state.history = [];
+  openModal("modalProfile"); renderProfile();
+  const pe = el("#profileBody").innerHTML;
+  ok(pe.indexOf("还没练习记录") < 0 && pe.indexOf("还没有练习记录") >= 0 && pe.indexOf("回首页练一道") >= 0,
+     "画像: 空态直接给下一步");
+  ok(pe.indexOf("快判") >= 0 && pe.indexOf("快判") < pe.indexOf("综应A ·"), "画像: 汇总入口排在模块之前");
+  state.history = _h;
+  closeModals();
+}
+{
+  const _h = state.history.slice();
+  state.history = [{ ts:Date.now(), module:"zy.guina", subtype:"概括问题", question:{ background:"b", requirements:"r", score:20 }, answer:"我的答案。", keyPoints:[],
+    hits:[{ point:"p", score:20, awarded:18, status:"部分命中", evidence:"答到：「我的答案」" }],
+    grade:{ total:90, scores:{}, comment:"解析。", modelAnswer:"范文。" } }];
+  openModal("modalProfile"); renderProfile(); profGo("hist");
+  ok(el("#profileBody").innerHTML.indexOf('data-hist="0"') >= 0 && el("#profileBody").innerHTML.indexOf("点一行打开那次批改") >= 0,
+     "记录页: 行可点开那次批改");
+  openHistRecord(state.history[0]);
+  ok(_view === "q" && el("#modalProfile").hidden === true && el("#docBody").innerHTML.indexOf("/ 20 分") >= 0,
+     "记录页: 点行打开那次批改（不重调 AI）");
+  state.history = _h; current = null; lastGrade = null; _flowId = null;
 }
 
 /* ============ 收尾修复回归 ============ */
@@ -3104,6 +3241,22 @@ ok(fDrop.selections.length === 2 && fDrop.selections[1].text === "丙"
 dropSelections(fDrop, (_sl,i)=> i === 1);
 ok(fDrop.groups[1].facts.length === 0, "归类: 删到末尾时组里不会留下越界下标");
 
+/* 删当前点之前的点：当前点跟着前移，不跳到下一个点 */
+const fDrop2 = { selections:[{text:"甲"},{text:"乙"},{text:"丙"}], groups:[{facts:[2]}], orgIdx:2 };
+dropSelections(fDrop2, (_sl,i)=> i === 0);
+ok(fDrop2.orgIdx === 1 && fDrop2.selections[fDrop2.orgIdx].text === "丙" && fDrop2.groups[0].facts.join(",") === "1",
+   "归类: 删当前点之前的点，当前点不跳格");
+
+/* 老记录的 legacy-* 占位按题目签名回退到批改结果 */
+state.flows = []; _flowId = null; state.history = []; lastGrade = null;
+const qLeg = { background:"老记录材料。", requirements:"r", score:20 };
+const fLeg = ensureFlow("sl.guina", "概括问题", qLeg, []);
+state.history = migrateHistory([{ ts:1, module:"sl.guina", subtype:"概括问题", question:qLeg, answer:"老答案",
+  hits:[{ point:"p", score:20, awarded:18, status:"部分命中", evidence:"答到：「老答案」" }],
+  grade:{ total:90, scores:{}, comment:"c" } }]).list;
+ok(gradeForFlow(fLeg) && gradeForFlow(fLeg).total === 90, "恢复: legacy flowId 的老记录按题目签名回退");
+state.flows = []; _flowId = null; state.history = []; current = null;
+
 /* 停用经验不被同义提炼重新启用 */
 state.experiences = [{ id:"e_dis", type:"错因", kind:"", title:"漏写落款", body:"旧", scope:"module", module:"sl.guina", subject:"sl", ts:1, disabled:true, sourceSig:"s" }];
 storeExperiences([{ type:"错因", title:"漏写落款", body:"新" }], "sl.guina", null, { background:"停用题。", requirements:"r" });
@@ -3122,6 +3275,7 @@ const _savedWinUpd = globalThis.window;
 globalThis.window = { __otaStartupNotices: ["<b>端口告警</b>"] };
 state.settings.apiKey = "sk-test";
 updateInfo = null;
+_view = "start"; banner("");
 __updatePush({ supported:true, phase:"downloaded", latestVersion:"9.9.9", currentVersion:"1.0.0", autoDownload:false });
 const _bhtml = el("#bannerSlot").innerHTML;
 ok(_bhtml.indexOf("端口告警") >= 0 && _bhtml.indexOf("已下载完成") >= 0,
@@ -3132,6 +3286,35 @@ ok(el("#bnrUpdate").disabled === false && el("#bannerSlot").innerHTML.indexOf("b
    "更新: 重新推送时按钮复位（不会点过一次就永久卡死）");
 ok(updateNoticeHtml({ supported:true, phase:"downloaded", latestVersion:"1.0.1", autoDownload:true }).indexOf("bnrInstall") >= 0,
    "更新: Windows 下载完成后首页也给「重启并更新」");
+
+/* 更新状态不覆盖页面自己的横幅；题目页上的横幅归页面 */
+banner("本地存储已满，这次练习记录没能保存。", "error");
+__updatePush({ supported:true, phase:"up-to-date", currentVersion:"1.0.0" });
+ok(el("#bannerSlot").innerHTML.indexOf("本地存储已满") >= 0,
+   "更新: 推送不覆盖页面自己的错误横幅");
+_view = "q"; banner("答题页的提示");
+__updatePush({ supported:true, phase:"downloaded", latestVersion:"9.9.9", currentVersion:"1.0.0", autoDownload:false });
+ok(el("#bannerSlot").innerHTML.indexOf("答题页的提示") >= 0 && el("#bannerSlot").innerHTML.indexOf("9.9.9") < 0,
+   "更新: 题目页上的横幅归页面，更新状态不写");
+_view = "start"; banner("");
+
+/* 更新动作失败：失败原因保留到界面上，按钮能再点 */
+const _realPost = postUpdateAction;
+postUpdateAction = async ()=>({ ok:false, status:{ supported:true, phase:"downloaded", latestVersion:"9.9.9", currentVersion:"1.0.0", autoDownload:true } });
+__updatePush({ supported:true, phase:"downloaded", latestVersion:"9.9.9", currentVersion:"1.0.0", autoDownload:true });
+el("#btnInstallUpdate").disabled = false;
+el("#btnInstallUpdate").onclick();
+await null; await null;
+ok(el("#btnInstallUpdate").disabled === false, "更新: 换包失败后「重启并更新」能再点");
+ok(el("#updateNote").textContent.indexOf("没能开始换包") >= 0, "更新: 换包失败时保留失败原因，不被状态文案覆盖");
+__updatePush({ supported:true, phase:"downloaded", latestVersion:"9.9.9", currentVersion:"1.0.0", autoDownload:true });
+ok(el("#updateNote").textContent.indexOf("没能开始换包") >= 0, "更新: 失败原因留到下一次动作，后续状态推送不冲掉它");
+postUpdateAction = async ()=>({ ok:false, status:{ supported:true, phase:"available", latestVersion:"9.9.10", currentVersion:"1.0.0", autoDownload:false } });
+updateInfo = { supported:true, phase:"available", latestVersion:"9.9.10", currentVersion:"1.0.0", autoDownload:false };
+pullUpdate();
+await null; await null;
+ok(el("#updateNote").textContent.indexOf("没能开始下载") >= 0, "更新: 下载失败时保留失败原因，不被状态文案覆盖");
+postUpdateAction = _realPost;
 globalThis.window = _savedWinUpd;
 
 console.log(T.join("\n"));
