@@ -183,7 +183,7 @@ html,body{margin:0;padding:0;}
   .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
   .startbox .actions{justify-content:center;margin-top:24px;}
-  .startbox.start-hero .actions{margin-top:0;}   /* hero 说明句自带 24px 下边距，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」） */
+  .startbox.start-home .actions,.startbox.start-hero .actions{margin-top:0;}   /* hero 说明句自带 24px 下边距，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」）。首页与科目页同一条：主按钮都包在 .actions 里，几何一样宽 */
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
   .startbox .hero-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
   .startbox .hero-sub{font-size:var(--fs-body);color:var(--ink-soft);line-height:1.7;margin:0 0 24px;}
@@ -285,6 +285,9 @@ html,body{margin:0;padding:0;}
   textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:16px;line-height:2.05;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
+  /* 同一行里的块状按钮同高（--h-ctl）：主按钮默认 40、普通 36，混在一行里上下各差 2px，
+     整行看着像没对齐。红与不红已经够分了，不必再靠高度强调。 */
+  .actions button.primary,.nextrow button.primary{min-height:var(--h-ctl);}
   .hint{font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
   .counter{font-size:var(--fs-note);color:var(--muted);}
   /* 作答限时：控件与剩余时间贴在作答区标题行右侧；超时用焦橙（与「部分命中」同一支） */
@@ -2345,16 +2348,21 @@ function startBoxHtml(rf){
   const flow = curSubject() === "sl"? ["学习卡","读材料找点","一稿","批改"] : ["学习卡","作答","批改"];
   const flowHtml = flow.map((step,i)=>`${i? `<span class="arrow" aria-hidden="true">→</span>`:""}<span>${step}</span>`).join("");
   const bigs = SUBJECT_ORDER.map(id=>`<button class="chip" data-big="${id}">${id==="zy"? esc(SUBJECTS[id].name)+" 练一轮" : "写一篇"+esc(SUBJECTS[id].name)}</button>`).join("");
+  /* 脚注跟着有没有 Key 说话：填完还写「填好 API Key 就能开始」，界面就在说谎。
+     「没有账号，数据都在本地」是必备声明，两种情况都留。 */
+  const foot = state.settings.apiKey
+    ? "没有账号，数据都在本地"
+    : "填好 API Key 就能开始 · 没有账号，数据都在本地";
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
     <div class="hero-big">今天练什么？</div>
     <div class="hero-sub">按你最近的练习情况出题，写完就有分</div>
-    ${state.settings.apiKey
+    <div class="actions">${state.settings.apiKey
       ? `<button class="primary big" id="btnQuick">开始快判</button>`
-      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}
+      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
     <div class="chiprow">${bigs}</div>
     ${rf? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
-    <div class="hero-foot">填好 API Key 就能开始 · 没有账号，数据都在本地</div>
+    <div class="hero-foot">${foot}</div>
   </div>`;
   }
   // 科目页与首页同一套 hero 排布（2026-10-12 拍板）：大标题点科目、说明句预览本页流程、主按钮、模块 chips、必备声明。
@@ -2367,7 +2375,7 @@ function startBoxHtml(rf){
       : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>
     ${rf? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
-    <div class="hero-foot">填好 API Key 就能开始 · 没有账号，数据都在本地</div>
+    <div class="hero-foot">${foot}</div>
   </div>`;
 }
 function wireStartBox(){

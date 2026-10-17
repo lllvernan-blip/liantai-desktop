@@ -1514,6 +1514,8 @@ const startUp = el("#docBody").innerHTML;
 ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
    && startUp.indexOf("开始快判") < 0 && startUp.indexOf("btnSample") < 0,
    "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快判」");
+ok(startUp.indexOf("填好 API Key 就能开始 · 没有账号，数据都在本地") >= 0,
+   "首页（没填 Key）: 脚注说清要先填 Key，必备声明照在");
 ok(el(".redhead").style.display === "" && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0,
    "首页: 公文红头回到卷首，hero（今天练什么？）接在下方——两张皮合成一张纸");
 el("#btnSetup").onclick();
@@ -1528,9 +1530,10 @@ renderHome();
 ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
    && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
    && el("#docBody").innerHTML.indexOf("按你最近的练习情况出题，写完就有分") >= 0
-   && el("#docBody").innerHTML.indexOf("填好 API Key 就能开始 · 没有账号，数据都在本地") >= 0
+   && el("#docBody").innerHTML.indexOf("没有账号，数据都在本地") >= 0
+   && el("#docBody").innerHTML.indexOf("填好 API Key 就能开始") < 0
    && el("#docBody").innerHTML.indexOf("btnSample") < 0,
-   "首页 hero: 大标题 / 副题 / 主按钮 / 脚注都住（示例题入口已下线）");
+   "首页 hero: 大标题 / 副题 / 主按钮 / 脚注都住；填了 Key 后脚注不再说「填好 Key 就能开始」");
 state.settings.apiKey = "";
 /* ②b 科目首页（综应A / 申论）：红按钮是本科目的主行动，快判不在纸面上抢红
      （快判入口常驻顶栏最左那颗胶囊，科目页再放一遍就是同一条路开两个门） */
