@@ -63,11 +63,23 @@ if (auth.status !== 0) {
   process.exit(1);
 }
 
-// 2) tag 不能已存在
-const exists = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "tagName"], { cwd: root, encoding: "utf8" });
+// 2) 这一版发过没有：已存在时先分清「补另一半」还是「真的该提版本号」
+/* 这里曾经只有一句「先把 version 提高」，两种情况都这么劝——2026-10-17 撞上的是后一种：
+mac 先发的（`release:mac -- --create --prerelease` 建的），Release 里只有 mac 六件，
+这时提版本号是错的（Windows 那半还没出去呢）。判据就用 latest.yml 在不在：
+它在了 = Windows 这半传过 = 重复发布，该提版本号；它不在 = 接着把这半补进去就行。 */
+const exists = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "tagName,isPrerelease,assets"], { cwd: root, encoding: "utf8" });
 if (exists.status === 0 && !reconcileOnly) {
-  console.error("GitHub 上已经有 " + tag + " 了。要发新版本，先把 package.json 里的 version 提高。");
-  process.exit(1);
+  let seen = null;
+  try { seen = JSON.parse(exists.stdout || "null"); } catch (e) { /* 读不出就按老规矩挡下 */ }
+  const names = ((seen && seen.assets) || []).map((a) => a.name);
+  const winShipped = names.indexOf("latest.yml") >= 0;
+  if (winShipped || !seen) {
+    console.error("GitHub 上已经有 " + tag + " 了，而且 Windows 这半已经传过（latest.yml 在）。要发新版本，先把 package.json 里的 version 提高。");
+    process.exit(1);
+  }
+  console.log("Release " + tag + " 已存在，但里面还没有 Windows 这半（现有资产：" + (names.length ? names.join("、") : "一个都没有") + "）。");
+  console.log("  → 不提版本号，按「把 Windows 资产补进去」继续。想整版重出就先：gh release delete " + tag + " --yes --cleanup-tag");
 }
 
 // 3) 盖章（版本号 + 构建时间写进 app/build.json）
