@@ -16,6 +16,7 @@
     "release": "node tools/release.mjs",
     "release:mac": "node tools/release-mac.mjs",
     "release:check": "node tools/release-check.mjs",
+    "site:data": "node tools/site-data.mjs",
     "materials:pack": "node tools/materials-pack.mjs"
   },
   "build": {

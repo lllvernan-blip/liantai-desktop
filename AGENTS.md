@@ -64,7 +64,7 @@
 - 更新不碰用户数据；`nsis.deleteAppDataOnUninstall` 保持 `false`。更新失败绝不阻断：只进日志与设置页一行提示，不在启动路径弹阻断对话框。
 - **备用源与校验下载分离**：主源永远是包内 `app-update.yml`，连不通按顺序换源；元数据取自一条、包地址改写指向下一条，**相邻两条同时活着才算一条能走通的路**。设了 `LIANTAI_UPDATE_FEED` 就只认它。
 - **差量缓存会错位，每次检查前必须自检**：安装包与 `current.blockmap` 可能指向两个版本；对不上就删 `current.blockmap`（核对方式见 `docs/发布与更新.md`）。
-- **发布**：三个命令 `release` / `release:mac` / `release:check`，**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**（一个 tag 下一整套，缺哪件由 `release:check` 逐件报）。
+- **发布**：三个命令 `release` / `release:mac` / `release:check`，**发布前必须先提 `package.json` 的 version**（不提老用户永远收不到）。**每版都发两个平台**（一个 tag 下一整套，缺哪件由 `release:check` 逐件报）。**两边都齐之后再跑 `npm run site:data` 并推**：官网那页读的是它生成的 `site/latest.json`，不跑官网就一直显示上一版（`release:check` 会报）。
 - **发版节奏**：改完不立刻发。**常规改善攒够一个主题再发**，**修重要 bug 当天就发**。发之前先给一份测试副本，日常使一两天，确认没问题再走正式发布。
 - **测试副本**（`npm run test:build`）：与正式版并存、数据分家的那一只 app——换 userData、固定自己的端口、**不接更新链**（否则自动更新把自己顶成正式版，被测的东西当场消失）；bundle id 与显示名带 test；产物落 `dist-test/`。
 - **单发 mac 必须加 `--prerelease`**：只带 mac 资产的 Release 会占住 `/releases/latest`，Windows 用户检查更新就 404。

@@ -13,9 +13,11 @@
   三张截图取自应用内实际界面，文件在 site/assets/。
 
   取数与日志是两级：
-    · 一级读 site/latest.json / site/changelog.json（发布脚本产出）；
-    · 二级退 GitHub API / 内联日志。两级都拿不到就保持页面上的数。
-  上线：把 site/ 提交进仓库，Pages 用 GitHub Actions 部署（细节见 docs/发布与更新.md）。
+    · 一级读 site/latest.json / site/changelog.json —— 由 `npm run site:data` 从 GitHub 的 Release 与
+      app/index.html 的 CHANGELOG 生成（两个单一真源，站点不另存一份版本号）；
+    · 二级退 GitHub API / 内联日志。两级都拿不到就保持页面上写死的数。
+  下载按钮先走加速镜像（与应用内更新同一批）：本机实测直连 github.com 只有 ~29 KB/s。
+  上线：site/ 提交进仓库，Pages 由 .github/workflows/pages.yml 部署（细节见 docs/发布与更新.md）。
 -->
 <style>
   :root{
@@ -78,10 +80,6 @@
   .row .v{flex:1 1 auto;line-height:1.9;}
   .row .v b{font-weight:600;}
 
-  .step{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-soft);}
-  .step .idx{flex:0 0 auto;width:22px;height:22px;border-radius:var(--r-pill);background:var(--gov-red);color:var(--on-dark);
-             font-size:var(--fs-note);line-height:1;display:flex;align-items:center;justify-content:center;margin-top:2px;}
-  .step .body{flex:1 1 auto;line-height:1.9;}
   .cmd{margin-top:8px;padding:8px 12px;background:var(--wash-3);border-radius:var(--r-ctl);font-size:var(--fs-note);
        color:var(--ink);user-select:all;white-space:pre-wrap;overflow-wrap:anywhere;}
 
@@ -120,7 +118,6 @@
     .shots{grid-template-columns:1fr;}
     .shot.wide .imgwrap{aspect-ratio:16/10;}
     .row{gap:4px;}
-    .step{gap:8px;}
     .row{flex-direction:column;}
     .row .k{flex:0 0 auto;}
     .only-narrow{display:block;}
@@ -149,10 +146,14 @@
 
     <div class="dl">
       <a class="primary" id="dlBtn"
-         href="https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.21/liantai-desktop-0.0.21-arm64.dmg">下载 macOS 版</a>
-      <div class="dlmeta" id="dlMeta">0.0.21 · 2026-10-13 · 96 MB · Apple 芯片（arm64）</div>
+         href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">下载 Windows 版</a>
+      <div class="dlmeta" id="dlMeta">0.0.22 · 2026-10-17 · 83 MB · Windows 安装包（.exe）</div>
       <div class="hint">装过一次就不用再回来：应用启动会自己查新版，查到在首页出一条提示，点「重启并更新」。</div>
-      <div class="only-narrow">这一页要在电脑上打开才能装——下载下来的是 Mac 应用，手机用不了。</div>
+      <div class="hint">不是这台电脑？<a id="dlOther"
+        href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-0.0.22-arm64.dmg">下载 macOS 版</a><br>
+        下不动就换一条：<a id="srcAlt" href="https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">gh-proxy.com</a>
+        · <a id="srcDirect" href="https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">直连 GitHub</a>（慢）</div>
+      <div class="only-narrow">这一页要在电脑上打开才能装——下载下来的是电脑版应用（Windows / macOS），手机用不了。</div>
     </div>
 
     <div class="sec">
@@ -182,20 +183,20 @@
     </div>
 
     <div class="sec">
-      <h2>装上要三步</h2>
+      <h2>装上就三步</h2>
       <div class="list">
-        <div class="step">
-          <span class="idx">1</span>
-          <div class="body">下载 dmg，双击打开，把「练习台」拖进「应用程序」。</div>
+        <div class="row">
+          <div class="k">Windows</div>
+          <div class="v"><b>1</b> 双击下载的 .exe，一路「下一步」装完（默认装进你的用户目录，不要管理员权限）。<br>
+            <b>2</b> 从开始菜单或者桌面快捷方式打开「练习台」。<br>
+            <b>3</b> 要是弹出「Windows 已保护你的电脑」：点「更多信息」→「仍要运行」。这个包没买代码签名证书，Windows 第一次都会先拦一下。</div>
         </div>
-        <div class="step">
-          <span class="idx">2</span>
-          <div class="body">第一次打开：在「应用程序」里<strong>右键点「练习台」→「打开」</strong>，弹窗里再点一次「打开」。
-            不是从 App Store 装的应用，macOS 第一次都会先问这么一次。</div>
-        </div>
-        <div class="step">
-          <span class="idx">3</span>
-          <div class="body">要是第 2 步还是不让开：打开「终端」，把下面这一行粘进去回车，再打开一次就行。
+        <div class="row">
+          <div class="k">macOS</div>
+          <div class="v"><b>1</b> 下载 dmg，双击打开，把「练习台」拖进「应用程序」。<br>
+            <b>2</b> 第一次打开：在「应用程序」里<strong>右键点「练习台」→「打开」</strong>，弹窗里再点一次「打开」。
+            不是从 App Store 装的应用，macOS 第一次都会先问这么一次。<br>
+            <b>3</b> 要是第 2 步还是不让开：打开「终端」，把下面这一行粘进去回车，再打开一次就行。
             <div class="cmd">xattr -dr com.apple.quarantine "/Applications/练习台.app"</div>
           </div>
         </div>
@@ -245,22 +246,47 @@
 
 <script>
 /* 最新版取数，两级（他 2026-10-16 定的是 c）：
-   一级读站点自带的 latest.json —— 发布时生成，不赌访客能不能连上 github.com，也不吃 API 限额；
+   一级读站点自带的 latest.json —— 由 tools/site-data.mjs 在发版后生成，不赌访客能不能连上 github.com，
+   也不吃 API 限额；
    二级退 GitHub API —— 必须自己筛：GitHub 的 releases/latest 只认「非 prerelease」，
-   而这个仓库 0.0.18 之后全是 prerelease，用它会给用户看一个落后好几版的号。
+   而这个仓库拿 prerelease 表示「只发了一个平台」，用它会给用户看一个落后好几版的号。
    两级都拿不到：保持页面上写死的那个数，不显示拿不准的东西。 */
 const REPO = 'lllvernan-blip/liantai-desktop';
-const FALLBACK = { version:'0.0.21', date:'2026-10-13', size:100800653,
-  url:'https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.21/liantai-desktop-0.0.21-arm64.dmg' };
+/* 下载先走加速镜像：与应用内更新（update.js 的 feed）同一批，这里只用前两个。
+   下面「换一条」那行给的就是第二条和直连——镜像挂了的时候，直连慢也比没有强。 */
+const MIRRORS = ['https://ghproxy.net/', 'https://gh-proxy.com/'];
+const PLAT = { windows:{ who:'Windows', kind:'Windows 安装包（.exe）' },
+               mac:{ who:'macOS', kind:'Apple 芯片（arm64）' } };
+const FALLBACK = { version:'0.0.22', date:'2026-10-17',
+  windows:{ version:'0.0.22', tag:'v0.0.22', date:'2026-10-17', file:'liantai-desktop-setup-0.0.22.exe', size:86729277 },
+  mac:{ version:'0.0.22', tag:'v0.0.22', date:'2026-10-17', file:'liantai-desktop-0.0.22-arm64.dmg', size:100813509 } };
 
 const mb = n => Math.round(Number(n) / 1048576) + ' MB';
+const dlUrl = (it, mirror) => (mirror || '') + 'https://github.com/' + REPO + '/releases/download/' + it.tag + '/' + it.file;
+const cmpVer = (a, b) => { const p = String(a).split('.').map(Number), q = String(b).split('.').map(Number);
+  for(let i = 0; i < 3; i++) if((p[i] || 0) !== (q[i] || 0)) return (p[i] || 0) - (q[i] || 0); return 0; };
+
+/* 认这台电脑是什么：认不出就当 Windows（考公的人里 Windows 占多数；认错也只是多点一下
+   「不是这台电脑？」那条链接） */
+function platform(){
+  const ua = navigator.userAgent || '';
+  return /Macintosh|Mac OS X/i.test(ua) ? 'mac' : 'windows';
+}
 
 function paint(j){
-  if(!j || !j.version) return;
+  if(!j || !j.version || !j.windows || !j.mac) return;
+  const me = platform(), other = me === 'windows' ? 'mac' : 'windows';
+  const a = j[me], b = j[other];
   const btn = document.getElementById('dlBtn');
-  if(j.url) btn.href = j.url;
+  btn.href = dlUrl(a, MIRRORS[0]);
+  btn.textContent = '下载 ' + PLAT[me].who + ' 版';
   document.getElementById('dlMeta').textContent =
-    [j.version, j.date, j.size? mb(j.size) : '', 'Apple 芯片（arm64）'].filter(Boolean).join(' · ');
+    [a.version, a.date, a.size? mb(a.size) : '', PLAT[me].kind].filter(Boolean).join(' · ');
+  const alt = document.getElementById('dlOther');
+  alt.href = dlUrl(b, MIRRORS[0]);
+  alt.textContent = '下载 ' + PLAT[other].who + ' 版';
+  document.getElementById('srcAlt').href = dlUrl(a, MIRRORS[1]);
+  document.getElementById('srcDirect').href = dlUrl(a);
 }
 
 async function readLatest(){
@@ -272,13 +298,22 @@ async function readLatest(){
     const r = await fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=30',
                           {headers:{Accept:'application/vnd.github+json'}});
     if(!r.ok) return null;
-    const list = await r.json();
-    const picks = list.filter(x => !x.draft && /^v\d/.test(x.tag_name))
-                      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
-    for(const rel of picks){
-      const dmg = (rel.assets || []).find(a => /arm64\.dmg$/.test(a.name));
-      if(dmg) return { version: rel.tag_name.replace(/^v/, ''), date: rel.published_at.slice(0, 10),
-                       size: dmg.size, url: dmg.browser_download_url };
+    const list = (await r.json()).filter(x => !x.draft && /^v\d/.test(x.tag_name))
+                                .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+    /* 两个平台各取自己最新有产物的那一版：mac 单发一版时，Windows 那栏不会指到一个不存在的包
+       —— 与 tools/site-data.mjs 同一条规则 */
+    const pick = re => {
+      for(const rel of list){
+        const f = (rel.assets || []).find(x => re.test(x.name));
+        if(f) return { version: rel.tag_name.replace(/^v/, ''), tag: rel.tag_name,
+                       date: (rel.published_at || '').slice(0, 10), file: f.name, size: f.size };
+      }
+      return null;
+    };
+    const win = pick(/setup-\d[\d.]*\.exe$/i), mac = pick(/-arm64\.dmg$/);
+    if(win && mac){
+      const top = cmpVer(win.version, mac.version) >= 0 ? win : mac;
+      return { version: top.version, date: top.date, windows: win, mac: mac };
     }
   }catch(e){ /* 网络不通：保持写死的数 */ }
   return null;

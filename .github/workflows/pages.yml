@@ -1,0 +1,40 @@
+# 官网（site/）部署到 GitHub Pages
+#
+# 为什么走 Actions 而不是「从分支部署」：Pages 只让选根目录或 /docs，站点在 site/ 下，分支部署够不着。
+# 这里把 site/ 原样传成 artifact，没有构建步骤——那页是单文件、零依赖。
+#
+# 触发：site/ 有改动推到 main，或者手动点一次。部署完的地址见仓库的 Pages 设置页。
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只部署一次；后来的那次不等前面跑完（站点是无状态的整份替换）
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

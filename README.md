@@ -81,6 +81,12 @@ npm run release:check                  # 查 package.json 里的当前版本
 npm run release:check -- v0.0.15       # 或者指定某个版本
 ```
 
+两边都齐之后还有一步——官网那页读的是仓库里的 `site/latest.json`，它得从线上 Release 生成一次：
+
+```bash
+npm run site:data     # 写 site/latest.json 与 site/changelog.json，提交推送即上线（Pages 自动部署）
+```
+
 一条硬规矩：**每个 Release 要么两边都齐，要么 mac 那份标成 prerelease**。Windows 的自动更新读的是
 `/releases/latest/download/latest.yml`，而 GitHub 的 “latest” 指的是「最新的非 prerelease Release」——
 一个只带 mac 资产的新 Release 把它占住，Windows 用户的检查更新就会 404。只发 mac 时用

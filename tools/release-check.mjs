@@ -160,7 +160,7 @@ const localProblems = [];
 {
   /* 文档里引用的仓内文件得真在：AGENTS.md / README.md 一旦指向一个不存在的脚本，
      下一个人会照着敲一遍才发现。只看仓内的固定前缀，外链（http、/releases/…）不在此列。 */
-  const PREFIXES = ["app/", "tests/", "tools/", "docs/", "build/"];
+  const PREFIXES = ["app/", "tests/", "tools/", "docs/", "build/", "site/", ".github/"];
   const ROOT_FILES = ["AGENTS.md", "README.md", "package.json", "main.js", "update.js", "打包.bat"];
   const files = ["AGENTS.md", "README.md", ...readdirSync(join(root, "docs")).filter((f) => f.endsWith(".md")).map((f) => "docs/" + f)];
   const missing = new Set();
@@ -297,10 +297,38 @@ if (newestStable) {
 }
 pointerRows.push({ name: "本版是 prerelease？", ok: true, note: release.prerelease ? "是——不占 /releases/latest，不影响 Windows" : "否" });
 
+/* ---- 官网数据：site/latest.json 跟到本版了吗 ---- */
+const siteRows = [];
+{
+  /* 这也是「同一个事实写在两个地方」的一处：站点不自己写版本号，靠 npm run site:data 从线上
+     Release 生成。忘了跑，官网就一直显示上一版（2026-10-17 撞过：页面指着 0.0.21，点下载拿的是旧包）。
+     只在「本版就是最新那版」且「本版确实带了这个平台的包」时才要求站点跟到它——查历史版本
+     或 mac 单发的中途不该报红。 */
+  let site = null;
+  try { site = JSON.parse(readFileSync(join(root, "site", "latest.json"), "utf8")); } catch (e) { site = null; }
+  const newestAny = releases.filter((r) => !r.draft && /^v\d/.test(r.tag_name || ""))[0] || null;
+  const isNewest = Boolean(newestAny && newestAny.tag_name === tag);
+  /* 资产名是 ASCII，与上面认 setup.exe / arm64.dmg 同一个口径 */
+  const carries = { windows: names.some((n) => /setup-.*\.exe$/i.test(n)), mac: names.some((n) => /-arm64\.dmg$/.test(n)) };
+  if (!site) {
+    siteRows.push({ name: "site/latest.json", ok: false, note: "没有这个文件：官网读不到版本号，只能退到页面里写死的那个数" });
+    problems.push("site/latest.json 不存在：跑一次 npm run site:data 并提交推送");
+  } else {
+    for (const [label, key] of [["Windows", "windows"], ["macOS", "mac"]]) {
+      const e = site[key] || null;
+      const same = Boolean(e && e.version === version);
+      const must = isNewest && carries[key];
+      siteRows.push({ name: "站点 " + label, ok: same || !must, note: (e ? "v" + e.version + " · " + e.file : "缺") + (same ? "（就是本版）" : "") });
+      if (must && !same) problems.push("官网数据不是本版：站点 " + label + " 还停在 " + (e ? "v" + e.version : "（缺）") + "，跑一次 npm run site:data 再提交推送");
+    }
+  }
+}
+
 /* ---- 汇报 ---- */
 list("Windows（NSIS 安装版）", winRows);
 list("macOS（dmg + zip）", macRows);
 list("自动更新指针", pointerRows);
+list("官网数据（site/latest.json）", siteRows);
 list("字节对账（本机有产物才比）", byteRows);
 if (byteSkipped) console.log("   注：有 " + byteSkipped + " 项因本机没有对应产物而跳过（要在出过包的机器上跑才作数）");
 

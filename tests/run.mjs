@@ -4,6 +4,10 @@
  *
  * 它做的事：把 app/index.html 里的 <script> 抠出来，配上最小 DOM 桩子，
  * 再接上断言文件，在同一个作用域里跑一遍。不需要浏览器、不需要装包。
+ *
+ * 另有两份同样手法的自检（都排在应用自检之后）：
+ *   tests/shell.mjs  壳侧——update.js 的状态机与禁用策略（假的 electron-updater）
+ *   tests/site.mjs   官网页面 site/index.html——按平台给包、下载链接走加速镜像
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -40,3 +44,6 @@ await import(new URL("./shell.mjs", import.meta.url).href);
 // 以 data: 模块执行：桩子、应用、断言同处一个模块作用域，且支持顶层 await（异步自检用）
 const b64 = Buffer.from(src, "utf8").toString("base64");
 await import("data:text/javascript;base64," + b64);
+
+// 官网页面（site/index.html）自检放最后：它会把 globalThis.document 换成自己那份，跑在前面会拆掉应用侧的桩子
+await import(new URL("./site.mjs", import.meta.url).href);

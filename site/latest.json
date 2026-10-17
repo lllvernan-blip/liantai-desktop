@@ -1,0 +1,18 @@
+{
+  "version": "0.0.22",
+  "date": "2026-10-17",
+  "windows": {
+    "version": "0.0.22",
+    "tag": "v0.0.22",
+    "date": "2026-10-17",
+    "file": "liantai-desktop-setup-0.0.22.exe",
+    "size": 86729277
+  },
+  "mac": {
+    "version": "0.0.22",
+    "tag": "v0.0.22",
+    "date": "2026-10-17",
+    "file": "liantai-desktop-0.0.22-arm64.dmg",
+    "size": 100813509
+  }
+}
