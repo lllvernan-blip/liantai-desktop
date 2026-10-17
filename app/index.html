@@ -31,6 +31,9 @@
     --warn:#b45309;      /* 部分命中 */
     /* 控件高度：同一行里的按钮 / 输入框 / 胶囊不再高低不齐 */
     --h-ctl:36px; --h-ctl-sm:30px;
+    /* 纸面等比缩放：1–1.5，由 applyPaperScale() 按窗口宽度写。760px 的纸不拉宽（每行仍约 36 字），
+       整张纸连字号、控件一起放大；顶栏内边距与纸宽用同一个数，两边始终对齐纸边。 */
+    --paper-scale:1;
     /* 字号阶梯：相邻至少差 1.5px——差半像素等于没分级 */
     --fs-display:30px;   /* 分数这类大数 */
     --fs-hero:26px;      /* 整屏标题（入口页、小结页）*/
@@ -101,7 +104,7 @@ html,body{margin:0;padding:0;}
   /* 顶栏 */
   .topbar{position:sticky;top:0;z-index:20;background:var(--canvas);border-bottom:1px solid var(--line);}   /* 顶栏融进底板，不占一块纸（人感 Demo 同款） */
   /* 顶栏与科目栏与纸面对齐同一列：原来两端贴窗口边、正文却居中，一屏里出现两套左右基准 */
-  .toolbar{display:flex;align-items:center;gap:8px;padding:8px max(16px,calc((100% - 760px)/2 + 16px));}
+  .toolbar{display:flex;align-items:center;gap:8px;padding:8px max(16px,calc((100% - 760px * var(--paper-scale))/2 + 16px));}
   /* 右上四个入口是工具，比品牌弱，但它们是纯文字、热区只有 13px 高：撑到能稳点中的高度，并给一点悬停反馈 */
   .toolbar button.linkbtn{padding:8px 12px;font-size:var(--fs-body);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-ctl);}
@@ -157,11 +160,11 @@ html,body{margin:0;padding:0;}
   .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
 
-  .wrap{max-width:760px;margin:24px auto 24px;padding:0 16px;}
+  .wrap{max-width:calc(760px * var(--paper-scale));margin:calc(24px * var(--paper-scale)) auto;padding:0 16px;}
   /* overflow 用 clip 不用 hidden：hidden 会把纸变成一个滚动容器，里面的一切吸顶与 scrollIntoView 都得换基准；clip 只裁不接管滚动 */
   /* 纸面是公文纸不是网页卡片：纸立得住靠的是它自己的色（--paper 对底板 1.11:1）与撑满视口（下方不悬空，像真铺在桌上），
      不靠描边和投影。原先那圈 1px 边框（对纸 1.43:1）加两级 .06 的黑，实物上分辨不出，已去（2026-10-15）。 */
-  .doc{background:var(--paper);overflow:clip;padding:40px 54px 56px;min-height:calc(100vh - 97px);}
+  .doc{background:var(--paper);overflow:clip;padding:40px 54px 56px;zoom:var(--paper-scale);min-height:calc((100vh - 50px)/var(--paper-scale) - 48px);}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 12px;}
   .redline{display:flex;align-items:center;}
@@ -5442,7 +5445,22 @@ renderChangelog();
   // 输入防抖的兼底：关页/刷新前把挂起的落盘立即写掉
   if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("beforeunload", persistFlush);
 }
+/* 纸面按窗口宽度等比放大：760px 的纸不拉宽（每行仍约 36 字），整张纸连字号、控件一起放大。
+   1050 以下不放大，上限 1.5。只缩 #doc（纸）：弹层、浮标、划线小窗、引导框都在纸外，
+   它们按视口坐标定位，跟着缩会错位。顶栏与纸宽用同一个 --paper-scale，两边仍对齐纸边。 */
+function paperScaleFor(w){
+  const n = Number(w) || 1024;
+  return Math.min(1.5, Math.max(1, n / 1050));
+}
+function applyPaperScale(){
+  if(typeof window === "undefined" || typeof document === "undefined" || !document.documentElement) return;
+  const s = paperScaleFor(window.innerWidth);
+  document.documentElement.style.setProperty("--paper-scale", String(Math.round(s * 1000) / 1000));
+}
+
+applyPaperScale();
 init();
+if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", applyPaperScale);
 </script>
 </body>
 </html>

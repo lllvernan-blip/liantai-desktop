@@ -1760,8 +1760,8 @@ ok(/--r-ctl:8px;/.test(PAGE_HTML) && !/border-radius:\s*[0-9]/.test(PAGE_HTML),
    "圆润化: 圆角一律走 token，规则里不落裸数字（2026-10-15 收敛：原来散着 8 处，尖准的 6px/12px/1px 没人说得出来）");
 ok((function(){ const m = PAGE_HTML.match(/\.railwrap\{[^}]*\}/); return m && m[0].indexOf('sticky') < 0; })(),
    "训练链: 步骤条不吸顶，跟纸一起滚");
-ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border') < 0 && m[0].indexOf('box-shadow') < 0 && m[0].indexOf('border-radius') < 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('min-height:calc(100vh - 97px)') >= 0; })(),
-   "纸面纪律: .doc 光板——不描边不投影不圆角，靠 --paper 对底板的色差与撑满视口立成一张纸（clip 只裁不接管滚动）");
+ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border') < 0 && m[0].indexOf('box-shadow') < 0 && m[0].indexOf('border-radius') < 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('zoom:var(--paper-scale)') >= 0 && m[0].indexOf('min-height:calc((100vh - 50px)/var(--paper-scale) - 48px)') >= 0; })(),
+   "纸面纪律: .doc 光板——不描边不投影不圆角，靠 --paper 对底板的色差与按窗口等比放大撑满视口（clip 只裁不接管滚动）");
 ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
    "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
 ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:var(--r-ctl)') >= 0; })()
@@ -2555,8 +2555,8 @@ state.history = _histKeep;
 
 /* 19.10 顶栏与纸面间距：纸面与真实顶栏始终间隔 24px（第二行已撤，不用任何空白补位）。 */
 ok(renderTabs.toString().indexOf("gap-modbar") < 0 && PAGE_HTML.indexOf(".wrap.gap-modbar") < 0
-   && /\.wrap\{[^}]*margin:24px auto 24px/.test(PAGE_HTML),
-   "顶栏: 不用额外空白补题型入口行高度，纸面统一距真实顶栏 24px");
+   && /\.wrap\{[^}]*margin:calc\(24px \* var\(--paper-scale\)\) auto/.test(PAGE_HTML),
+   "顶栏: 不用额外空白补题型入口行高度，纸面统一距真实顶栏 24px（随纸面比例）");
 ok(PAGE_HTML.indexOf("--h-modbar") < 0, "顶栏: 题型行高度变量已随第二行撤掉");
 /* 首页文号跟着抬头走：首页不属于任何科目，落款不能挂某个科目的前缀 */
 renderHome();
@@ -2961,6 +2961,8 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
   const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
   ok(_deadVars.length === 0, "尺子: 没有定义了却没人用的 CSS 变量" + (_deadVars.length? "（" + _deadVars.join("、") + "）" : ""));
+  ok(paperScaleFor(1040) === 1 && Math.abs(paperScaleFor(1470) - 1.4) < 0.01 && paperScaleFor(1920) === 1.5 && paperScaleFor(0) === 1,
+     "纸面: 按窗口宽度等比放大（≤1050 不放大 / 1470 约 1.4 / 超宽封顶 1.5）");
   // :root 外不写设计色 hex（用户可选的划线色是运行时变量，另算）
   const _css = PAGE_HTML.slice(PAGE_HTML.indexOf("<style>"), PAGE_HTML.indexOf("</style>"));
   const _rootEnd = _css.indexOf("}", _css.indexOf(":root{"));
