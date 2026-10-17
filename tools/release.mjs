@@ -51,8 +51,8 @@ function run(cmd, args, opts) {
 
 step("发布 v" + pkg.version);
 
-/* 0) 发布闸门：工作区干净 + 远端 main = 本地 HEAD + 源码无明文密钥。
-     这三条以前只写在 AGENTS.md 里没人执行：这里原先对脏工作区只打印一句「注意：有未提交的改动」然后照发。
+/* 0) 发布闸门：工作区干净 + 远端 main = 本地 HEAD + 源码无明文密钥 + lock 版本 = package.json 版本。
+     这几条以前只写在 AGENTS.md 里没人执行：这里原先对脏工作区只打印一句「注意：有未提交的改动」然后照发。
      闸门放在盖章之前——stamp-build 会写 app/build.json，过了闸门再动文件。 */
 if (!runReleaseGates({ skip: process.argv.includes("--skip-gates") })) process.exit(1);
 

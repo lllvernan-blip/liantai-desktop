@@ -1,19 +1,21 @@
 /*
- * 发布闸门：发版前必须为真的三件事，落到脚本里。
+ * 发布闸门：发版前必须为真的四件事，落到脚本里。
  *
  *   node tools/gate.mjs                单独跑（退出码 0 = 全绿）
  *   npm run release [-- --skip-gates]  发布链在开头自动跑它
  *
- * 为什么要有它：这三条原来只写在 AGENTS.md 的人肉清单里——① 工作区干净 ② 远端 sha = 本地 HEAD
+ * 为什么要有它：这几条原来只写在 AGENTS.md 的人肉清单里——① 工作区干净 ② 远端 sha = 本地 HEAD
  * ③ 源码不含明文 Key。规则写在文档里、没有任何东西执行它，就等于没有：`release.mjs` 当时对脏工作区
  * 只打印一句「注意：有未提交的改动」然后照发，②③两条连打印都没有。
  *
- * 三条各治一种翻车：
+ * 四条各治一种翻车：
  *   ① 工作区不干净 → 打出来的包对应不上任何一个提交，用户报的 bug 复现不出来
  *   ② HEAD 没推上去 → `gh release create --target` 指着一条远端不存在的提交，别人拉不到
  *   ③ 明文 Key 进源码 → 一旦推上去就是公开的，撤不回来（2026-10-03 清过 13 处，那次全靠人眼）
+ *   ④ lock 与 package.json 不同版 → 版本号写在两个文件里、谁都能忘；而 `npm install` 会顺手把 lock
+ *      改成当前版本，工作区一脏就被①拦下，人看到的是「发布过不去」而不是「版本号没同步」
  *
- * 第四条（`npm run release:check` 八件对账）不在这里：它验的是「发出去的东西齐不齐」，
+ * 发完之后的第八件（`npm run release:check` 逐个资产对账）不在这里：它验的是「发出去的东西齐不齐」，
  * 只能在发完之后跑，所以由 release-check.mjs 自己承担。
  */
 import { spawnSync } from "node:child_process";
@@ -127,18 +129,44 @@ function gateNoSecrets() {
   };
 }
 
+/* 版本号写在两个文件里：`package.json` 的 version，和 `package-lock.json` 里那两处（顶层 + packages[""]）。
+   靠人记着同步就会漏——2026-10-17 实际撞到：lock 还停在 0.0.15，包已经在 0.0.22，
+   而 Windows 那边一跑 `npm install` 就被 npm 顺手改成 0.0.22，工作区当场变脏、第一条闸门把发布拦下。
+   拦下的那一刻看到的是「工作区有未提交改动」，跟真正的原因（版本号两处分家）隔了一层。 */
+function gateLockVersion() {
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")); }
+  catch (e) { return { ok: false, why: ["读不到 / 解析不了 package.json：" + (e && e.message ? e.message : e)] }; }
+  let lock;
+  try { lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8")); }
+  catch (e) { return { ok: false, why: ["读不到 / 解析不了 package-lock.json：" + (e && e.message ? e.message : e)] }; }
+  const inner = (lock.packages && lock.packages[""] && lock.packages[""].version) || "(没有这一项)";
+  const bad = [];
+  if (lock.version !== pkg.version) bad.push("顶层 version = " + lock.version);
+  if (inner !== pkg.version) bad.push('packages[""].version = ' + inner);
+  if (!bad.length) return { ok: true, note: "package-lock.json 与 package.json 同版（" + pkg.version + "）" };
+  return {
+    ok: false,
+    why: [
+      "package.json 是 " + pkg.version + "，package-lock.json 里对不上：" + bad.join("；") + "。",
+      "      → 在仓库里跑一次 npm install（它会把 lock 里这两行改成当前版本），把改动一起提交再发。",
+    ],
+  };
+}
+
 const GATES = [
   ["工作区干净", gateCleanTree],
   ["远端 main = 本地 HEAD", gateRemoteHead],
   ["源码无明文密钥", gateNoSecrets],
+  ["lock 版本 = package.json 版本", gateLockVersion],
 ];
 
 /* 返回值：true = 全绿可以发；false = 有红线，调用方停手 */
 export function runReleaseGates(opts) {
   const skipGates = !!(opts && opts.skip);
-  console.log("\n=== 发布闸门（三条，规则见 AGENTS.md「发布」一节）===");
+  console.log("\n=== 发布闸门（四条，规则见 AGENTS.md「发布」一节）===");
   if (skipGates) {
-    console.log("  --skip-gates：三条都跳过（只在明知自己为什么这么干的时候用）");
+    console.log("  --skip-gates：四条都跳过（只在明知自己为什么这么干的时候用）");
     return true;
   }
   let allOk = true;
@@ -154,7 +182,7 @@ export function runReleaseGates(opts) {
       for (const w of r.why || []) console.error("      " + w.trim());
     }
   }
-  if (!allOk) console.error("\n  闸门没过，未开始发布。三条都是「发出去就撤不回来」的那一类。");
+  if (!allOk) console.error("\n  闸门没过，未开始发布。四条都是「发出去就撤不回来」的那一类。");
   return allOk;
 }
 

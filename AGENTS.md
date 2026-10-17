@@ -68,7 +68,7 @@
 - **发版节奏**：改完不立刻发。**常规改善攒够一个主题再发**，**修重要 bug 当天就发**。发之前先给一份测试副本，日常使一两天，确认没问题再走正式发布。
 - **测试副本**（`npm run test:build`）：与正式版并存、数据分家的那一只 app——换 userData、固定自己的端口、**不接更新链**（否则自动更新把自己顶成正式版，被测的东西当场消失）；bundle id 与显示名带 test；产物落 `dist-test/`。
 - **单发 mac 必须加 `--prerelease`**：只带 mac 资产的 Release 会占住 `/releases/latest`，Windows 用户检查更新就 404。
-- **发布闸门是脚本，不是人肉清单**：`tools/gate.mjs`（`release` / `release:mac` 开头自动跑，也可单跑）——① 工作区干净；② 远端 `main` 的 sha = 本地 HEAD；③ 跟踪文件里没有明文密钥。任一不过就停手；`--skip-gates` 是明知故犯时的唯一出口。**第四条 `npm run release:check` 只能在发完之后跑**。演示 / 测试用的假 Key 靠行内 `gate-allow` 标记放行。**验包不许碰本机那份安装**。
+- **发布闸门是脚本，不是人肉清单**：`tools/gate.mjs`（`release` / `release:mac` 开头自动跑，也可单跑）——① 工作区干净；② 远端 `main` 的 sha = 本地 HEAD；③ 跟踪文件里没有明文密钥；④ `package-lock.json` 的版本号 = `package.json` 的版本号（`npm install` 会顺手把 lock 改成当前版本，两处不同版就会脏了工作区）。任一不过就停手；`--skip-gates` 是明知故犯时的唯一出口。**发完之后的对账 `npm run release:check` 只能在发完之后跑**。演示 / 测试用的假 Key 靠行内 `gate-allow` 标记放行。**验包不许碰本机那份安装**。
 - **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 六件。
 - **材料的改动进 git，材料单独发**：池子本体是 `materials/pool/`（**审材料就是看 diff**），用 `npm run materials:pack` 发到一个固定 tag 的 prerelease 上，**不跟安装包走**（时效线半年，它有自己的节奏）；应用启动后自己拉，**拉不到一律没声**、回落编材料。签名与 mac 包同一把私钥；`materials/` 有未提交的改动就不许发布。细节见 `docs/发布与更新.md`。
 - **mac 包每版都有发布侧签名**：`release:mac` 自动给每个 zip 签出 `.sig` 再传，没私钥就停手不传。**私钥在 `~/.liantai-release-key`，不进仓库、不上传，丢了就只能手动重装一次**；换钥要先把新公钥发一版。细节与理由见 `docs/发布与更新.md`。
