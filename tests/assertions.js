@@ -1120,6 +1120,101 @@ renderStart();
 ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") < 0, "恢复现场: 超 24h 的链不再提示");
 state.flows = []; _flowId = null;
 
+/* 12.7b 批改结果只从记录派生：重开页面后重进「批改」要有东西看，不能是一页空白 */
+{
+  state.flows = []; _flowId = null; state.history = []; lastGrade = null;
+  const qR = { background:"恢复批改的材料。", requirements:"r", score:20 };
+  const fR = ensureFlow("sl.guina", "概括问题", qR, []);
+  fR.cardSeen = true; fR.step = "review";
+  state.history.unshift({ ts:Date.now(), module:"sl.guina", subtype:"概括问题", flowId:fR.id,
+    question:qR, answer:"我的答案原话", keyPoints:[],
+    hits:[{ point:"p", score:20, awarded:18, status:"部分命中", evidence:"" }],
+    usedSec:120, timeLimit:30,
+    grade:{ total:90, scores:{}, strengths:[], weaknesses:[], comment:"解析一句。" } });
+  current = { module:"sl.guina", subtype:"概括问题", question:qR, keyPoints:[], cardPeeks:0 };
+  renderFlowStep();
+  const rHtml = el("#docBody").innerHTML;
+  ok(rHtml.indexOf("还没有批改结果") < 0, "恢复: 没有 lastGrade 也不留那句空页提示");
+  ok(rHtml.indexOf("18") >= 0 && rHtml.indexOf("/ 20 分") >= 0, "恢复: 分数从记录里捞回来渲染");
+  ok(rHtml.indexOf('id="btnSwitch"') >= 0, "恢复: 批改页照样有「换一题」");
+  ok(rHtml.indexOf('id="btnDone"') >= 0, "恢复: 批改页照样有「完成」出口");
+
+  /* 入口判据：批改过的链不是「没做完」，不进首页那个入口（点不点「完成」都一样） */
+  ok(resumableFlow() === null, "入口: 已批改的链不再叫「上次没做完」");
+
+  /* 「完成」收口：回首页、入口消失、记录一条不少 */
+  const beforeCnt = state.history.length;
+  el("#btnDone").onclick();
+  ok(_view === "home", "完成: 点完回首页");
+  ok(resumableFlow() === null, "完成: 收口后首页没有「继续」入口");
+  ok(state.history.length === beforeCnt && state.history[0].answer === "我的答案原话",
+     "完成: 收口只影响入口，记录与答案原样留着");
+  fR.closedAt = null; fR.step = "review";   // 再验一次「没点完成也不进入口」
+  ok(resumableFlow() === null, "入口: 没点「完成」但已批改，也不进入口");
+}
+
+/* 12.7c 取不到批改结果就退回一稿，不把人留在空页上 */
+{
+  state.flows = []; _flowId = null; state.history = []; lastGrade = null;
+  const qN = { background:"没有批改结果的链。", requirements:"r" };
+  const fN = ensureFlow("sl.guina", "概括问题", qN, []);
+  fN.cardSeen = true; fN.step = "review";
+  current = { module:"sl.guina", subtype:"概括问题", question:qN, keyPoints:[], cardPeeks:0 };
+  renderFlowStep();
+  ok(fN.step === "draft", "批改步: 记录里也没有结果 -> 退回一稿");
+  ok(el("#docBody").innerHTML.indexOf("还没有批改结果") < 0, "批改步: 退回一稿后不再摆空页提示");
+}
+
+/* 12.7d 缺按钮不许掀翻整屏接线 */
+{
+  state.flows = []; _flowId = null; state.history = []; lastGrade = null;
+  const qW = { background:"缺按钮的材料。", requirements:"r" };
+  const fW = ensureFlow("sl.guina", "概括问题", qW, []);
+  fW.cardSeen = true; fW.step = "review";
+  current = { module:"sl.guina", subtype:"概括问题", question:qW, keyPoints:[], cardPeeks:0 };
+  const realQS = document.querySelector;
+  document.querySelector = (sel)=> sel === "#btnSwitch" ? null : realQS(sel);
+  let wErr = null;
+  try { wireStep("review", fW); } catch(e){ wErr = e; }
+  document.querySelector = realQS;
+  ok(!wErr, "接线: #btnSwitch 取不到时 wireStep 不抛（抛了后面全没人接）");
+  ok(typeof el("#btnFlowPrev").onclick === "function", "接线: 上一步照旧接上");
+}
+
+/* 12.7e 自述要真的落进 gw_history（save() 写的是 gw_state，那条路不含记录） */
+{
+  state.flows = []; _flowId = null; state.history = [];
+  const qS = { background:"自述材料。", requirements:"r" };
+  current = { module:"sl.guina", subtype:"概括问题", question:qS, cardPeeks:0 };
+  state.history = [{ ts:Date.now(), module:"sl.guina", subtype:"概括问题", question:qS, answer:"a",
+    grade:{ total:80, scores:{}, comment:"c" }, hits:[] }];
+  el("#selfBox").dataset.kind = "how";
+  el("#selfNote").value = "我先看要求再找点";
+  wireSelfNote();
+  el("#btnSelfSave").onclick();
+  const rec = JSON.parse(localStorage.getItem("gw_history") || "[]");
+  ok(rec[0] && rec[0].selfNote === "我先看要求再找点" && rec[0].selfKind === "how",
+     "自述: 「已记下」真的写进 gw_history，重开还在");
+  /* DOM 桩是全文件共用的：dataset 改了要还原，否则后面的自述用例会拿到这里的 kind */
+  el("#selfBox").dataset.kind = "";
+  el("#selfNote").value = "";
+}
+
+/* 12.7f 恢复现场要把学习卡一起带回来（卡缓存在 cache 里，没搬过来卡页就说「本题没有学习卡」） */
+{
+  state.flows = []; _flowId = null;
+  state.cache.studyCards["sl.guina::概括问题"] = { title:"缓存卡", points:["a"] };
+  const qC = { background:"卡恢复材料。", requirements:"r" };
+  const fC = ensureFlow("sl.guina", "概括问题", qC, []);
+  fC.cardSeen = true; fC.step = "read";
+  renderStart();
+  el("#btnResume").onclick();
+  ok(current && current.studyCard && current.studyCard.title === "缓存卡",
+     "恢复: 「继续上次没做完的题」把学习卡一起带回来");
+  delete state.cache.studyCards["sl.guina::概括问题"];
+}
+state.flows = []; _flowId = null; state.history = []; lastGrade = null; current = null;
+
 /* 12.8 归类：分两段 —— 第一段把点归成组（组名先空着），第二段给每组写上位概括词 */
 const fOrg = { selections:[{text:"甲点"},{text:"乙点"}], groups:[], question:{background:"x"} };
 const orgHtml = organizePanelHtml(fOrg);
@@ -1992,8 +2087,9 @@ lastGrade = null; current = null;
 /* 16.3b 推送归出题引擎底层（SPEC 4.6）：批改页没有「智能推送下一题」，nextrow 只剩两颗按钮 */
 ok(PAGE_HTML.indexOf("智能推送下一题") < 0 && PAGE_HTML.indexOf("btnNext") < 0,
    "批改页: 「智能推送下一题」按钮下线，页面上没有推送入口（选题是引擎在出题时做的事）");
-ok(PAGE_HTML.indexOf('id="btnRetry"') >= 0 && PAGE_HTML.indexOf('id="btnSeeProfile"') >= 0,
-   "批改页: nextrow 保留「同模块再来一道」与「看我的画像」两颗按钮");
+ok(PAGE_HTML.indexOf('id="btnRetry"') >= 0 && PAGE_HTML.indexOf('id="btnSeeProfile"') >= 0
+   && PAGE_HTML.indexOf('id="btnDone"') >= 0,
+   "批改页: nextrow 保留「完成」「同模块再来一道」与「看我的画像」");
 ok(PAGE_HTML.indexOf('bn2 = $("#btnNext")') < 0,
    "批改页: btnNext 的旧接线一并撤净（两处 wiring 都不再钉它）");
 

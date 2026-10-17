@@ -2375,7 +2375,9 @@ function wireStartBox(){
     const fsubj = subjectOf(f.module);
     if(fsubj && fsubj !== curSubject()){ state.settings.subject = fsubj; save(); renderTabs(); }
     _flowId = f.id;
-    current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card" };
+    // 学习卡一起恢复：卡缓存在 state.cache 里（还在），这里不搬过来，卡页就会说「本题没有学习卡」
+    current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card",
+                studyCard: state.cache.studyCards[cardKey(f.module, f.subtype)] || SL_STUDY_CARDS[f.module] };
     activeModule = f.module; renderHeader(); renderQuestion();
   };
 }
@@ -2848,13 +2850,14 @@ function renderZyPage(){
   wireZyPage(phase);
 }
 function wireZyPage(phase){
-  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  const sw = $("#btnSwitch"); if(sw) sw.onclick = ()=> loadQuestion(current.module, current.subtype);
   if(phase === "answer"){
     wireMarks();
     wireDraft(null);
   } else if(phase === "grade"){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    const bd = $("#btnDone"); if(bd) bd.onclick = finishCurrent;
     wireSelfNote();
   } else {
     wireCardPage("btnZyAnswer", ()=>{ current.phase = "answer"; renderZyPage(); });
@@ -3271,15 +3274,37 @@ function closeActiveFlow(){
   const f = activeFlow();
   if(f) closeFlow(f);
 }
-/* 恢复现场：24h 内未关闭的申论链（新在前）；首页给入口用，不自动跳转 */
+/* 恢复现场：24h 内未关闭的申论链（新在前）；首页给入口用，不自动跳转。
+   已经批改过的那条不进这个入口：它不是「没做完」，是被叫回去。收口走批改页的「完成」，
+   这里只挑真没做完的（停在读材料 / 一稿，或者这一稿还没有批改结果）。 */
 const RESUME_WINDOW = 24*3600*1000;
 function resumableFlow(){
   const now = Date.now();
   for(let i = state.flows.length - 1; i >= 0; i--){
     const f = state.flows[i];
-    if(f && !f.closedAt && f.question && now - (f.createdAt||0) < RESUME_WINDOW) return f;
+    if(!f || f.closedAt || !f.question) continue;
+    if(now - (f.createdAt||0) >= RESUME_WINDOW) continue;
+    if(f.step === "review" && gradeForFlow(f)) continue;   // 批改过了 = 这件事已经做完
+    return f;
   }
   return null;
+}
+/* 一条链的批改结果从练习记录里取：记录才是唯一事实源（lastGrade 只是当次提交留下的缓存，
+   刷新、重开、换设备都没有它）。先按链 id 精确匹配；没有 flowId 的老记录退到题目签名。 */
+function gradeForFlow(f){
+  if(!f) return null;
+  const sig = f.sig || qSig(f.question);
+  const hit = state.history.find(r => r && (r.flowId === f.id || (!r.flowId && r.question && qSig(r.question) === sig)));
+  if(!hit || !hit.grade) return null;
+  return {
+    // hits 存在记录顶层（grade 里只有分数与点评），拼回来才够 gradeHtml 用
+    g: Object.assign({ hits: Array.isArray(hit.hits)? hit.hits : [] }, hit.grade),
+    total: hit.grade.total,
+    expCheck: hit.expCheck || null,
+    time: (hit.usedSec != null)? { min: hit.timeLimit || 0, usedSec: hit.usedSec } : null,
+    answer: String(hit.answer || ""),
+    flowId: f.id,   // 标上归属：这份结果只属于这条链，不能拿给别的链显示
+  };
 }
 function pruneFlows(){
   const hasDraft = f => !!loadDraft(f.sig);   // 有未提交草稿的 flow 永不自动裁剪
@@ -3547,7 +3572,16 @@ function renderFlowStep(){
   if(!current || !current.question){ renderStart(); return; }
   const f = activeFlow();
   if(f && !f.cardSeen){ renderChainCard(f); return; }   // 新链先从学习卡开头：先记知识点再动手
-  const step = f? f.step : (lastGrade? "review" : "draft");
+  let step = f? f.step : (lastGrade? "review" : "draft");
+  /* 「批改」这一屏只认记录里的那份结果。lastGrade 是当次提交留下的缓存，刷新或重开就没了；
+     缓存若不属于这条链（flowId 对不上）也不能借来用，否则会把上一道题的分数摆到这一道上。
+     两处都取不到 = 这条链其实没有批改结果，退回一稿，不留一页空白让人对着点。 */
+  let lg = (lastGrade && (lastGrade.flowId || null) === (f? f.id : null))? lastGrade : null;
+  if(step === "review" && !lg){
+    lg = gradeForFlow(f);
+    if(lg) lastGrade = lg;
+    else if(f){ f.step = "draft"; save(); step = "draft"; }
+  }
   const {question} = current;
   const showTl = step === "read";   // 读材料步也把限时摆出来：时钟从「开始作答」就起算，一稿页自己有这一行
   // 步骤条摆在纸面第一行：它说的是「我现在在哪」，不是这道题的题干，不该夹在要求与当前步面板之间
@@ -3569,7 +3603,7 @@ function renderFlowStep(){
     if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
     html += metaLineHtml(question);
   }
-  html += `<div id="flowPanel">${stepPanelHtml(step, f)}</div>`;
+  html += `<div id="flowPanel">${stepPanelHtml(step, f, lg)}</div>`;
   if(f) html += navHtml(step);
   docBody.innerHTML = html;
   const fb = FAB_BY_STEP[step];   // 浮标挂在纸面之外：写与读材料时随时能翻卡
@@ -3577,7 +3611,7 @@ function renderFlowStep(){
   renderHeader();
   wireStep(step, f);
 }
-function stepPanelHtml(step, f){
+function stepPanelHtml(step, f, lg){
   const question = current.question;
   if(step === "read"){
     let html = "";
@@ -3592,8 +3626,9 @@ function stepPanelHtml(step, f){
   // 归类降级成一稿页上的入口：f.orgOpen 打开时，一稿那一屏就换成归类面板
   if(step === "draft") return (f && f.orgOpen)? organizePanelHtml(f) : draftPanelHtml(f);
   if(step === "review"){
-    if(!lastGrade) return `<div class="hint" style="margin-top:12px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
-    return gradeHtml(lastGrade.g, lastGrade.total);   // 批改是链子的最后一步：出链的去处由批改页自己的按钮交代
+    // 这句提示只留给「没有链」的老路径：有链又取不到结果时，上面已经退回一稿了，不会停在这一屏
+    if(!lg) return `<div class="hint" style="margin-top:12px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
+    return gradeHtml(lg.g, lg.total);   // 批改是链子的最后一步：出链的去处由批改页自己的按钮交代
   }
   return "";
 }
@@ -3920,7 +3955,9 @@ function wireOrganize(f){
   wireTimeControls();   // 归类这一屏也在计时：题面那行的剩余时间照常走
 }
 function wireStep(step, f){
-  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  // 「批改」这一屏整块不渲题面，「换一题」只由 gradeHtml 出；取不到就跳过——
+  // 一个不存在的按钮不该掀翻这一屏剩下的接线（上一步、再来一道、自述框全靠后面几行）
+  const sw = $("#btnSwitch"); if(sw) sw.onclick = ()=> loadQuestion(current.module, current.subtype);
   if(step === "read") wireTimeControls();
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
   if(step === "read"){
@@ -3947,6 +3984,7 @@ function wireStep(step, f){
   if(step === "review"){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
+    const bd = $("#btnDone"); if(bd) bd.onclick = finishCurrent;
     wireSelfNote();
   }
 }
@@ -4254,11 +4292,15 @@ function selfAskKind(g, total){
   const r = pts? pts.got/pts.max : (Number(total)||0)/100;
   return r >= 0.8? "how" : "stuck";
 }
-// 只认当前这道题的记录：批改页再渲染时 history[0] 有可能已经换人了
+/* 这一屏批改对应哪条记录：先按链 id 精确认，再退到题目签名。
+   不能只看 history[0]——恢复一条旧链之后，最近一条往往是别的题，自述就会写到那道题上。
+   按链 id 认之前先确认这条链就是当前这题：残留的 _flowId 不代表这一屏。 */
 function curGradeRecord(){
-  const r = state.history && state.history[0];
-  if(!r || !current || !current.question) return null;
-  return (r.question && qSig(r.question) === qSig(current.question))? r : null;
+  if(!current || !current.question) return null;
+  const sig = qSig(current.question);
+  const f = activeFlow();
+  if(f && f.sig === sig){ const byId = state.history.find(r => r && r.flowId === f.id); if(byId) return byId; }
+  return state.history.find(r => r && r.question && qSig(r.question) === sig) || null;
 }
 function selfNoteHtml(g, total){
   const r = curGradeRecord();
@@ -4282,7 +4324,9 @@ function wireSelfNote(){
     // 空 = 跳过：两个字段都不写进去。留个空串会在历史里占一个「答了但没内容」的位，归纳时要再判一次
     if(!t){ delete r.selfNote; delete r.selfKind; }
     else { r.selfNote = t; r.selfKind = kind; }
-    save();
+    // 改的是记录（history），不是 state 上的聚合：只有 saveHistory 才把它写进 gw_history。
+    // 调 save() 的话界面照样说「已记下」，磁盘上那份一个字都没动，重开就没了。
+    saveHistory();
     return !!t;
   };
   const b = $("#btnSelfSave");
@@ -4297,7 +4341,7 @@ function gradeCommentHtml(comment){
   return lines.map(s=>s.trim()).filter(Boolean).map(s=>`<div>${esc(s)}</div>`).join("");
 }
 function gradeHtml(g, total){
-  // 批改页自己收尾（沉淀已并进这一页）：去哪由 nextrow 两颗按钮交代——
+  // 批改页自己收尾（沉淀已并进这一页）：去哪由 nextrow 三颗按钮交代——
   // 推送是出题引擎底层的事（每次出题自适应选题），页面上没有「推送」入口（SPEC 4.6）。
   const pts = pointsOf(g.hits);
   // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
@@ -4339,6 +4383,7 @@ function gradeHtml(g, total){
   // 提炼是批改之后异步跑的：跑完就地补一行（见 paintExpLine），不让用户为了看「这次提炼了什么」再走一屏
   html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div>`;
   html += `<div class="nextrow">
+      <button class="primary" id="btnDone">完成</button>
       <button id="btnRetry">同模块再来一道</button>
       <button class="linkbtn" id="btnSeeProfile">看我的画像</button>
     </div></div>`;
@@ -4348,16 +4393,26 @@ function gradeHtml(g, total){
 function renderGrade(g, total, expCheck, time, answer){
   // answer 要留住：证据区里那句「哪句没对上」要用答卷原文
   const ans = String(answer || (state.history[0] && state.history[0].answer) || "");
-  lastGrade = { g, total, expCheck: expCheck || null, time: time || null, answer: ans };
+  const f = (current && usesFlowChain(current.module))? activeFlow() : null;
+  const forThis = !!(f && current && f.sig === qSig(current.question));
+  /* flowId 是这份缓存的门牌：重渲这一屏时只认属于这条链的缓存，跨链一律不借（见 renderFlowStep）。 */
+  lastGrade = { g, total, expCheck: expCheck || null, time: time || null, answer: ans, flowId: forThis? f.id : null };
   if(current && usesFlowChain(current.module)){
-    const f = activeFlow();
-    if(f && f.sig === qSig(current.question)) f.step = "review";
+    if(forThis) f.step = "review";
     renderFlowStep();
   } else if(current){
     current.grade = { g, total };
     current.phase = "grade";
     renderZyPage();
   }
+}
+/* 批改页的「完成」：把这条链收口，回首页。
+   收口只影响首页那个「继续」入口；记录、答案、批改结果一律不动——state.history 里那份照样在「记录」页。
+   综应A 没有链（current 就是全部现场），所以只回首页：两边观感一致，点完就到家。 */
+function finishCurrent(){
+  const f = activeFlow();
+  if(f && current && current.question && f.sig === qSig(current.question)) closeFlow(f);
+  renderHome();
 }
 
 /* ============ 画像 ============ */
