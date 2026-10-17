@@ -402,7 +402,7 @@ html,body{margin:0;padding:0;}
   /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
   .setgrp{border-top:1px solid var(--line);margin-top:24px;padding-top:24px;}
   .setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0;}
-  .grp-t{font-size:var(--fs-note);font-weight:600;color:var(--muted-2);letter-spacing:1px;margin-bottom:16px;}
+  .grpt{font-size:var(--fs-note);font-weight:600;color:var(--muted-2);letter-spacing:1px;margin-bottom:16px;}
   .field{margin-bottom:16px;}
   .setgrp>:last-child{margin-bottom:0;}
   .field label{display:block;font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--ink);margin-bottom:8px;}
@@ -532,26 +532,27 @@ html,body{margin:0;padding:0;}
   /* 归类：一次只摆一个点（原文在上，已建好的类在下面点选），不再 N 组 × M 点铺满整屏。
      点多的时候一屏变成一张表、很少的时候又空一半，都难扫；一屏一个点，视线不用在几组之间来回找。
      已找的点收进下面的折叠清单，谁归了谁没归一眼看完。 */
-  .ognow{border-top:1px solid var(--line);margin-top:16px;padding-top:12px;}
-  .ogwho{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);}
-  .ogprog{font-variant-numeric:tabular-nums;color:var(--muted-2);}
-  .ogcur{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);line-height:1.8;padding:8px 0 12px;}
+  .ognow{margin-top:16px;}
+  .ogprog{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;margin-bottom:8px;}
+  .ogcard{background:var(--wash);border-radius:var(--r-card);padding:16px;}
+  .ogcur{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);line-height:1.8;padding:0 0 12px;}
   .ogcur .atext{flex:1 1 auto;}
-  .ogcats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .ogcats{display:flex;flex-wrap:wrap;gap:8px;}
   .ogcat{font-family:var(--hei);font-size:var(--fs-body);padding:8px 12px;border:1px solid var(--line);background:var(--ctl);border-radius:var(--r-pill);cursor:pointer;}
   .ogcat:hover{border-color:var(--gov-red);}
   .ogcat.on{border-color:var(--gov-red);background:var(--red-wash);color:var(--gov-red);}   /* 已归入本类：再点一次就取消 */
   .ogcat i{font-style:normal;font-size:var(--fs-note);color:var(--muted);margin-left:8px;font-variant-numeric:tabular-nums;}
   .ogcat.on i{color:var(--gov-red);}
-  .ognew{margin-bottom:12px;}
-  /* 命名那一段（第二段）：每组一段，组里的点先摆出来，下面才是那一行输入框 */
+  /* 新建一组与已有的组同排：同一排才读成「归到这里，或者新建一个」 */
+  .ogcat.ognew{border-style:dashed;color:var(--muted);background:transparent;}
+  /* 命名那一段（第二段）：每组一张卡，组名输入是普通控件（--r-ctl 圆角），不走「竖线 + 虚线下划线」那套表单感 */
   .ognames{margin-top:12px;display:flex;flex-direction:column;gap:16px;}
-  .ogname{border-left:2px solid var(--line-strong);padding:0 0 4px 12px;}
+  .ogname{background:var(--wash);border-radius:var(--r-card);padding:16px;}
   .ogname .ogh{display:flex;gap:8px;align-items:baseline;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);}
-  .ogname .ognpts{margin:4px 0 8px;font-size:var(--fs-note);color:var(--muted-2);}
+  .ogname .ognpts{margin:4px 0 12px;font-size:var(--fs-note);color:var(--muted-2);}
   .ogname .ognpts .pickline{margin:0;}
-  .ogname .ogin{width:100%;border:none;border-bottom:1px dashed var(--line-strong);background:transparent;padding:8px 4px;font-family:var(--hei);font-size:var(--fs-body);border-radius:var(--r-flat);}
-  .ogname .ogin:focus{outline:none;border-bottom-color:var(--gov-red);}
+  .ogname .ogin{width:100%;}
+  .ogname .ogin:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .ogline.cur{background:var(--wash);}
   .ogline.cur .ptag{background:var(--red-wash);color:var(--gov-red);}
   /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
@@ -3489,7 +3490,9 @@ function organizePanelHtml(f){
 }
 /* 面板在哪一段：显式记在链上；老链没这个字段时按「点还没走完」算第一段 */
 function orgPhaseOf(f){ return f && f.orgPhase === "name"? "name" : "group"; }
-/* 第一段：一屏一个点，点一下归入某一组（可以多归）；组名先空着，空名的组叫「要点N」 */
+/* 第一段：一屏一个点，点一下归入某一组（可以多归）；组名先空着，空名的组叫「要点N」。
+   主次：当前点与它要归的组是这一屏唯一的主角（点卡），进度退成一行灰字；
+   「新建一组」与已有的组同排——同一排才读成「归到这里，或者新建一个」。 */
 function orgGroupPanelHtml(f, groups, sels){
   const idx = Math.min(Math.max(Number(f.orgIdx) || 0, 0), sels.length - 1);
   const holder = holderOf(groups, sels);
@@ -3502,17 +3505,20 @@ function orgGroupPanelHtml(f, groups, sels){
     const on = inGroups(idx).indexOf(i) >= 0;
     return `<button class="ogcat${on? " on":""}" data-og="${i}" aria-pressed="${on? "true":"false"}">${esc(groupLabel(groups, i))}<i>${(g.facts||[]).length}</i></button>`;
   }).join("");
-  return `<div class="hint">第一步：把这个点归进某一组。组名不用现在想——点归完了再统一起名。提纲只供批改诊断，不参与计分。</div>
+  const empty = groups.length? "" : '<p class="hint">还没有组——点下面的「+ 新建一组」把当前点归进去。</p>';
+  return `<p class="hint">第一步：把这个点归进某一组。组名留到第二步再起。</p>
     <div class="ognow">
-      <div class="ogwho"><span>这个点归到哪一组</span><span class="ogprog">已归 ${doneCnt} / ${sels.length} 个点</span></div>
-      <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
-      <div class="ogcats" id="ogCats">${cats || '<span class="hint">还没有组——下面那颗按钮就是新建一个。</span>'}</div>
-      <div class="ognew"><button id="btnNewCat">新建一组，把这个点归进去</button></div>
+      <div class="ogprog">已归 ${doneCnt} / ${sels.length} 个点</div>
+      <div class="ogcard">
+        <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
+        ${empty}
+        <div class="ogcats" id="ogCats">${cats}<button class="ogcat ognew" id="btnNewCat">+ 新建一组</button></div>
+      </div>
       <div class="actions">
         <button id="btnOrgPrev"${idx? "":" disabled"}>上一个点</button>
         <button class="primary" id="btnOrgNext">${last? "分组完毕，去命名" : "下一个点"}</button>
       </div>
-      ${last? "" : `<div class="hint">这个点一时拿不准也能先过去——下面的清单里能跳回来重归。</div>`}
+      ${last? "" : `<p class="hint">这个点一时拿不准也能先过去——下面的清单里能跳回来重归。</p>`}
     </div>
     <details class="notebox" style="margin-top:16px"><summary>已找的点（${sels.length} 个 · 已归 ${doneCnt} 个）</summary><div class="notebody">${
       sels.map((sl,si)=>{
@@ -3522,7 +3528,8 @@ function orgGroupPanelHtml(f, groups, sels){
       }).join("")
     }</div></details>`;
 }
-/* 第二段：一屏给每一组写上位概括词——这时候整组的内容都摆在眼前，概括才有的放矢 */
+/* 第二段：一屏给每一组写上位概括词——这时候整组的内容都摆在眼前，概括才有的放矢。
+   提纲不在这里显示：它是这一段的产物，摆在一稿页（写完抬眼就能核对），这一屏只管把组起好名。 */
 function orgNamePanelHtml(groups, sels){
   const rows = groups.map((g,i)=>{
     const pts = (g.facts||[]).filter(si=> sels[si]);
@@ -3530,13 +3537,12 @@ function orgNamePanelHtml(groups, sels){
       + `<div class="ognpts">${pts.map(si=> `<div class="pickline"><span class="ptag">${sels[si].free? "划选":"整句"}</span><span style="flex:1 1 auto">${esc(sels[si].text)}</span></div>`).join("") || '<div class="hint">这一组还是空的。</div>'}</div>`
       + `<input type="text" class="ogin" data-ogname="${i}" placeholder="这一组的上位概括词，如：政务服务效能" value="${esc(String(g.name||""))}"></div>`;
   }).join("");
-  return `<div class="hint">第二步：给每一组写一个上位概括词（它就是提纲的抬头）。写不出也能跳过——提纲只供批改诊断，不参与计分。</div>
-    ${rows || '<div class="hint">还没有分组，先回去把点归一下。</div>'}
+  return `<p class="hint">第二步：给每一组写一个上位概括词（它就是提纲的抬头）。写不出也能跳过——提纲只供批改诊断，不参与计分。</p>
+    ${rows || '<p class="hint">还没有分组，先回去把点归一下。</p>'}
     <div class="actions">
       <button id="btnBackToGroup">回去改分组</button>
       <button class="primary" id="btnOrgDone">写完了，回到一稿</button>
-    </div>
-    <details class="notebox" style="margin-top:12px" open><summary>提纲预览（一行一组）</summary><div class="notebody"><div class="tpl" id="outlinePrev">${esc(buildOrganizeOutline(groups, sels)) || "（空）"}</div></div></details>`;
+    </div>`;
 }
 /* 每个点被哪几组收着（组序号数组）——用来在已归清单上标「也在「X」」 */
 function holderOf(groups, sels){
@@ -3789,10 +3795,15 @@ function draftPanelHtml(f){
   const gN = f? (f.groups || []).length : 0;
   const orgBtn = f? `<button id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
   let html = prepRulesHtml(module);   // 作答前的规则展示位：动笔之前先看见自己攒下的经验
-  // 提纲不再另摆一份：归类面板里有一份「提纲预览」，同一个东西不在两处各写一遍
+  // 提纲的产地是归类、摆的地方是这里：写完抬眼就能核对「我准备按几组写」，默认收起不占首屏
+  const outline = f? buildOrganizeOutline(f.groups, f.selections) : "";
+  const outlineBlock = outline
+    ? `<details class="notebox" id="outlineBox" style="margin:0 0 12px"><summary>我归的提纲（${outline.split("\n").length} 组 · 点开看）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`
+    : "";
   if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
     <div class="secrow"><div class="sec-title plain">作答区</div><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
+    ${outlineBlock}
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}

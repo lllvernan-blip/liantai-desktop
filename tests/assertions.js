@@ -1274,10 +1274,35 @@ ok(orgName.indexOf('data-ogname="0"') >= 0 && orgName.indexOf("甲点") >= 0 && 
    "归类: 命名那一段把整组的内容摆出来（概括才有的放矢）");
 ok(orgName.indexOf("btnNewCat") < 0 && orgName.indexOf("btnBackToGroup") >= 0,
    "归类: 命名那一段不再归点，给「回去改分组」的路");
-ok(orgName.indexOf("提纲预览") >= 0, "归类: 提纲预览落在命名那一段");
+ok(orgName.indexOf("提纲预览") < 0 && orgName.indexOf("outlinePrev") < 0 && orgName.indexOf("outlineBox") < 0,
+   "归类: 提纲不在归类页（产地在这里，摆的地方是一稿页）");
 ok(PAGE_HTML.indexOf('id="newCatName"') < 0, "归类: 「新建一组」不再要求当场写名字");
 ok(orgPhaseOf({}) === "group" && orgPhaseOf({orgPhase:"name"}) === "name" && orgPhaseOf({orgPhase:"乱写"}) === "group",
    "归类: 老链没有段位字段时按第一段算");
+
+// 主次与形状：点卡是主角、新建与已有的组同排、命名卡走圆角口径
+ok(orgHtml.indexOf('class="ogcard"') >= 0 && orgHtml.indexOf('class="ogcur"') > orgHtml.indexOf('class="ogcard"'),
+   "归类: 当前点装进点卡（点与它要归的组是这一屏的主角）");
+ok(/<div class="ogcats" id="ogCats">[\s\S]*class="ogcat ognew"/.test(orgHtml1),
+   "归类: 「新建一组」与已有的组同排（同一排才读成「归到这里，或新建一个」）");
+ok(PAGE_HTML.indexOf(".ogcat.ognew{border-style:dashed") >= 0, "归类: 新建一组是虚线样（看得出现在是「加一个」）");
+ok(PAGE_HTML.indexOf(".ogname{background:var(--wash);border-radius:var(--r-card)") >= 0
+   && PAGE_HTML.indexOf(".ogname .ogin{width:100%;}") >= 0,
+   "归类: 命名卡走 --r-card、输入框走全局 --r-ctl（不再横平竖直）");
+ok((orgHtml.match(/提纲只供批改诊断/g) || []).length === 0
+   && (orgName.match(/提纲只供批改诊断/g) || []).length === 1,
+   "归类: 「不参与计分」只在第二段说一次");
+
+// 提纲落在一稿页：默认收起、摆在作答区标题行下方
+current = { module:"sl.guina", subtype:"概括问题", question:{ background:"x", requirements:"r" }, keyPoints:[], cardPeeks:0 };
+const draftF = { groups:[{name:"甲组",facts:[0]}], selections:[{text:"甲点"}] };
+const dHtml = draftPanelHtml(draftF);
+const iTitle = dHtml.indexOf("作答区"), iBox = dHtml.indexOf('id="outlineBox"'), iTa = dHtml.indexOf('id="answer"');
+ok(iTitle >= 0 && iBox > iTitle && iBox < iTa, "提纲: 摆在作答区标题行下方、文本框之前");
+ok(dHtml.indexOf("我归的提纲") >= 0 && dHtml.indexOf("甲组：甲点") >= 0, "提纲: 一稿页看得到归出来的那一行");
+ok(!/id="outlineBox"[^>]*\bopen\b/.test(dHtml), "提纲: 默认收起（要用时点开）");
+ok(draftPanelHtml({ groups:[], selections:[] }).indexOf("outlineBox") < 0, "提纲: 一组都没有时不摆空框");
+current = null;
 // 归属反查表：一个点被哪几类收着
 const sel3 = [{text:"甲点",free:true},{text:"乙点"}];
 const grp3 = [{name:"甲组",facts:[0]},{name:"",facts:[0,1]}];
