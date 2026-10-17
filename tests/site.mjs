@@ -1,8 +1,8 @@
 /*
- * 官网自检 —— site/index.html 的「按平台给对的包」与「链接走加速镜像」。
+ * 官网自检 —— site/index.html 的下载入口：按平台给包、箭头菜单、下载走加速线路。
  *
  * 为什么单独一份：这片页面不在应用里跑，app/index.html 那套断言够不着它；而它出的错
- * 都是用户当面就看见的——点下载拿到旧版、拿到一个根本不存在的包、或者只有 Mac 的人有按钮。
+ * 都是用户当面就看见的——点下载拿到旧版、拿到一个根本不存在的包、只有一个平台能下。
  *
  * 手法与 run.mjs 一致：抠出页面里的 <script>，配最小 DOM 桩子，在 data: 模块里跑一遍。
  * 页面那两处取数是 async IIFE，所以断言在同一个模块里等一下再读 DOM；
@@ -31,6 +31,8 @@ const MAC_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.
 const EXE = "liantai-desktop-setup-0.0.22.exe";
 const DMG = "liantai-desktop-0.0.22-arm64.dmg";
 const endsWith = (s, tail) => typeof s === "string" && s.slice(-tail.length) === tail;
+/* 从菜单标记里抠出某一个平台那条（用来判「当前」标在哪一条上，别用跨条的正则：会串到隔壁） */
+const menuItem = (markup, k) => (markup.split('id="dlItem-' + k + '"')[1] || "").split("</a>")[0];
 
 /* 跑一遍页面脚本，返回它画完之后 DOM 里的东西。
    latest / api 传 null 表示这一级拿不到（页面该往下一级退）。 */
@@ -42,10 +44,18 @@ async function run(opts) {
   runId++;
   const src = [
     "/* run " + runId + " */",
-    // 最小 DOM：这页只用到 getElementById(...) 的 href / textContent / innerHTML
-    "const __els = {};",
-    "globalThis.document = { getElementById: id => __els[id] || (__els[id] = { href:'', innerHTML:'', _t:'',",
-    "  get textContent(){ return this._t; }, set textContent(v){ this._t = String(v); } }) };",
+    // 最小 DOM：这页只用到 getElementById(...) 的 href / textContent / innerHTML / hidden，
+    // 加上 setAttribute 与 addEventListener（箭头那个下拉要用）；hidden 的初始值按页面标记来。
+    "const __els = {}, __handlers = {};",
+    "const __hidden = " + /id="dlMenu"[^>]*hidden/.test(html) + ";",
+    "const __mk = (id, hidden) => ({ href:'', innerHTML:'', hidden:!!hidden, _t:'', __id:id,",
+    "  get textContent(){ return this._t; }, set textContent(v){ this._t = String(v); },",
+    "  setAttribute(k, v){ this[k] = String(v); },",
+    "  addEventListener(t, f){ (__handlers[this.__id] = __handlers[this.__id] || {})[t] = f; },",
+    "  contains(){ return false; } });",
+    "globalThis.document = {",
+    "  getElementById: id => __els[id] || (__els[id] = __mk(id, id === 'dlMenu' ? __hidden : false)),",
+    "  addEventListener(t, f){ (__handlers['@document'] = __handlers['@document'] || {})[t] = f; } };",
     "globalThis.fetch = async (url) => { const u = String(url);",
     "  if(u.indexOf('latest.json') >= 0) return " + reply(opts.latest) + ";",
     "  if(u.indexOf('changelog.json') >= 0) return { ok:false };",
@@ -53,10 +63,19 @@ async function run(opts) {
     "  return { ok:false }; };",
     script,
     "await new Promise(r => globalThis.__realSetTimeout(r, 30));",
+    // 箭头那个下拉：点开 → 点别处收起 → 再点开 → Esc 收起（三段都走页面自己注册的处理器）
+    "__handlers.dlCaret.click({ stopPropagation(){} });",
+    "const opened = !__els.dlMenu.hidden;",
+    "__handlers['@document'].click({ target: {} });",
+    "const closedOutside = __els.dlMenu.hidden;",
+    "__handlers.dlCaret.click({ stopPropagation(){} });",
+    "__handlers['@document'].keydown({ key: 'Escape' });",
+    "const closedEsc = __els.dlMenu.hidden;",
     "globalThis.__view = {",
     "  btnHref: __els.dlBtn.href, btnText: __els.dlBtn.textContent,",
     "  meta: __els.dlMeta.textContent,",
-    "  otherHref: __els.dlOther.href, otherText: __els.dlOther.textContent,",
+    "  menu: __els.dlMenu.innerHTML, menuClosedAtStart: __hidden,",
+    "  opened, closedOutside, closedEsc,",
     "  clRows: (__els.clList.innerHTML.match(/<div class=\"row\">/g) || []).length,",
     "  clN: __els.clN.textContent };",
   ].join("\n");
@@ -75,7 +94,7 @@ const bothPlatforms = {
   mac: { version: "0.0.22", tag: "v0.0.22", date: "2026-10-17", file: DMG, size: 100813509 },
 };
 
-/* 页面可见部分（去掉注释与脚本）——文案层面的断言都打在这里 */
+/* 页面可见部分（去掉注释与脚本）——文案与标记层面的断言都打在这里 */
 const visible = html.replace(/<!--[\s\S]*?-->/g, "").replace(/<script>[\s\S]*?<\/script>/g, "");
 
 /* 一级：站点自带的 latest.json（线上正常情形） */
@@ -85,20 +104,32 @@ ok(v.btnHref.indexOf("https://ghproxy.net/https://github.com/") === 0, "取数�
 ok(v.btnText === "下载 Windows 版", "取数一级: 主按钮文案跟着这台电脑的平台走");
 ok(v.meta.indexOf("0.0.22") === 0 && v.meta.indexOf("2026-10-17") > 0 && v.meta.indexOf("83 MB") > 0,
    "取数一级: 版本 / 日期 / 大小写在按钮下面（这是这个包的数，不是另一个平台的）");
-ok(endsWith(v.otherHref, "releases/download/v0.0.22/" + DMG) && v.otherText === "下载 macOS 版",
-   "取数一级: 「不是这台电脑？」给的是另一个平台的包");
+
+/* 主按钮旁边那个箭头：两个平台同级摆在菜单里，当前这台电脑那条标出来 */
+ok(menuItem(v.menu, "windows").length > 0 && menuItem(v.menu, "mac").length > 0,
+   "箭头菜单: 两个平台的包各占一条，平行摆着");
+ok(menuItem(v.menu, "windows").indexOf("当前") > 0 && menuItem(v.menu, "mac").indexOf("当前") < 0,
+   "箭头菜单: Windows 打开时，标「当前」的是 exe 那条");
+ok(menuItem(v.menu, "mac").indexOf("ghproxy.net/https://github.com/") > 0 && menuItem(v.menu, "mac").indexOf("-arm64.dmg") > 0,
+   "箭头菜单: 另一条指向 dmg，也走加速线路");
+ok(menuItem(v.menu, "mac").indexOf("0.0.22") > 0 && menuItem(v.menu, "mac").indexOf("96 MB") > 0,
+   "箭头菜单: 另一条带着自己的版本与大小（不用点进去才知道下的是哪一版）");
+ok(v.menuClosedAtStart === true && /aria-expanded="false"/.test(visible), "箭头菜单: 一开始是收着的");
+ok(v.opened === true && v.closedOutside === true && v.closedEsc === true,
+   "箭头菜单: 点箭头开、点别处收、Esc 也收");
+
 ok(!/gh-proxy|gh\.xxooo|gh\.nxnow|直连|镜像/.test(visible),
    "页面可见部分不写加速线路的域名：用户面前只有一个下载按钮");
 ok(/id="dlStuck"/.test(visible) && visible.indexOf("releases/latest") > 0,
    "「点了没反应？」里给的是官方发布页（那条线路整个抽掉时的退路）");
 ok(v.clRows === 4 && v.clN === "18", "更新日志: 读不到 changelog.json 时用页面内联那份，最近 4 条在外、其余折叠");
 
-/* 同一份数据，换一台 Mac 打开：按钮该换过来 */
+/* 同一份数据，换一台 Mac 打开：按钮与菜单里那条「当前」都该换过来 */
 v = await run({ ua: MAC_UA, latest: bothPlatforms, api: null });
 ok(endsWith(v.btnHref, "releases/download/v0.0.22/" + DMG) && v.btnText === "下载 macOS 版",
    "取数一级: Mac 打开时主按钮换成 dmg");
-ok(endsWith(v.otherHref, "v0.0.22/" + EXE) && v.otherText === "下载 Windows 版",
-   "取数一级: Mac 上「不是这台电脑？」换成 Windows 包");
+ok(menuItem(v.menu, "mac").indexOf("当前") > 0 && menuItem(v.menu, "windows").indexOf("当前") < 0,
+   "取数一级: Mac 上标「当前」的换成 macOS 那条");
 
 /* 二级：latest.json 还没生成（或访客没取到），退 GitHub API。
    这里造的情形正是这个仓库发版的常态：最新一版只有 mac（prerelease 单发），Windows 还没跟上。
@@ -114,8 +145,8 @@ const apiList = [
 v = await run({ ua: WIN_UA, latest: null, api: apiList });
 ok(endsWith(v.btnHref, "v0.0.22/" + EXE) && v.meta.indexOf("0.0.22") === 0,
    "取数二级: mac 单发一版时，Windows 那栏仍指上一次的正式包（不给不存在的包）");
-ok(endsWith(v.otherHref, "releases/download/v0.0.23/liantai-desktop-0.0.23-arm64.dmg"),
-   "取数二级: Mac 那栏拿到最新那一版（mac 单发的版本也是给人用的）");
+ok(v.menu.indexOf("releases/download/v0.0.23/liantai-desktop-0.0.23-arm64.dmg") > 0,
+   "取数二级: 菜单里 mac 那条拿到最新那一版（mac 单发的版本也是给人用的）");
 v = await run({ ua: MAC_UA, latest: null, api: apiList });
 ok(endsWith(v.btnHref, "v0.0.23/liantai-desktop-0.0.23-arm64.dmg") && v.meta.indexOf("0.0.23") === 0,
    "取数二级: Mac 打开时主按钮直接是最新那一版");

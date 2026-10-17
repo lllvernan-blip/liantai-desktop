@@ -68,6 +68,22 @@
                 padding:16px 58px;font-size:var(--fs-title);font-weight:600;letter-spacing:1px;color:var(--on-dark);
                 background:var(--gov-red);border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
   .dl a.primary:hover{background:var(--gov-red-dark);text-decoration:none;}
+  /* 主按钮右边那个箭头与它的下拉：两个平台的包同级，当前这台电脑的那条直接摆在按钮上，
+     另一个收在箭头里——比在按钮底下再挂一行「不是这台电脑？」干净 */
+  .dlrow{display:inline-flex;align-items:stretch;}
+  .dlrow a.primary{border-top-right-radius:0;border-bottom-right-radius:0;}
+  .caret{display:inline-flex;align-items:center;justify-content:center;width:48px;min-height:54px;padding:0;
+         color:var(--on-dark);background:var(--gov-red);border:0;border-left:1px solid rgba(255,255,255,.3);
+         border-radius:0 var(--r-hero) var(--r-hero) 0;box-shadow:0 6px 18px rgba(190,59,43,.28);
+         cursor:pointer;font-size:var(--fs-note);line-height:1;}
+  .caret:hover{background:var(--gov-red-dark);}
+  .menu{display:inline-block;min-width:320px;margin-top:8px;padding:4px 0;text-align:left;
+        background:var(--ctl);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--sh-1);}
+  .menu[hidden]{display:none;}
+  .menu a{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:8px 12px;color:var(--ink);}
+  .menu a:hover{background:var(--wash);text-decoration:none;}
+  .menu .m{color:var(--muted-2);font-size:var(--fs-note);font-variant-numeric:tabular-nums;}
+  .menu .cur{color:var(--muted-2);font-size:var(--fs-note);}
   .dlmeta{margin-top:12px;font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}
   .hint{margin-top:8px;font-size:var(--fs-note);color:var(--muted-2);line-height:1.9;}
   /* 手机上装了也没用：这一句只在窄屏出现，桌面端不占地方 */
@@ -114,7 +130,10 @@
     .doc{padding:24px 16px;}
     .rh h1{font-size:var(--fs-hero);}
     .lede{font-size:var(--fs-body);line-height:1.9;}
-    .dl a.primary{min-width:0;width:100%;padding:16px 24px;}
+    .dlrow{display:flex;}
+    .dl a.primary{min-width:0;flex:1 1 auto;padding:16px 20px;}
+    .caret{width:52px;}
+    .menu{min-width:0;width:100%;}
     .shots{grid-template-columns:1fr;}
     .shot.wide .imgwrap{aspect-ratio:16/10;}
     .row{gap:4px;}
@@ -145,12 +164,16 @@
     </div>
 
     <div class="dl">
-      <a class="primary" id="dlBtn"
-         href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">下载 Windows 版</a>
+      <div class="dlrow">
+        <a class="primary" id="dlBtn"
+           href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">下载 Windows 版</a>
+        <button class="caret" id="dlCaret" type="button" aria-expanded="false" aria-label="下载另一个平台的版本">▾</button>
+      </div>
       <div class="dlmeta" id="dlMeta">0.0.22 · 2026-10-17 · 83 MB · Windows 安装包（.exe）</div>
+      <!-- 箭头点开的菜单：内容由页面脚本按 latest.json 填（两条：两个平台各自的包）。
+           默认空着——写死一份就会跟真数据跑偏，而它本来就是给有脚本的浏览器用的。 -->
+      <div class="menu" id="dlMenu" hidden></div>
       <div class="hint">装过一次就不用再回来：应用启动会自己查新版，查到在首页出一条提示，点「重启并更新」。</div>
-      <div class="hint">不是这台电脑？<a id="dlOther"
-        href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-0.0.22-arm64.dmg">下载 macOS 版</a></div>
       <!-- 下不动时的出路：不写镜像域名（用户不需要知道），只给「再等等」与官方发布页两步。
            主按钮本身已经走在加速线路上，这一块是那条线路整个抽掉时的退路。 -->
       <details class="more" id="dlStuck">
@@ -272,6 +295,7 @@ const FALLBACK = { version:'0.0.22', date:'2026-10-17',
   mac:{ version:'0.0.22', tag:'v0.0.22', date:'2026-10-17', file:'liantai-desktop-0.0.22-arm64.dmg', size:100813509 } };
 
 const mb = n => Math.round(Number(n) / 1048576) + ' MB';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const dlUrl = it => MIRROR + 'https://github.com/' + REPO + '/releases/download/' + it.tag + '/' + it.file;
 const cmpVer = (a, b) => { const p = String(a).split('.').map(Number), q = String(b).split('.').map(Number);
   for(let i = 0; i < 3; i++) if((p[i] || 0) !== (q[i] || 0)) return (p[i] || 0) - (q[i] || 0); return 0; };
@@ -285,16 +309,21 @@ function platform(){
 
 function paint(j){
   if(!j || !j.version || !j.windows || !j.mac) return;
-  const me = platform(), other = me === 'windows' ? 'mac' : 'windows';
-  const a = j[me], b = j[other];
+  const me = platform();
+  const a = j[me];
   const btn = document.getElementById('dlBtn');
   btn.href = dlUrl(a);
   btn.textContent = '下载 ' + PLAT[me].who + ' 版';
   document.getElementById('dlMeta').textContent =
     [a.version, a.date, a.size? mb(a.size) : '', PLAT[me].kind].filter(Boolean).join(' · ');
-  const alt = document.getElementById('dlOther');
-  alt.href = dlUrl(b);
-  alt.textContent = '下载 ' + PLAT[other].who + ' 版';
+  /* 箭头里把两个平台并列摆出来：当前这台电脑那条标「当前」，另一条给出它的版本与大小 */
+  document.getElementById('dlMenu').innerHTML = ['windows', 'mac'].map(k => {
+    const it = j[k], cur = k === me;
+    return '<a id="dlItem-' + k + '" href="' + esc(dlUrl(it)) + '">'
+         + '<span>' + esc(PLAT[k].kind) + '</span>'
+         + '<span class="' + (cur ? 'cur' : 'm') + '">'
+         + (cur ? '当前' : 'v' + esc(it.version) + ' · ' + mb(it.size)) + '</span></a>';
+  }).join('');
 }
 
 async function readLatest(){
@@ -329,6 +358,19 @@ async function readLatest(){
 
 (async () => { paint(await readLatest() || FALLBACK); })();
 
+/* 箭头与它的下拉菜单：点开列两个平台的包，点到别处或按 Esc 就收起来 */
+const caret = document.getElementById('dlCaret');
+const menu = document.getElementById('dlMenu');
+function closeMenu(){ menu.hidden = true; caret.setAttribute('aria-expanded', 'false'); }
+caret.addEventListener('click', (e) => {
+  e.stopPropagation();               // 不然紧接着冒到 document 上，刚开就被外面那下关掉
+  const open = menu.hidden;
+  menu.hidden = !open;
+  caret.setAttribute('aria-expanded', String(open));
+});
+document.addEventListener('click', (e) => { if(!menu.hidden && !menu.contains(e.target)) closeMenu(); });
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeMenu(); });
+
 /* 更新日志：与应用里「设置 → 更新日志」同一份——那份是 app/index.html 里的 CHANGELOG 数组，
    发版时在最上面加一条，应用内离线可看。站点不另写一份，落地时由发布脚本抽成 changelog.json
    （单一真源），这里先内联一份照抄，保证没网也能看。
@@ -359,7 +401,6 @@ const CHANGELOG_FALLBACK = [
 ];
 const RECENT = 4;   // 最近四条摆在外面，剩下的折起来（与应用里那个 <details> 同一招）
 
-const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clRow = it => '<div class="row"><div class="k">v' + esc(it[0]) + '</div><div class="v">' + esc(it[1]) + '</div></div>';
 
 function paintChangelog(list){
