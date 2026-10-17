@@ -100,7 +100,7 @@ const visible = html.replace(/<!--[\s\S]*?-->/g, "").replace(/<script>[\s\S]*?<\
 /* 一级：站点自带的 latest.json（线上正常情形） */
 let v = await run({ ua: WIN_UA, latest: bothPlatforms, api: null });
 ok(endsWith(v.btnHref, "releases/download/v0.0.22/" + EXE), "取数一级: Windows 打开时，主按钮就是这个版本的 .exe");
-ok(v.btnHref.indexOf("https://ghproxy.net/https://github.com/") === 0, "取数一级: 主按钮先走加速线路，不是直连 github.com");
+ok(v.btnHref.indexOf("https://gh-proxy.com/https://github.com/") === 0, "取数一级: 主按钮先走加速线路，不是直连 github.com");
 ok(v.btnText === "下载 Windows 版", "取数一级: 主按钮文案跟着这台电脑的平台走");
 ok(v.meta.indexOf("0.0.22") === 0 && v.meta.indexOf("2026-10-17") > 0 && v.meta.indexOf("83 MB") > 0,
    "取数一级: 版本 / 日期 / 大小写在按钮下面（这是这个包的数，不是另一个平台的）");
@@ -110,7 +110,7 @@ ok(menuItem(v.menu, "windows").length > 0 && menuItem(v.menu, "mac").length > 0,
    "箭头菜单: 两个平台的包各占一条，平行摆着");
 ok(menuItem(v.menu, "windows").indexOf("当前") > 0 && menuItem(v.menu, "mac").indexOf("当前") < 0,
    "箭头菜单: Windows 打开时，标「当前」的是 exe 那条");
-ok(menuItem(v.menu, "mac").indexOf("ghproxy.net/https://github.com/") > 0 && menuItem(v.menu, "mac").indexOf("-arm64.dmg") > 0,
+ok(menuItem(v.menu, "mac").indexOf("gh-proxy.com/https://github.com/") > 0 && menuItem(v.menu, "mac").indexOf("-arm64.dmg") > 0,
    "箭头菜单: 另一条指向 dmg，也走加速线路");
 ok(menuItem(v.menu, "mac").indexOf("0.0.22") > 0 && menuItem(v.menu, "mac").indexOf("96 MB") > 0,
    "箭头菜单: 另一条带着自己的版本与大小（不用点进去才知道下的是哪一版）");
@@ -118,8 +118,11 @@ ok(v.menuClosedAtStart === true && /aria-expanded="false"/.test(visible), "箭�
 ok(v.opened === true && v.closedOutside === true && v.closedEsc === true,
    "箭头菜单: 点箭头开、点别处收、Esc 也收");
 
-ok(!/gh-proxy|gh\.xxooo|gh\.nxnow|直连|镜像/.test(visible),
-   "页面可见部分不写加速线路的域名：用户面前只有一个下载按钮");
+/* 页面可见文字（再剥掉标签与属性）：href 里的线路域名是链接本身的形状，擦不掉；
+   这条盯的是文案——用户面前只该有一个下载按钮，不该读到一个中转站域名。 */
+const visibleText = visible.replace(/<[^>]*>/g, " ");
+ok(!/gh-proxy|ghproxy|gh\.xxooo|gh\.nxnow|直连|镜像/.test(visibleText),
+   "页面可见文字不写加速线路的域名：用户面前只有一个下载按钮");
 ok(/id="dlStuck"/.test(visible) && visible.indexOf("releases/latest") > 0,
    "「点了没反应？」里给的是官方发布页（那条线路整个抽掉时的退路）");
 ok(v.clRows === 4 && v.clN === "18", "更新日志: 读不到 changelog.json 时用页面内联那份，最近 4 条在外、其余折叠");

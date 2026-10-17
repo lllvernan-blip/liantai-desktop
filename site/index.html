@@ -16,7 +16,8 @@
     · 一级读 site/latest.json / site/changelog.json —— 由 `npm run site:data` 从 GitHub 的 Release 与
       app/index.html 的 CHANGELOG 生成（两个单一真源，站点不另存一份版本号）；
     · 二级退 GitHub API / 内联日志。两级都拿不到就保持页面上写死的数。
-  下载按钮先走加速镜像（与应用内更新同一批）：本机实测直连 github.com 只有 ~29 KB/s。
+  下载按钮先走加速镜像（与应用内更新同一批）：2026-10-18 本机实测（10MB 单段 Range，各两轮）
+  直连 github.com 37–95 KB/s，ghproxy.net 8–36 KB/s，gh-proxy.com 1.6 MB/s 且两轮都稳。
   上线：site/ 提交进仓库，Pages 由 .github/workflows/pages.yml 部署（细节见 docs/发布与更新.md）。
 -->
 <style>
@@ -166,7 +167,7 @@
     <div class="dl">
       <div class="dlrow">
         <a class="primary" id="dlBtn"
-           href="https://ghproxy.net/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">下载 Windows 版</a>
+           href="https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v0.0.22/liantai-desktop-setup-0.0.22.exe">下载 Windows 版</a>
         <button class="caret" id="dlCaret" type="button" aria-expanded="false" aria-label="下载另一个平台的版本">▾</button>
       </div>
       <div class="dlmeta" id="dlMeta">0.0.22 · 2026-10-17 · 83 MB · Windows 安装包（.exe）</div>
@@ -284,10 +285,12 @@
    而这个仓库拿 prerelease 表示「只发了一个平台」，用它会给用户看一个落后好几版的号。
    两级都拿不到：保持页面上写死的那个数，不显示拿不准的东西。 */
 const REPO = 'lllvernan-blip/liantai-desktop';
-/* 下载先走加速线路（与应用内更新用的是同一批源）：直连 github.com 实测只有 ~29 KB/s，
-   一个 100 MB 的包要下很久。**域名不在页面上写出来**——用户只需要那个按钮；
-   这条线路整个抽掉时，退路是「点了没反应？」那个折叠里的官方发布页。 */
-const MIRROR = 'https://ghproxy.net/';
+/* 下载先走加速线路（与应用内更新用的是同一批源）：直连 github.com 实测 37–95 KB/s，
+   一个 100 MB 的包要下很久。线路按实测速度与稳定性选：2026-10-18 本机，10MB 单段 Range 各两轮，
+   gh-proxy.com 1.6 MB/s 两轮都稳（ghfast.top 0.7–2.2 MB/s 波动大、ghproxy.net 8–36 KB/s 垫底）。
+   **域名不在页面上写出来**——用户只需要那个按钮；这条线路整个抽掉时，
+   退路是「点了没反应？」那个折叠里的官方发布页。 */
+const MIRROR = 'https://gh-proxy.com/';
 const PLAT = { windows:{ who:'Windows', kind:'Windows 安装包（.exe）' },
                mac:{ who:'macOS', kind:'Apple 芯片（arm64）' } };
 const FALLBACK = { version:'0.0.22', date:'2026-10-17',

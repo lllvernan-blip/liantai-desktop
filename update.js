@@ -42,28 +42,39 @@ const CHECK_TIMEOUT_MS = 2 * 60 * 1000;       // 检查接口半挂：2 分钟�
 const DOWNLOAD_STALL_MS = 10 * 60 * 1000;     // 下载 10 分钟没有任何进展也算失败
 const BACKUP_RETRY_MS = 1500;                 // 换到备用源后隔一下再试
 
-/* 备用源兜底：国内直连 GitHub 实测常常直接连不通（连接被重置 / 超时），而 GitHub 转发站能取到
-   同一份 Release 资产。2026-09-25 夜在本机重测（元数据各 3 次 + 安装包单段 Range 各一轮）：
-   ghproxy.net、gh-proxy.com、gh.xxooo.cf、gh.nxnow.top 都能取到 latest.yml 且支持单段 Range（206，
-   差量照旧）；gh.ddlc.top 连续 429（error code: 1027）已换掉；gh-proxy.net 能取元数据但 Range
-   返回 200 全量，不能走差量；直连 github.com 仍是连接超时。换线路时两条硬指标：元数据能取到、
-   **支持单段 Range**——后者不满足就只能全量下载。
-   主源永远是包内 app-update.yml（GitHub 官方）——只有它先失败才退到备用源。
-   这里有一条不能省的规矩：备用源模式下「取 sha512 的源」与「下安装包的源」必须分开
-   （applyCrossSourceDownload）。同一个源既能改 latest.yml 又能换安装包时，sha512 校验等于自证。
-   所以相邻两条要同时活着才算一条能走通的路，排列表时按这个看。
-   备用源自己也会挂（实测里 ghproxy.cc 证书过期、ghfast.top 连不通），所以按顺序试，全失败就照常报错+重试。
-   备用只是兜底不是新默认：某轮借它走通后，下一轮检查开始时仍回到官方源（backToOfficialFeed）。 */
+/* 备用源兼加速镜像：国内直连 GitHub 常常慢到没法用或直接连不通，GitHub 转发站能取到
+   同一份 Release 资产。2026-10-18 01:00 本机实测（10MB 单段 Range 各两轮；口径：curl -r 0-10485759）：
+   gh-proxy.com 1.6 MB/s（两轮都稳）、ghfast.top 0.7–2.2 MB/s（波动大）、ghproxy.net 8–36 KB/s，
+   这三台都支持单段 Range（206，差量照旧）；gh.xxooo.cf / ghproxy.cc / gh.llkk.cc / hub.gitmirror.com /
+   gh.zhaojun.im / ghproxy.cfd / gh-proxy.ygxz.in / gh.7vh.cn / ghp.ci 连不通；直连 github.com 37–95 KB/s。
+   按实测重排成三条：gh-proxy.com、ghfast.top、ghproxy.net。
+   元数据主源永远是包内 app-update.yml（GitHub 官方）；安装包地址默认就改到第一条镜像上——
+   直连官方慢到没法用，镜像才是常态入口（候选顺序见 downloadSequence，逐条兜底到官方直连）。
+   这里有一条不能省的规矩：「取 sha512 的源」与「下安装包的源」必须分开（applyCrossSourceDownload）：
+   同一个源既能改 latest.yml 又能换安装包时，sha512 校验等于自证。所以元数据取自备用源 i 时，
+   安装包从别的源取；相邻两条同时活着才算一条能走通的路，排列表时按这个看。
+   镜像自己也会挂，所以按顺序试；下载阶段某条不通就换下一条，三条加官方都试完才照常报错 + 30 分钟重试。
+   备用元数据只是兜底不是新默认：某轮借它走通后，下一轮检查开始时仍回到官方元数据源（backToOfficialFeed）。 */
 const GITHUB_OWNER = APP.owner;
 const GITHUB_REPO = APP.repo;
-/* 等价于包内 app-update.yml（provider github + owner/repo；未签名无 pubkey；缓存目录名与
-   electron-updater 按应用名算出的默认值一致），换回它 = 换回包内配置。 */
-const OFFICIAL_FEED = { provider: 'github', owner: GITHUB_OWNER, repo: GITHUB_REPO };
+/* 官方元数据源用 generic 指向 GitHub 官方下载路径，不用 provider github。两条理由：
+   1. 只有 GenericProvider 的 resolveFiles 是恒等的（Provider.js 里 pathTransformer 默认 p => p），
+      hook 改写出来的绝对镜像地址才原样保留；provider github 那条路会把绝对 URL 当相对文件名，
+      再拼一次 /owner/repo/releases/download/<tag>/，镜像地址被嵌成一段垃圾路径，线上取不到包。
+   2. useMultipleRangeRequest:false 与 GitHubProvider 的默认一致（GitHubProvider.js 里写死 false），
+      也正是镜像实测支持的能力（单段 Range 206）；generic 默认走多段 Range，镜像没验证过。
+   取到的仍是同一份 Release：provider github 走 API 找资产、这里走 releases/latest/download/，
+   latest.yml 与 sha512 的来源不变（都在 github.com 官方）。
+   （releaseNotes / releaseName 本仓库没人用，换 provider 不丢东西。） */
+const OFFICIAL_FEED = {
+  provider: 'generic',
+  url: 'https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  useMultipleRangeRequest: false,
+};
 const BACKUP_FEEDS = [
-  'https://ghproxy.net/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
   'https://gh-proxy.com/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
-  'https://gh.xxooo.cf/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
-  'https://gh.nxnow.top/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  'https://ghfast.top/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  'https://ghproxy.net/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
 ];
 
 let autoUpdater = null;
@@ -76,6 +87,8 @@ let explicitFeed = ''; // 用户/调试显式指定的源：那是唯一来源�
 let backupIndex = -1;  // -1 = 还在用包内 app-update.yml；否则元数据取自 BACKUP_FEEDS[backupIndex]
 let backupRetry = false;   // 备用源链重试标记：schedule 重试也走 checkUpdate，但不能被拨回官方源（0.0.9 回归：拨回去备用源就永远轮不到）
 let downloadBase = '';     // 非空 = 安装包从这条源下载（与取 sha512 的源不同，见 applyCrossSourceDownload）
+let downloadRetry = false; // 下载阶段换源重试标记：schedule 重试也走 checkUpdate，但不能把安装包源拨回默认镜像
+let dlStep = 0;            // 安装包源游标：0 = 本轮默认（加速镜像），每次下载失败 +1，走到末尾是官方直连兜底
 let crossSourceReady = false;   // 更新组件支持源拆分才允许兜底（拆不了就宁愿不兜底，也不回到「自证」）
 let switchedAway = false;  // 已经换离主源（只影响日志措辞）
 /* 每次尝试一个编号：electron-updater 对同一次失败既 emit('error') 又会 reject，
@@ -206,9 +219,19 @@ function initUpdate(options) {
     } catch (err) {
       log('update-feed-error', (err && err.message) || String(err));
     }
+  } else {
+    /* 首轮检查也必须真的切到官方 generic 源：不切就还在用包内 app-update.yml 的 provider github，
+       hook 改写出的镜像地址会被那条路拼坏（第一次检查同样拿不到镜像包）。
+       只在这里设一次；备用源用过之后的复位由 backToOfficialFeed 负责。 */
+    try {
+      autoUpdater.setFeedURL(Object.assign({}, OFFICIAL_FEED));
+    } catch (err) {
+      log('update-feed-error', (err && err.message) || String(err));
+    }
   }
 
   installCrossSourceHook();
+  if (crossSourceReady) applyCrossSourceDownload();   // 官方元数据也默认把安装包改到第一条镜像（拆不了源的组件除外）
 
   // 更新器自己的日志并进 startup.log：更新没动静时，日志是唯一的抓手
   autoUpdater.logger = {
@@ -315,17 +338,38 @@ function hostOf(url) {
   return m ? m[1] : '';
 }
 
-/* 校验与下载分离：备用源模式下，元数据（latest.yml，带着 sha512）取自 BACKUP_FEEDS[i]，
-   安装包改为从 BACKUP_FEEDS[i+1] 取。一个源只能控制一边，想偷换安装包就得让另一个源同时给出匹配的假哈希。
-   官方源不拆：包内 app-update.yml 与安装包本来就在同一个 GitHub Release 上，拆不出第二条信任链。 */
+/* 安装包候选源：默认从加速镜像起步，按顺序往后，最后官方直连兜底（空串 = 不拆，走官方地址）。
+   起点随元数据源走：官方元数据从第 0 条镜像开始；元数据取自备用源 i 时，安装包从第 i+1 条起。 */
+function downloadSequence() {
+  const n = BACKUP_FEEDS.length;
+  const start = backupIndex < 0 ? 0 : (backupIndex + 1) % n;
+  const seq = [];
+  for (let k = 0; k < n; k++) seq.push(BACKUP_FEEDS[(start + k) % n]);
+  seq.push('');
+  return seq;
+}
+
+/* 校验与下载分离：安装包地址从候选源取，元数据（latest.yml，带着 sha512）独立取——
+   一个源只能控制一边，想偷换安装包就得另一个源同时给出匹配的假哈希。
+   官方元数据模式下元数据在 github.com、安装包改到第一条镜像上，也是两台不同的主机，分离照旧成立。 */
 function applyCrossSourceDownload() {
-  if (explicitFeed || backupIndex < 0 || BACKUP_FEEDS.length < 2) {
+  if (explicitFeed || (backupIndex >= 0 && BACKUP_FEEDS.length < 2)) {
     downloadBase = '';
     status.downloadHost = '';
     return;
   }
-  downloadBase = BACKUP_FEEDS[(backupIndex + 1) % BACKUP_FEEDS.length];
-  status.downloadHost = hostOf(downloadBase);
+  const seq = downloadSequence();
+  downloadBase = seq[Math.min(dlStep, seq.length - 1)];
+  status.downloadHost = downloadBase ? hostOf(downloadBase) : '';
+}
+
+/* 下载阶段换源：按候选顺序推进一条（镜像 → 镜像 → 官方直连兜底）。返回 false = 全试完了。 */
+function advanceDownloadSource() {
+  const seq = downloadSequence();
+  if (dlStep + 1 >= seq.length) return false;
+  dlStep++;
+  applyCrossSourceDownload();
+  return true;
 }
 
 /* 安装包地址改写：electron-updater 拿到的元数据里只有一个相对文件名，我们把它补成
@@ -382,9 +426,10 @@ function useNextBackup() {
   }
   if (backupIndex + 1 >= BACKUP_FEEDS.length) return false;   // 主源 + 全部备用源都试过了
   backupIndex++;
+  dlStep = 0;   // 换了元数据源：安装包源也从新来源下的默认（第一条镜像）重排
   const url = BACKUP_FEEDS[backupIndex];
   try {
-    autoUpdater.setFeedURL({ provider: 'generic', url });   // 这条源只负责元数据
+    autoUpdater.setFeedURL({ provider: 'generic', url, useMultipleRangeRequest: false });   // 这条源只负责元数据（单段 Range 与官方源、镜像一致）
     status.feed = url;
     status.feedHost = hostOf(url);
     applyCrossSourceDownload();
@@ -404,6 +449,15 @@ function handleFailure(id, msg) {
   if (id !== attempt) return;         // 迟到的旧错误（编号已被下一次尝试顶掉）
   if (id === handledAttempt) return;  // 同一次失败的第二次回调（error 事件 + promise reject）
   handledAttempt = id;
+  /* 下载阶段失败：默认镜像某一条可能挂了，换下一条安装包源重试（镜像 → 镜像 → 官方直连兜底），
+     别一头扎进 30 分钟重试循环。这是「换安装包源」，与下面「换元数据源」是两层，别混。 */
+  if (status.phase === PHASE.DOWNLOADING && crossSourceReady && advanceDownloadSource()) {
+    downloadRetry = true;
+    status.error = '';
+    setPhase(PHASE.IDLE, '下载线路不通，换一条安装包源重试');
+    schedule(BACKUP_RETRY_MS);
+    return;
+  }
   if (status.phase === PHASE.CHECKING && useNextBackup()) {
     status.error = '';
     backupRetry = true;
@@ -412,8 +466,10 @@ function handleFailure(id, msg) {
     return;
   }
   backupRetry = false;
+  downloadRetry = false;
+  dlStep = 0;         // 放弃这一轮：下一轮安装包源从默认镜像重排
   backupIndex = -1;   // 下一轮从主源重新开始（GitHub 通了就该回到官方）
-  applyCrossSourceDownload();   // backupIndex 归零，下载源也跟着回到「不拆」
+  applyCrossSourceDownload();   // backupIndex 归零，下载源也跟着回到默认
   status.error = msg;
   setPhase(PHASE.ERROR, msg);
   schedule(ERROR_RETRY_MS);   // 网络抖一下就永久放弃是不行的
@@ -475,8 +531,12 @@ async function checkUpdate() {
   alignDifferentialCache();
   if (backupRetry) {
     backupRetry = false;   // 备用源链重试：沿用当前备用源继续往下试，不能拨回官方源（拨回去备用源就永远轮不到）
+  } else if (downloadRetry) {
+    downloadRetry = false;   // 下载阶段换源重试：dlStep 已在换源时推进，别拨回默认镜像
   } else {
     backToOfficialFeed();
+    dlStep = 0;              // 新一轮检查：安装包源从默认镜像重新排
+    applyCrossSourceDownload();
   }
   const id = ++attempt;
   try {
@@ -533,6 +593,8 @@ function installUpdate() {
 const MAC_API_DEFAULT = APP.apiReleases + '?per_page=15';   // 扫列表而不是 /releases/latest：mac 常发 prerelease，它不占 latest，查 latest 永远看不到
 const MAC_UA = APP.userAgent;
 const MAC_HOST_OK = /^(github\.com|api\.github\.com|[a-z0-9-]+\.githubusercontent\.com)$/i;   // 官方域（api 与资产）
+const MAC_MIRROR_HOSTS = /^(gh-proxy\.com|ghfast\.top)$/i;   // 加速镜像主机：只认这两台，不放宽成通配
+const MAC_MIRROR_PREFIXES = ['https://gh-proxy.com/', 'https://ghfast.top/'];   // 顺序按 2026-10-18 实测（见文件顶部）
 const MAC_LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/i;                    // 自检用的假源
 const MAC_API_TIMEOUT_MS = 30 * 1000;
 const MAC_IDLE_TIMEOUT_MS = 60 * 1000;   // 下载 60 秒没有任何字节就算断（有字节流动会自动重置）
@@ -601,14 +663,14 @@ if [ ! -d "$NEW" ]; then mv "$ZIP" "$ZIP.bad" 2>/dev/null; note "更新放弃：
 GOT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$NEW/Contents/Info.plist" 2>/dev/null)"
 if [ "$GOT" != "$EXPECT" ]; then
   mv "$ZIP" "$ZIP.bad" 2>/dev/null
-  note "更新放弃：包内版本不符（期望 $EXPECT，包内是 \${GOT:-读不到}）——这份包已改名为 .bad，不会再用"
+  note "更新放弃：包内版本不符（期望 \${EXPECT}，包内是 \${GOT:-读不到}）——这份包已改名为 .bad，不会再用"
   reopen; exit 1
 fi
 # 包身份也要核：光比版本号的话，一个「版本号写成一样」的别的应用就能被换上去
 IDENT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$NEW/Contents/Info.plist" 2>/dev/null)"
 if [ "$IDENT" != "$APPID" ]; then
   mv "$ZIP" "$ZIP.bad" 2>/dev/null
-  note "更新放弃：包内标识不是练习台（期望 $APPID，包内是 \${IDENT:-读不到}）——这份包已改名为 .bad，不会再用"
+  note "更新放弃：包内标识不是练习台（期望 \${APPID}，包内是 \${IDENT:-读不到}）——这份包已改名为 .bad，不会再用"
   reopen; exit 1
 fi
 
@@ -750,7 +812,20 @@ function cmpVersion(a, b) {
    元数据与包就在那台机器上——不认它，这个开关等于废的（但默认的官方 API 主机会写死在白名单里，
    不靠「懒得写」过关：曾经这里漏了 api.github.com，真机上第一步就被自己拦下）。 */
 function macHostAllowed(host) {
-  return MAC_HOST_OK.test(host) || MAC_LOOPBACK.test(host) || !!(mac && mac.apiHost && host === mac.apiHost) || !!(mat && mat.apiHost && host === mat.apiHost);
+  return MAC_HOST_OK.test(host) || MAC_MIRROR_HOSTS.test(host) || MAC_LOOPBACK.test(host) || !!(mac && mac.apiHost && host === mac.apiHost) || !!(mat && mat.apiHost && host === mat.apiHost);
+}
+
+/* 一个 github.com 地址对应的候选来源：镜像（按 MAC_MIRROR_PREFIXES 顺序）在前，官方域兜底在后。
+   **只改写 github.com 的地址**——API 响应里的任意主机不被改写，也不会因此进白名单；
+   所以元数据被拐走也只能拐到我们硬编码的这几台上。非 github.com 的地址原样一条。 */
+function macSourceUrls(url) {
+  const raw = String(url || '');
+  let u = null;
+  try { u = new URL(raw); } catch (err) { return [raw]; }
+  if (u.hostname.toLowerCase() !== 'github.com') return [raw];
+  const out = MAC_MIRROR_PREFIXES.map((prefix) => prefix + u.toString());
+  out.push(raw);
+  return out;
 }
 
 function macAssertUrl(raw) {
@@ -908,8 +983,8 @@ async function macFetchSig(url) {
 /* 验签：签的是「刚下下来的这份包的 sha256 + 资产名」，用钉在包里的公钥验。
    这一步与 sha256 校验的区别在信任源：sha256 期望值跟下载地址来自同一份元数据，
    一起被改也看不出来；签名只有本机那把私钥做得出。验不过就拒收，不给「下次再说」。 */
-async function macCheckSignature(p, hashHex) {
-  const text = await macFetchSig(p.sigUrl);
+async function macCheckSignature(p, hashHex, sigUrl) {
+  const text = await macFetchSig(sigUrl || p.sigUrl);
   if (!text) throw new Error('签名文件是空的');
   if (!/^[A-Za-z0-9+/=]+$/.test(text)) throw new Error('签名文件内容不是 base64');
   const sig = Buffer.from(text, 'base64');
@@ -934,8 +1009,51 @@ function downloadUpdate() {
   return true;
 }
 
+/* 下载一条来源：下到 .part -> 核 sha256 -> 验签名。任一步不过就抛，由 macPull 换下一条来源。
+   进度节流、空闲超时（MAC_IDLE_TIMEOUT_MS）、.part 落盘都保持原有语义。 */
+async function macPullOnce(p, bodyUrl, sigUrl, part) {
+  const res = await macOpen(bodyUrl, {}, MAC_IDLE_TIMEOUT_MS);
+  const code = res.statusCode || 0;
+  if (code !== 200) { res.resume(); throw new Error('下载地址回了 HTTP ' + code); }
+  const total = Number(res.headers['content-length'] || p.size || 0);
+  const hash = crypto.createHash('sha256');
+  const out = fs.createWriteStream(part);
+  const t0 = Date.now();
+  status.progress.total = total;
+  let got = 0;
+  let lastPercent = -1;
+  await new Promise((resolve, reject) => {
+    res.on('data', (c) => {
+      got += c.length;
+      hash.update(c);
+      const percent = total ? Math.max(0, Math.min(100, Math.round(got / total * 100))) : 0;
+      if (percent === lastPercent) return;   // 每变一个百分点才推一次，别把状态通道刷爆
+      lastPercent = percent;
+      status.progress = {
+        percent: percent,
+        transferred: got,
+        total: total,
+        bytesPerSecond: Math.round(got / Math.max(0.5, (Date.now() - t0) / 1000)),
+      };
+      setPhase(PHASE.DOWNLOADING, '下载中 ' + percent + '%');
+    });
+    res.on('error', reject);
+    out.on('error', reject);
+    out.on('finish', resolve);
+    res.pipe(out);
+  });
+  if (p.size && got !== p.size) throw new Error('下载不完整（收到 ' + got + ' 字节，应为 ' + p.size + '）');
+  /* 未签名链上 sha256 是包内容唯一的防线：发布页不给 digest 就拒收，不许静默跳过——
+     有条件校验等于没有校验。 */
+  const want = String(p.digest || '').replace(/^sha256:/i, '').toLowerCase();
+  if (!want) throw new Error('发布页没给 sha256，包完整性无从校验——拒收（宁可先不更新）');
+  const gotHex = hash.digest('hex');
+  if (want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
+  await macCheckSignature(p, gotHex, sigUrl);   // 独立一遭：期望值与地址同源，签名不靠它们
+  return got;
+}
+
 async function macPull(p) {
-  macAssertUrl(p.url);
   const dir = macDir();
   fs.mkdirSync(dir, { recursive: true });
   const name = macAssetName(p);
@@ -947,60 +1065,32 @@ async function macPull(p) {
   status.progress = { percent: 0, transferred: 0, total: p.size || 0, bytesPerSecond: 0 };
   setPhase(PHASE.DOWNLOADING, '开始下载 ' + name);
 
-  let got = 0;
+  /* 包与签名按同一条来源成对试：github.com 的地址先经镜像、官方域兜底；不是 github.com 的地址
+     只有它自己一条。某条来源取回后照旧走 sha256 + Ed25519 验签，校验不过或中途断就换下一条，
+     全部试完才报错——任何一步都不跳过、不放宽。 */
+  const bodyCands = macSourceUrls(p.url);
+  const sigCands = macSourceUrls(p.sigUrl);
   let fail = null;
-  try {
-    const res = await macOpen(p.url, {}, MAC_IDLE_TIMEOUT_MS);
-    const code = res.statusCode || 0;
-    if (code !== 200) { res.resume(); throw new Error('下载地址回了 HTTP ' + code); }
-    const total = Number(res.headers['content-length'] || p.size || 0);
-    const hash = crypto.createHash('sha256');
-    const out = fs.createWriteStream(part);
-    const t0 = Date.now();
-    status.progress.total = total;
-    let lastPercent = -1;
-    await new Promise((resolve, reject) => {
-      res.on('data', (c) => {
-        got += c.length;
-        hash.update(c);
-        const percent = total ? Math.max(0, Math.min(100, Math.round(got / total * 100))) : 0;
-        if (percent === lastPercent) return;   // 每变一个百分点才推一次，别把状态通道刷爆
-        lastPercent = percent;
-        status.progress = {
-          percent: percent,
-          transferred: got,
-          total: total,
-          bytesPerSecond: Math.round(got / Math.max(0.5, (Date.now() - t0) / 1000)),
-        };
-        setPhase(PHASE.DOWNLOADING, '下载中 ' + percent + '%');
-      });
-      res.on('error', reject);
-      out.on('error', reject);
-      out.on('finish', resolve);
-      res.pipe(out);
-    });
-    if (p.size && got !== p.size) throw new Error('下载不完整（收到 ' + got + ' 字节，应为 ' + p.size + '）');
-    /* 未签名链上 sha256 是包内容唯一的防线：发布页不给 digest 就拒收，不许静默跳过——
-       有条件校验等于没有校验。 */
-    const want = String(p.digest || '').replace(/^sha256:/i, '').toLowerCase();
-    if (!want) throw new Error('发布页没给 sha256，包完整性无从校验——拒收（宁可先不更新）');
-    const gotHex = hash.digest('hex');
-    if (want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
-    await macCheckSignature(p, gotHex);   // 独立一遭：期望值与地址同源，签名不靠它们
-    fs.renameSync(part, file);   // 校验过了才改回正名：半截文件不许看起来像“下好了”
-  } catch (err) {
-    fail = err;
+  for (let i = 0; i < bodyCands.length; i++) {
+    const body = bodyCands[i];
+    const sig = sigCands[i] || sigCands[sigCands.length - 1];
+    try {
+      const got = await macPullOnce(p, body, sig, part);
+      fs.renameSync(part, file);   // 校验过了才改回正名：半截文件不许看起来像“下好了”
+      mac.ready = { version: p.version, path: file };
+      mac.pending = null;
+      status.progress = { percent: 100, transferred: got, total: got, bytesPerSecond: 0 };
+      setPhase(PHASE.DOWNLOADED, 'v' + p.version + ' 已下好，点「重启并更新」');
+      return;
+    } catch (err) {
+      fail = err;
+      try { fs.unlinkSync(part); } catch (e) { /* 没留下就算了 */ }
+      if (i + 1 < bodyCands.length) {
+        log('update-download-retry', '这条来源没走通（' + ((err && err.message) || String(err)) + '），换下一条来源重来：' + body);
+      }
+    }
   }
-  try { fs.unlinkSync(part); } catch (err) { /* 没留下就算了 */ }
-  if (fail) {
-    if (id === macAttempt) macFail('download', (fail && fail.message) || String(fail));
-    return;
-  }
-
-  mac.ready = { version: p.version, path: file };
-  mac.pending = null;
-  status.progress = { percent: 100, transferred: got, total: got, bytesPerSecond: 0 };
-  setPhase(PHASE.DOWNLOADED, 'v' + p.version + ' 已下好，点「重启并更新」');
+  if (id === macAttempt) macFail('download', (fail && fail.message) || String(fail));
 }
 
 function macAssetName(p) {
@@ -1367,5 +1457,5 @@ function stringify(m) {
   }
 }
 
-module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, macSigPayload, PHASE, BACKUP_FEEDS, MAC_UPDATE_KEYS,
+module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, macSigPayload, macSourceUrls, macHostAllowed, PHASE, OFFICIAL_FEED, BACKUP_FEEDS, MAC_MIRROR_PREFIXES, MAC_UPDATE_KEYS,
   initMaterials, materialsStatus, matSyncNow };

@@ -147,6 +147,27 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   restore();
 }
 
+/* ---- 1c. mac 换包链的加速镜像改写：github.com 的地址先经镜像、官方域兜底；不是 github.com 的
+        地址原样一条（API 响应里的任意主机不许因此进白名单）。第 6 组那套本地假源是回环
+        http://127.0.0.1，不是 github.com，所以它的下载路径本来就走自己那一条。 ---- */
+{
+  const { mod, restore } = loadUpdate({});
+  const gh = "https://github.com/o/r/releases/download/v1/liantai-desktop-1.0.0-arm64.zip";
+  const cands = mod.macSourceUrls(gh);
+  ok(cands.length === mod.MAC_MIRROR_PREFIXES.length + 1
+     && cands[0].indexOf("https://gh-proxy.com/") === 0 && cands[0].indexOf(gh) > 0
+     && cands[1].indexOf("https://ghfast.top/") === 0 && cands[cands.length - 1] === gh,
+     "壳/mac: github.com 地址先经镜像（gh-proxy.com 在前、ghfast.top 次之），官方域兜底在最后");
+  ok(mod.macSourceUrls("http://127.0.0.1:8080/dl/x.zip").join(",") === "http://127.0.0.1:8080/dl/x.zip"
+     && mod.macSourceUrls("https://evil.example/payload.zip").join(",") === "https://evil.example/payload.zip",
+     "壳/mac: 不是 github.com 的地址不被改写成镜像（本地假源 / 别的域都原样一条）");
+  ok(mod.macSourceUrls(gh + ".sig")[0] === "https://gh-proxy.com/" + gh + ".sig",
+     "壳/mac: 签名地址也一并改写到镜像前缀上（包与签名按同一条来源成对重试）");
+  ok(mod.macHostAllowed("gh-proxy.com") && mod.macHostAllowed("ghfast.top") && !mod.macHostAllowed("evil.example"),
+     "壳/mac: 白名单认这两台镜像主机，别的域仍不许");
+  restore();
+}
+
 /* ---- 2. 安装版全流程：换源 / 发现新版 / 下载 / 安装 ---- */
 {
   const fake = new FakeUpdater();
@@ -212,6 +233,8 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   const feeds = Array.isArray(mod.BACKUP_FEEDS)? mod.BACKUP_FEEDS : [];
   ok(feeds.length >= 3 && feeds.every(u=>/^https:\/\//.test(u)) && new Set(feeds).size === feeds.length,
      "壳: 备用源列表至少三条、全 https 且不重复 -> " + feeds.length + " 条");
+  ok(feeds.every((u) => u.indexOf("gh.xxooo.cf") < 0 && u.indexOf("gh.nxnow.top") < 0),
+     "壳: 备用源不含实测连不通的 gh.xxooo.cf / gh.nxnow.top");
 
   const failOnce = () => {
     fake.emit("checking-for-update");
@@ -219,21 +242,22 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   };
 
   failOnce();
-  ok(fake.calls.setFeedURL.length === 1 && fake.calls.setFeedURL[0].provider === "generic" && /^https:\/\//.test(fake.calls.setFeedURL[0].url),
-     "壳: 主源连不通 -> 自动退到备用源（generic）");
+  ok(fake.calls.setFeedURL.length === 2 && fake.calls.setFeedURL[0].url === mod.OFFICIAL_FEED.url
+     && fake.calls.setFeedURL[1].provider === "generic" && /^https:\/\//.test(fake.calls.setFeedURL[1].url),
+     "壳: 首轮先切到官方 generic 源，主源连不通再自动退到备用源（generic）");
   ok(mod.getStatus().phase === "idle" && mod.getStatus().error === "",
      "壳: 换备用源重试途中不把错误糊到界面上");
   ok(!!mod.getStatus().feedHost, "壳: 状态里带上备用源主机名（页面能说清在走谁）");
   ok(logs.some((l) => l.indexOf("换备用源") >= 0), "壳: 换源这件事写进日志（排查有抓手）");
 
   failOnce();
-  ok(fake.calls.setFeedURL.length === 2 && fake.calls.setFeedURL[1].url !== fake.calls.setFeedURL[0].url,
+  ok(fake.calls.setFeedURL.length === 3 && fake.calls.setFeedURL[2].url !== fake.calls.setFeedURL[1].url,
      "壳: 备用源也不通 -> 按顺序换下一个（不绕圈）");
 
   /* 数不写死：备用源有几条就试几条（以后加/换线路，这里不用跟着改）
      已失败 2 次（主源 + 第一条备用源），补到 feeds.length 次，再超一次才该落 error */
   for(let i = 3; i <= feeds.length; i++){ failOnce(); }
-  ok(fake.calls.setFeedURL.length === feeds.length, "壳: 备用源列表 " + feeds.length + " 条都试过了");
+  ok(fake.calls.setFeedURL.length === feeds.length + 1, "壳: 备用源列表 " + feeds.length + " 条都试过了（首轮那一次官方 generic 不计入）");
 
   const before = fake.calls.setFeedURL.length;
   failOnce();
@@ -243,8 +267,8 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
 
   const beforeReset = fake.calls.setFeedURL.length;
   await mod.checkUpdate();
-  ok(fake.calls.setFeedURL.slice(beforeReset).some(c => c.provider === "github"),
-     "壳: 备用源全灭后，下一轮从官方源重来（不把小道当默认）");
+  ok(fake.calls.setFeedURL.slice(beforeReset).some(c => c.url === mod.OFFICIAL_FEED.url && c.provider === "generic"),
+     "壳: 备用源全灭后，下一轮从官方源重来（官方源本身也是 generic，走恒等 resolveFiles）");
 
   // 显式指定源的人不该被悄悄换走（本地验更新、自建源都用这条路）
   const f2 = new FakeUpdater();
@@ -277,8 +301,8 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
 
     const genericCount = f3.calls.setFeedURL.filter(c => c.provider === "generic").length;
     await failRound();   // 模拟 1.5s 后的重试：真机路径 schedule -> checkUpdate
-    ok(!f3.calls.setFeedURL.some((c, i) => i > 0 && c.provider === "github"),
-       "壳: 备用源重试不被拨回官方源（0.0.9 回归哨兵）");
+    ok(f3.calls.setFeedURL.filter(c => c.url === mod.OFFICIAL_FEED.url).length === 1,
+       "壳: 备用源重试不被拨回官方源（只留首轮那一次；0.0.9 回归哨兵）");
     ok(f3.calls.setFeedURL.filter(c => c.provider === "generic").length === genericCount + 1,
        "壳: 重试失败后按顺序推进到下一条备用源");
 
@@ -301,7 +325,7 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
     f4.emit("error", new Error("net::ERR_CONNECTION_RESET"));
     f4.emit("error", new Error("net::ERR_CONNECTION_RESET"));
 
-    ok(f4.calls.setFeedURL.filter(c => c.provider === "generic").length === 1,
+    ok(f4.calls.setFeedURL.filter(c => mod.BACKUP_FEEDS.indexOf(c.url) >= 0).length === 1,
        "壳: 同一次失败回调两次，只换一次源（不叠加）");
     ok(four.mod.getStatus().phase === "idle" && four.mod.getStatus().error === "",
        "壳: 第二次回调不撤销刚做的换源（不打 error、不等 30 分钟）");
@@ -328,7 +352,9 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
 
   let r = await fake.getUpdateInfoAndProvider();
-  ok(r.info.files[0].url === "liantai-desktop-setup-1.0.1.exe", "壳: 官方源模式不改写安装包地址（同一份 Release）");
+  ok(r.info.files[0].url.indexOf("https://gh-proxy.com/https://github.com/") === 0
+     && new URL(r.info.files[0].url).host === "gh-proxy.com",
+     "壳: 官方元数据可用时，安装包地址也改到默认加速镜像（不再直连 github.com）");
 
   fake.emit("checking-for-update");
   fake.emit("error", new Error("net::ERR_CONNECTION_RESET"));
@@ -362,6 +388,70 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   restore();
 }
 
+/* ---- 4c. 官方元数据源必须是 generic：镜像改写出的绝对地址要能原样落到下载 URL 上。
+       GitHub 的 provider.resolveFiles 会把 pathTransformer 的结果再拼一次 /owner/repo/releases/download/<tag>/，
+       把绝对镜像地址（https://gh-proxy.com/https://github.com/...）当成相对文件名再嵌一层，线上就取不到包。
+       只有 GenericProvider 的 resolveFiles 是恒等的。这里直接拿真件量两条路，把根因钉住。 ---- */
+{
+  const { resolveFiles } = require("electron-updater/out/providers/Provider.js");
+  const base = new URL("https://github.com/lllvernan-blip/liantai-desktop/releases/");
+  const mirror = "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/download/v1.0.1/liantai-desktop-setup-1.0.1.exe";
+  const info = { version: "1.0.1", files: [{ url: mirror, sha512: "HASH" }] };
+  // 与 GitHubProvider.resolveFiles 里那条 pathTransformer 同形：/owner/repo/releases/download/<tag>/ + 文件名
+  const githubTransformer = (p) => "/lllvernan-blip/liantai-desktop/releases/download/v1.0.1/" + p.replace(/ /g, "-");
+  const viaGithub = resolveFiles(info, base, githubTransformer)[0].url.toString();
+  const viaIdentity = resolveFiles(info, base)[0].url.toString();
+  ok(viaGithub.indexOf("https://github.com/lllvernan-blip/liantai-desktop/releases/download/v1.0.1/https://gh-proxy.com/") === 0
+     && viaGithub !== mirror,
+     "壳: GitHub 的 pathTransformer 会把绝对镜像地址当相对名再拼一层（这就是缺陷本身）");
+  ok(viaIdentity === mirror,
+     "壳: 恒等 resolveFiles 才原样保留镜像地址（generic 走的正是这条）");
+
+  const { mod, restore } = loadUpdate({});
+  ok(mod.OFFICIAL_FEED.provider === "generic" && mod.OFFICIAL_FEED.useMultipleRangeRequest === false
+     && mod.OFFICIAL_FEED.url.indexOf("https://github.com/") === 0 && /releases\/latest\/download\/$/.test(mod.OFFICIAL_FEED.url),
+     "壳: 选定的官方 feed 是 generic（走恒等 resolveFiles、单段 Range），镜像改写才不会被拼坏");
+  restore();
+}
+
+/* ---- 4b. 下载阶段失败：默认镜像某一条挂了，要按顺序换下一条安装包源（镜像 → 镜像 → 官方兜底），
+        别一头扎进 30 分钟重试循环。顺序直接从状态里读，可观测。 ---- */
+{
+  const fake = new FakeUpdater();
+  const { mod, restore } = loadUpdate({ autoUpdater: fake });
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
+  const feeds = mod.BACKUP_FEEDS;
+  const hostOf = (u) => { try { return new URL(u).host; } catch (err) { return ""; } };
+
+  /* 一轮下载失败：先回到「有本版可下」的状态，再让下载阶段报错 */
+  const dlFail = () => {
+    fake.emit("checking-for-update");
+    fake.emit("update-available", { version: "0.0.3" });
+    fake.emit("download-progress", { percent: 10, transferred: 1, total: 10, bytesPerSecond: 1 });
+    fake.emit("error", new Error("net::ERR_CONNECTION_RESET"));
+  };
+
+  const order = [mod.getStatus().downloadHost];   // 起步：默认第一条镜像
+  for (let i = 0; i < feeds.length; i++) { dlFail(); order.push(mod.getStatus().downloadHost); }
+  ok(order.join(",") === feeds.map(hostOf).join(",") + ",",
+     "壳: 下载失败按镜像→镜像→官方兜底的顺序换源（实测顺序：" + order.join(" → ") + "）");
+  ok(order[0] === hostOf(feeds[0]) && order[order.length - 1] === "",
+     "壳: 起步走第一条镜像，最后一条退到官方直连（下载地址不再改写）");
+
+  /* 全都试过了：再失败一次才落 error，并留下原因 */
+  dlFail();
+  ok(mod.getStatus().phase === "error" && /ERR_CONNECTION_RESET/.test(mod.getStatus().error),
+     "壳: 安装包源全试完才落 error（不无限换源）");
+
+  /* 新一轮检查（手动点）从默认镜像重排 */
+  await mod.checkUpdate();
+  ok(mod.getStatus().downloadHost === hostOf(feeds[0]),
+     "壳: 新一轮检查把安装包源拨回默认镜像（不把小道当默认）");
+
+  mod.stopUpdate();
+  restore();
+}
+
 /* ---- 5. 拆不了就不兜底：宁可没有备用源，也不回到「一个源自己给自己签哈希」 ---- */
 {
   const fake = new FakeUpdater();
@@ -374,7 +464,7 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   await wait(20);
 
   const st = mod.getStatus();
-  ok(fake.calls.setFeedURL.every((c) => c.provider !== "generic"),
+  ok(fake.calls.setFeedURL.every((c) => mod.BACKUP_FEEDS.indexOf(c.url) < 0),
      "壳: 组件不支持源拆分时不退备用源（宁可不兜底，也不自证）");
   ok(st.phase === "error" && /ERR_CONNECTION_RESET/.test(st.error), "壳: 拆不了时直接按失败处理，并留下原因");
   ok(logs.some((l) => l.indexOf("不能把校验与下载拆到两条源上") >= 0), "壳: 为什么不兜底也要写进日志");
@@ -1143,6 +1233,14 @@ if (process.platform !== "darwin") {
   const LIMIT = 32 * 1024;
   ok(agents.length <= LIMIT,
      "规则: AGENTS.md 不超过自己写的 " + (LIMIT / 1024) + " KiB（当前 " + agents.length + " B）");
+}
+
+/* 换包脚本里变量后紧跟中文时必须用 ${} 括起来：macOS 自带 bash 3.2 会把中文算进变量名，
+   set -u 下直接 unbound variable，坏包分支会死在写日志与重开旧版之前。 */
+{
+  const upd = readOr(join(here, "..", "update.js"));
+  ok(!/\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]/.test(upd),
+     "壳/mac: 换包脚本里变量后紧跟中文的地方都用 ${} 括起来");
 }
 
 console.log(T.join("\n"));
