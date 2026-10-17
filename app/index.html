@@ -208,7 +208,7 @@ html,body{margin:0;padding:0;}
   ::selection{background:rgba(192,21,26,.16);}
   /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
-  .material{background:var(--mat);padding:24px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
+  .material{background:var(--mat);border-radius:var(--r-card);padding:24px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
   /* 「据材料」：材料由真实报道的事实骨架改写而来。一个小标，不加说明句——
      界面尽量简洁清晰，不因为多了一个来源就多一段文字去解释它 */
@@ -323,8 +323,8 @@ html,body{margin:0;padding:0;}
   .pditem .pdexp{color:var(--muted);font-size:var(--fs-note);line-height:1.75;white-space:pre-wrap;}
   details.pditem .pdexp{padding:0 12px 8px 38px;}
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
-  .grade{margin-top:32px;border-top:1px solid var(--line-strong);padding-top:16px;}
-  .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:8px;}   /* 分数不吸顶：它不是随对的参照物，往下滚看文章时它不该浮在字上面（2026-10-13） */
+  .grade{margin-top:24px;}
+  .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 24px;background:var(--wash);border-radius:var(--r-card);margin-bottom:16px;}
   .grade .total{font-family:var(--hei);font-size:var(--fs-display);color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:var(--fs-note);color:var(--muted);font-weight:400;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
@@ -345,18 +345,18 @@ html,body{margin:0;padding:0;}
   .pill.bad{background:var(--danger-bg);color:var(--danger);}
   /* 批改页题头分两层：只有「我的答案」用重题头（红竖线），参考答案与解析降成细线上方的
      墨灰小标题——一屏三个同重标题，眼睛找不到主次（2026-10-13）。 */
-  .grade .sec-title.lite{margin:24px 0 8px;padding:12px 0 0;border-top:1px solid var(--line);border-left:none;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
+  .grade .sec-title.lite{margin:24px 0 8px;border-left:none;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
   /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。**有分的句子标色**——没拿满的标红
      （红笔批改的样子），拿满的标焦橙；没分的句子什么都不挂。所以这一页的红色意思是「这里还差一点」、
      焦橙是「这里拿满了」，全站其他地方的红仍是体例与警示（2026-10-16 定的口径）。
      用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
-  .answerreview{margin-top:8px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
+  .answerreview{margin-top:0;background:var(--wash);border-radius:var(--r-card);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;}
   .answerreview .asent.got{color:var(--gov-red);}
   .answerreview .asent.got.full{color:var(--warn);}
   .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
   .answerreview .asc.full{color:var(--warn);}
   .comment{margin-top:16px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
-  .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--line);padding-top:24px;}
+  .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
   /* 弹层整体不滚：边框与抬头（含关闭键）固定，只有 .panel-body 的内容滚动 */
   .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:hidden;}
@@ -386,10 +386,10 @@ html,body{margin:0;padding:0;}
   .tour-tip .tourskip:hover{color:var(--paper);}
   .noteedit{width:100%;min-height:84px;resize:vertical;font-family:var(--fangsong);font-size:var(--fs-body);line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
-  .notebox{border:none;border-top:1px solid var(--line);background:transparent;margin-top:24px;}
-  .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:var(--fs-note);padding:8px 12px;list-style:none;color:var(--muted);font-weight:600;}
+  .notebox{border:none;background:var(--wash);border-radius:var(--r-card);margin-top:16px;padding:4px 12px;}
+  .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:var(--fs-note);padding:8px 0;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
-  .notebody{padding:4px 12px 12px;font-size:var(--fs-body);line-height:1.85;white-space:pre-wrap;}
+  .notebody{padding:4px 0 12px;font-size:var(--fs-body);line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
   .modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;-webkit-text-stroke:0.3px currentColor;}
   /* 作答前的规则展示位：动手那一刻要看见的东西，不折起来；一条一行 */
@@ -406,8 +406,8 @@ html,body{margin:0;padding:0;}
   textarea.selfin:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .selfrow{display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;}
   /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
-  .setgrp{border-top:1px solid var(--line);margin-top:24px;padding-top:24px;}
-  .setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0;}
+  .setgrp{margin-top:16px;padding:16px;background:var(--wash);border-radius:var(--r-card);}
+  .setgrp:first-of-type{margin-top:0;}
   .grpt{font-size:var(--fs-note);font-weight:600;color:var(--muted-2);letter-spacing:1px;margin-bottom:16px;}
   .field{margin-bottom:16px;}
   .setgrp>:last-child{margin-bottom:0;}
@@ -415,7 +415,7 @@ html,body{margin:0;padding:0;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
   .field .note,.setgrp>.note{font-size:var(--fs-note);color:var(--muted-2);line-height:1.6;margin-top:8px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
   .field .note.long{line-height:1.7;}
-  .setgrp .notebox{border-top:none;margin:0;}
+  .setgrp .notebox{background:transparent;border-radius:var(--r-flat);padding:0;margin:0;}
   .setgrp .notebox>summary{padding:4px 0;}
   .setgrp .notebox .notebody{padding:4px 0 0;font-size:var(--fs-note);line-height:1.7;}
   #updateField .note{margin:0 0 8px;}
@@ -517,12 +517,12 @@ html,body{margin:0;padding:0;}
   .railwrap{margin:0 0 16px;}
   .railwrap .flowrail{margin:0;}
   /* 状况条满宽：上下两道细线横贯纸面，它才像一条状况栏，而不是漂在正文里的一个胶囊（2026-10-09） */
-  .flowrail{display:flex;flex-wrap:wrap;width:auto;align-items:center;counter-reset:fs;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
-  .flowrail .fstep{counter-increment:fs;display:inline-flex;align-items:center;gap:8px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);padding:8px 16px 8px 12px;background:transparent;border:none;border-radius:var(--r-flat);}
-  .flowrail .fstep+.fstep{border-left:1px solid var(--line-soft);}
+  /* 状况条做成三枚等宽胶囊：不再用上下两道通栏细线，跟全站的按钮/胶囊同一套圆角语言 */
+  .flowrail{display:flex;flex-wrap:wrap;gap:8px;width:auto;align-items:center;counter-reset:fs;}
+  .flowrail .fstep{counter-increment:fs;display:inline-flex;flex:1 1 0;justify-content:center;align-items:center;gap:8px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);padding:4px 12px;background:var(--ctl);border:1px solid var(--line);border-radius:var(--r-pill);}
   .flowrail .fstep::before{content:counter(fs);display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;font-size:var(--fs-note);font-variant-numeric:tabular-nums;border-radius:var(--r-pill);background:var(--wash-3);color:var(--muted);}
   .flowrail .fstep.done::before{content:"✓";background:var(--success-bg);color:var(--success);}
-  .flowrail .fstep.active{color:var(--gov-red);background:var(--red-wash);}
+  .flowrail .fstep.active{color:var(--gov-red);background:var(--red-wash);border-color:var(--gov-red);}
   .flowrail .fstep.active::before{background:var(--gov-red);color:var(--on-dark);}
   /* 找点高亮：与 gw_marks 的划线层（.ms.on）同一套语言——底色 + 2px 底边线，只是底色换成暖沙 */
   .pt-seg{cursor:pointer;border-radius:var(--r-ctl);}
@@ -533,6 +533,8 @@ html,body{margin:0;padding:0;}
      两条规则特异度不够，这里必须点名到三个类，否则底边线会被 mark.ms.on 那条吃掉。 */
   mark.ms.on.pt-seg.picked{box-shadow:inset 0 -2px 0 var(--pick-line);}
   .pickline{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);padding:4px 4px;border-bottom:1px solid var(--line);}
+  /* 卡片里的清单不再画行线：卡本身就是一个分组，横线会把圆角块切成表格 */
+  .notebox .pickline,.ogname .ognpts .pickline{border-bottom:none;padding:4px 0;}
   .pickline button.linkbtn{white-space:nowrap;}   /* 长要点折行时「移除」会被挤成两行竖排 */
   .pickline .ptag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
   /* 归类：一次只摆一个点（原文在上，已建好的类在下面点选），不再 N 组 × M 点铺满整屏。
