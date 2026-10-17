@@ -1287,11 +1287,11 @@ ok(/<div class="ogcats" id="ogCats">[\s\S]*class="ogcat ognew"/.test(orgHtml1),
    "归类: 「新建一组」与已有的组同排（同一排才读成「归到这里，或新建一个」）");
 ok(PAGE_HTML.indexOf(".ogcat.ognew{border-style:dashed") >= 0, "归类: 新建一组是虚线样（看得出现在是「加一个」）");
 ok(PAGE_HTML.indexOf(".ogname{background:var(--wash);border-radius:var(--r-card)") >= 0
-   && PAGE_HTML.indexOf(".ogname .ogin{width:100%;margin-top:8px;}") >= 0,
-   "归类: 命名卡走 --r-card、输入框走全局 --r-ctl（不再横平竖直）");
-ok((orgHtml.match(/提纲只供批改诊断/g) || []).length === 0
-   && (orgName.match(/提纲只供批改诊断/g) || []).length === 1,
-   "归类: 「不参与计分」只在第二段说一次");
+   && PAGE_HTML.indexOf(".ogname .ogh .ogin{flex:1 1 auto") >= 0
+   && PAGE_HTML.indexOf("font-size:var(--fs-title);font-weight:600;") >= 0,
+   "归类: 命名卡走 --r-card、组名输入做成标题（整行、字大一号）");
+ok(orgName.indexOf("可跳过，不计分") >= 0 && orgHtml.indexOf("可跳过，不计分") < 0,
+   "归类: 「可跳过、不计分」只在命名那一段说一次");
 
 // 提纲落在一稿页：默认收起、摆在作答区标题行下方
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"x", requirements:"r" }, keyPoints:[], cardPeeks:0 };
@@ -1304,12 +1304,19 @@ ok(!/id="outlineBox"[^>]*\bopen\b/.test(dHtml), "提纲: 默认收起（要用�
 ok(draftPanelHtml({ groups:[], selections:[] }).indexOf("outlineBox") < 0, "提纲: 一组都没有时不摆空框");
 current = null;
 
-// 命名卡：卡头只报第几组与点数，组名只在输入框里出现一次；输入在上、句子在下
+// 命名卡：组名就是卡片的标题（在句子上方），一个词只出现一次
 const orgNamed = organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"窗口下移",facts:[0]}], orgPhase:"name" });
-ok((orgNamed.match(/窗口下移/g) || []).length === 1, "归类: 组名只在输入框里出现一次（卡头不再重写）");
-ok(orgNamed.indexOf("第 1 组") >= 0, "归类: 卡头报「第 N 组」与点数");
+ok((orgNamed.match(/窗口下移/g) || []).length === 1, "归类: 组名只在标题输入框里出现一次");
+ok(orgNamed.indexOf("给第 1 组起个名") >= 0, "归类: 空组靠 placeholder 报「第 N 组」");
 const iIn = orgNamed.indexOf('data-ogname="0"'), iPts = orgNamed.indexOf("甲点");
-ok(iIn >= 0 && iIn < iPts, "归类: 组名输入在句子上面（点在上、证据在下）");
+ok(iIn >= 0 && iIn < iPts, "归类: 组名（标题）在句子上面");
+ok(orgNamed.indexOf("第 1 组</span>") < 0, "归类: 不再另起一行「第 N 组」标签");
+
+// 归类是「一稿」的子工具：步骤条报「一稿 · 归类」，纸面不再起「归类」标题
+ok(railHtml({ step:"draft", orgOpen:true }).indexOf("一稿 · 归类") >= 0,
+   "归类屏: 步骤条当前步报「一稿 · 归类」");
+ok(orgHtml.indexOf('class="sec-title">归类') < 0 && orgName.indexOf('class="sec-title">归类') < 0,
+   "归类屏: 纸面不再重复「归类」标题（步骤条已报）");
 
 // 归类屏不再摆题面：题目行与换一题都撤掉，但限时留在这一行（归类的用时算作答）
 {
