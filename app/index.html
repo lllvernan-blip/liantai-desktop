@@ -532,8 +532,11 @@ html,body{margin:0;padding:0;}
   /* 归类：一次只摆一个点（原文在上，已建好的类在下面点选），不再 N 组 × M 点铺满整屏。
      点多的时候一屏变成一张表、很少的时候又空一半，都难扫；一屏一个点，视线不用在几组之间来回找。
      已找的点收进下面的折叠清单，谁归了谁没归一眼看完。 */
-  .ognow{margin-top:16px;}
-  .ogprog{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;margin-bottom:8px;}
+  .ogtop{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:16px 0 0;}
+  .ogtop span:first-child{flex:1 1 auto;min-width:0;}
+  .ogtop .ogprog{flex:0 0 auto;white-space:nowrap;}
+  .ognow{margin-top:8px;}
+  .ogprog{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}
   .ogcard{background:var(--wash);border-radius:var(--r-card);padding:16px;}
   .ogcur{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);line-height:1.8;padding:0 0 12px;}
   .ogcur .atext{flex:1 1 auto;}
@@ -545,13 +548,14 @@ html,body{margin:0;padding:0;}
   .ogcat.on i{color:var(--gov-red);}
   /* 新建一组与已有的组同排：同一排才读成「归到这里，或者新建一个」 */
   .ogcat.ognew{border-style:dashed;color:var(--muted);background:transparent;}
-  /* 命名那一段（第二段）：每组一张卡，组名输入是普通控件（--r-ctl 圆角），不走「竖线 + 虚线下划线」那套表单感 */
+  /* 命名那一段（第二段）：每组一张卡 —— 卡头只报「第 N 组 · n 个点」，
+     组名输入（那一组的「点」）在上、句子在下面当证据；组名不在卡头再写一遍。*/
   .ognames{margin-top:12px;display:flex;flex-direction:column;gap:16px;}
   .ogname{background:var(--wash);border-radius:var(--r-card);padding:16px;}
   .ogname .ogh{display:flex;gap:8px;align-items:baseline;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);}
-  .ogname .ognpts{margin:4px 0 12px;font-size:var(--fs-note);color:var(--muted-2);}
+  .ogname .ognpts{margin:12px 0 0;font-size:var(--fs-note);color:var(--muted-2);}
   .ogname .ognpts .pickline{margin:0;}
-  .ogname .ogin{width:100%;}
+  .ogname .ogin{width:100%;margin-top:8px;}
   .ogname .ogin:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .ogline.cur{background:var(--wash);}
   .ogline.cur .ptag{background:var(--red-wash);color:var(--gov-red);}
@@ -3484,8 +3488,9 @@ function organizePanelHtml(f){
   if(!sels.length) return `<div class="hint" style="margin-top:12px">还没有找到点——回读材料时点几个句子就行；直接写也可以。</div>`
     + `<div class="actions"><button class="primary" id="btnToDraft">回到一稿</button></div>`;
   const groups = Array.isArray(f.groups)? f.groups : [];
-  // 「回到一稿」永远在角落里：它是从一稿页打开的工具，哪一段都能收起来
-  const head = `<div class="secrow"><div class="sec-title">归类</div><span class="secright"><button class="linkbtn" id="btnCloseOrg">回到一稿</button></span></div>`;
+  // 「回到一稿」永远在角落里：它是从一稿页打开的工具，哪一段都能收起来。
+  // 限时也摆这一行：归类这几分钟算在作答用时里，不能因为撤了题面就看不见。
+  const head = `<div class="secrow"><div class="sec-title">归类</div><span class="secright">${limitRowHtml()}<button class="linkbtn" id="btnCloseOrg">回到一稿</button></span></div>`;
   return head + (orgPhaseOf(f) === "name"? orgNamePanelHtml(groups, sels) : orgGroupPanelHtml(f, groups, sels));
 }
 /* 面板在哪一段：显式记在链上；老链没这个字段时按「点还没走完」算第一段 */
@@ -3506,9 +3511,8 @@ function orgGroupPanelHtml(f, groups, sels){
     return `<button class="ogcat${on? " on":""}" data-og="${i}" aria-pressed="${on? "true":"false"}">${esc(groupLabel(groups, i))}<i>${(g.facts||[]).length}</i></button>`;
   }).join("");
   const empty = groups.length? "" : '<p class="hint">还没有组——点下面的「+ 新建一组」把当前点归进去。</p>';
-  return `<p class="hint">第一步：把这个点归进某一组。组名留到第二步再起。</p>
+  return `<p class="hint ogtop"><span>第一步：把这个点归进某一组（组名下一步再起）</span><span class="ogprog">已归 ${doneCnt} / ${sels.length} 个点</span></p>
     <div class="ognow">
-      <div class="ogprog">已归 ${doneCnt} / ${sels.length} 个点</div>
       <div class="ogcard">
         <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
         ${empty}
@@ -3533,11 +3537,14 @@ function orgGroupPanelHtml(f, groups, sels){
 function orgNamePanelHtml(groups, sels){
   const rows = groups.map((g,i)=>{
     const pts = (g.facts||[]).filter(si=> sels[si]);
-    return `<div class="ogname"><div class="ogh"><span>${esc(groupLabel(groups, i))}</span><span class="ogprog">${pts.length} 个点</span></div>`
+    /* 卡头只报身份与进度（第 N 组 · n 个点）；组名就是下面那个输入框，
+       不在卡头再写一遍——同一张卡里同一个词出现两次，眼睛不知道该看哪个。 */
+    return `<div class="ogname"><div class="ogh"><span>第 ${i+1} 组</span><span class="ogprog">${pts.length} 个点</span></div>`
+      + `<input type="text" class="ogin" data-ogname="${i}" placeholder="给这一组写一个上位概括词，如：政务服务效能" value="${esc(String(g.name||""))}">`
       + `<div class="ognpts">${pts.map(si=> `<div class="pickline"><span class="ptag">${sels[si].free? "划选":"整句"}</span><span style="flex:1 1 auto">${esc(sels[si].text)}</span></div>`).join("") || '<div class="hint">这一组还是空的。</div>'}</div>`
-      + `<input type="text" class="ogin" data-ogname="${i}" placeholder="这一组的上位概括词，如：政务服务效能" value="${esc(String(g.name||""))}"></div>`;
+      + `</div>`;
   }).join("");
-  return `<p class="hint">第二步：给每一组写一个上位概括词（它就是提纲的抬头）。写不出也能跳过——提纲只供批改诊断，不参与计分。</p>
+  return `<p class="hint">第二步：给每一组写一个上位概括词（共 ${groups.length} 组）。写不出也能跳过——提纲只供批改诊断，不参与计分。</p>
     ${rows || '<p class="hint">还没有分组，先回去把点归一下。</p>'}
     <div class="actions">
       <button id="btnBackToGroup">回去改分组</button>
@@ -3599,18 +3606,12 @@ function renderFlowStep(){
   const showTl = step === "read";   // 读材料步也把限时摆出来：时钟从「开始作答」就起算，一稿页自己有这一行
   // 步骤条摆在纸面第一行：它说的是「我现在在哪」，不是这道题的题干，不该夹在要求与当前步面板之间
   let html = f? railHtml(f) : "";
-  // 归类面板开着的时候，题面折成一行（点开才看）：首屏要留给「这个点归到哪一组」，
-  // 规则压在动作区上面，第一眼看到的就是规则而不是要做的事（2026-10-16）。
-  // 限时留在这一行右侧照常走：归类那段用时算在作答里，不能看不见。
+  /* 归类面板开着时不摆题面：这一屏的任务是「把已找的点归组、起名」，不是作答。
+     题目行（含「换一题」）与「作答要求」都撤掉——「换一题」在这里既打断归类，又和「回到一稿」抢路。
+     限时不能跟着走：归类这几分钟算在作答用时里，它挪进归类标题行右侧（见 organizePanelHtml）。 */
   const orgOpen = !!(f && step === "draft" && f.orgOpen);
   // 批改步不重复题面：这一页的头是分数（换一题在分数那一行右侧，见 gradeHtml 的 .ghead）
-  if(orgOpen){
-    html += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${limitRowHtml()}</span></div>`;
-    html += `<details class="notebox" style="margin:0 0 12px"><summary>作答要求与建议结构（点开看）</summary><div class="notebody">`
-      + `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`
-      + (question.suggestedFormat? `<div class="require" style="margin-top:8px"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>` : "")
-      + metaLineHtml(question) + `</div></details>`;
-  } else if(step !== "review"){
+  if(!orgOpen && step !== "review"){
     html += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
     html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
     if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;

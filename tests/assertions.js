@@ -1287,7 +1287,7 @@ ok(/<div class="ogcats" id="ogCats">[\s\S]*class="ogcat ognew"/.test(orgHtml1),
    "归类: 「新建一组」与已有的组同排（同一排才读成「归到这里，或新建一个」）");
 ok(PAGE_HTML.indexOf(".ogcat.ognew{border-style:dashed") >= 0, "归类: 新建一组是虚线样（看得出现在是「加一个」）");
 ok(PAGE_HTML.indexOf(".ogname{background:var(--wash);border-radius:var(--r-card)") >= 0
-   && PAGE_HTML.indexOf(".ogname .ogin{width:100%;}") >= 0,
+   && PAGE_HTML.indexOf(".ogname .ogin{width:100%;margin-top:8px;}") >= 0,
    "归类: 命名卡走 --r-card、输入框走全局 --r-ctl（不再横平竖直）");
 ok((orgHtml.match(/提纲只供批改诊断/g) || []).length === 0
    && (orgName.match(/提纲只供批改诊断/g) || []).length === 1,
@@ -1303,6 +1303,29 @@ ok(dHtml.indexOf("我归的提纲") >= 0 && dHtml.indexOf("甲组：甲点") >= 
 ok(!/id="outlineBox"[^>]*\bopen\b/.test(dHtml), "提纲: 默认收起（要用时点开）");
 ok(draftPanelHtml({ groups:[], selections:[] }).indexOf("outlineBox") < 0, "提纲: 一组都没有时不摆空框");
 current = null;
+
+// 命名卡：卡头只报第几组与点数，组名只在输入框里出现一次；输入在上、句子在下
+const orgNamed = organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"窗口下移",facts:[0]}], orgPhase:"name" });
+ok((orgNamed.match(/窗口下移/g) || []).length === 1, "归类: 组名只在输入框里出现一次（卡头不再重写）");
+ok(orgNamed.indexOf("第 1 组") >= 0, "归类: 卡头报「第 N 组」与点数");
+const iIn = orgNamed.indexOf('data-ogname="0"'), iPts = orgNamed.indexOf("甲点");
+ok(iIn >= 0 && iIn < iPts, "归类: 组名输入在句子上面（点在上、证据在下）");
+
+// 归类屏不再摆题面：题目行与换一题都撤掉，但限时留在这一行（归类的用时算作答）
+{
+  state.flows = []; _flowId = null; state.history = [];
+  const qO = { background:"归类屏材料。", requirements:"请概括。", score:20 };
+  const fO = ensureFlow("sl.guina", "概括问题", qO, []);
+  fO.cardSeen = true; fO.step = "draft"; fO.orgOpen = true;
+  fO.selections = [{ text:"甲点" }, { text:"乙点" }];
+  fO.groups = []; fO.orgIdx = 0;
+  current = { module:"sl.guina", subtype:"概括问题", question:qO, keyPoints:[], cardPeeks:0 };
+  renderFlowStep();
+  const oHtml = el("#docBody").innerHTML;
+  ok(oHtml.indexOf("btnSwitch") < 0 && oHtml.indexOf("作答要求") < 0, "归类屏: 不再摆题面与「换一题」");
+  ok(oHtml.indexOf('id="inpLimit"') >= 0, "归类屏: 限时照常可见（归类的用时算作答）");
+  state.flows = []; _flowId = null; current = null;
+}
 // 归属反查表：一个点被哪几类收着
 const sel3 = [{text:"甲点",free:true},{text:"乙点"}];
 const grp3 = [{name:"甲组",facts:[0]},{name:"",facts:[0,1]}];
