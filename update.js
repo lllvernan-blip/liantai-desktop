@@ -450,8 +450,10 @@ function handleFailure(id, msg) {
   if (id === handledAttempt) return;  // 同一次失败的第二次回调（error 事件 + promise reject）
   handledAttempt = id;
   /* 下载阶段失败：默认镜像某一条可能挂了，换下一条安装包源重试（镜像 → 镜像 → 官方直连兜底），
-     别一头扎进 30 分钟重试循环。这是「换安装包源」，与下面「换元数据源」是两层，别混。 */
-  if (status.phase === PHASE.DOWNLOADING && crossSourceReady && advanceDownloadSource()) {
+     别一头扎进 30 分钟重试循环。这是「换安装包源」，与下面「换元数据源」是两层，别混。
+     available 也算下载阶段：一个字节都没流动就挂（镜像连不通）时 phase 停在 available，
+     只认 downloading 就会跳过换源、白等 30 分钟。 */
+  if ((status.phase === PHASE.DOWNLOADING || status.phase === PHASE.AVAILABLE) && crossSourceReady && advanceDownloadSource()) {
     downloadRetry = true;
     status.error = '';
     setPhase(PHASE.IDLE, '下载线路不通，换一条安装包源重试');

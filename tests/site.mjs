@@ -125,7 +125,10 @@ ok(!/gh-proxy|ghproxy|gh\.xxooo|gh\.nxnow|直连|镜像/.test(visibleText),
    "页面可见文字不写加速线路的域名：用户面前只有一个下载按钮");
 ok(/id="dlStuck"/.test(visible) && visible.indexOf("releases/latest") > 0,
    "「点了没反应？」里给的是官方发布页（那条线路整个抽掉时的退路）");
-ok(v.clRows === 4 && v.clN === "18", "更新日志: 读不到 changelog.json 时用页面内联那份，最近 4 条在外、其余折叠");
+/* 折叠里那条数 = 内联日志总条数 - 外面那 4 条（数字从页面源里数出来，不抄死，不然每发一版都要来改这行） */
+const fbN = (script.match(/CHANGELOG_FALLBACK\s*=\s*\[([\s\S]*?)\n\];/) || [null, ""])[1].match(/^\s*\["/gm).length;
+ok(fbN > 4 && v.clRows === 4 && v.clN === String(fbN - 4),
+   "更新日志: 读不到 changelog.json 时用页面内联那份，最近 4 条在外、其余折叠（内联 " + fbN + " 条）");
 
 /* 同一份数据，换一台 Mac 打开：按钮与菜单里那条「当前」都该换过来 */
 v = await run({ ua: MAC_UA, latest: bothPlatforms, api: null });

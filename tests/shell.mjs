@@ -452,6 +452,27 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   restore();
 }
 
+/* ---- 4c. 一个字节都没流动就挂：phase 还停在「有本版可下」，换源照样要推进（否则白等 30 分钟） ---- */
+{
+  const fake = new FakeUpdater();
+  const { mod, restore } = loadUpdate({ autoUpdater: fake });
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
+  const feeds = mod.BACKUP_FEEDS;
+  const hostOf = (u) => { try { return new URL(u).host; } catch (err) { return ""; } };
+  const before = mod.getStatus().downloadHost;
+
+  fake.emit("checking-for-update");
+  fake.emit("update-available", { version: "0.0.3" });
+  ok(mod.getStatus().phase === "available" && mod.getStatus().downloadHost === hostOf(feeds[0]),
+     "壳: 无进度失败: 还没进下载态，包源停在第一条镜像");
+  fake.emit("error", new Error("net::ECONNREFUSED"));
+  ok(mod.getStatus().downloadHost === hostOf(feeds[1]) && mod.getStatus().downloadHost !== before,
+     "壳: 一个字节都没流动就挂，也换下一条安装包源（phase 停在 available 不是例外）");
+
+  mod.stopUpdate();
+  restore();
+}
+
 /* ---- 5. 拆不了就不兜底：宁可没有备用源，也不回到「一个源自己给自己签哈希」 ---- */
 {
   const fake = new FakeUpdater();

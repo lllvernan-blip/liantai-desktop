@@ -996,6 +996,7 @@ const DEFAULT_STATE = {
   tutVersion:3,
   history:[],
   flows:[],
+  resumeZy:null,   // 综应A 当前题（不在 flows 里）：刷新 / 崩溃后靠它恢复题目与计时起点
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
   digests:{},       // 跨题归纳缓存（见 normDigests）：模块键 → { at, basedOn, data }
   cache:{ studyCards:{}, notes:{} },
@@ -1111,6 +1112,33 @@ const SL_STUDY_CARDS = {
 const MAX_OPEN_FLOWS = 20;   // state.flows 只留最近 20 条；有未提交草稿的 flow 永不自动裁剪
 let _flowId = null;          // 当前进行中的训练链 id
 /* 必须定义在 let state = load() 之前：load() 的 flows 迁移要读 FLOW_STEPS，放后面会撞 TDZ 被静默吞掉 */
+/* 综应A 只在内存里放 current；恢复快照必须校验过才用（导入 / 旧数据都可能塞进坏形状）。 */
+function sanitizeResumeZy(r){
+  if(!r || typeof r!=="object" || Array.isArray(r)) return null;
+  const q = r.question;
+  if(!q || typeof q!=="object" || typeof q.background!=="string" || typeof q.requirements!=="string") return null;
+  const m = migrateModuleKey(String(r.module || ""));
+  if(!MODULES[m] || usesFlowChain(m)) return null;   // 申论走 flows，不走这个快照
+  const lim = Math.max(0, Math.min(600, Math.round(Number(r.limitMin) || 0)));
+  return { module:m, subtype: typeof r.subtype === "string"? r.subtype : "",
+    question:q, keyPoints: Array.isArray(r.keyPoints)? r.keyPoints : [],
+    studyCard: (r.studyCard && typeof r.studyCard === "object")? r.studyCard : null,
+    cardPeeks: Math.max(0, Number(r.cardPeeks) || 0),
+    phase: r.phase === "answer"? "answer" : "card",
+    limitMin: lim, limitFrom: lim? Math.max(0, Number(r.limitFrom) || 0) : 0,
+    ts: Number(r.ts) || Date.now() };
+}
+function syncZyResume(){
+  if(!state) return false;
+  if(!current || !current.question || usesFlowChain(current.module)) return false;
+  state.resumeZy = sanitizeResumeZy({
+    module: current.module, subtype: current.subtype || "", question: current.question,
+    keyPoints: current.keyPoints || [], studyCard: current.studyCard || null,
+    cardPeeks: current.cardPeeks || 0, phase: current.phase === "answer"? "answer" : "card",
+    limitMin: current.limitMin || 0, limitFrom: current.limitFrom || 0, ts: Date.now()
+  });
+  return !!state.resumeZy;
+}
 function sanitizeFlows(list){
   if(!Array.isArray(list)) return [];
   return list.filter(f=>{
@@ -1234,6 +1262,7 @@ function load(){
     s.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
     // 训练链：非法 step 丢弃该项、缺失字段补默认（sanitizeFlows 幂等，二次 load 不再变化）
     s.flows = sanitizeFlows(s.flows);
+    s.resumeZy = sanitizeResumeZy(s.resumeZy);
     s.digests = normDigests(s.digests);
     // 练习记录的模块键补前缀；记录存在独立的 gw_history，得单独回写
     const mh = migrateHistory(s.history);
@@ -2290,6 +2319,7 @@ function revealDocHeading(){
 }
 function tabClick(k){
   reqSeq++;   // 换页 = 作废在途请求：出题/批改还在路上时点 chips 换页，旧结果不许回来把当前页顶掉
+  if(pendingGen) pendingGen.viewing = false;
   renderModuleLanding(k);
   revealDocHeading();
 }
@@ -2315,8 +2345,17 @@ function openModal(id){
   tourPause();   // 引导暂歇：气泡不叠在弹层之上
 }
 function closeModals(){
+  const settingsOpen = !$("#modalSettings").hidden;
   $("#modalSettings").hidden = true; $("#modalProfile").hidden = true;
   document.body.style.overflow = "";
+  if(settingsOpen){
+    // 关闭设置把用户真填了的几项落盘；空字段不覆盖已有设置（避免把自动选好的模型清掉）
+    const kv = $("#setKey") && $("#setKey").value.trim(); if(kv) state.settings.apiKey = kv;
+    const bv = $("#setBase") && $("#setBase").value.trim(); if(bv) state.settings.baseUrl = bv;
+    const mv = $("#setModel") && $("#setModel").value.trim(); if(mv) state.settings.model = mv;
+    const ok = save(); if(!ok) banner("设置没能保存：本地存储满了，先「导出」备份再清理旧记录。", "error");
+    renderHeader(); renderCurrentView();
+  }
   tourResume();   // 弹层关掉，暂停中的引导就地恢复
   if(_focusBack && typeof _focusBack.focus === "function"){ try{ _focusBack.focus({preventScroll:true}); }catch(e){} }
   _focusBack = null;
@@ -2359,10 +2398,23 @@ function banner(html, kind, src){
   const bi = $("#bnrInstall");
   if(bi){ bi.disabled = false; bi.onclick = ()=>{ bi.disabled = true; runInstall(); }; }
 }
-function showLoading(t, tail){
+function showLoading(t, tail, opts){
   // 第二行原来写死「长文阅卷通常 10-60 秒」——但这里是**出题**在等，屏幕上却在说阅卷（2026-10-08 复查）
-  docBody.innerHTML = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">${esc(tail||"AI 出题通常 10-60 秒。")}</span><div class="peek" id="streamPeek"></div></p>`;
+  let html = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">${esc(tail||"AI 出题通常 10-60 秒。")}</span><div class="peek" id="streamPeek"></div></p>`;
+  if(opts && opts.cancel) html += `<div class="actions" style="margin-top:16px;justify-content:center"><button class="linkbtn" id="btnCancelGen">取消这次出题</button></div>`;
+  docBody.innerHTML = html;
   paintFab();
+}
+/* 取消在途出题：请求本身停不下来，但结果不再上屏、也不再留着 */
+function wireCancelGen(mySeq){
+  const cg = $("#btnCancelGen"); if(!cg) return;
+  cg.onclick = ()=>{
+    if(mySeq != null && (!pendingGen || pendingGen.mySeq !== mySeq)) return;
+    if(mySeq == null && !pendingGen) return;
+    const goHome = _view === "home";
+    pendingGen = null; reqSeq++;
+    if(goHome) renderHome(); else renderStart();
+  };
 }
 
 /* 起始页两种形态（2026-10-08 分开，2026-10-12 首页改居中 hero）：
@@ -2370,8 +2422,8 @@ function showLoading(t, tail){
      两枚点名科目的 chips、一行必备声明；公文红头在首页整块让位（renderHeader 里收）。
    · 科目首页（综应A / 申论）：红按钮是**本科目的主行动**（走 `startSmart`）。快判不在这里抢红：
      它不是科目内容，是另一种练法，入口只在首页那颗「开始快判」红按钮。
-   两处没填 Key 时红按钮一律换成「先填 API Key」：出题这条路当下走不通，红按钮就带他去真能走的那一步。 */
-function startBoxHtml(rf){
+   两处走不通时红按钮按缺项说话（`setupActionLabel()`）：缺 Key 说填 Key、缺模型说选模型，红按钮就带他去真能走的那一步。 */
+function startBoxHtml(resume){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
   const flow = curSubject() === "sl"? ["学习卡","读材料找点","一稿","批改"] : ["学习卡","作答","批改"];
@@ -2385,18 +2437,19 @@ function startBoxHtml(rf){
   }).join("");
   /* 脚注跟着有没有 Key 说话：填完还写「填好 API Key 就能开始」，界面就在说谎。
      「没有账号，数据都在本地」是必备声明，两种情况都留。 */
-  const foot = state.settings.apiKey
+  const resumeHtml = resume? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(resume.module))}${resume.subtype? " · "+esc(resume.subtype):""} · 停在「${esc(resume.label)}」）</button></div>` : "";
+  const foot = canStart()
     ? "没有账号，数据都在本地"
-    : "填好 API Key 就能开始 · 没有账号，数据都在本地";
+    : (state.settings.apiKey? "选好模型就能开始 · 没有账号，数据都在本地" : "填好 API Key 就能开始 · 没有账号，数据都在本地");
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
     <div class="hero-big">今天练什么？</div>
     <div class="hero-sub">按你最近的练习情况出题，写完就有分</div>
-    <div class="actions">${state.settings.apiKey
+    <div class="actions">${canStart()
       ? `<button class="primary big" id="btnQuick">开始快判</button>`
-      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
+      : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="chiprow">${bigs}</div>
-    ${rf? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
+    ${resumeHtml}
     <div class="hero-foot">${foot}</div>
   </div>`;
   }
@@ -2405,11 +2458,11 @@ function startBoxHtml(rf){
   return `<div class="startbox start-entry start-hero" data-start="subj">
     <div class="hero-big">${esc(subj.name)} 练什么？</div>
     <div class="hero-sub">${flowHtml}，写完就有分</div>
-    <div class="actions">${state.settings.apiKey
+    <div class="actions">${canStart()
       ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
-      : `<button class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）</button>`}</div>
+      : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>
-    ${rf? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(rf.module))}${rf.subtype? " · "+esc(rf.subtype):""} · 停在「${esc(FLOW_LABELS[rf.step]||"读材料")}」）</button></div>` : ""}
+    ${resumeHtml}
     <div class="hero-foot">${foot}</div>
   </div>`;
 }
@@ -2427,16 +2480,27 @@ function wireStartBox(){
   docBody.querySelectorAll("[data-mod]").forEach(b=> b.onclick = ()=> tabClick(b.dataset.mod));
   const br = $("#btnResume");
   if(br) br.onclick = ()=>{
-    const f = resumableFlow();
-    if(!f || f.closedAt){ (_view === "home"? renderHome : renderStart)(); return; }
-    // 科目对齐：链的科目与当前抬头不符时，先把 settings.subject 切回链的科目再进入——杜绝「在综应A 抬头下打开申论链」
-    const fsubj = subjectOf(f.module);
-    if(fsubj && fsubj !== curSubject()){ state.settings.subject = fsubj; save(); renderTabs(); }
-    _flowId = f.id;
-    // 学习卡一起恢复：卡缓存在 state.cache 里（还在），这里不搬过来，卡页就会说「本题没有学习卡」
-    current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card",
-                studyCard: state.cache.studyCards[cardKey(f.module, f.subtype)] || SL_STUDY_CARDS[f.module] };
-    activeModule = f.module; renderHeader(); renderQuestion();
+    const t = resumeTarget();
+    if(!t){ (_view === "home"? renderHome : renderStart)(); return; }
+    // 科目对齐：恢复目标的科目与当前抬头不符时，先把 settings.subject 切回去
+    const tsubj = subjectOf(t.module);
+    if(tsubj && tsubj !== curSubject()){ state.settings.subject = tsubj; save(); renderTabs(); }
+    if(t.kind === "flow"){
+      const f = t.flow;
+      if(!f || f.closedAt){ (_view === "home"? renderHome : renderStart)(); return; }
+      _flowId = f.id;
+      // 学习卡一起恢复：卡缓存在 state.cache 里（还在），这里不搬过来，卡页就会说「本题没有学习卡」
+      current = { module:f.module, subtype:f.subtype, question:f.question, keyPoints:f.keyPoints||[], cardPeeks:0, phase:"card",
+                  studyCard: state.cache.studyCards[cardKey(f.module, f.subtype)] || SL_STUDY_CARDS[f.module] };
+      activeModule = f.module; renderHeader(); renderQuestion();
+      return;
+    }
+    const z = t.zy;
+    _flowId = null;   // 综应A 没有训练链：别让残留的 _flowId 把别的链当成这一屏
+    current = { module:z.module, subtype:z.subtype, question:z.question, keyPoints:z.keyPoints||[],
+                cardPeeks:z.cardPeeks||0, phase:z.phase, limitMin:z.limitMin||0, limitFrom:z.limitFrom||0,
+                studyCard: z.studyCard || state.cache.studyCards[cardKey(z.module, z.subtype)] || SL_STUDY_CARDS[z.module] };
+    activeModule = z.module; renderHeader(); renderQuestion();
   };
 }
 /* 大题的入口：点了就把科目切过去、直接出题（一步到题，跟快判那边对称）。
@@ -2454,10 +2518,11 @@ function startSubjectTask(subject){
    想看某个科目就先点它（进那个科目的首页），回这里点左上角的「练习台」。 */
 function renderHome(){
   _view = "home";
+  if(pendingGen && showPendingView()) return;   // 在途出题：回首页直接回到原来的等待页 / 出好直接进题
   reqSeq++;   // 回首页 = 作废在途请求（与 renderStart 同一口径）
   activeModule = null; pdActive = false;
   renderHeader(); renderTabs();
-  docBody.innerHTML = startBoxHtml(resumableFlow());
+  docBody.innerHTML = startBoxHtml(resumeTarget());
   paintFab();
   wireStartBox();
   maybeTour("home");
@@ -2465,10 +2530,16 @@ function renderHome(){
 function renderStart(){
   _view = "start";
   pdActive = false;   // 回起始页 = 退出判别轨（同 renderHome）：不然抬头还挂着「快判」
+  // 从哪个科目起的题，回那个科目的起始页就自动回到原位；别的科目页照常显示
+  if(pendingGen){
+    const psubj = subjectOf(pendingGen.module);
+    if(pendingGen.origin === "start" && psubj === curSubject() && showPendingView()) return;
+    pendingGen.viewing = false;
+  }
   reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
   activeModule = null; renderHeader();   // 起始页灰字如实报「综合 · 智能出题」，不再挂着上次练的模块名（页面下方写的不是它）
   renderTabs();   // 起始页纸面不挂当前模块：chips 不带 on
-  docBody.innerHTML = startBoxHtml(resumableFlow());   // 恢复现场：24h 内没走完的申论链给入口，点了才跳，绝不自动跳转
+  docBody.innerHTML = startBoxHtml(resumeTarget());   // 恢复现场：24h 内没走完的申论链 / 综应A 当前题给入口，点了才跳，绝不自动跳转
   paintFab();
   wireStartBox();
   maybeTour(curSubject());
@@ -2702,7 +2773,7 @@ function renderModuleLanding(k){
   let html = `<div class="startbox start-entry start-hero">
     <div class="hero-big">这类题怎么练？</div>
     <div class="hero-sub">${noteRedundant? "每题都按采分点打分，写完就有分" : esc(m.note) + "，写完就有分"}</div>
-    <div class="actions"><button class="primary big" id="btnLandStart">${blocked? "先填 API Key（出题和阅卷都要）" : "开始练习"}</button></div>
+    <div class="actions"><button class="primary big" id="btnLandStart">${blocked? setupActionLabel() : "开始练习"}</button></div>
     <div class="hint" style="margin-top:16px">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过"}</div>
     <div class="subtypechips" style="margin-top:16px">
     ${subs.map(t=>{
@@ -2737,6 +2808,10 @@ function entryBlocked(){
     : "出题和阅卷都要用 API Key，选服务商、填好即可开始。") + OPEN_SETTINGS_BTN);
   return true;
 }
+function setupActionLabel(){
+  // 主行动按缺项说话（首页 / 科目页 / 模块落地页共用这一句）：出题这条路当下走不通，按钮就只说他真该做的那一步
+  return state.settings.apiKey? "先选模型（设置里挑一个）" : "先填 API Key（出题和阅卷都要）";
+}
 async function startSmart(){
   if(entryBlocked()) return;   // 先判再切科目：没 Key 的人不该被挪到另一个屏
   const k = weakestModule(); if(!k) return;
@@ -2749,21 +2824,30 @@ async function startModule(k){
 }
 
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
+/* 在途出题：换页只放弃「自动上屏」，不丢结果。结果按 running / ready / failed 留在首页/科目页入口，
+   用户点回来再进。以前换页只靠 reqSeq 把结果扔掉，等待页一没就再也找不回那道题。 */
+let pendingGen = null;   // running / ready 两态；origin = 从哪一屏发起的（home / start）
 async function loadQuestion(k, subtype){
   if(entryBlocked()) return;   // 兜底：所有出题路都从这里过，进加载态之前就得判（见 entryBlocked）
   banner("");
   const mySeq = ++reqSeq;
   const prev = current;   // 出题失败时保住上一题，不打回首页
   const t0 = Date.now();
-  showLoading(`AI 正在为「${MODULES[k].name}${subtype?' · '+subtype:''}」准备学习卡与仿真题…`);
+  showLoading(`AI 正在为「${MODULES[k].name}${subtype?' · '+subtype:''}」准备学习卡与仿真题…`, undefined, { cancel:true });
+  pendingGen = { mySeq, module:k, subtype:subtype||null, startedAt:t0, status:"running", viewing:true, prepared:null,
+                 origin: _view === "home"? "home" : "start" };
+  wireCancelGen(mySeq);
+  // 上屏资格：还是我这次请求、且人正看着这一页。换页后旧请求还在跑，但它不许再往别人的页面上写秒数与实况
+  const owns = ()=> !!(pendingGen && pendingGen.mySeq === mySeq && pendingGen.viewing);
   const tick = setInterval(()=>{
     const el = $("#elapsed");
-    if(!el){ clearInterval(tick); return; }
+    if(!el || !owns()){ clearInterval(tick); return; }
     el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
   }, 1000);
   // 流式实况：字数 + 抠出正在生成的背景材料片段，让等待变成“看它写题”
   let peekAt = 0;
   const onDelta = (d, full)=>{
+    if(!owns()) return;
     const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`;
     const now = Date.now(); if(now - peekAt < 200) return; peekAt = now;
     const pk = streamPeek(full, ["background","templates","title","point"]);
@@ -2777,19 +2861,42 @@ async function loadQuestion(k, subtype){
     // 这一步不让用户等：取不到马上返回 null，不多花一次调用。
     const pick = await poolPick();
     const data = await gen(k, subtype, focusDim, !cached, onDelta, pick? pick.text : null);
-    if(mySeq !== reqSeq) return;  // 已被更晚的请求取代：丢弃结果，不污染界面也不写缓存
-    if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
-    if(!data.question) throw {code:"JSON"};
+    if(!data || !data.question) throw {code:"JSON"};
     enforceWordLimit(k, data.question, subtype);   // 字数口径以本地表为准（公文按文种），不信模型
     // 「据材料」标就挂在题上（不另存一个字段）：跟着题目一起存进练习记录、一起导入导出，不会丢
     if(pick) data.question.fromPool = pick.title || pick.name;
     /* 来源单独存一条（fromPool 保持字符串原样：它是「据材料」小标的判据，老记录也认它）。
        只有主进程递回了媒体/日期/主题才存——取不到就不存，界面按「没有证据」处理。 */
     if(pick) data.question.src = { media: pick.media || "", date: pick.date || "", topics: Array.isArray(pick.topics)? pick.topics : [] };
-    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard: cached || data.studyCard || SL_STUDY_CARDS[k], cardPeeks:0, phase:"card" };
+    if(!cached && data.studyCard){ state.cache.studyCards[cacheKey] = data.studyCard; save(); }
+    const prepared = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[],
+                       studyCard: cached || data.studyCard || SL_STUDY_CARDS[k] };
+    if(mySeq !== reqSeq){
+      // 换页了：不自动上屏，但结果留着；回到首页 / 起题的那一科起始页时自动进题
+      if(pendingGen && pendingGen.mySeq === mySeq){
+        pendingGen.status = "ready"; pendingGen.prepared = prepared;
+        if(pendingGen.viewing){ openPendingGen(); return; }
+      }
+      return;
+    }
+    pendingGen = null;
+    current = { module:k, subtype, question:data.question, keyPoints:data.keyPoints||[], studyCard:prepared.studyCard, cardPeeks:0, phase:"card" };
+    if(!usesFlowChain(k)){ syncZyResume(); save(); }   // 综应A：出完题就落快照，刷新也不丢
     renderHeader(); renderQuestion();
   }catch(e){
-    if(mySeq !== reqSeq) return;
+    if(mySeq !== reqSeq){
+      if(pendingGen && pendingGen.mySeq === mySeq){
+        const origin = pendingGen.origin;
+        if(pendingGen.viewing){   // 人正盯着等待页：当场说失败，别再让他干等
+          pendingGen = null; handleErr(e, true);
+          if(origin === "home") renderHome(); else renderStart();
+        }else{
+          pendingGen.status = "failed"; pendingGen.error = e; pendingGen.viewing = false;
+        }
+      }
+      return;
+    }
+    pendingGen = null;
     handleErr(e, true);   // 失败只提示，不清界面
     if(prev && prev.question){ renderHeader(); renderQuestion(); }   // 回到上一题的现场
     else renderStart();
@@ -2797,6 +2904,46 @@ async function loadQuestion(k, subtype){
   finally{ clearInterval(tick); }
 }
 
+/* 回到原位：首页 / 起题科目的起始页渲染前先问它。在途就恢复等待页，出好就直接进题，失败就报一声回正常页 */
+function showPendingView(){
+  const p = pendingGen; if(!p) return false;
+  if(p.status === "running"){
+    const subj = subjectOf(p.module);
+    if(subj && subj !== curSubject()){ state.settings.subject = subj; save(); }
+    activeModule = null;
+    renderTabs(); renderHeader();
+    showPendingLoading();
+    return true;
+  }
+  if(p.status === "ready"){ openPendingGen(); return true; }
+  pendingGen = null;   // failed：清掉，让调用方照常渲染，并告诉用户上次没成
+  banner("上次出题没有成功，可以重新开始。", "error");
+  return false;
+}
+/* 回到等待页：请求本身没停，这里只是重新画一屏并从原始起点计时 */
+function showPendingLoading(){
+  const p = pendingGen; if(!p || p.status !== "running") return;
+  p.viewing = true;
+  showLoading(`AI 正在为「${MODULES[p.module].name}${p.subtype?' · '+p.subtype:''}」准备学习卡与仿真题…`, undefined, { cancel:true });
+  wireCancelGen(null);
+  const t0 = p.startedAt;
+  const tick = setInterval(()=>{
+    const el = $("#elapsed");
+    if(!el || pendingGen !== p || p.status !== "running" || !p.viewing){ clearInterval(tick); return; }
+    el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
+  }, 1000);
+}
+/* 结果已出好：真正进入这道题（学习卡阶段），并清掉入口 */
+function openPendingGen(){
+  const p = pendingGen; if(!p || p.status !== "ready" || !p.prepared) return;
+  const pr = p.prepared;
+  const subj = subjectOf(pr.module); if(subj && subj !== curSubject()){ state.settings.subject = subj; save(); }
+  activeModule = pr.module; pendingGen = null;
+  current = { module:pr.module, subtype:pr.subtype, question:pr.question, keyPoints:pr.keyPoints||[],
+              studyCard: pr.studyCard, cardPeeks:0, phase:"card" };
+  if(!usesFlowChain(pr.module)){ syncZyResume(); save(); }
+  renderTabs(); renderHeader(); renderQuestion();
+}
 /* 学习卡不再单独占一个阶段：并入训练链的「读材料」步骤（折叠的卡片，展开可看、可记笔记）。
    翻卡计数保留：每看一次计一次，翻卡次数就是熟悉度的客观信号，参与出题调度。 */
 function cardKey(module, subtype){ return module + (subtype? "::"+subtype : ""); }
@@ -2928,7 +3075,7 @@ function wireZyPage(phase){
     const bd = $("#btnDone"); if(bd) bd.onclick = finishCurrent;
     wireSelfNote();
   } else {
-    wireCardPage("btnZyAnswer", ()=>{ current.phase = "answer"; renderZyPage(); });
+    wireCardPage("btnZyAnswer", ()=>{ current.phase = "answer"; syncZyResume(); save(); renderZyPage(); });
   }
 }
 
@@ -3357,6 +3504,21 @@ function resumableFlow(){
   }
   return null;
 }
+/* 综应A 的恢复入口：题目 / 阶段 / 计时起点都在 state.resumeZy 里（快照过期就不算）。 */
+function resumableZy(){
+  const z = sanitizeResumeZy(state.resumeZy);
+  if(!z) return null;
+  if(Date.now() - z.ts >= RESUME_WINDOW) return null;
+  return z;
+}
+/* 首页只给一个「继续」：申论链与综应A 谁更新就恢复谁。 */
+function resumeTarget(){
+  const z = resumableZy(), f = resumableFlow();
+  const zt = z? z.ts : -1, ft = f? (f.createdAt || 0) : -1;
+  if(f && ft >= zt) return { kind:"flow", flow:f, module:f.module, subtype:f.subtype, label: FLOW_LABELS[f.step] || "读材料" };
+  if(z) return { kind:"zy", zy:z, module:z.module, subtype:z.subtype, label: z.phase === "answer"? "作答" : "学习卡" };
+  return null;
+}
 /* 一条链的批改结果从练习记录里取：记录才是唯一事实源（lastGrade 只是当次提交留下的缓存，
    刷新、重开、换设备都没有它）。先按链 id 精确匹配；老记录（flowId 是 migrateHistory 补的 legacy-*）
    退到题目签名。 */
@@ -3754,7 +3916,12 @@ function curLimitFrom(){
 function setLimitState(min, from){   // 申论跨步要持久（挂在链上），综应A 挂在 current 上
   const f = activeFlow();
   if(f && current && f.sig === qSig(current.question)){ f.limitMin = min; f.limitFrom = from; save(); }
-  else if(current){ current.limitMin = min; current.limitFrom = from; }
+  else if(current){
+    current.limitMin = min; current.limitFrom = from;
+    if(state.resumeZy && current.question && qSig(state.resumeZy.question) === qSig(current.question)){
+      state.resumeZy.limitMin = min; state.resumeZy.limitFrom = from; save();
+    }
+  }
 }
 function ensureLimitStart(){   // 开始作答就起算：整一道题只起算一次，切步与刷新都不重置
   if(!curLimitMin() || curLimitFrom()) return;
@@ -4190,6 +4357,7 @@ async function submitAnswer(){
     if(saveHistory()){ clearDraftIfSubmitted(qSig(q), ans); }
     else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
+    if(!inFlow && current && !usesFlowChain(mod)){ state.resumeZy = null; save(); }   // 综应A 交卷：快照作废，结果改从记录打开
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
     setLimitState(limMin, 0);   // 这一稿停表：交完就算一稿，下次进作答区重新起算
     _timeUpSaid = false;
@@ -4525,6 +4693,11 @@ function renderGrade(g, total, expCheck, time, answer){
 function finishCurrent(){
   const f = activeFlow();
   if(f && current && current.question && f.sig === qSig(current.question)) closeFlow(f);
+  else if(current && current.question && !usesFlowChain(current.module)
+          && state.resumeZy && state.resumeZy.question && qSig(state.resumeZy.question) === qSig(current.question)){
+    // 只清「就是快照那一道」：从记录页点开别人的批改再点完成，不该动还没做完的那道（与 setLimitState 同一个守卫）
+    state.resumeZy = null; save();
+  }
   renderHome();
 }
 
@@ -4631,7 +4804,7 @@ function profilePdHtml(){
   const pds = pdFormStats(), ts = pdTrapStats();
   let html = PROF_BACK + `<div class="sec-title">快判（只看正确率，不计入维度画像）</div>`;
   if(!PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
-    return html + `<div class="hint">还没练过快判。点科目栏的「快判」开一轮。</div>`;
+    return html + `<div class="hint">还没练过快判。回首页点「开始快判」开一轮。</div>`;
   }
   html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
     const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
@@ -4717,7 +4890,15 @@ function modelMenuShow(show){
 function pickModelItem(b){
   const inp = $("#setModel");
   if(inp){ inp.value = b.dataset.m; inp.focus(); }
+  persistModelChoice();
   modelMenuShow(false);
+}
+/* 选模型就是做决定：当场写回设置并保存。教程里的路线是「Key → 拉取模型列表 → 选一个」，
+   那一步之后不点保存也得能开始。 */
+function persistModelChoice(){
+  const inp = $("#setModel"); if(!inp) return;
+  state.settings.model = inp.value.trim();
+  save(); renderHeader(); renderCurrentView();
 }
 function useCachedModels(base){
   const cache = state.modelCache && state.modelCache[(base||"").replace(/\/+$/,"")];
@@ -4786,6 +4967,14 @@ async function fetchModels(silent){
   const key = $("#setKey").value.trim();
   if(!base){ if(!silent) $("#setMsg").textContent = "请先填接口地址"; return; }
   if(!key){ if(!silent) $("#setMsg").textContent = "请先填 API Key"; return; }
+  // 教程路线：填完 Key 直接拉模型，不点保存也要真的存下来；只写用户真填了的那几项
+  {
+    const prov = $("#setProvider") && $("#setProvider").value; if(prov) state.settings.provider = prov;
+    if(base) state.settings.baseUrl = base;
+    if(key) state.settings.apiKey = key;
+    const mv = $("#setModel") && $("#setModel").value.trim(); if(mv) state.settings.model = mv;
+    save();
+  }
   if(!silent) $("#setMsg").textContent = "拉取中…";
   try{
     const { res, text, json } = await fetchWithTimeout(base + "/models", { headers:{ Authorization:"Bearer "+key } }, 30000);
@@ -4802,7 +4991,7 @@ async function fetchModels(silent){
     const cur = $("#setModel").value.trim();
     // 实拉名单只做三件事：进下拉、补空、在用户手动拉取时纠偏。
     // 不静默改写当前模型——实测有服务商名单不全（名字不在列表里照样能用），不能拿列表当生死簿。
-    if(cur==="" || (!silent && !ids.includes(cur))) $("#setModel").value = pickFast(ids);
+    if(cur==="" || (!silent && !ids.includes(cur))){ $("#setModel").value = pickFast(ids); persistModelChoice(); }
     $("#modelNote").textContent = silent
       ? `已拉到 ${ids.length} 个模型（每次启动自动刷新）；点输入框展开候选，点谁用谁。`
       : `已拉到 ${ids.length} 个模型；点输入框展开候选，点谁用谁。`;
@@ -4854,7 +5043,9 @@ function saveSettings(){
     // 刚填上 Key：首页那条「填上 API Key 就能开始练」当场收掉。以前它要重启才消失——
     // 人都填完了还挂在顶上说「还没填」，等于系统没听见他刚才干了什么。
     if(!hadKey){ state.settings.keyNoticeDismissed = false; renderStartNotices(); }   // 刚填上 Key：复位关闭标记（下次没 Key 时欢迎条照常出现）
+    const cached = cachedModels(state.settings.baseUrl);
     if(!useCachedModels(state.settings.baseUrl)) fetchModels(true);
+    else if(!state.settings.model && cached && cached.length){ $("#setModel").value = pickFast(cached); persistModelChoice(); }
   }
 }
 async function testConnection(){
@@ -4917,15 +5108,24 @@ function plainObj(v){ return (v && typeof v === "object" && !Array.isArray(v))? 
 function importJSON(file){
   const r = new FileReader();
   r.onload = ()=>{
+    // 导入要么整份生效、要么原样退回：先留旧状态与本地存储的原文，出错时逐项还原
+    const rawSnap = {};
+    ["gw_state", HISTORY_KEY, "gw_draft", "gw_marks"].forEach(k=>{ rawSnap[k] = localStorage.getItem(k); });
+    const prevState = state, prevCur = current, prevLG = lastGrade, prevFlowId = _flowId;
     try{
       const s = JSON.parse(r.result);
       if(!s || typeof s !== "object" || Array.isArray(s)) throw new Error("格式不对");
-      const keepKey = state.settings.apiKey || "";   // 重建前先抓住本机已填的 Key
+      // 接口配置与 Key 只认本机：备份里的 provider/baseUrl/model/apiKey 一律不采用，
+      // 否则一份改过的备份就能把本机 Key 带去别人的地址。
+      const keepCfg = { provider: state.settings.provider, baseUrl: state.settings.baseUrl, model: state.settings.model, apiKey: state.settings.apiKey || "" };
       state = structuredClone(DEFAULT_STATE);   // 从默认值重建，逐字段收合格的，不整包信任导入文件
       const st = plainObj(s.settings);
       if(st) state.settings = Object.assign({}, DEFAULT_STATE.settings, plainPick(st));
       const hadKey = !!(st && st.apiKey);
-      state.settings.apiKey = keepKey;   // Key 只认本机填的：文件里的不采用，也不因文件没带而被清空
+      state.settings.provider = keepCfg.provider;
+      state.settings.baseUrl = keepCfg.baseUrl;
+      state.settings.model = keepCfg.model;
+      state.settings.apiKey = keepCfg.apiKey;
       if(state.settings.orgName === LEGACY_ORG) state.settings.orgName = "模拟练习专用";
       state.settings.markColor = normMarkColor(state.settings.markColor);   // 备份里的取值同样过这一道
       if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
@@ -4949,7 +5149,13 @@ function importJSON(file){
         if(nt) state.cache.notes = migrateKeyedObject(plainPick(nt)).map;
       }
       const mc = plainObj(s.modelCache);
-      if(mc) state.modelCache = plainPick(mc);
+      if(mc){
+        state.modelCache = {};
+        for(const k of Object.keys(mc)){
+          const v = mc[k];
+          if(Array.isArray(v) && v.every(x => typeof x === "string" && x)) state.modelCache[k] = v.slice(0, 500);
+        }
+      }
       const cp = plainObj(s.modelCaps);
       if(cp){ state.modelCaps = plainPick(cp); Object.keys(state.modelCaps).forEach(k=>{ if(state.modelCaps[k]!=="ok" && state.modelCaps[k]!=="rejected") delete state.modelCaps[k]; }); }
       const pp = plainObj(s.modelProbe);
@@ -4957,6 +5163,8 @@ function importJSON(file){
       // 经验闭环：逐条校验；训练链走 sanitizeFlows（非法 step 丢弃，不整包失败）
       state.experiences = (Array.isArray(s.experiences)? s.experiences : []).filter(e=> e && typeof e==="object" && typeof e.title==="string" && typeof e.body==="string");
       state.flows = sanitizeFlows(Array.isArray(s.flows)? s.flows : []);
+      // 综应A 的未完成题只活在快照里（不进 flows、不进 history）：导入与刷新两条入口得一个样，收的时候过同一道清洗
+      state.resumeZy = sanitizeResumeZy(s.resumeZy);
       // 跨题归纳缓存跟着备份走：换了机器不用从零再攒一遍（形状不对的项丢掉，不整包失败）
       const dg = plainObj(s.digests);
       if(dg) state.digests = normDigests(plainPick(dg));
@@ -4981,9 +5189,20 @@ function importJSON(file){
       const openFlows = state.flows.filter(x=>!x.closedAt);
       if(openFlows.length) _flowId = openFlows[openFlows.length-1].id;
       current = null;   // 导入后内存里的旧题不再可信，回到起点
-      saveHistory(); save(); fillSettings(); applyMarkColor(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
-      banner(hadKey? "已从备份恢复数据 ✓ 文件里的 API Key 未被采用（防他人备份覆盖你的 Key），本地已填的 Key 保持不变。" : "已从备份恢复数据 ✓");
-    }catch(e){ banner("导入失败：文件不是有效的备份 JSON。", "error"); }
+      const savedHist = saveHistory(), savedState = save();
+      if(!savedHist || !savedState) throw { code: "SAVE" };   // 写不进去就整份回滚，不报假成功
+      fillSettings(); applyMarkColor(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
+      banner(hadKey? "已从备份恢复数据 ✓ 文件里的接口配置与 API Key 未被采用（本机的保持不变）。" : "已从备份恢复数据 ✓");
+    }catch(e){
+      // 回滚：先还原本地存储原文，再还原内存里的状态与当前题
+      try{
+        for(const k of Object.keys(rawSnap)){ if(rawSnap[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, rawSnap[k]); }
+      }catch(e2){}
+      state = prevState; current = prevCur; lastGrade = prevLG; _flowId = prevFlowId;
+      banner(e && e.code === "SAVE"
+        ? "导入失败：本地存储写不进去（可能是满了），本次导入没有生效。"
+        : "导入失败：文件不是有效的备份 JSON。", "error");
+    }
   };
   r.readAsText(file);
 }
@@ -5234,7 +5453,7 @@ function handleErr(e, keepView){
   else if(e && e.code==="JSON") banner("AI 返回格式异常，请重试一次。", "error");
   else if(e && e.code==="EMPTY") banner("AI 连发两次都没返回正文。答案还在，再点一次「提交批改」即可。", "error");
   else if(e && e.code==="BADJSON") banner("服务商返回的不是预期内容（多半是 Base URL 不对，需带 /v1）。请检查后重试。", "error");
-  else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或把「推理程度」调低。", "error");
+  else if(e && e.code==="TIMEOUT") banner("接口超时（60 秒内没有开始响应，或中途一直没有新内容），已中止本次请求。可换更快的模型，或稍后重试。", "error");
   else if(e && e.code==="ABORT") banner("已取消本次请求。");
   else if(e && /Failed to fetch|NetworkError|TypeError|Load failed|Network request failed/i.test((e.name||"")+(e.message||""))) banner("AI 调用失败（网络/被拦截）：" + networkFailHint(), "error");
   else banner("出错了：" + esc((e && e.message) ? e.message : "未知错误"), "error");
@@ -5243,6 +5462,7 @@ function handleErr(e, keepView){
 
 /* 更新日志：发版时在最上面加一条；纯静态不联网，走哪个更新源都能看。 */
 const CHANGELOG = [
+  ["0.0.23", "出题在途时换页不丢：回首页或原科目页自动回到等待页、出好直接进题，等待页可取消；综应A 的题刷新后也能接着做（题目、草稿、限时起点都在）；缺 API Key 与缺模型分开说，选好模型当场生效；导入备份不再采用文件里的接口地址与模型；安装包默认走加速线路，线路不通自己换"],
   ["0.0.22", "归类页重做：分组与命名换成全站同一套圆角语言，提纲移到一稿页按需展开；批改页逐句标分（标在句末）；画像汇总入口在前，记录行可直接点开那次批改；材料标出来源；矮窗口自动收档"],
   ["0.0.21", "修复升级后练习记录读不出来的问题；另修复了一些问题"],
   ["0.0.20", "批改页重做：分数摆在最前、只标答漏的地方，答题后还能记一句思路；另修复了一些问题"],
@@ -5506,6 +5726,7 @@ renderChangelog();
     if(menu && a && (a === setModelEl || menu.contains(a))) return;
     modelMenuShow(false);
   }, 120);
+  setModelEl.addEventListener("change", ()=> persistModelChoice());
   setModelEl.addEventListener("blur", menuHideIfLeft);
   // 键盘通路：输入框 ↑/↓ 进入菜单并落在首/末可见项；菜单内 ↑/↓ 循环移动；Enter/空格原生触发 click 选中
   setModelEl.addEventListener("keydown", (e)=>{

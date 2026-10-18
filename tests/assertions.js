@@ -451,6 +451,19 @@ ok(el("#setMsg").textContent.indexOf("3 个模型") >= 0, "实拉: 手动拉取�
 el("#setModel").value = "deepseek-v4-flash";
 await fetchModels(false);
 ok(el("#setModel").value === "a-flash-model", "实拉: 手动拉取时名单外名字被纠偏");
+ok(state.settings.apiKey === "sk-test" && state.settings.model === "a-flash-model" && canStart(),
+   "首次配置: 拉取模型后 Key / 模型当场写回（按教程走完不点保存也能开始）");
+ok((JSON.parse(localStorage.getItem("gw_state") || "{}").settings || {}).model === "a-flash-model",
+   "首次配置: 选中的模型真的写进本地存储");
+{
+  const _k = state.settings.apiKey, _m = state.settings.model;
+  state.settings.apiKey = "sk-test"; state.settings.model = "";
+  renderHome();
+  const h = el("#docBody").innerHTML;
+  ok(h.indexOf('id="btnSetup">先选模型（设置里挑一个）') >= 0 && h.indexOf("开始快判") < 0,
+     "首次配置: 有 Key 没模型时首页不说「开始快判」，直接说先选模型");
+  state.settings.apiKey = _k; state.settings.model = _m;
+}
 globalThis.fetch = realFetch;
 
 /* 8.2 没有实拉结果时不编名字：候选可以空，模型名不可以瞎写 */
@@ -465,7 +478,7 @@ ok(el("#setModel").value === "" && el("#modelMenu").innerHTML.indexOf("deepseek"
    "换服务商: 模型栏留空等实拉，不含任何写死的名字");
 
 /* 8.3 档位→请求参数的映射（档位不再由用户选，改由每处调用内置并显式传 level） */
-state.settings.apiKey = "sk-test";
+state.settings.apiKey = "sk-test"; state.settings.model = "test-model";   // 入口闸认 Key + 模型两样
 const capBodies = [];
 const realFetch8 = globalThis.fetch;
 globalThis.fetch = (url, opt) => { capBodies.push(JSON.parse(opt.body));
@@ -752,6 +765,11 @@ ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据�
   el("#btnLandStart").onclick();
   ok(el("#modalSettings").hidden === false, "落地页（没 Key）: 主按钮真把人送到设置页");
   closeModals();
+  state.settings.apiKey = "sk-test"; state.settings.model = "";
+  renderModuleLanding("zy.guina");
+  const landNoModel = el("#docBody").innerHTML;
+  ok(landNoModel.indexOf('id="btnLandStart">先选模型（设置里挑一个）') >= 0 && landNoModel.indexOf("先填 API Key") < 0,
+     "落地页（有 Key 没模型）: 缺的是模型就说选模型，不说填 Key");
   state.settings.apiKey = kk; state.settings.model = mm;
 }
 state.history = [{ module:"zy.guina", subtype:"概括原因", grade:{ total:60, scores: scoresFor("zy.guina",12) }, cardPeeks:4 }];
@@ -787,7 +805,7 @@ ok(document.documentElement.style["--mark"] === "#a7f3d0", "颜色: CSS 变量�
 /* 9. 科目切换：模块 chips 只列当前科目的模块（落在纸面，不在顶栏）/ 抬头跟科目 / 画像分组 / prompt 口径 */
 state.history = [];
 state.profile.lastModules = ["zy.shiwu", "sl.guanche"];   // 两个科目各有一个「上次练的模块」
-state.settings.subject = "zy"; renderStart();
+state.resumeZy = null; state.settings.subject = "zy"; renderStart();
 ok(el("#subjbar").innerHTML.indexOf("综应A") >= 0 && el("#subjbar").innerHTML.indexOf("申论") >= 0,
    "科目切换: 两个科目都在科目栏");
 const zyChips = el("#docBody").innerHTML;
@@ -1130,10 +1148,139 @@ el("#btnResume").onclick();
 ok(_flowId === rFlow.id && current && current.module === "sl.guina", "恢复现场: 点击后才回到链上");
 ok(el("#docBody").innerHTML.indexOf("materialBox") >= 0, "恢复现场: 进入链停下的那一步");
 rFlow.createdAt = Date.now() - 25*3600*1000;
-current = null; _flowId = null;
+current = null; _flowId = null; state.resumeZy = null;
 renderStart();
 ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") < 0, "恢复现场: 超 24h 的链不再提示");
 state.flows = []; _flowId = null;
+/* 综应A 不在 flows 里：当前题、阶段与计时起点另存 resumeZy，刷新后从首页继续 */
+{
+  const _r = state.resumeZy, _subj = state.settings.subject, _cur = current;
+  const q = { background:"恢复用的材料", requirements:"概括问题", score:20 };
+  state.resumeZy = { module:"zy.guina", subtype:"概括问题", question:q, keyPoints:[], phase:"answer",
+                     limitMin:30, limitFrom:Date.now() - 60000, ts:Date.now(), cardPeeks:0 };
+  saveDraft(qSig(q), "写到一半的答案");
+  renderHome();
+  ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") >= 0 && el("#docBody").innerHTML.indexOf("综应A") >= 0,
+     "恢复: 综应A 未完成的题在首页给「继续」入口");
+  el("#btnResume").onclick();
+  ok(current && current.question.background === q.background && current.phase === "answer"
+     && el("#answer").value === "写到一半的答案" && current.limitFrom > 0,
+     "恢复: 综应A 刷新后题目、草稿、计时起点都回来");
+  finishCurrent();
+  ok(state.resumeZy === null, "恢复: 综应A 完成出口清掉快照（结果从记录再打开）");
+  clearDraft(qSig(q));
+  state.resumeZy = _r; state.settings.subject = _subj; current = _cur;
+}
+ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements:"y" } }) === null
+   && sanitizeResumeZy({ module:"zy.guina", question:{} }) === null,
+   "恢复: 快照只认综应A 与完整题目（坏形状一律丢）");
+
+/* 完成出口只清「就是快照那一道」：从记录页点开别人的批改再点完成，不该动还没做完的那道 */
+{
+  const _rz = state.resumeZy, _hist = state.history, _cur = current;
+  const qDoing = { background:"还没做完的那道", requirements:"r", score:20 };
+  state.resumeZy = { module:"zy.guina", subtype:"概括问题", question:qDoing, keyPoints:[], phase:"answer",
+                     limitMin:0, limitFrom:0, ts:Date.now(), cardPeeks:0 };
+  const qDone = { background:"记录里那一道", requirements:"r", score:20 };
+  const hRec = { ts:Date.now(), module:"zy.guina", subtype:"概括问题", question:qDone, answer:"a", keyPoints:[],
+                 hits:[], grade:{ total:80, scores:{} } };
+  state.history = [hRec];
+  openHistRecord(hRec);
+  ok(current && current.question && current.question.background === qDone.background, "完成出口: 从记录页打开的是那一条记录");
+  finishCurrent();
+  ok(state.resumeZy && state.resumeZy.question && state.resumeZy.question.background === "还没做完的那道",
+     "完成出口: 点开别人的批改再点完成，不清掉未做完那道题的续做入口");
+  state.resumeZy = _rz; state.history = _hist; current = _cur;
+}
+
+/* 12.7a 出题在途时换页：回首页 / 起题科目的起始页直接回到原来的等待页；出好直接进题；等待页可取消 */
+{
+  const _key = state.settings.apiKey, _model = state.settings.model;
+  const _tut = state.tut.done, _pg = pendingGen, _subj = state.settings.subject, _cur = current;
+  state.settings.apiKey = "sk-test"; state.settings.model = "test-model"; state.tut.done = true;
+  state.flows = []; state.resumeZy = null; pendingGen = null; state.settings.subject = "zy"; renderHome();
+  const realGen = gen, realPool = poolPick;
+  let resolveGen = null;
+  gen = ()=> new Promise(r=>{ resolveGen = r; });
+  poolPick = async ()=> null;
+
+  // ① 首页起题：切到申论页，再回首页 —— 首页应该直接回到等待页，而不是给一个「要不要继续」的入口
+  startSubjectTask("sl");   // 等价于首页点「写一篇申论」：_view 还是 home
+  const genModule = activeModule;
+  for(let i=0;i<50 && typeof resolveGen !== "function";i++) await Promise.resolve();
+  ok(el("#docBody").innerHTML.indexOf("正在为") >= 0, "出题在途: 首页起题先显示等待页");
+  renderStart();
+  ok(el("#docBody").innerHTML.indexOf("正在为") < 0 && el("#docBody").innerHTML.indexOf("申论 练什么？") >= 0,
+     "出题在途: 从首页起的题，切到科目页照常显示科目页");
+  renderHome();
+  ok(el("#docBody").innerHTML.indexOf("正在为") >= 0 && el("#docBody").innerHTML.indexOf('id="btnPending"') < 0,
+     "出题在途: 回首页直接回到原来的等待页（不留入口、不让人二选一）");
+  resolveGen({ question:{ background:"在途材料", requirements:"写一篇", score:20 }, keyPoints:[], studyCard:null });
+  for(let i=0;i<50 && _view !== "q";i++) await Promise.resolve();
+  ok(_view === "q" && current && current.module === genModule && current.question.background === "在途材料" && pendingGen === null,
+     "出题在途: 出好后直接进入那道题（回到之前题目页）");
+
+  // ② 等待页可以取消：不能因为回首页自动恢复就被锁死在等待页
+  renderHome();
+  resolveGen = null;
+  startSubjectTask("sl");
+  for(let i=0;i<50 && typeof resolveGen !== "function";i++) await Promise.resolve();
+  renderHome();
+  ok(!!el("#btnCancelGen"), "出题在途: 等待页给一个取消出口");
+  el("#btnCancelGen").onclick();
+  ok(pendingGen === null && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0,
+     "出题在途: 取消后回首页，状态清干净");
+
+  // ③ 从科目页起题：回原科目起始页也回到等待页
+  state.settings.subject = "sl"; renderStart();
+  resolveGen = null;
+  startSubjectTask("sl");
+  for(let i=0;i<50 && typeof resolveGen !== "function";i++) await Promise.resolve();
+  renderStart();
+  ok(el("#docBody").innerHTML.indexOf("正在为") >= 0, "出题在途: 从科目页起的题，回原科目页回到等待页");
+  el("#btnCancelGen").onclick();
+
+  gen = realGen; poolPick = realPool; pendingGen = _pg; current = _cur;
+  state.settings.apiKey = _key; state.settings.model = _model; state.tut.done = _tut; state.settings.subject = _subj;
+  renderHome();
+}
+
+/* 12.7c 两路出题并存：先起的那一路不许往后一路的页面上写秒数与实况（一屏只让当前这一路说话） */
+{
+  const _key = state.settings.apiKey, _model = state.settings.model, _tut = state.tut.done;
+  const _pg = pendingGen, _cur = current, _subj = state.settings.subject;
+  state.settings.apiKey = "sk-test"; state.settings.model = "test-model"; state.tut.done = true;
+  state.flows = []; state.resumeZy = null; pendingGen = null; current = null; state.settings.subject = "zy"; renderHome();
+  const realGen = gen, realPool = poolPick;
+  const deltas = [], resolvers = [];
+  gen = (k, sub, dim, noCache, onDelta)=> new Promise(r=>{ deltas.push(onDelta); resolvers.push(r); });
+  poolPick = async ()=> null;
+
+  startSubjectTask("zy");                                          // 第一路
+  for(let i=0;i<50 && deltas.length < 1;i++) await Promise.resolve();
+  renderStart();                                                   // 人离开第一路的等待页
+  startSubjectTask("sl");                                          // 第二路：同时在路上
+  for(let i=0;i<50 && deltas.length < 2;i++) await Promise.resolve();
+  ok(deltas.length === 2 && !!el("#elapsed") && !!el("#streamChars"), "两路出题: 第二路自己那一页在等");
+  deltas[0]("x", "老请求还在流");                                  // 老请求的回调迟到：不许写进别人这一页
+  ok(el("#streamChars").textContent === "", "两路出题: 先走的那一路不往后一路的页面上写实况");
+  deltas[1]("y", "新请求在流");
+  ok(el("#streamChars").textContent.indexOf("5 字") >= 0, "两路出题: 正在等的这一路照常写实况");
+
+  resolvers[0]({ question:{ background:"先走的那题", requirements:"r", score:20 }, keyPoints:[] });
+  for(let i=0;i<30;i++) await Promise.resolve();
+  ok(!!el("#btnCancelGen") && el("#docBody").innerHTML.indexOf("正在为") >= 0,
+     "两路出题: 先走的那一路出好了也不顶掉当前这一屏");
+
+  el("#btnCancelGen").onclick();
+  resolvers[1]({ question:{ background:"后来的那题", requirements:"r", score:20 }, keyPoints:[] });
+  for(let i=0;i<30;i++) await Promise.resolve();
+  ok(pendingGen === null && _view !== "q", "两路出题: 取消之后迟到的结果也不顶屏");
+
+  gen = realGen; poolPick = realPool; pendingGen = _pg; current = _cur;
+  state.settings.apiKey = _key; state.settings.model = _model; state.tut.done = _tut; state.settings.subject = _subj;
+  renderHome();
+}
 
 /* 12.7b 批改结果只从记录派生：重开页面后重进「批改」要有东西看，不能是一页空白 */
 {
@@ -1987,6 +2134,40 @@ importJSON(JSON.stringify({ settings:{ apiKey:"sk-attacker" }, history:[] }));
 ok(state.settings.apiKey === __keyCanary, "导入: 不采用文件里的 Key（别人的备份换不掉你的 Key）");
 importJSON(JSON.stringify({ settings:{}, history:[] }));
 ok(state.settings.apiKey === __keyCanary, "导入: 文件没带 Key 也不清空本机 Key");
+{
+  const keep = { provider:state.settings.provider, baseUrl:state.settings.baseUrl, model:state.settings.model, apiKey:state.settings.apiKey };
+  state.settings.provider = "deepseek"; state.settings.baseUrl = "https://api.deepseek.com/v1";
+  state.settings.model = "keep-model"; state.settings.apiKey = "sk-keep";
+  importJSON(JSON.stringify({ settings:{ provider:"openai", baseUrl:"https://evil.example/v1", model:"attacker", apiKey:"sk-evil" }, history:[] }));
+  ok(state.settings.baseUrl === "https://api.deepseek.com/v1" && state.settings.model === "keep-model" && state.settings.provider === "deepseek",
+     "导入: 不采用备份里的接口地址与模型（本机 Key 不会被导流）");
+  ok(state.settings.apiKey === "sk-keep", "导入: Key 仍是本机的");
+  importJSON(JSON.stringify({ modelCache:{ good:["m1"], bad:"x", nums:[1] }, history:[] }));
+  ok(Array.isArray(state.modelCache.good) && !state.modelCache.bad && !state.modelCache.nums,
+     "导入: modelCache 只收字符串数组");
+  /* 未做完的综应A 题只活在快照里：跟着备份一起回来（刷新与导入两条入口一个样），坏形状照旧丢掉 */
+  importJSON(JSON.stringify({ resumeZy:{ module:"zy.guina", subtype:"概括问题",
+    question:{ background:"导入回来的题", requirements:"r", score:20 }, phase:"answer", limitMin:30, ts:Date.now() }, history:[] }));
+  ok(state.resumeZy && state.resumeZy.question && state.resumeZy.question.background === "导入回来的题"
+     && state.resumeZy.phase === "answer",
+     "导入: 没做完的综应A 题跟着备份回来（不是只刷新才有）");
+  importJSON(JSON.stringify({ resumeZy:{ module:"sl.guina", question:{ background:"x", requirements:"y" } }, history:[] }));
+  ok(state.resumeZy === null, "导入: 快照只收综应A 且题目完整，坏形状一律丢掉");
+  state.resumeZy = null;
+  state.settings.provider = keep.provider; state.settings.baseUrl = keep.baseUrl; state.settings.model = keep.model; state.settings.apiKey = keep.apiKey;
+}
+{
+  // 写盘失败：整份回滚，不报假成功
+  const _set = localStorage.setItem;
+  const keepKey = state.settings.apiKey;
+  state.settings.apiKey = "sk-rollback";
+  localStorage.setItem = (k, v) => { if(k === "gw_history") throw new Error("quota"); return _set.call(localStorage, k, v); };
+  importJSON(JSON.stringify({ settings:{}, history:[{ ts:1, module:"zy.guina", grade:{ total:50, scores:{} } }] }));
+  localStorage.setItem = _set;
+  ok(state.settings.apiKey === "sk-rollback" && state.history.length === 0 && el("#bannerSlot").innerHTML.indexOf("导入失败") >= 0,
+     "导入: 写盘失败整份回滚并如实报错（不报「已恢复」）");
+  state.settings.apiKey = keepKey;
+}
 state.settings.apiKey = __keyBefore;
 
 /* 15.5 版本与更新：文案与入口都是纯函数，不需要真壳就能核 */
@@ -2672,7 +2853,7 @@ ok(tutNoKeySteps.every(s=> s.text.indexOf("不填 Key 也能练") < 0),
 ok(tutNoKeySteps.every(s=> s.scr !== "pd" || s.text.indexOf("示例") < 0)
    && TUT_SEQ.every(s=> s.text.indexOf("示例题") < 0 && (!s.nk || s.nk.text.indexOf("示例题") < 0)),
    "引导: 快判页与全部引导步骤都不再有示例题的口径");
-state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";   // gate-allow: 演示用假 Key，不是真凭据
+state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0"; state.settings.model = "test-model";   // gate-allow: 演示用假 Key，不是真凭据
 const tutKeySteps = visibleSteps();
 ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === i && s.sel === TUT_SEQ[i].sel),
    "引导/有 Key: 序列原样（onlyKey 步在，nk 变体不生效；科目页还是 4 步、第一步指红按钮）");
@@ -2687,10 +2868,11 @@ el("#btnSetup").onclick();
 ok(el("#modalSettings").hidden === false,
    "快判入口/没 Key: 主按钮真把人送到设置页（说完「先填 API Key」就得真能填）");
 closeModals();
+state.settings.apiKey = ""; state.settings.model = "";
 startPDRound(PD_MIX);
 ok(el("#bannerSlot").innerHTML.indexOf("出题和阅卷都要用 API Key") >= 0 && pdRound === null && pdActive === false,
    "快判入口/没 Key: 被 entryBlocked 拦在原地（不出题、不进判别轨）");
-state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0";   // gate-allow: 演示用假 Key，不是真凭据
+state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0"; state.settings.model = "test-model";   // gate-allow: 演示用假 Key，不是真凭据
 renderHome();
 const pdHomeKey = el("#docBody").innerHTML;
 ok(pdHomeKey.indexOf('id="btnQuick">开始快判') >= 0
