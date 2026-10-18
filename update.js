@@ -605,6 +605,10 @@ const UPDATE_DIR = 'updates';
 const ZIP_NAME_RE = /^liantai-desktop-(\d+\.\d+\.\d+)-(arm64|x64)\.zip$/;
 const MAC_SIG_SUFFIX = '.sig';              // 签名资产名 = 包名 + 这个后缀
 const MAC_SIG_MAX = 8 * 1024;               // 签名文件不会超过几行；比这大就不是签名
+const MAC_BASE_DIR = 'base';                // 上一版那份包与它的块清单：差量下载的基准
+const MAC_BLOCKMAP_MAX = 4 * 1024 * 1024;   // 块清单本身是 100KB 量级；比这大就不是清单
+const MAC_DIFF_MIN_SAVE = 0.25;             // 省不到四分之一就不走差量（请求碎、收益小）
+const MAC_DIFF_MAX_RUNS = 128;              // 缺块聚出的段数上限：太碎说明基准包不对
 
 /* 发布侧签名用的公钥（私钥在本机 ~/.liantai-release-key，不进仓库、不上传，见 tools/mac-key.mjs）。
    为什么要有这一层：光的 sha256 期望值是从同一份 Release 元数据里读的——元数据被改（账号被盗、
@@ -957,7 +961,11 @@ async function macCheckOnce() {
     }
     const sigUrl = assetUrlOf(sigAsset);
     macAssertUrl(sigUrl);
+    /* 块清单（差量用）：同一个 Release 里，名字 = 包名 + .blockmap。没有就退回整包下载 */
+    const mapAsset = pendingAssets.find((a) => assetNameOf(a) === assetName + '.blockmap' && assetUrlOf(a));
+    if (mapAsset) macAssertUrl(assetUrlOf(mapAsset));
     mac.pending = { version: pendingTag, url: url, assetName: assetName, sigUrl: sigUrl,
+                    blockmapUrl: mapAsset ? assetUrlOf(mapAsset) : '',
                     size: Number(pendingAsset.size) || 0, digest: String(pendingAsset.digest || '') };
     status.latestVersion = pendingTag;
     setPhase(PHASE.AVAILABLE, 'v' + pendingTag + ' 可用（点「更新到 v' + pendingTag + '」开始下载）');
@@ -998,6 +1006,251 @@ async function macCheckSignature(p, hashHex, sigUrl) {
     } catch (err) { /* 这把验不了就看下一把 */ }
   }
   throw new Error('包签名验不过（发布侧没签过这个包，或者包与签名被换过）——拒收，请手动下载安装');
+}
+
+/* 期望的 sha256：发布页不给 digest 就拒收，不许静默跳过——有条件校验等于没有校验。 */
+function macDigestExpected(p) {
+  const want = String(p.digest || '').replace(/^sha256:/i, '').toLowerCase();
+  if (!want) throw new Error('发布页没给 sha256，包完整性无从校验——拒收（宁可先不更新）');
+  return want;
+}
+
+/* ---- mac 差量：只下真正变了的块 ------------------------------------------------------
+   blockmap 是 electron-builder 随包发的一份「块清单」：逐块一个校验和加一个块长。两版的清单
+   都在手上时，新版里「上一版原样有」的块直接从本地那份包复制，剩下缺的块用 Range 按段取回来，
+   拼出一份与整包逐字节相同的 zip；拼完照旧走 sha256 + 发布侧签名两道校验——拼错了第一道就
+   拦下，回落整包下载。2026-10-18 实测 0.0.22 → 0.0.23：96MB 的包里只有 1.12MB 是新的。
+   校验和算的是什么这里不关心：它只在「两份清单里比字符串是不是同一个块」这一处被用到。 */
+function macBaseDir() { return macDir() ? path.join(macDir(), MAC_BASE_DIR) : ''; }
+
+/* 手上能当基准的那一份包：取版本最高的。它不必等于当前版本——块按内容认，早几版的包
+   照样能供出大量相同的块。清单缺一份就用不上（包与清单是配对的前提）。 */
+function macBasePair() {
+  const dir = macBaseDir();
+  if (!dir) return null;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch (err) { return null; }
+  let best = null;
+  for (const n of names) {
+    const m = ZIP_NAME_RE.exec(n);
+    if (!m || m[2] !== process.arch) continue;
+    const zip = path.join(dir, n), map = zip + '.blockmap';
+    if (!fs.existsSync(zip) || !fs.existsSync(map)) continue;
+    if (best && cmpVersion(m[1], best.version) <= 0) continue;
+    best = { version: m[1], zip: zip, blockmap: map };
+  }
+  return best;
+}
+
+/* 装完把刚下好那份包与它的清单挪成基准（硬链接，不复制 96MB）。只留一份，旧的删掉；
+   少一份清单也不留：那份包当不了基准，白占 96MB。 */
+function macPromoteBase() {
+  if (!macReady() || !mac.ready) return;
+  const dir = macBaseDir();
+  if (!dir) return;
+  const zip = mac.ready.path;
+  const map = zip + '.blockmap';
+  try {
+    if (!fs.existsSync(zip)) return;
+    if (!fs.existsSync(map)) {
+      log('update-base-skip', '这份包没带块清单，不留基准（下次仍走整包）：' + path.basename(zip));
+      return;
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    for (const n of fs.readdirSync(dir)) {
+      if (n === path.basename(zip) || n === path.basename(map)) continue;
+      try { fs.unlinkSync(path.join(dir, n)); } catch (err) { /* 删不动就下次再说 */ }
+    }
+    const keepZip = path.join(dir, path.basename(zip));
+    const keepMap = path.join(dir, path.basename(map));
+    if (!fs.existsSync(keepZip)) {
+      try { fs.linkSync(zip, keepZip); }               // 同一卷：硬链接，换包脚本删掉原件也不影响这份
+      catch (err) { fs.copyFileSync(zip, keepZip); }   // 少数文件系统不支持链接，那就复制一份
+    }
+    if (!fs.existsSync(keepMap)) fs.copyFileSync(map, keepMap);
+    log('update-base', '基准包已留下：' + path.basename(zip));
+  } catch (err) {
+    log('update-base-error', (err && err.message) || String(err));
+  }
+}
+
+/* 块清单发下来、存下来都是 gzip 的：在这里统一解一下，别让每个调用方各写一遍 */
+function macBlockmapTextOf(buf) {
+  const raw = Buffer.isBuffer(buf) ? buf : Buffer.from(String(buf), 'utf8');
+  const out = (raw.length > 2 && raw[0] === 0x1f && raw[1] === 0x8b) ? zlib.gunzipSync(raw) : raw;
+  return out.toString('utf8');
+}
+
+/* 取一份块清单：同一个 Release 里就有（资产名 = 包名 + .blockmap）。
+   走与包同一条候选来源（镜像在前、官方域兜底），一条不通换下一条。
+   回原文（已解压，供解析）与原始字节（原样存盘，下一版当基准用）。 */
+async function macFetchBlockmap(url) {
+  if (!url) throw new Error('发布页没给块清单地址');
+  let fail = null;
+  for (const cand of macSourceUrls(url)) {
+    try {
+      const res = await macOpen(cand, { Accept: 'application/octet-stream' }, MAC_API_TIMEOUT_MS);
+      const code = res.statusCode || 0;
+      if (code !== 200) { res.resume(); throw new Error('块清单回了 HTTP ' + code); }
+      const chunks = [];
+      let n = 0;
+      for await (const c of res) {
+        n += c.length;
+        if (n > MAC_BLOCKMAP_MAX) { res.destroy(); throw new Error('块清单过大，不像一份清单'); }
+        chunks.push(c);
+      }
+      const buf = Buffer.concat(chunks);
+      const text = macBlockmapTextOf(buf);
+      macParseBlockmap(text);   // 先解析一遍：格式不对当场就知道，不留到拼包时才发
+      return { text: text, buf: buf };
+    } catch (err) {
+      fail = err;
+    }
+  }
+  throw new Error('块清单取不回来（' + ((fail && fail.message) || String(fail)) + '）');
+}
+
+/* 解析块清单：checksums[i] 与 sizes[i] 一一对应，偏移从 files[0].offset 起逐块累加。
+   畸形的输入一律拒收（不是数组、长度不对、块长不正常）。 */
+function macParseBlockmap(text) {
+  let data = null;
+  try { data = JSON.parse(typeof text === 'string' ? text : String(text)); }
+  catch (err) { throw new Error('块清单不是 JSON'); }
+  const f = data && Array.isArray(data.files) ? data.files[0] : null;
+  const cs = f && f.checksums, sz = f && f.sizes;
+  if (!Array.isArray(cs) || !Array.isArray(sz) || !cs.length || cs.length !== sz.length) {
+    throw new Error('块清单结构不对（checksums / sizes 不是等长数组）');
+  }
+  const byHash = new Map();
+  const blocks = [];
+  let off = Number(f.offset) || 0;
+  const start = off;
+  for (let i = 0; i < cs.length; i++) {
+    const len = Number(sz[i]);
+    if (!Number.isFinite(len) || len <= 0) throw new Error('块清单里有长度不正常的块');
+    const b = { hash: String(cs[i]), offset: off, size: len };
+    blocks.push(b);
+    if (!byHash.has(b.hash)) byHash.set(b.hash, { offset: off, size: len });
+    off += len;
+  }
+  return { blocks: blocks, byHash: byHash, size: off - start };
+}
+
+/* 拼包计划：新版每一块，旧清单里有同校验和同长度的就从本地复制，其余按段取。
+   只把「目标文件里连续」的缺块并成一段（Range 按目标偏移算）。 */
+function macDiffPlan(oldIdx, newIdx) {
+  const copySegs = [], grab = [];
+  let fetchBytes = 0, run = null;
+  for (const b of newIdx.blocks) {
+    const hit = oldIdx.byHash.get(b.hash);
+    if (hit && hit.size === b.size) {
+      copySegs.push({ from: hit.offset, to: b.offset, len: b.size });
+      continue;
+    }
+    fetchBytes += b.size;
+    if (run && run.offset + run.len === b.offset) run.len += b.size;
+    else { run = { offset: b.offset, len: b.size }; grab.push(run); }
+  }
+  return { copySegs: copySegs, grab: grab, fetchBytes: fetchBytes, total: newIdx.size };
+}
+
+function macCopyRange(srcFd, dstFd, from, to, len) {
+  const buf = Buffer.allocUnsafe(Math.min(1024 * 1024, len));
+  let done = 0;
+  while (done < len) {
+    const n = fs.readSync(srcFd, buf, 0, Math.min(buf.length, len - done), from + done);
+    if (n <= 0) throw new Error('基准包读不出来了（文件被改过或坏掉）');
+    fs.writeSync(dstFd, buf, 0, n, to + done);
+    done += n;
+  }
+}
+
+/* 按段取一块：必须回 206，长度必须正好是这一段——多一个字节少一个字节都当这条路走不通 */
+async function macFetchRange(bodyUrl, seg, dstFd, onBytes) {
+  const end = seg.offset + seg.len - 1;
+  const res = await macOpen(bodyUrl, { Range: 'bytes=' + seg.offset + '-' + end }, MAC_IDLE_TIMEOUT_MS);
+  const code = res.statusCode || 0;
+  if (code !== 206) { res.destroy(); throw new Error('这条来源不支持按段取（HTTP ' + code + '）'); }
+  let got = 0;
+  for await (const c of res) {
+    if (got + c.length > seg.len) { res.destroy(); throw new Error('按段取回来的字节比要的多'); }
+    fs.writeSync(dstFd, c, 0, c.length, seg.offset + got);
+    got += c.length;
+    onBytes(c.length);
+  }
+  if (got !== seg.len) throw new Error('按段取回来的字节不够（收到 ' + got + '，应为 ' + seg.len + '）');
+}
+
+async function macSha256File(p) {
+  const hash = crypto.createHash('sha256');
+  for await (const c of fs.createReadStream(p)) hash.update(c);
+  return hash.digest('hex');
+}
+
+/* 差量下这一份来源：先取目标清单、与基准清单对块，命中从本地复制、缺块按段取，拼完照旧两道校验。
+   任一步不对劲都抛出去——调用方回落整包，用户那边最坏也只是多下一份。 */
+async function macPullDiff(p, bodyUrl, sigUrl, part) {
+  const base = macBasePair();
+  if (!base) throw new Error('手上没有可当基准的包');
+  const bm = await macFetchBlockmap(p.blockmapUrl);
+  const newIdx = macParseBlockmap(bm.text);
+  const oldIdx = macParseBlockmap(macBlockmapTextOf(fs.readFileSync(base.blockmap)));
+  if (p.size && newIdx.size !== p.size) throw new Error('块清单与这版包的字节数对不上');
+  const plan = macDiffPlan(oldIdx, newIdx);
+  const saved = plan.total ? 1 - plan.fetchBytes / plan.total : 0;
+  if (saved < MAC_DIFF_MIN_SAVE) throw new Error('差量只省下 ' + Math.round(saved * 100) + '%，不值得走这条路');
+  if (plan.grab.length > MAC_DIFF_MAX_RUNS) throw new Error('缺块太碎（' + plan.grab.length + ' 段），改走整包');
+
+  const t0 = Date.now();
+  let got = 0, lastPercent = -1;
+  const onBytes = (n) => {
+    got += n;
+    const percent = plan.fetchBytes ? Math.max(0, Math.min(100, Math.round(got / plan.fetchBytes * 100))) : 100;
+    if (percent === lastPercent) return;   // 每变一个百分点才推一次，别把状态通道刷爆
+    lastPercent = percent;
+    status.progress = { percent: percent, transferred: got, total: plan.fetchBytes,
+                        bytesPerSecond: Math.round(got / Math.max(0.5, (Date.now() - t0) / 1000)),
+                        diff: true, full: plan.total };
+    setPhase(PHASE.DOWNLOADING, '下载中 ' + percent + '%（差量）');
+  };
+  status.progress = { percent: 0, transferred: 0, total: plan.fetchBytes, bytesPerSecond: 0, diff: true, full: plan.total };
+  setPhase(PHASE.DOWNLOADING, '下载中 0%（差量）');
+
+  const srcFd = fs.openSync(base.zip, 'r');
+  let dstFd = null;
+  try {
+    dstFd = fs.openSync(part, 'w');
+    fs.ftruncateSync(dstFd, plan.total);
+    for (const seg of plan.copySegs) macCopyRange(srcFd, dstFd, seg.from, seg.to, seg.len);
+    for (const seg of plan.grab) await macFetchRange(bodyUrl, seg, dstFd, onBytes);
+  } finally {
+    try { fs.closeSync(srcFd); } catch (err) { /* 已经关了 */ }
+    if (dstFd !== null) { try { fs.closeSync(dstFd); } catch (err) { /* 已经关了 */ } }
+  }
+  const st = fs.statSync(part);
+  if (p.size && st.size !== p.size) throw new Error('拼出来的包大小不对（' + st.size + ' 字节，应为 ' + p.size + '）');
+  const gotHex = await macSha256File(part);
+  if (macDigestExpected(p) !== gotHex) throw new Error('拼出来的包 sha256 与发布页对不上（基准包不是这一版？）');
+  await macCheckSignature(p, gotHex, sigUrl);   // 独立一遭：期望值与地址同源，签名不靠它们
+  /* 清单留着：装完挪成基准，下次才有得对 */
+  try { fs.writeFileSync(part + '.blockmap', bm.buf); } catch (err) { log('update-blockmap-save', (err && err.message) || String(err)); }
+  log('update-diff', '差量下完：下 ' + plan.fetchBytes + ' 字节 / 整包 ' + plan.total + ' 字节（基准 v' + base.version
+      + '，' + plan.grab.length + ' 段，' + plan.copySegs.length + ' 块本地复制）');
+  return got;
+}
+
+/* 一条来源上先试差量、不行就整包：差量失败不去动「换来源」——那是两件事，
+   免得一次拼包不对就把用户推到官方直连的慢线上。 */
+async function macPullSource(p, bodyUrl, sigUrl, part) {
+  if (p.blockmapUrl && macBasePair()) {
+    try {
+      return await macPullDiff(p, bodyUrl, sigUrl, part);
+    } catch (err) {
+      log('update-diff-fallback', '差量这条路没走通（' + ((err && err.message) || String(err)) + '），这条来源改走整包：' + bodyUrl);
+      try { fs.unlinkSync(part); } catch (e) { /* 没写出来就算了 */ }
+    }
+  }
+  return await macPullOnce(p, bodyUrl, sigUrl, part);
 }
 
 /* 下载：由页面点「更新到 vX」触发（POST /__update/download）。同步返回 true = 已开始。 */
@@ -1045,14 +1298,40 @@ async function macPullOnce(p, bodyUrl, sigUrl, part) {
     res.pipe(out);
   });
   if (p.size && got !== p.size) throw new Error('下载不完整（收到 ' + got + ' 字节，应为 ' + p.size + '）');
-  /* 未签名链上 sha256 是包内容唯一的防线：发布页不给 digest 就拒收，不许静默跳过——
-     有条件校验等于没有校验。 */
-  const want = String(p.digest || '').replace(/^sha256:/i, '').toLowerCase();
-  if (!want) throw new Error('发布页没给 sha256，包完整性无从校验——拒收（宁可先不更新）');
+  const want = macDigestExpected(p);
   const gotHex = hash.digest('hex');
   if (want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
   await macCheckSignature(p, gotHex, sigUrl);   // 独立一遭：期望值与地址同源，签名不靠它们
+  /* 顺手把块清单留下来：装完它就是下一版的差量基准。取不回来不算失败（下次整包就是了） */
+  if (p.blockmapUrl) {
+    try { fs.writeFileSync(part + '.blockmap', (await macFetchBlockmap(p.blockmapUrl)).buf); }
+    catch (err) { log('update-blockmap-miss', (err && err.message) || String(err)); }
+  }
   return got;
+}
+
+/* 下好新版之后把早先那些没装成的旧包清掉：每份 96MB，界面只认刚下好那份，旧的不可能再被装。
+   只清**版本比手上这份更旧的**，同版或更新的原样留着（“更新的”只能是人手动丢进来的，不归程序管）；
+   上一次换包留下的脚本也一并清（一次一份，它指向的文件早没了）。
+   base/ 里的基准包由 macPromoteBase 管，`.part` 半成品由各自的下载路径收，`.bad` 是故意留着
+   给人看的，这三样这里都不碰。 */
+function macPruneResidue(keepZipName) {
+  const keep = ZIP_NAME_RE.exec(keepZipName);
+  if (!keep) return;
+  const dir = macDir();
+  if (!dir) return;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch (err) { return; }
+  for (const n of names) {
+    if (n === keepZipName) continue;
+    let doomed = /^install-\d+\.sh$/.test(n);
+    if (!doomed) {
+      const m = ZIP_NAME_RE.exec(n);
+      doomed = !!m && cmpVersion(m[1], keep[1]) < 0;
+    }
+    if (!doomed) continue;
+    try { fs.unlinkSync(path.join(dir, n)); } catch (err) { /* 删不动就算了，能在下一轮再说 */ }
+  }
 }
 
 async function macPull(p) {
@@ -1069,7 +1348,8 @@ async function macPull(p) {
 
   /* 包与签名按同一条来源成对试：github.com 的地址先经镜像、官方域兜底；不是 github.com 的地址
      只有它自己一条。某条来源取回后照旧走 sha256 + Ed25519 验签，校验不过或中途断就换下一条，
-     全部试完才报错——任何一步都不跳过、不放宽。 */
+     全部试完才报错——任何一步都不跳过、不放宽。差量与整包在这条来源上是同一回事：
+     差量拼不成（或省不下）就在同一份来源上回落整包。 */
   const bodyCands = macSourceUrls(p.url);
   const sigCands = macSourceUrls(p.sigUrl);
   let fail = null;
@@ -1077,8 +1357,12 @@ async function macPull(p) {
     const body = bodyCands[i];
     const sig = sigCands[i] || sigCands[sigCands.length - 1];
     try {
-      const got = await macPullOnce(p, body, sig, part);
+      const got = await macPullSource(p, body, sig, part);
       fs.renameSync(part, file);   // 校验过了才改回正名：半截文件不许看起来像“下好了”
+      try {
+        if (fs.existsSync(part + '.blockmap')) fs.renameSync(part + '.blockmap', file + '.blockmap');
+      } catch (err) { log('update-blockmap-save', (err && err.message) || String(err)); }   // 只是一份清单，不阻断
+      macPruneResidue(name);   // 更旧的包（没装成的那些，每份 96MB）与过期脚本到这就没用了
       mac.ready = { version: p.version, path: file };
       mac.pending = null;
       status.progress = { percent: 100, transferred: got, total: got, bytesPerSecond: 0 };
@@ -1154,6 +1438,9 @@ function macInstall() {
   }
   const logPath = path.join(macDir(), 'install.log');
   const scriptPath = path.join(macDir(), 'install-' + mac.pid + '.sh');
+  /* 交出去之前把这份包与清单留成基准：换包脚本会把原件删掉，差量下次要靠这一份。
+     留不下来也不阻断换包（下次整包下载而已）。 */
+  macPromoteBase();
   try {
     fs.writeFileSync(scriptPath, MAC_INSTALL_SCRIPT, { mode: 0o755 });
   } catch (err) {

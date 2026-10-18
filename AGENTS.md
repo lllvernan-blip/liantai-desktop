@@ -72,6 +72,7 @@
 - **双机协作发版（四步）**：① mac 提 version + `CHANGELOG` 一行并推；② Windows 拉到最新后 `npm run release`；③ mac `npm run release:mac -- --skip-build` 补 mac 六件。
 - **材料的改动进 git，材料单独发**：池子本体是 `materials/pool/`（**审材料就是看 diff**），用 `npm run materials:pack` 发到一个固定 tag 的 prerelease 上，**不跟安装包走**（时效线半年，它有自己的节奏）；应用启动后自己拉，**拉不到一律没声**、回落编材料。签名与 mac 包同一把私钥；`materials/` 有未提交的改动就不许发布。细节见 `docs/发布与更新.md`。
 - **mac 包每版都有发布侧签名**：`release:mac` 自动给每个 zip 签出 `.sig` 再传，没私钥就停手不传。**私钥在 `~/.liantai-release-key`，不进仓库、不上传，丢了就只能手动重装一次**；换钥要先把新公钥发一版。细节与理由见 `docs/发布与更新.md`。
+- **mac 换包默认走差量**：手上有上一版那份包与它的 `.blockmap` 时，只把变了的块按 `Range` 取回来，其余从本地复制；拼完照旧过 sha256 + 发布侧签名，任一步不对就回落整包。**别删 `Release` 里的 `.zip.blockmap`**（少了它下一版就退化成整包下），也别去“清理”用户机器上的 `userData/updates/base/`（那是差量的基准）。细节见 `docs/发布与更新.md`。
 - **仓库位置与应用标识只有一处真源（`app-meta.js`）**：壳、更新链、发布工具都从它取 owner/repo/appId/name；`package.json` 的 `build.publish` 与 `build.appId` 是给 electron-builder 的同一份信息。**运行期不能读 package.json 取这些值**：打包时 electron-builder 会把 `build` 段剥掉。
   - Windows **直连官方 git 协议不通**：拉取用转发站一次性 fetch，**别改 origin、更别用它推送**（推送带令牌）；拉完 `git rev-parse HEAD` 必须就是 mac 推的那条 sha，不等就别发。
   - **先发的那台决定 tag**（`gh release create` 用本地 HEAD 建 tag）：谁先发谁先拉最新；tag 不是本地 HEAD 就 `git checkout <tag>` 重新出包。Windows 的 gh 登录是交互式的，必须本人敲一次。

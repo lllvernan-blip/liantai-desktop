@@ -5556,9 +5556,11 @@ function updateNoteText(s, mac){
   }
   if(s.phase === "downloading"){
     const p = s.progress || {};
-    return "正在下载 v" + (s.latestVersion||"") + " … " + (p.percent||0) + "%"
-      + (p.total? "（" + fmtMB(p.transferred) + " / " + fmtMB(p.total) + "）" : "")
-      + "，期间可以照常练题。";
+    /* 差量那一下要能看出来：不然他看着进度条飞快，不知道它没重下整包 */
+    const size = (p.diff && p.full)
+      ? "（差量：只下变了的部分 " + fmtMB(p.total) + "，整包是 " + fmtMB(p.full) + "）"
+      : (p.total? "（" + fmtMB(p.transferred) + " / " + fmtMB(p.total) + "）" : "");
+    return "正在下载 v" + (s.latestVersion||"") + " … " + (p.percent||0) + "%" + size + "，期间可以照常练题。";
   }
   if(s.phase === "downloaded"){
     if(manualDown) return "v" + (s.latestVersion||"") + " 已下载完成。点「重启并更新」会关掉应用、换上新版再打开——不点它就不会自己换。" + tail;

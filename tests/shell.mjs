@@ -13,7 +13,7 @@ import { EventEmitter } from "node:events";
 import { setTimeout as realSetTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, chmodSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, chmodSync, cpSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
@@ -494,6 +494,19 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   restore();
 }
 
+/* 造一份块清单：形状照 electron-builder 那份来（gzip 过的 JSON；files[0] 里 checksums 与 sizes
+   一一对应，偏移从 offset 起累加）。校验和用什么都行——被测的代码只在两份清单之间比字符串，
+   不自己算校验和；包本身的完整性始终由 sha256 与发布侧签名把关。 */
+const macBlockmapOf = (buf, blockSize) => {
+  const checksums = [], sizes = [];
+  for (let at = 0; at < buf.length; at += blockSize) {
+    const chunk = buf.subarray(at, Math.min(buf.length, at + blockSize));
+    checksums.push(createHash("sha256").update(chunk).digest("base64"));
+    sizes.push(chunk.length);
+  }
+  return gzipSync(Buffer.from(JSON.stringify({ version: "2", files: [{ name: "file", offset: 0, checksums, sizes }] })));
+};
+
 /* ---- 6. macOS 换包链全程（假源 + 临时目录，换包脚本真的跑） ----
    为什么值得写这么重：这条链的最后一步是「把自己换掉再重启」，写错了用户手上就没有应用了。
    所以这里量的是真脚本：真 ditto 解压、真 PlistBuddy 读版本、真两次 mv、真回滚；
@@ -510,26 +523,58 @@ if (process.platform !== "darwin") {
     const target = join(appsDir, "练习台.app");
     const userData = join(base, "userdata");
     mkdirSync(appsDir, { recursive: true });
+    const plistOf = (version, bundleId) => '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+      '<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>' + (bundleId || "com.lllvernan.liantai") + '</string>' +
+      '<key>CFBundleShortVersionString</key><string>' + version + '</string></dict></plist>\n';
     const mkApp = (dir, version, marker, bundleId) => {
       mkdirSync(join(dir, "Contents", "MacOS"), { recursive: true });
       mkdirSync(join(dir, "Contents", "Resources"), { recursive: true });
-      writeFileSync(join(dir, "Contents", "Info.plist"),
-        '<?xml version="1.0" encoding="UTF-8"?>\n' +
-        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
-        '<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>' + (bundleId || "com.lllvernan.liantai") + '</string>' +
-        '<key>CFBundleShortVersionString</key><string>' + version + '</string></dict></plist>\n');
+      writeFileSync(join(dir, "Contents", "Info.plist"), plistOf(version, bundleId));
       writeFileSync(join(dir, "Contents", "MacOS", "练习台"), "#!/bin/bash\nexit 0\n");
       writeFileSync(join(dir, "Contents", "Resources", "marker.txt"), marker);
     };
+    /* o.filler：给包里塞点有量的内容。差量那几条要的是「大部分块没变」，
+       几个小文件打出来的包只够几块，量不出「只下了几块」这件事。 */
+    /* 每行都不一样：同一句反复重复会被压成一两百字节，包就小到量不出「只下了几块」 */
+    const fillerText = (seed, lines) => {
+      let s = "";
+      for (let i = 0; i < lines; i++) s += seed + "第" + i + "条：概括句先行，具体要点在后，对策要能落地。\n";
+      return s;
+    };
+    const addFiller = (dir, seed) => {
+      if (!o.filler) return;
+      writeFileSync(join(dir, "Contents", "Resources", "filler.txt"), fillerText(seed || "要领：", o.filler));
+    };
+    const dittoZip = (dir, out) => execFileSync("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", dir, out]);
     mkApp(target, o.currentVersion, "old", o.targetId);
     const staging = join(base, "staging", "练习台.app");
-    mkApp(staging, o.zipVersion, "new", o.newId);
+    /* o.base：先造一份「上一版那份包」，再把目标包从它的基础上改出来（只改 Info.plist 与 marker）。
+       真实的差量正是这个形状：绝大部分内容是同一个字节，变的只有那么几处。 */
+    let baseBytes = null, baseZipName = "";
+    if (o.base) {
+      const oldStaging = join(base, "staging-base", "练习台.app");
+      mkApp(oldStaging, o.base, "old", o.newId);
+      addFiller(oldStaging);
+      baseZipName = "liantai-desktop-" + o.base + "-" + process.arch + ".zip";
+      dittoZip(oldStaging, join(base, baseZipName));
+      baseBytes = readFileSync(join(base, baseZipName));
+      cpSync(oldStaging, staging, { recursive: true, preserveTimestamps: true });
+      writeFileSync(join(staging, "Contents", "Info.plist"), plistOf(o.zipVersion, o.newId));
+      writeFileSync(join(staging, "Contents", "Resources", "marker.txt"), "new");
+      /* o.baseDifferent：目标包里连 filler 都换了内容，两块清单对下来几乎块都不重合 */
+      if (o.baseDifferent) addFiller(staging, "对策：备考思路与答题节奏的复盘要点：");
+    } else {
+      mkApp(staging, o.zipVersion, "new", o.newId);
+      addFiller(staging);
+    }
     const zipName = "liantai-desktop-" + o.apiVersion + "-" + process.arch + ".zip";
     /* 文件名就用资产名：签名覆盖的内容里带着资产名（发布时签的就是 dist/ 里那个产物），
        测试这条链也要跟真实发布一致，否则验的是一条真实里走不通的路。 */
     const zipPath = join(base, zipName);
-    execFileSync("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", staging, zipPath]);
+    dittoZip(staging, zipPath);
     const zipBytes = readFileSync(zipPath);
+    const mapBytes = macBlockmapOf(zipBytes, o.blockSize || 4096);
     /* 私钥现场生成到临时目录，不碰本机那把发布私钥（测试要能反复跑、而且不能需要任何本机秘密） */
     const keyDir = join(base, "keys");
     const keyPath = join(keyDir, "release.pem");
@@ -544,8 +589,9 @@ if (process.platform !== "darwin") {
        （模拟「元数据被改、包也被换」）—— 这时 sha256 那道拦不住，只有签名能拦。 */
     const served = Buffer.from(zipBytes);
     if (o.tamper) served[Math.floor(served.length / 2)] ^= 0xff;
-    const files = { api: null, bodyPath: "/dl/" + zipName, sigPath: "/dl/" + zipName + ".sig" };
-    let sigHits = 0;
+    const files = { api: null, bodyPath: "/dl/" + zipName, sigPath: "/dl/" + zipName + ".sig",
+                    mapPath: "/dl/" + zipName + ".blockmap" };
+    let sigHits = 0, mapHits = 0, rangeHits = 0, rangedBytes = 0, zipHits = 0, zipBytesServed = 0;
     const srv = createServer((req, res) => {
       const u = String(req.url || "").split("?")[0];
       if (u === "/api") {
@@ -553,7 +599,24 @@ if (process.platform !== "darwin") {
         res.end(JSON.stringify(files.api));
         return;
       }
+      if (u === files.mapPath) {
+        mapHits++;
+        res.writeHead(200, { "Content-Type": "application/octet-stream", "Content-Length": mapBytes.length });
+        res.end(mapBytes);
+        return;
+      }
       if (u === files.bodyPath) {
+        /* 差量靠 Range：真源（GitHub 与镜像）都支持，这里照做；o.noRange 用来演「这条源不支持」 */
+        const m = o.noRange ? null : /^bytes=(\d+)-(\d+)$/.exec(String(req.headers.range || ""));
+        if (m) {
+          const a = Number(m[1]), b = Math.min(Number(m[2]), served.length - 1);
+          rangeHits++; rangedBytes += b - a + 1;
+          res.writeHead(206, { "Content-Type": "application/zip", "Content-Range": "bytes " + a + "-" + b + "/" + served.length,
+                               "Content-Length": b - a + 1 });
+          res.end(served.subarray(a, b + 1));
+          return;
+        }
+        zipHits++; zipBytesServed += served.length;
         res.writeHead(200, { "Content-Type": "application/zip", "Content-Length": served.length });
         res.end(served);
         return;
@@ -581,12 +644,27 @@ if (process.platform !== "darwin") {
       assets.push({ name: zipName + ".sig", size: Buffer.byteLength(sigText),
                     browser_download_url: "http://127.0.0.1:" + port + files.sigPath });
     }
+    if (!o.noMapAsset) {
+      assets.push({ name: zipName + ".blockmap", size: mapBytes.length,
+                    browser_download_url: "http://127.0.0.1:" + port + files.mapPath });
+    }
     files.api = { tag_name: "v" + o.apiVersion, assets: assets };
     if (o.asList) files.api = [
       { tag_name: "v0.0.99-draft", draft: true, assets: [] },   // draft：跳过不看
       { tag_name: "v" + o.apiVersion, prerelease: true, assets: files.api.assets },
     ];
     let quitCalled = 0;
+    /* o.base：把「上一版那份包 + 它的清单」先摆进 userData/updates/base/。
+       真实里这是上一次升级装完后留下的，测试里直接摆好——量的是差量逻辑，不是上一次留下的过程。 */
+    if (o.base) {
+      const bdir = join(userData, "updates", "base");
+      mkdirSync(bdir, { recursive: true });
+      /* 改坏的那一个字节要落在「一定会被复制」的那段里：包里中段是大块没变的内容，
+        改在包头的块可能本来就要从源上取，那样拼出来反倒是对的，这一条就成了碰运气。 */
+      const hurt = o.baseTamper ? Buffer.from(baseBytes.map((b, i) => i === Math.floor(baseBytes.length / 2) ? b ^ 0xff : b)) : baseBytes;
+      writeFileSync(join(bdir, baseZipName), hurt);
+      writeFileSync(join(bdir, baseZipName + ".blockmap"), macBlockmapOf(baseBytes, o.blockSize || 4096));
+    }
     const { mod, restore } = loadUpdate({});
     mod.initUpdate({ log, isPackaged: true, currentVersion: o.currentVersion, platform: "darwin",
                      releasesUrl: "https://example.invalid/releases",
@@ -613,7 +691,10 @@ if (process.platform !== "darwin") {
       rmSync(base, { recursive: true, force: true });
     };
     return { base, appsDir, target, userData, zipName, zipPath, zipBytes, mod, clean, keyPath, pubPem,
-             versionOf, markerOf, sigHits: () => sigHits, quitCount: () => quitCalled };
+             baseZipName, baseBytes, mapBytes,
+             versionOf, markerOf, sigHits: () => sigHits, quitCount: () => quitCalled,
+             mapHits: () => mapHits, rangeHits: () => rangeHits, rangedBytes: () => rangedBytes,
+             zipHits: () => zipHits, zipBytesServed: () => zipBytesServed };
   };
 
   /* 6a. 查 -> 下 -> 换 -> 重启，一路正常 */
@@ -782,6 +863,114 @@ if (process.platform !== "darwin") {
     ok(refused && /不是练习台/.test(c.mod.getStatus().error),
        "壳/mac: 找到的 .app 标识对不上 -> 拒绝换包并说清（不拿一个来路不明的目录开刀）");
     ok(c.quitCount() === 0 && c.versionOf() === "0.0.15", "壳/mac: 拒绝时不许动退出流程，也不许动旧版");
+    c.clean();
+  }
+
+  /* 6l. 差量：手上有上一版那份包（与它的清单）-> 只把变了的那几块按段取回来，
+      其余从本地那份包复制，拼出来的包必须与源上真包逐字节相同 */
+  {
+    const c = await macCase({ currentVersion: "0.0.16", apiVersion: "0.0.17", zipVersion: "0.0.17",
+                              base: "0.0.16", filler: 8000, blockSize: 4096 });
+    const mark = logs.length;
+    await c.mod.checkUpdate();
+    ok(c.mod.getStatus().phase === "available", "壳/mac 差量: 查到新版 -> available");
+    /* 上一轮留下的残渣：一份没装成的旧包（96MB 级）、一个过期的换包脚本；
+       另放一份「版本更新」的包——那不是程序自己下的，不归它管，得原样留着。 */
+    const junkZip = join(c.userData, "updates", "liantai-desktop-0.0.15-arm64.zip");
+    const junkSh = join(c.userData, "updates", "install-1234.sh");
+    const foreignZip = join(c.userData, "updates", "liantai-desktop-0.0.99-arm64.zip");
+    writeFileSync(junkZip, "上一轮没装成的包");
+    writeFileSync(junkSh, "#!/bin/bash\n");
+    writeFileSync(foreignZip, "更新的包，不是程序下的");
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    ok(!existsSync(junkZip) && !existsSync(junkSh) && existsSync(foreignZip),
+       "壳/mac 差量: 下新版时只清更旧的那些（每份 96MB），更新的包与刚下好那份都留着");
+    try { unlinkSync(foreignZip); } catch (err) { /* 清不干净也不影响后面的用例 */ }
+    const dl = join(c.userData, "updates", c.zipName);
+    ok(c.mod.getStatus().phase === "downloaded", "壳/mac 差量: 差量拼包也能走到「已下好」");
+    ok(c.rangeHits() > 0 && c.zipHits() === 0,
+       "壳/mac 差量: 走的是按段取（整包一次都没下）——按段 " + c.rangeHits() + " 次，整包 " + c.zipHits() + " 次");
+    ok(c.rangedBytes() < c.zipBytes.length / 2,
+       "壳/mac 差量: 只下了变了的那部分（下 " + c.rangedBytes() + " 字节 / 整包 " + c.zipBytes.length + " 字节）");
+    ok(existsSync(dl) && createHash("sha256").update(readFileSync(dl)).digest("hex") ===
+       createHash("sha256").update(c.zipBytes).digest("hex"),
+       "壳/mac 差量: 拼出来的包与源上逐字节一致（拼错一个字节 sha256 就拦下）");
+    ok(/update-diff/.test(logs.slice(mark).join(" ")), "壳/mac 差量: 日志里留下「差量下完」这一笔（下了多少 / 整包多少）");
+    c.mod.installUpdate();
+    const logPath = join(c.userData, "updates", "install.log");
+    await waitFor(() => /更新完成/.test(readOr(logPath)), 30000);
+    ok(c.versionOf() === "0.0.17" && c.markerOf() === "new",
+       "壳/mac 差量: 拼出来的包能被 ditto 解压、真换上去（不是「看着像 zip」）");
+    const bdir = join(c.userData, "updates", "base");
+    ok(existsSync(join(bdir, c.zipName)) && createHash("sha256").update(readFileSync(join(bdir, c.zipName))).digest("hex") ===
+       createHash("sha256").update(c.zipBytes).digest("hex"),
+       "壳/mac 差量: 装完把这一版留下当基准（下次才有得对）");
+    ok(existsSync(join(bdir, c.zipName + ".blockmap")), "壳/mac 差量: 基准是「包 + 清单」一对，少一份就用不上");
+    ok(!existsSync(join(bdir, c.baseZipName)), "壳/mac 差量: 旧的基准被清掉（每份 96MB，不留两份）");
+    ok(readdirSync(bdir).length === 2, "壳/mac 差量: base 目录里就是最新那一对");
+    c.clean();
+  }
+
+  /* 6m. 这条来源不支持按段取（Range 被无视，回 200 整包）：落差要在同一份来源上回落整包，
+      而不是把用户推到下一条更慢的线上 */
+  {
+    const c = await macCase({ currentVersion: "0.0.16", apiVersion: "0.0.17", zipVersion: "0.0.17",
+                              base: "0.0.16", filler: 8000, noRange: true });
+    const mark = logs.length;
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    const dl = join(c.userData, "updates", c.zipName);
+    ok(c.zipHits() === 2 && c.rangeHits() === 0,
+       "壳/mac 差量: 源不支持按段取 -> 当场掐掉那一整包响应，再按整包拿一次（不硬碰；当前整包请求 " + c.zipHits() + " 次）");
+    ok(/update-diff-fallback/.test(logs.slice(mark).join(" ")), "壳/mac 差量: 回落这件事写进日志（否则只看到一个慢）");
+    ok(existsSync(dl) && createHash("sha256").update(readFileSync(dl)).digest("hex") ===
+       createHash("sha256").update(c.zipBytes).digest("hex"), "壳/mac 差量: 回落之后包照样是逐字节对的");
+    c.clean();
+  }
+
+  /* 6n. 元数据里没带块清单资产：连差量都不试，直接整包（而且不许动原来那份基准） */
+  {
+    const c = await macCase({ currentVersion: "0.0.16", apiVersion: "0.0.17", zipVersion: "0.0.17",
+                              base: "0.0.16", filler: 8000, noMapAsset: true });
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    ok(c.zipHits() === 1 && c.mapHits() === 0 && c.rangeHits() === 0,
+       "壳/mac 差量: 没有块清单 -> 直接整包（不去猜、不去试）");
+    ok(existsSync(join(c.userData, "updates", "base", c.baseZipName)),
+       "壳/mac 差量: 拿不到清单就去动基准是不行的（那一份还要留给下次用）");
+    c.clean();
+  }
+
+  /* 6o. 基准包在本地坏掉了：复制出来的块跟着错，拼出来的包过不了 sha256 —— 必须回落整包，
+      而不是把一份坏包换上去 */
+  {
+    const c = await macCase({ currentVersion: "0.0.16", apiVersion: "0.0.17", zipVersion: "0.0.17",
+                              base: "0.0.16", filler: 8000, baseTamper: true });
+    const mark = logs.length;
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    ok(c.zipHits() === 1, "壳/mac 差量: 基准包坏了 -> 拼出来的 sha256 不过，回落整包");
+    ok(/update-diff-fallback/.test(logs.slice(mark).join(" ")), "壳/mac 差量: 回落写进日志");
+    ok(existsSync(join(c.userData, "updates", c.zipName)) && createHash("sha256").update(readFileSync(join(c.userData, "updates", c.zipName))).digest("hex") ===
+       createHash("sha256").update(c.zipBytes).digest("hex"), "壳/mac 差量: 回落后拿到的是真包");
+    c.clean();
+  }
+
+  /* 6p. 两版差别很大（差量省不下四分之一）：不硬走那条路，直接整包 */
+  {
+    const c = await macCase({ currentVersion: "0.0.16", apiVersion: "0.0.17", zipVersion: "0.0.17",
+                              base: "0.0.16", filler: 8000, baseDifferent: true });
+    const mark = logs.length;
+    await c.mod.checkUpdate();
+    c.mod.downloadUpdate();
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    ok(c.zipHits() === 1 && c.rangeHits() === 0,
+       "壳/mac 差量: 省不下多少就整包（不为一个碎请求表去拼包）");
+    ok(/省下/.test(logs.slice(mark).join(" ")), "壳/mac 差量: 为什么没走差量也写进日志");
     c.clean();
   }
 }

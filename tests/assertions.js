@@ -2187,6 +2187,13 @@ ok(updateNoteText({ supported:false, reason:"portable" }).indexOf("免安装版�
 ok(updateNoteText({ supported:true, phase:"up-to-date", currentVersion:"1.0.0" }).indexOf("1.0.0") >= 0, "更新: 已最新时报当前版本");
 ok(updateNoteText({ supported:true, phase:"downloading", latestVersion:"1.0.1", progress:{ percent:42, transferred:1048576*3, total:1048576*8 } }).indexOf("42%") >= 0,
    "更新: 下载中显示百分比与进度");
+/* 差量：文案要说清「只下了变了的那部分」，不然进度条飞快地跑完，他不知道没重下整包 */
+{
+  const t = updateNoteText({ supported:true, phase:"downloading", latestVersion:"1.0.1",
+                             progress:{ percent:42, transferred:1048576, total:1048576*2, bytesPerSecond:1048576, diff:true, full:1048576*96 } });
+  ok(t.indexOf("差量") >= 0 && t.indexOf("整包是") >= 0 && t.indexOf("96") >= 0, "更新: 差量下载时文案说清「只下变了的部分 / 整包多大」");
+  ok(t.indexOf("1 / 2") < 0, "更新: 差量时不拿「下了多少 / 多少」冒充进度（那两个数不是整包的量）");
+}
 ok(updateNoteText({ supported:true, phase:"downloaded", latestVersion:"1.0.1" }).indexOf("重启并更新") >= 0, "更新: 下载完成给出重启入口");
 ok(updateNoteText({ supported:true, phase:"error", error:"ERR_CONNECTION_REFUSED" }).indexOf("不影响使用") >= 0,
    "更新: 失败文案不吓人且说明会自动重试");
