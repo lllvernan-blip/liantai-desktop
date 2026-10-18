@@ -4170,7 +4170,7 @@ function wireDraft(f){
   const ta = $("#answer");
   const draft = loadDraft(sig);
   if(draft){ ta.value = draft; $("#draftNote").textContent = "已恢复上次未提交的草稿"; }
-  setWordCount(ta.value.length, limit);
+  setWordCount(ta.value, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
   // 作答限时：进作答区就把这次的时钟接上；下拉只改时长，不重渲
   wireTimeControls();
@@ -5301,8 +5301,12 @@ function enforceWordLimit(k, q, subtype){
   }
   return q;
 }
-function setWordCount(n, limit){
+// 字数的唯一口径：答题卡上的格子数——空格、换行、Tab、全角空格都不占格，标点占格
+function answerChars(s){ return String(s == null? "" : s).replace(/\s/g, "").length; }
+// setWordCount 收原文不收回数：口径只有一处，传错就传不出“字符数”
+function setWordCount(s, limit){
   const el=$("#wordCount"); if(!el) return;
+  const n = answerChars(s);
   if(limit){
     const over = n - limit;
     el.innerHTML = over > 0
@@ -5315,7 +5319,7 @@ function setWordCount(n, limit){
 // 输入与「插入公文骨架」共用同一条同步路径：字数、草稿、恢复提示，永远一致
 function syncAnswer(sig, ta, limit){
   saveDraft(sig, ta.value);
-  setWordCount(ta.value.length, limit);
+  setWordCount(ta.value, limit);
   const n = $("#draftNote");
   if(n && n.textContent) n.textContent = "";
 }
@@ -5462,7 +5466,7 @@ function handleErr(e, keepView){
 
 /* 更新日志：发版时在最上面加一条；纯静态不联网，走哪个更新源都能看。 */
 const CHANGELOG = [
-  ["0.0.23", "出题在途时换页不丢：回首页或原科目页自动回到等待页、出好直接进题，等待页可取消；综应A 的题刷新后也能接着做（题目、草稿、限时起点都在）；缺 API Key 与缺模型分开说，选好模型当场生效；导入备份不再采用文件里的接口地址与模型；安装包默认走加速线路，线路不通自己换"],
+  ["0.0.23", "出题在途时换页不丢：回首页或原科目页自动回到等待页、出好直接进题，等待页可取消；综应A 的题刷新后也能接着做（题目、草稿、限时起点都在）；作答字数按答题卡算，空格与换行不算字；缺 API Key 与缺模型分开说，选好模型当场生效；导入备份不再采用文件里的接口地址与模型；安装包默认走加速线路，线路不通自己换"],
   ["0.0.22", "归类页重做：分组与命名换成全站同一套圆角语言，提纲移到一稿页按需展开；批改页逐句标分（标在句末）；画像汇总入口在前，记录行可直接点开那次批改；材料标出来源；矮窗口自动收档"],
   ["0.0.21", "修复升级后练习记录读不出来的问题；另修复了一些问题"],
   ["0.0.20", "批改页重做：分数摆在最前、只标答漏的地方，答题后还能记一句思路；另修复了一些问题"],

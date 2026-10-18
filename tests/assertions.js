@@ -178,6 +178,12 @@ ok(el("#wordCount").innerHTML.indexOf("超出 50 字") >= 0 && el("#wordCount").
 el("#answer").value = "一二三四五";
 syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
 ok(el("#wordCount").innerHTML.indexOf("/ 200 字") >= 0, "题目页: 未超出时显示 已写/上限");
+el("#answer").value = "  一二三\n四五六\t七八九　十 ";   // 半角空格 / 换行 / Tab / 全角空格都不算字
+syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
+ok(el("#wordCount").innerHTML.indexOf("<b>10</b> / 200 字") >= 0, "字数: 空白不占格（空格、换行、Tab、全角空格）");
+el("#answer").value = "字".repeat(205) + "\n".repeat(30) + " ".repeat(50);
+syncAnswer(qSig(current.question), el("#answer"), wordLimit(current.question));
+ok(el("#wordCount").innerHTML.indexOf("超出 5 字") >= 0, "字数: 超上限按同一口径算（多余的换行与空格不算超出量）");
 current = { module:"zy.gongwen", subtype:"通知", question:q1 };
 // 批改页的主体是「我的答案」：证据里带逐字原句，这里正好走一遍定位 -> 标分 / 标红
 renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送机关"],
