@@ -46,6 +46,16 @@ ok(parseJsonLoose('{background:"材料",score:20}').score === 20, "parseJsonLoos
 ok(parseJsonLoose("{'a':1,'b':'x',}").b === "x", "parseJsonLoose: 单引号 + 尾逗号组合");
 ok(parseJsonLoose('{"a":"don\'t break"}').a === "don't break", "parseJsonLoose: 双引号内的撇号不动");
 ok(parseJsonLoose('{"a":"x, y: z"}').a === "x, y: z", "parseJsonLoose: 正文里的逗号冒号不被误改");
+/* 真机撞过：模型在字符串里直接写英文双引号（【缺：仅写"镇财政列支一部分"】），
+   整份 JSON 当场解析失败、一次批改全没。0.0.24 补的这道修复只接受「真能过 JSON.parse」的结果。 */
+const _iq = '{"hits":[{"evidence":"【缺：仅写"镇财政列支一部分"】"}],"principle":"x"}';
+let _iqEv = null; try{ _iqEv = parseJsonLoose(_iq).hits[0].evidence; }catch(e){ _iqEv = "解析失败：" + ((e && e.code) || e); }
+ok(_iqEv === '【缺：仅写"镇财政列支一部分"】',
+   "parseJsonLoose: 字符串里的英文双引号被转义救回来（不然这次批改白做）");
+let _iq2 = null; try{ _iq2 = parseJsonLoose('{"a":"说"完"了","b":2}'); }catch(e){ _iq2 = { a:"解析失败", b:0 }; }
+ok(_iq2.b === 2 && _iq2.a === '说"完"了', "parseJsonLoose: 内容里的引号留在原处，后面的键值照常解析");
+let threwInner = false; try{ parseJsonLoose('{"a":"没闭合'); }catch(e){ threwInner = true; }
+ok(threwInner, "parseJsonLoose: 引号修复也不硬编——真坏的结构照旧报格式异常");
 let threwBad = false; try{ parseJsonLoose("{完全不是 JSON"); }catch(e){ threwBad = true; }
 ok(threwBad, "parseJsonLoose: 修不好时老实报格式异常，不硬编");
 ok(dimTotal({ x:10, y:20 }, ["x","y"]) === 75, "dimTotal: 归一化为百分制");
@@ -852,6 +862,16 @@ profGo("hist");
 const ph2 = el("#profileBody").innerHTML;
 ok(ph2.indexOf(">科目<") >= 0, "画像: 练习记录新增「科目」列");
 ok(ph2.indexOf("申论</td><td>贯彻执行") >= 0, "画像: 记录行同时显示科目与模块");
+ok(ph2.indexOf("少落款") >= 0, "画像: 老记录（只有 weaknesses）的待改进照旧显示");
+/* 新记录的「待改进」列读解析里的归类标题：标题是给列表用的短的，归因正文不进表格（列宽装不下） */
+state.history = [{ ts:1, module:"sl.guanche", subtype:"讲话稿", grade:{ total:66, scores:{},
+  causes:[{title:"格式缺项",why:"很长的归因正文，列表里不摆这一句"},{title:"要点整块缺失",why:"w2"},{title:"第三条不该出现",why:"w3"}],
+  principle:"p", weaknesses:["不该被读到"] } }];
+profGo("hist");
+const ph3 = el("#profileBody").innerHTML;
+ok(ph3.indexOf("格式缺项；要点整块缺失") >= 0, "画像: 新记录待改进列读归类标题（最多两条）");
+ok(ph3.indexOf("第三条不该出现") < 0 && ph3.indexOf("很长的归因正文") < 0 && ph3.indexOf("不该被读到") < 0,
+   "画像: 待改进列只读前两条标题，不把归因正文塞进表格");
 state.history = [];
 
 /* 9.5 prompt 口径随模块所属科目走（拦下 callLLM，直接看真拼出来的 system prompt） */
@@ -1008,7 +1028,8 @@ flowGoStep("draft");
 el("#answer").value = "这是一段超过二十个字的作答内容，用于验证批改请求体。";
 const realCall3 = callLLM;
 let cap3 = null;
-callLLM = async (sys, user)=>{ cap3 = { sys, user }; return { hits:[{point:"p",score:10,awarded:8,status:"满分",evidence:"e"}], scores:{}, strengths:[], weaknesses:[], comment:"x" }; };
+callLLM = async (sys, user)=>{ cap3 = { sys, user }; return { hits:[{point:"p",score:10,awarded:8,status:"满分",evidence:"e"}], scores:{},
+  causes:[{title:"要点缺失",why:"采分点按材料逐个摆，跳过一处就少一处。"}], principle:"先按材料列点，再落笔。" }; };
 await submitAnswer();
 callLLM = realCall3;
 const sent3 = JSON.parse(cap3.user);
@@ -1017,6 +1038,13 @@ ok(cap3.sys.indexOf("organizeOutline") >= 0 && cap3.sys.indexOf("不参与计分
 ok(cap3.sys.indexOf(SCORING_RULES) >= 0, "批改 prompt: SCORING_RULES 一字未动");
 ok(fCur.attempts.length === 1 && fCur.step === "review", "批改: 提交后进入批改步并留痕 attempt");
 ok(state.history[0].answer.indexOf("二十个字") >= 0 && state.history[0].grade.total === 80, "批改: 练习记录已写入且计分口径不变");
+/* 解析三段口径（2026-10-19）：记录里存 causes + principle；旧字段（优缺点清单 / 文字解析）不再进新记录 */
+ok(Array.isArray(state.history[0].grade.causes) && state.history[0].grade.causes[0].title === "要点缺失"
+   && state.history[0].grade.principle === "先按材料列点，再落笔。",
+   "批改: 解析按 causes + principle 存进练习记录");
+ok(state.history[0].grade.weaknesses === undefined && state.history[0].grade.comment === undefined
+   && state.history[0].grade.strengths === undefined,
+   "批改: 旧的三块（优缺点清单 / 文字解析）不再进新记录——同件事不存两份");
 
 /* ⑦ 超字数不阻断提交；作答上限来自本地表 */
 ok(enforceWordLimit("sl.guina", { requirements:"概括主要问题，不超过300字。" }).requirements.indexOf("不超过250字") >= 0,
@@ -3062,29 +3090,52 @@ ok(q21 && q21.question && q21.question.theme === "基层治理",
 ok((PAGE_HTML.match(/,"theme":"材料主题/g) || []).length === 2,
    "字段地基: 出题 schema 两条分支都带 theme（漏一条分支 = 那条路上的题没标签）");
 
-/* ============ 22. 批改页结构：我的答案（逐句标注）· 参考答案 · 解析 ============ */
+/* ============ 22. 批改页结构：我的答案（逐句标注）· 解析（为什么没拿到分）· 参考答案 ============ */
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 } };
-renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:[], comment:"先写主送机关再写正文。",
+renderGrade({ scores:{},
+  causes:[ { title:"格式缺项", why:"采分点认的是成文日期这类落款要素，写了做法没写日期，这一项就落不到。" },
+           { title:"要点整块缺失", why:"材料明写的对象没在答卷里出现，采分点按材料逐个摆，跳过一个就少一个。" } ],
+  principle:"公文题先把格式要素摆齐，再谈内容。",
   modelAnswer:"第一段内容。\n第二段内容。",
   hits:[ {point:"标题含事由",score:4,awarded:4,status:"满分",kind:"-",evidence:"答到：「关于调整作息的通知」"},
          {point:"写明主送机关",score:4,awarded:0,status:"零分",kind:"漏点",evidence:"【缺：写明主送机关】"},
          {point:"落款单位与日期",score:2,awarded:1,status:"半分",kind:"格式",evidence:"答到：「遵照执行」，【缺：成文日期】"} ] },
   78, null, null, "关于调整作息的通知。各科室请遵照执行。特此通知。");
 const H22 = el("#docBody").innerHTML;
-ok(H22.indexOf(">我的答案</div>") >= 0 && H22.indexOf(">参考答案</div>") >= 0 && H22.indexOf(">解析</div>") >= 0,
-   "批改页: 三段并列——我的答案 / 参考答案 / 解析");
-ok(H22.indexOf(">我的答案</div>") < H22.indexOf(">参考答案</div>")
-   && H22.indexOf(">参考答案</div>") < H22.indexOf(">解析</div>"),
-   "批改页: 次序是我的答案 → 参考答案 → 解析");
-ok(H22.indexOf("asent got") >= 0 && H22.indexOf('class="asc">+1<') >= 0 && H22.indexOf('class="asc full">+4<') >= 0,
+ok(H22.indexOf(">我的答案</div>") >= 0 && H22.indexOf(">解析</div>") >= 0 && H22.indexOf(">参考答案</div>") >= 0,
+   "批改页: 三段并列——我的答案 / 解析 / 参考答案");
+ok(H22.indexOf(">我的答案</div>") < H22.indexOf(">解析</div>")
+   && H22.indexOf(">解析</div>") < H22.indexOf(">参考答案</div>"),
+   "批改页: 次序是我的答案 → 解析 → 参考答案（先看自己写了什么，再看为什么，最后看成什么样）");
+ok(H22.indexOf('class="sec-title">我的答案</div>') >= 0 && H22.indexOf('class="sec-title why">解析</div>') >= 0
+   && H22.indexOf('class="sec-title answer">参考答案</div>') >= 0,
+   "批改页: 三段各一个颜色标，一眼分得开");
+ok(H22.indexOf('<div class="ctitle">格式缺项</div>') >= 0
+   && H22.indexOf("采分点认的是成文日期这类落款要素") >= 0
+   && H22.indexOf('<div class="ctitle">要点整块缺失</div>') >= 0,
+   "批改页: 解析按「归类标题 + 为什么」成对渲染");
+ok(H22.indexOf('class="principle">公文题先把格式要素摆齐，再谈内容。</div>') >= 0,
+   "批改页: 原则句单独一块（一句话收尾）");
+ok(H22.indexOf("下一步怎么改") < 0 && H22.indexOf("nextSteps") < 0 && PAGE_HTML.indexOf("nextSteps") < 0,
+   "批改页: 没有「下一步怎么改」（下一步由考生自己定，不替他做决定）");
+/* 老记录（0.0.23 及以前）只有一段文字解析：原样显示，不硬塞进新结构 */
+renderGrade({ scores:{}, comment:"先写主送机关再写正文。",
+  hits:[{point:"a",score:5,awarded:5,status:"满分",evidence:"答到：「a」"}] }, 50, null, null, "我答了一句。");
+const H22old = el("#docBody").innerHTML;
+ok(H22old.indexOf('class="sec-title lite">解析</div>') >= 0 && H22old.indexOf("先写主送机关再写正文。") >= 0,
+   "批改页: 老记录的文字解析照旧显示（回退不硬套新结构）");
+renderGrade({ scores:{}, causes:[ { title:"格式缺项", why:"w" } ], principle:"p",
+  modelAnswer:"第一段内容。\n第二段内容。",
+  hits:[ {point:"标题含事由",score:4,awarded:4,status:"满分",kind:"-",evidence:"答到：「关于调整作息的通知」"},
+         {point:"写明主送机关",score:4,awarded:0,status:"零分",kind:"漏点",evidence:"【缺：写明主送机关】"},
+         {point:"落款单位与日期",score:2,awarded:1,status:"半分",kind:"格式",evidence:"答到：「遵照执行」，【缺：成文日期】"} ] },
+  78, null, null, "关于调整作息的通知。各科室请遵照执行。特此通知。");
+const H22c = el("#docBody").innerHTML;
+ok(H22c.indexOf("asent got") >= 0 && H22c.indexOf('class="asc">+1<') >= 0 && H22c.indexOf('class="asc full">+4<') >= 0,
    "批改页: 逐句标注标的是得分处（满分句也报分，加起来＝页头总分）");
-ok(H22.indexOf('class="sec-title">我的答案</div>') >= 0 && H22.indexOf('class="sec-title lite">参考答案</div>') >= 0
-   && H22.indexOf('class="sec-title lite">解析</div>') >= 0,
-   "批改页: 只有「我的答案」用重题头，参考答案与解析降一级");
-ok(H22.indexOf("第一段内容。\n第二段内容。") >= 0,
+ok(H22c.indexOf("第一段内容。\n第二段内容。") >= 0,
    "批改页: 范文按原文换行渲染（pre-wrap，不再折成一坨）");
-ok(H22.indexOf("先写主送机关再写正文。") >= 0, "批改页: 解析照常渲染");
-ok(H22.indexOf("<details") < 0 && H22.indexOf("丢分清单") < 0 && H22.indexOf("loseline") < 0,
+ok(H22c.indexOf("<details") < 0 && H22c.indexOf("丢分清单") < 0 && H22c.indexOf("loseline") < 0,
    "批改页: 折叠区与丢分清单都不在（2026-10-13 回退到平铺三段）");
 ok((PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].indexOf("sticky") < 0
    && (PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].length > 0,
@@ -3094,8 +3145,14 @@ ok(PAGE_HTML.indexOf("loselist") < 0 && PAGE_HTML.indexOf("loseDetail") < 0 && P
    "批改页: 丢分清单整块删净（含 CSS 与取值函数，不留死代码）");
 ok(PAGE_HTML.indexOf("white-space:pre-wrap;-webkit-text-stroke") >= 0,
    "批改页: 范文容器自带 pre-wrap（不再靠折叠体兜）");
-ok(PAGE_HTML.indexOf('"comment":"解析（100 字以内）') >= 0,
-   "阅卷 prompt: comment 改口径为「解析」（只讲这题怎么答，不评价答卷）");
+ok(PAGE_HTML.indexOf('"causes":[{"title":"4—8 字归类标题"') >= 0 && PAGE_HTML.indexOf('"principle":"一句话收尾') >= 0,
+   "阅卷 prompt: 解析换成归类归因（causes）+ 一句话原则（principle）");
+ok(PAGE_HTML.indexOf('"weaknesses"') < 0 && PAGE_HTML.indexOf('"strengths"') < 0 && PAGE_HTML.indexOf('"comment":"解析') < 0,
+   "阅卷 prompt: 旧的两块（优缺点清单 + 100 字解析）不再要求模型产出——同一件事不能说两遍");
+ok(PAGE_HTML.indexOf("不写「下次该怎么做」") >= 0 && PAGE_HTML.indexOf("不替他做决定") >= 0,
+   "阅卷 prompt: 明说不要写「下一步怎么改」（那是考生自己的事）");
+ok(PAGE_HTML.indexOf("不得出现英文双引号") >= 0,
+   "阅卷 prompt: 字符串里禁英文双引号（冒一个整份 JSON 就废）");
 ok(PAGE_HTML.indexOf("一句话（40 字内）") < 0,
    "阅卷 prompt: 一句话点评的口径不在了（它撑不起「解析」这个位置）");
 /* 句末分数与页头同口径：模型多给的分也夹住；有采分项定位不到时不宣称「相加＝总分」 */

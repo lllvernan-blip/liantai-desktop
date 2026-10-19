@@ -204,6 +204,16 @@ html,body{margin:0;padding:0;}
   .secrow .sec-title{margin:0;}   /* 标题自带的上 24 下 12 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
   /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
   .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
+  /* 三段各一个颜色标：我的答案（红，题头默认色）· 解析（橙）· 参考答案（绿）。同一页三段一眼分得开，
+     不用回去数标题在哪。 */
+  .sec-title.why{border-left-color:var(--warn);}
+  .sec-title.answer{border-left-color:var(--success);}
+  /* 解析正文与原则句都走「纸上的字」那一档（与 .comment 同档），用变量不新增字面字号 */
+  .cause{margin:0 0 12px;}
+  .cause .ctitle{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);margin-bottom:4px;}
+  .cause .cwhy{font-family:var(--fangsong);font-size:var(--fs-title);line-height:1.9;}
+  .principle{margin-top:16px;padding:12px;background:var(--wash);border-left:3px solid var(--gov-red);
+    font-family:var(--fangsong);font-size:var(--fs-title);line-height:1.8;}
   .secright{display:flex;align-items:center;gap:12px;}
   .secright button.linkbtn{min-height:var(--h-ctl-sm);}   /* 限时那一行：输入框与按钮同高 */
   .tlcap{font-size:var(--fs-note);color:var(--muted);}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
@@ -1649,6 +1659,25 @@ function singleQuotedFixed(s){
   }
   return out;
 }
+/* 模型偶尔在字符串里直接写英文双引号（真机撞过：evidence 写成【缺：…仅写"镇财政列支一部分"】），
+   引号没转义，整份 JSON 当场废掉，一次批改全没。修法不是猜：逐个扫引号，看它后面第一个非空白字符
+   是不是结构字符（, } ] : 或结尾）——不是，就说明这是内容里的引号，转义掉留在字符串里。
+   跟别的候选一样，修完必须真能通过 JSON.parse 才采纳，修不好照旧报格式异常。 */
+function innerQuoteFixed(s){
+  let out = "", inStr = false, esc = false;
+  for(let i = 0; i < s.length; i++){
+    const ch = s[i];
+    if(esc){ out += ch; esc = false; continue; }
+    if(ch === "\\"){ out += ch; esc = true; continue; }
+    if(ch !== '"'){ out += ch; continue; }
+    if(!inStr){ inStr = true; out += ch; continue; }
+    let j = i + 1; while(j < s.length && /\s/.test(s[j])) j++;
+    const nxt = s[j] || "";
+    if(nxt === "" || nxt === "," || nxt === "}" || nxt === "]" || nxt === ":"){ inStr = false; out += ch; }
+    else out += '\\"';
+  }
+  return out;
+}
 function parseJsonLoose(text){
   if(!text) throw {code:"JSON"};
   let c = String(text).trim();
@@ -1661,6 +1690,8 @@ function parseJsonLoose(text){
     s => bareKeyFixed(noTailComma(s)),
     s => singleQuotedFixed(noTailComma(s)),
     s => bareKeyFixed(singleQuotedFixed(noTailComma(s))),
+    s => innerQuoteFixed(noTailComma(s)),
+    s => bareKeyFixed(innerQuoteFixed(noTailComma(s))),
   ];
   for(const fix of fixes){
     let cand; try{ cand = fix(raw); }catch(e){ continue; }
@@ -1986,10 +2017,9 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
   const schema = `{
     "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"答到的：逐字照抄考生原句，用「」括起来，一个字都不许改（标点也别改，抄整句不截断）；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
-    "strengths":["优点1"],
-    "weaknesses":["缺点1"],${exps? `
+    "causes":[{"title":"4—8 字归类标题","why":"这类写法为什么拿不到分：讲清这题采分点在认什么（具体对象、具体做法、与材料的对应关系）"}],${exps? `
     "experienceChecks":[{"title":"原样照抄 experiences 里那一条的 title","status":"again / fixed / na"}],`: ""}
-    "comment":"解析（100 字以内）：这题的采分点分别考什么、标准答法怎么组织。只讲这题该怎么看，不要评价考生的答卷（答卷上已经逐句标了）"
+    "principle":"一句话收尾：换别的题也成立的原则"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
@@ -2001,6 +2031,8 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeO
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。` +
     `\n同一份答卷重复阅卷时必须给同一结论：判「半分」的先在 evidence 里逐条列出答到的具体点，列不出来就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按**低一档**判（宁可少给，不凭整体印象抬分），并在 evidence 里写清差在哪。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
+    `\n解析（causes + principle）只回答一件事：为什么这么写拿不到分。写 3—4 类，每类一个 4—8 字标题加一句归因——讲清这题的采分点在认什么（具体对象、具体做法、与材料的对应关系），让考生明白分数是怎么给出去的。不复述 hits 里已经逐句标过的原话，不复述参考答案里的做法，也不写「下次该怎么做」：下一步怎么办是考生自己的事，不替他做决定。principle 一句话收尾，写成换别的题也成立的原则，句子里不得出现「本题／这道题／这则材料／这次」这类指代本题的词；这次答卷没有失分（全部子项满分）时 causes 留空，principle 照给一句。` +
+    `\nJSON 写法：字符串内部一律用中文标点，引用用「」；不得出现英文双引号，也不得出现反斜杠——冒出一个就让整份 JSON 解析失败，这次批改白做。` +
     `\n返回 JSON：\n` + schema;
   const g = await callLLM(sys, user, true, onDelta, { temp: GRADE_TEMP, level: GRADE_LEVEL });   // 阅卷的思考强度见 GRADE_LEVEL（额度被思考吃光就交不出分数）
   // 参考答案（范文）另起一次调用：它占输出大头，塞进主请求会把主请求顶到模型输出上限（见下面的 fetchModelAnswer）。
@@ -2072,7 +2104,7 @@ async function distillExperience(mod, subtype, g, q){
   const existTitles = (state.experiences||[]).filter(e=> e && !e.disabled && e.module === mod).map(e=>e.title).slice(0,10);
   const user = JSON.stringify({ module:(MODULES[mod]||{}).name||mod, subtype:subtype||"",
     requirements:(q && q.requirements)||"",
-    hits:(g && g.hits)||[], weaknesses:(g && g.weaknesses)||[], comment:(g && g.comment)||"",
+    hits:(g && g.hits)||[], causes:(g && g.causes)||[], principle:(g && g.principle)||"",
     existingTitles: existTitles.length? existTitles : undefined });
   const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）；type 为错因时还要给 kind，从这几类里选一个——" + GRADE_TAG_LINE + "（其余 type 填 -）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。只输出 JSON。"
     + (existTitles.length? " 考生已有这些经验：" + existTitles.join("；") + "。若本次要提炼的经验与已有经验本质相同，必须原样返回已有经验的 title 原文（不要换措辞、不要新造条目），只给出更新后的 body；确有新经验才新增。" : "");
@@ -4347,7 +4379,8 @@ async function submitAnswer(){
       usedSec: usedSec == null? undefined : usedSec,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       expCheck: (expCheck.again.length || expCheck.fixed.length)? { again:expCheck.again.slice(), fixed:expCheck.fixed.slice() } : undefined,
-      grade:{ total, scored:pts, scores:g.scores, strengths:g.strengths, weaknesses:g.weaknesses, comment:g.comment,
+      grade:{ total, scored:pts, scores:g.scores,
+              causes:(Array.isArray(g.causes)? g.causes : undefined), principle:g.principle || undefined,
               modelAnswer:g.modelAnswer || "" } });   // 范文进记录：批改页从记录派生时才不丢「参考答案」
     if(state.history.length>200) state.history.length=200;
     if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline });   // 批改门槛的事实源
@@ -4363,7 +4396,7 @@ async function submitAnswer(){
     _timeUpSaid = false;
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
-    const fullMark = pts && pts.got === pts.max && !(g.weaknesses||[]).length;
+    const fullMark = pts && pts.got === pts.max && !(g.causes||[]).length;
     setTimeout(()=>{
       _lastDistilled = [];   // 派发前置空：提炼结果绝不能把上一题的旧经验标成「本次新提炼」
       if(fullMark) return;
@@ -4648,11 +4681,23 @@ function gradeHtml(g, total){
   const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
   if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
     + `<span class="secright"><span class="hint">${am.usable? "红＝这句没拿满 · 焦橙＝这句拿满 · <i class=\"asc\">+N</i> " + (allLocated? "相加＝总分" : "是本句得分") : ""}</span></span></div>` + ansReview;
-  if(g.modelAnswer) html += `<div class="sec-title lite">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
-  if(g.comment) html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
+  // 解析：只讲「为什么拿不到分」——3—4 类归因 + 末句一句原则。逐句标注已经在上面标过「缺什么」，
+  // 参考答案在下面给「写成什么样」；这一段再复述任何一边都是噪音（2026-10-19 定的三段口径）。
+  const causes = (Array.isArray(g.causes)? g.causes : []).filter(c=> c && (c.title || c.why));
+  if(causes.length || g.principle){
+    html += `<div class="sec-title why">解析</div><div class="causes">`
+      + causes.map(c=> `<div class="cause">${c.title? `<div class="ctitle">${esc(c.title)}</div>` : ""}`
+        + `${c.why? `<div class="cwhy">${esc(c.why)}</div>` : ""}</div>`).join("")
+      + `</div>`;
+    if(g.principle) html += `<div class="principle">${esc(g.principle)}</div>`;
+  } else if(g.comment){
+    // 老记录（0.0.23 及以前）只有一段文字解析：原样显示，不硬塞进新结构
+    html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
+  }
+  if(g.modelAnswer) html += `<div class="sec-title answer">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
   html += selfNoteHtml(g, total);   // 趁印象还在问一句（可跳过）
-  // 老记录（无采分点）没有逐句标注可用，退回「待改进」的原话
-  if(!hits.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
+  // 老记录（无采分点、也没解析）退回「待改进」的原话
+  if(!hits.length && !causes.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）
   const ec = (lastGrade && lastGrade.expCheck) || null;
   if(ec && (ec.again.length || ec.fixed.length)){
@@ -4832,7 +4877,9 @@ function profileHistHtml(){
       html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td class="num">—</td><td>—</td></tr>`;
       return;
     }
-    const weak=((h.grade||{}).weaknesses||[]).slice(0,2).join("；");
+    // 「待改进」列读解析里的归类标题（新记录）——老记录只有 weaknesses，回退到它
+    const gh = h.grade || {};
+    const weak=(Array.isArray(gh.causes)? gh.causes.map(c=> (c && c.title) || "").filter(Boolean) : (gh.weaknesses||[])).slice(0,2).join("；");
     const openable = !!(h.question && h.grade);
     html += `<tr${openable? ` class="histrow" data-hist="${idx}" title="点开看这次批改"`:""}><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
   });
