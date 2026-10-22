@@ -1225,7 +1225,8 @@ function sanitizeExperiences(list){
   return (Array.isArray(list)? list : []).filter(e => e && typeof e === "object" && typeof e.title === "string" && typeof e.body === "string")
     .map(e => {
       const out = Object.assign({}, e);
-      if(types.indexOf(out.type) < 0) out.type = String(out.type || "");
+      out.type = String(out.type || "").trim();
+      if(types.indexOf(out.type) < 0) out.type = "";
       const kind = String(out.kind || "").trim();
       if(out.type !== "错因" || EXP_KINDS.indexOf(kind) < 0) out.kind = "";
       else out.kind = kind;
@@ -1235,8 +1236,9 @@ function sanitizeExperiences(list){
         const n = Number(out[k]);
         if(isFinite(n)) out[k] = n; else delete out[k];
       }
-      out.disabled = !!out.disabled;
-      out.cleared = !!out.cleared;
+      const flag = v => v === true || v === 1 || v === "1";
+      out.disabled = flag(out.disabled);
+      out.cleared = flag(out.cleared);
       for(const k of ["lastCheckSig","lastCheckEvidence","pendingSig","pendingEvidence","sourceSig"]) if(typeof out[k] !== "string") out[k] = "";
       return out;
     });
@@ -2203,7 +2205,7 @@ function trimExperiences(){
 /* 错因回执：批改时顺带判定「带进去的这几条错因这次犯没犯」，结果写回经验本身。
    这是闭环里唯一能证明「练了有没有用」的证据：分数会漂，错因犯没犯是可核的。
    **回执不再自证**：again/fixed 必须带考生原句 evidence；fixed 还要过本地核对
-   （同 kind 的采分点必须存在且全部满分），同题 fixed 只算「待换题验证」。
+   （同 kind 不能再有非满分项；满分项 kind 是 "-"），同题 fixed 只算「待换题验证」。
    模型没给、title 对不上、status 不认识、没有 evidence：什么都不改。 */
 let _expCheckResult = { v:2, again:[], fixed:[], pending:[], na:[], rejected:[], at:0 };
 /* 本地核对：只回答「同一类错因的采分点里，还有没有非满分项」。
@@ -2260,6 +2262,9 @@ function applyExperienceChecks(mod, g, now, q, answer){
     const evidence = String(c.evidence || "").trim().slice(0, 240);
     // 老经验没有 sourceSig：只算待换题，不升级；新经验一定有
     const cross = e.sourceSig? qs !== String(e.sourceSig) : false;
+    // 没有采分点就没有可核的证据：again/fixed 一律不放行；na 不受影响
+    const hasHits = Array.isArray(g && g.hits) && g.hits.length > 0;
+    if((status === "again" || status === "fixed") && !hasHits){ reject(e, "no-hits"); continue; }
     if(status === "again"){
       if(!evidence){ reject(e, "no-evidence"); continue; }
       if(!evidenceInAnswer(evidence, answer)){ reject(e, "evidence-not-in-answer"); continue; }
@@ -2324,7 +2329,7 @@ function expStatusCounts(){
 }
 function expStatusText(e){
   const st = expState(e);
-  if(st === "cleared") return e.verifiedAt? `已改掉（${mmdd(e.verifiedAt)} 换题核过）` : "已改掉（旧记录，未留换题证据）";
+  if(st === "cleared") return e.verifiedAt? `已改掉（${mmdd(e.verifiedAt)} 换题核过）` : "旧记录（未留换题证据）";
   if(st === "pending") return `待换题验证（${mmdd(e.pendingAt)} 同题答对）`;
   if(st === "recur") return `复犯 ${Number(e.recur)||1} 次（最近 ${mmdd(e.lastRecurAt || e.lastCheckAt)}）`;
   return "还没考到";
