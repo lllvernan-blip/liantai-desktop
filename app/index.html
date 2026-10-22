@@ -813,39 +813,39 @@ const PROVIDERS = [
 // 模块键统一带科目前缀（zy.gongwen）：键全局唯一，画像 / 历史 / 调度全部按模块键聚合，
 // 加科目只需再加一套键，不需要重构聚合逻辑。
 const MODULES = {
-  "zy.gongwen":{ name:"公文写作", note:"党政机关公文与应用文写作",
-    dims:["格式规范","内容完整","行文逻辑","语言得体","文种适配"], matLen:[300,500] },
-  "zy.guina":{ name:"归纳概括", note:"概括问题 / 原因 / 影响 / 做法 / 特点",
-    dims:["要点全面","归类准确","表述精炼","逻辑层次"], matLen:[600,900], ansLen:300,
+  "zy.gongwen":{ name:"公文写作", note:"党政机关公文与应用文写作", score:40,
+    dims:["格式规范","内容完整","行文逻辑","语言得体","文种适配"], matLen:[1000,1500] },
+  "zy.guina":{ name:"归纳概括", note:"概括问题 / 原因 / 影响 / 做法 / 特点", score:30,
+    dims:["要点全面","归类准确","表述精炼","逻辑层次"], matLen:[1000,1500], ansLen:300,
     subtypes:["概括问题","概括原因","概括影响","概括做法","概括特点"] },
-  "zy.fenxi":{ name:"综合分析", note:"词句理解 / 现象分析 / 观点评析",
-    dims:["审题准确","分析深入","论证有力","结论稳妥"], matLen:[500,800], ansLen:300,
+  "zy.fenxi":{ name:"综合分析", note:"词句理解 / 现象分析 / 观点评析", score:30,
+    dims:["审题准确","分析深入","论证有力","结论稳妥"], matLen:[1000,1500], ansLen:300,
     subtypes:["词句理解","现象分析","观点评析"] },
-  "zy.duice":{ name:"提出对策", note:"针对问题提出解决措施",
-    dims:["问题对应","对策可行","针对性强","表述规范"], matLen:[500,800], ansLen:300,
+  "zy.duice":{ name:"提出对策", note:"针对问题提出解决措施", score:35,
+    dims:["问题对应","对策可行","针对性强","表述规范"], matLen:[1000,1500], ansLen:300,
     subtypes:["对策建议","启示教训"] },
-  "zy.shiwu":{ name:"案例实务", note:"会务 / 信访 / 应急 / 沟通协调",
-    dims:["角色意识","处置得当","程序合规","沟通协调"], matLen:[400,800], ansLen:400,
+  "zy.shiwu":{ name:"案例实务", note:"会务 / 信访 / 应急 / 沟通协调", score:35,
+    dims:["角色意识","处置得当","程序合规","沟通协调"], matLen:[1000,1500], ansLen:400,
     subtypes:["会务组织","信访处理","应急处置","沟通协调"] },
   // —— 申论：小题 + 申发论述，阅卷口径是「要点 / 观点 + 条理 + 语言」，材料更长；不套用综应A 的实务维度 ——
-  "sl.guina":{ name:"归纳概括", note:"概括问题 / 原因 / 做法 / 成效 / 特点",
-    dims:["要点全面","归类准确","表述精炼","条理清晰","语言准确"], matLen:[600,900], ansLen:250,
+  "sl.guina":{ name:"归纳概括", note:"概括问题 / 原因 / 做法 / 成效 / 特点", score:15,
+    dims:["要点全面","归类准确","表述精炼","条理清晰","语言准确"], matLen:[1200,1800], ansLen:250,
     subtypes:["概括问题","概括原因","概括做法","概括成效","概括特点"] },
-  "sl.duice":{ name:"提出对策", note:"依据材料问题提出对策 / 建议",
-    dims:["问题对应","对策可行","针对性强","条理清晰","语言准确"], matLen:[600,900], ansLen:400,
+  "sl.duice":{ name:"提出对策", note:"依据材料问题提出对策 / 建议", score:20,
+    dims:["问题对应","对策可行","针对性强","条理清晰","语言准确"], matLen:[1200,1800], ansLen:400,
     subtypes:["对策建议","经验启示","建议措施"] },
-  "sl.fenxi":{ name:"综合分析", note:"词句理解 / 观点评析 / 现象分析",
-    dims:["观点明确","分析深入","论证充分","结论稳妥","条理清晰"], matLen:[600,900], ansLen:300,
+  "sl.fenxi":{ name:"综合分析", note:"词句理解 / 观点评析 / 现象分析", score:10,
+    dims:["观点明确","分析深入","论证充分","结论稳妥","条理清晰"], matLen:[1200,1800], ansLen:300,
     subtypes:["词句理解","观点评析","现象分析"] },
-  "sl.guanche":{ name:"贯彻执行", note:"按身份与场合写讲话稿 / 倡议书 / 意见建议",
-    dims:["格式规范","内容完整","身份贴切","语言得体","条理清晰"], matLen:[600,900], ansLen:500,
+  "sl.guanche":{ name:"贯彻执行", note:"按身份与场合写讲话稿 / 倡议书 / 意见建议", score:20,
+    dims:["格式规范","内容完整","身份贴切","语言得体","条理清晰"], matLen:[1200,1800], ansLen:500,
     subtypes:["讲话稿","倡议书","意见建议"] },
   // 申发论述（大作文）：申论大纲五大能力里「文字表达能力」对应的题型，也是真题里分值最高的那道
   // （中公：申论五大能力对应归纳概括 / 提出对策 / 综合分析 / 贯彻执行 / 申发论述五类题型）。
   // 材料比小题高一档（1200-1800）：立意和分论点都要从材料里找，材料不够就撑不起 2-3 个分论点。
   // 作答上限取 1000：国考副省级 1000-1200、市地级 1000 左右、省考 800-1200。
-  "sl.zuowen":{ name:"申发论述", note:"议论文写作：立意 / 结构 / 论证 / 语言",
-    dims:["立意准确","结构完整","论证充分","语言规范","结合材料"], matLen:[1200,1800], ansLen:1000,
+  "sl.zuowen":{ name:"申发论述", note:"议论文写作：立意 / 结构 / 论证 / 语言", score:35,
+    dims:["立意准确","结构完整","论证充分","语言规范","结合材料"], matLen:[2500,3500], ansLen:1000,
     subtypes:["命题作文","话题作文","句意引发","关系思辨"] }
 };
 // matLen：各模块材料长度档；ansLen：作答字数上限——唯一口径是这张本地表，出题 prompt 与字数统计都以它为准
@@ -1972,6 +1972,12 @@ async function poolPick(topics){
   if(!api || !api.poolPick) return null;
   try{ const r = await api.poolPick(topics); return (r && r.text)? r : null; }catch(e){ return null; }
 }
+/* 选材主题：白名单与快判共用 PD_TOPICS，每次按权重抽一个。
+   不传 topics 时 pool-pick 只能按使用历史轮转，等于把主题映射丢掉了；
+   这里把主题带下去，池子里主题对得上的优先，对不上仍会兜底给一篇。 */
+function poolTopicsFor(k){
+  return [pdThemeValue()];
+}
 /* 事前限量：**一条骨架条目实测平均 41 字**（池子 461 条 / 19070 字）。一篇骨架动辄三五十条，
    素材量是材料档的三倍；模型已经在压缩（那种一篇 1700 字的骨架压到了 1119），只是压不进 900。
    与其事后裁材料（会把句子砍断），不如**事前就不给那么多**：按档反推最多喂几条，按栏轮流取，
@@ -2030,14 +2036,16 @@ async function gen(k, subtype, focusDim, needCard, onDelta, skel){
   const schema = needCard
     ? `{
     "studyCard":{"title":"${m.name}·学习卡","points":["解题要点1","解题要点2"],"pitfalls":["常见失分点1","常见失分点2"],"templates":"答题框架 / 常用句式（纯文本）","example":{"scene":"两三句话的示例小案例（全新编，不得用本题情节）","ask":"这类题的典型问法（一句话）"}},
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20,"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
+    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":${m.score || 20},"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
     ${kpSchema}
   }`
     : `{
-    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":20,"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
+    "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":${m.score || 20},"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
     ${kpSchema}
   }`;
   const data = await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta, { level: GEN_LEVEL });
+  // 题目满分是本地口径：模型偶尔照抄模板里的数字，这里以 MODULES.score 为准再重分配子项
+  if(data && data.question) data.question.score = m.score || 20;
   return alignPointScores(data);
 }
 /* 阅卷温度：从 0.3 降到 0（2026-09-29 实测对比，原因见下）。
@@ -3065,7 +3073,7 @@ async function loadQuestion(k, subtype){
     const cached = state.cache.studyCards[cacheKey];
     // 有据优先：池子里取得到骨架就用真实报道的事实出题，取不到（池子空 / 不在壳里）就回到编材料。
     // 这一步不让用户等：取不到马上返回 null，不多花一次调用。
-    const pick = await poolPick();
+    const pick = await poolPick(poolTopicsFor(k));
     const data = await gen(k, subtype, focusDim, !cached, onDelta, pick? pick.text : null);
     if(!data || !data.question) throw {code:"JSON"};
     enforceWordLimit(k, data.question, subtype);   // 字数口径以本地表为准（公文按文种），不信模型

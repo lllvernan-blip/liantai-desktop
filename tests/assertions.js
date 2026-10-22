@@ -69,7 +69,10 @@ ok(wordLimit({ requirements:"以街道办名义写一份通知，不超过300字
 ok(wordLimit({ requirements:"写一份倡议书（350字以内）。" }) === 350, "字数上限: N字以内");
 ok(wordLimit({ requirements:"写一份公开信，字数450左右。" }) === 450, "字数上限: 字数N左右");
 ok(wordLimit({ requirements:"写一份函。" }) === null, "字数上限: 无要求返回 null");
-ok(MODULES["zy.gongwen"].matLen[0] === 300 && MODULES["zy.guina"].matLen[1] === 900, "材料分档: 按模块给真实长度");
+ok(MODULES["zy.gongwen"].matLen[0] === 1000 && MODULES["zy.guina"].matLen[1] === 1500, "材料分档: 按模块给真实长度（综应A 拉到 1000-1500）");
+ok(MODULES["zy.gongwen"].score === 40 && MODULES["zy.guina"].score === 30 && MODULES["zy.duice"].score === 35
+   && MODULES["sl.guina"].score === 15 && MODULES["sl.fenxi"].score === 10 && MODULES["sl.zuowen"].score === 35,
+   "分值表: 按真题单题分值定本地口径");
 ok(!GONGWEN_TYPES.some(t=>t.type==="公文改错"), "题型: 公文改错不在池中 (综应A 不含改错类题型，改错属综应B 校阅改错)");
 ok(GONGWEN_TYPES.length === 21, "题型: 公文写作池 = 21 个文种 (got " + GONGWEN_TYPES.length + ")");
 /* 法定公文：《党政机关公文处理工作条例》第八条共 15 种，本池收 11 种 */
@@ -970,9 +973,9 @@ ok(MODULES["zy.guina"].ansLen === 300 && MODULES["zy.fenxi"].ansLen === 300 && M
    "作答上限: 综应A 按规范沿用 (300/300/300/400)");
 ok(MODULES["zy.gongwen"].ansLen === undefined, "作答上限: 公文写作按文种定，不设单一上限");
 const SL_SMALL = SUBJECTS.sl.modules.filter(k=>k !== "sl.zuowen");
-ok(SL_SMALL.every(k=>MODULES[k].matLen[0] === 600 && MODULES[k].matLen[1] === 900), "材料长度: 申论小题四类统一 600-900");
-ok(MODULES["sl.zuowen"].matLen[0] === 1200 && MODULES["sl.zuowen"].matLen[1] === 1800,
-   "材料长度: 申发论述高一档 1200-1800（立意与分论点都得从材料里找）");
+ok(SL_SMALL.every(k=>MODULES[k].matLen[0] === 1200 && MODULES[k].matLen[1] === 1800), "材料长度: 申论小题四类统一 1200-1800");
+ok(MODULES["sl.zuowen"].matLen[0] === 2500 && MODULES["sl.zuowen"].matLen[1] === 3500,
+   "材料长度: 申发论述高一档 2500-3500（立意与分论点都得从材料里找）");
 
 /* 10.6 申发论述：申论大纲「文字表达能力」对应的题型，真题里分值最高，不能缺 */
 ok(MODULES["sl.zuowen"] && MODULES["sl.zuowen"].name === "申发论述", "申发论述: 模块在场");
@@ -3264,8 +3267,9 @@ callLLM = async sys => { sys21 = String(sys||"");
 const q21 = await gen("zy.gongwen");
 callLLM = realCall21;
 ok(sys21.indexOf('"theme"') >= 0, "字段地基: 出题 schema 要求材料主题标签");
-ok(q21 && q21.question && q21.question.theme === "基层治理",
-   "字段地基: 主题标签随题目一起回来（历史记录整条存 question，不另开字段）");
+ok(sys21.indexOf('"score":40') >= 0, "字段地基: 出题 schema 的满分取模块分值（公文 40）");
+ok(q21 && q21.question && q21.question.theme === "基层治理" && q21.question.score === 40,
+   "字段地基: 主题标签随题目回来，满分以本地表为准（40）");
 /* 出题 schema 有两条分支（要学习卡 / 不要学习卡），两条都得带 theme：
    只改一条分支的话，另一条路上的题永远没有主题标签（单跑一条 gen 看不出来，所以查页面原文） */
 ok((PAGE_HTML.match(/,"theme":"材料主题/g) || []).length === 2,
@@ -3555,6 +3559,10 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   globalThis.window = { liantai: { poolPick: async () => ({ name: "x.md", title: "x", text: "## 背景\n- a" }) } };
   const _r = await poolPick();
   ok(_r && _r.text === "## 背景\n- a", "有据: 取得到就把骨架递回给 gen");
+  const _topics = poolTopicsFor("sl.guina");
+  ok(Array.isArray(_topics) && _topics.length === 1 && PD_TOPICS.indexOf(_topics[0]) >= 0,
+     "有据: 选材带主题白名单（复用快判 PD_TOPICS）");
+  ok(PAGE_HTML.indexOf("poolPick(poolTopicsFor(k))") >= 0, "有据: loadQuestion 真的把主题传下去");
   globalThis.window = _savedWin;
 
   // 「据材料」标：挂在题上，跟着题目一起存、一起导入导出
