@@ -1244,8 +1244,13 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
   for(let i=0;i<50 && typeof resolveGen !== "function";i++) await Promise.resolve();
   ok(el("#docBody").innerHTML.indexOf("正在为") >= 0, "出题在途: 首页起题先显示等待页");
   renderStart();
-  ok(el("#docBody").innerHTML.indexOf("正在为") < 0 && el("#docBody").innerHTML.indexOf("申论 练什么？") >= 0,
-     "出题在途: 从首页起的题，切到科目页照常显示科目页");
+  ok(el("#docBody").innerHTML.indexOf("正在为") >= 0 && pendingGen && pendingGen.viewing === true
+     && el("#docBody").innerHTML.indexOf('id="btnCancelGen"') >= 0,
+     "出题在途: 从首页起的题，回同科目起始页恢复等待页（SPEC 4.2 不再看最初来源）");
+  switchSubject("zy");
+  ok(el("#docBody").innerHTML.indexOf("正在为") < 0 && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0
+     && pendingGen && pendingGen.viewing === false && subjectOf(pendingGen.module) === "sl",
+     "出题在途: 别的科目起始页才正常显示、不顶屏，待出结果保留");
   renderHome();
   ok(el("#docBody").innerHTML.indexOf("正在为") >= 0 && el("#docBody").innerHTML.indexOf('id="btnPending"') < 0,
      "出题在途: 回首页直接回到原来的等待页（不留入口、不让人二选一）");
@@ -3568,6 +3573,348 @@ await null; await null;
 ok(el("#updateNote").textContent.indexOf("没能开始下载") >= 0, "更新: 下载失败时保留失败原因，不被状态文案覆盖");
 postUpdateAction = _realPost;
 globalThis.window = _savedWinUpd;
+
+/* 12.9 出题在途换页恢复一致性（SPEC 4.2 / 4.3 / 4.5）：
+   在途出题的恢复只看「属于哪个模块 / 人此刻站在哪一屏」，不再看最初从哪个入口发起。
+   覆盖两科 × 首页 / 科目起始页 / 模块落地页三条入口；出好直接进题；不匹配页不顶屏；
+   取消回原页（原题页的题目、草稿、训练链都不丢）；失败按当前页报错；一次请求只发一次 gen。 */
+{
+  const _key = state.settings.apiKey, _model = state.settings.model, _tut = state.tut.done;
+  const _pg = pendingGen, _cur = current, _flowIdSave = _flowId, _flows = state.flows;
+  const _subj = state.settings.subject, _resume = state.resumeZy;
+  const _gen = gen, _pool = poolPick, _hist = state.history, _lg = lastGrade;
+  state.settings.apiKey = "sk-test"; state.settings.model = "test-model"; state.tut.done = true;
+  state.flows = []; state.resumeZy = null; pendingGen = null; current = null;
+  state.settings.subject = "zy";
+
+  /* 假出题：挂起，由测试决定成功还是失败；genCalls 抓「一次请求只发起一次 gen」 */
+  let genCalls = 0, resolveGen = null, rejectGen = null;
+  gen = ()=>{ genCalls++; return new Promise((res, rej)=>{ resolveGen = res; rejectGen = rej; }); };
+  poolPick = async ()=> null;
+  const waitUntil = async (pred, n)=>{ for(let i=0;i<(n||80) && !pred();i++) await Promise.resolve(); return pred(); };
+  const fireGen = async (fire)=>{
+    resolveGen = null; rejectGen = null; genCalls = 0;
+    fire();
+    await waitUntil(()=> typeof resolveGen === "function" || typeof rejectGen === "function");
+    // 兜底：实现没起跑时也别把后面的断言炸掉，真实问题交给断言自己报
+    if(typeof resolveGen !== "function" && typeof rejectGen !== "function"){ resolveGen = ()=>{}; rejectGen = ()=>{}; }
+  };
+  const readyData = ()=>({ question:{ background:"在途材料", requirements:"写一篇", score:20 }, keyPoints:[], studyCard:null });
+  const hasWaitPage = ()=> el("#docBody").innerHTML.indexOf("正在为") >= 0;
+  const cancelWait = ()=> el("#btnCancelGen").onclick();
+
+  /* A. 综应A：首页发起（此时 _view 还是 home）→ 回同科目起始页恢复等待页 */
+  renderHome();
+  await fireGen(()=> startSubjectTask("zy"));
+  const zyHomeMod = pendingGen && pendingGen.module;
+  ok(pendingGen && pendingGen.originView === "home" && pendingGen.originModule === zyHomeMod && pendingGen.module === zyHomeMod,
+     "在途恢复: 首页发起记住原屏 home 与模块 " + zyHomeMod);
+  renderStart();
+  ok(_view === "start" && pendingGen && pendingGen.viewing === true && hasWaitPage()
+     && el("#docBody").innerHTML.indexOf('id="btnCancelGen"') >= 0,
+     "在途恢复: 综应A 首页起题，回同科目起始页恢复等待页（含取消出口）");
+  cancelWait();
+  ok(pendingGen === null && _view === "start" && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0,
+     "取消落点: 综应A 起始页取消，留在该科目起始页");
+
+  /* C. 申论同一路径：首页起题 → 回申论起始页同样恢复等待页 */
+  renderHome();
+  await fireGen(()=> startSubjectTask("sl"));
+  renderStart();
+  ok(curSubject() === "sl" && _view === "start" && pendingGen && pendingGen.viewing === true && hasWaitPage()
+     && subjectOf(pendingGen.module) === "sl",
+     "在途恢复: 申论 首页起题，回同科目起始页同样恢复等待页");
+  cancelWait();
+  ok(pendingGen === null && _view === "start" && el("#docBody").innerHTML.indexOf("申论 练什么？") >= 0,
+     "取消落点: 申论 起始页取消，留在申论起始页");
+
+  /* B. 综应A：模块落地页发起 → 别的模块正常浏览（不顶屏、pending 保留）→ 回原模块恢复等待页 */
+  state.settings.subject = "zy";
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  ok(pendingGen && pendingGen.originView === "landing" && pendingGen.originModule === "zy.guina"
+     && pendingGen.module === "zy.guina",
+     "在途恢复: 落地页发起记住原屏 landing 与模块 zy.guina");
+  const seq0 = reqSeq;                                   // SPEC 5：恢复等待页不得递增 reqSeq（递增就会把还在跑的请求作废）
+  renderModuleLanding("zy.guina");
+  ok(reqSeq === seq0 && _view === "landing" && pendingGen && pendingGen.viewing === true && hasWaitPage(),
+     "在途恢复: renderModuleLanding 恢复等待页不递增 reqSeq（请求还活着）");
+  tabClick("zy.duice");
+  ok(_view === "landing" && activeModule === "zy.duice" && !hasWaitPage()
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0
+     && pendingGen && pendingGen.viewing === false && pendingGen.module === "zy.guina",
+     "在途恢复: 别的模块落地页照常浏览，不被在途出题顶掉");
+  tabClick("zy.guina");
+  ok(_view === "landing" && pendingGen && pendingGen.viewing === true && hasWaitPage(),
+     "在途恢复: 回到发起出题的模块落地页，恢复等待页");
+  cancelWait();
+  ok(_view === "landing" && activeModule === "zy.guina" && pendingGen === null && !hasWaitPage()
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0
+     && el("#docBody").innerHTML.indexOf("综应A 练什么？") < 0,
+     "取消落点: 落地页等待页取消，回该模块落地页（不是科目起始页）");
+
+  /* C. 申论同样走落地页路径（sl.guina / sl.guanche），确认两科一致 */
+  state.settings.subject = "sl";
+  renderModuleLanding("sl.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("sl.guanche");
+  ok(_view === "landing" && activeModule === "sl.guanche" && !hasWaitPage()
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0
+     && pendingGen && pendingGen.viewing === false && subjectOf(pendingGen.module) === "sl",
+     "在途恢复: 申论 别的模块落地页照常浏览，不被在途出题顶掉");
+  tabClick("sl.guina");
+  ok(_view === "landing" && pendingGen && pendingGen.viewing === true && hasWaitPage(),
+     "在途恢复: 申论 回发起模块落地页恢复等待页");
+  cancelWait();
+  ok(_view === "landing" && activeModule === "sl.guina" && pendingGen === null
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     "取消落点: 申论 落地页等待页取消回该模块落地页");
+
+  /* 就地重渲染兜底（SPEC 5 / minor-2）：恢复等待页时 activeModule 已被让空，
+     renderCurrentView 必须按 pendingGen 的模块留在等待页，而不是换到「上次练的模块」落地页。 */
+  state.settings.subject = "zy"; pendingGen = null; current = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("zy.duice");
+  tabClick("zy.guina");                          // 以「恢复等待页」的方式回来：activeModule 已被让空
+  ok(_view === "landing" && pendingGen && pendingGen.viewing === true && hasWaitPage() && activeModule === null,
+     "就地重渲染: 恢复等待页时 activeModule 已让空（前置）");
+  ok(renderCurrentView() === true && _view === "landing" && pendingGen && pendingGen.viewing === true
+     && hasWaitPage() && pendingGen.module === "zy.guina",
+     "就地重渲染: renderCurrentView 按 pendingGen 的模块留在等待页");
+  cancelWait();
+  ok(_view === "landing" && activeModule === "zy.guina" && pendingGen === null
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     "就地重渲染: 等待页取消后落回原模块落地页");
+
+  /* D. 出好回匹配页直接进题；人在别处时结果不顶屏，回来才进题 */
+  state.settings.subject = "zy"; pendingGen = null; current = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("zy.duice");
+  tabClick("zy.guina");                          // 以「恢复等待页」的方式回到匹配页
+  resolveGen(readyData());
+  await waitUntil(()=> _view === "q");
+  ok(_view === "q" && current && current.module === "zy.guina" && current.question.background === "在途材料" && pendingGen === null,
+     "出好进题: 等回匹配页时出好，直接进入那道题");
+  current = null; pendingGen = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("zy.duice");
+  resolveGen(readyData());
+  await waitUntil(()=> !!(pendingGen && pendingGen.status === "ready"));
+  ok(_view === "landing" && activeModule === "zy.duice" && !hasWaitPage()
+     && pendingGen && pendingGen.status === "ready" && pendingGen.viewing === false,
+     "出好进题: 人在别的模块落地页时出好不顶屏，结果留在 pendingGen");
+  tabClick("zy.guina");
+  ok(_view === "q" && current && current.module === "zy.guina" && current.question.background === "在途材料" && pendingGen === null,
+     "出好进题: 回到原模块落地页，ready 结果直接进题");
+
+  /* 完成直达补两个入口（minor-1）：结果在「人已切走」时回来，从首页 / 同科目起始页回屏都要直接进题 */
+  // a. 从首页回来
+  state.settings.subject = "zy"; pendingGen = null; current = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("zy.duice");
+  resolveGen(readyData());
+  await waitUntil(()=> !!(pendingGen && pendingGen.status === "ready"));
+  renderHome();
+  ok(_view === "q" && current && current.module === "zy.guina" && current.question.background === "在途材料"
+     && pendingGen === null && !hasWaitPage(),
+     "出好进题: ready 结果从首页回来直接进题");
+  // b. 从同科目起始页回来
+  current = null; pendingGen = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("zy.duice");
+  resolveGen(readyData());
+  await waitUntil(()=> !!(pendingGen && pendingGen.status === "ready"));
+  renderStart();
+  ok(_view === "q" && current && current.module === "zy.guina" && current.question.background === "在途材料"
+     && pendingGen === null && !hasWaitPage(),
+     "出好进题: ready 结果从同科目起始页回来直接进题");
+  current = null; pendingGen = null;
+
+  /* E. 不匹配的页面不接管：pending 属于 zy，切到申论起始页正常显示；回来恢复等待页 */
+  state.settings.subject = "zy"; current = null; pendingGen = null; renderStart();
+  await fireGen(()=> el("#btnSmart").onclick());
+  ok(pendingGen && pendingGen.originView === "start" && subjectOf(pendingGen.module) === "zy",
+     "在途恢复: 科目起始页发起的 pending 记住原屏 start");
+  switchSubject("sl");
+  ok(curSubject() === "sl" && _view === "start" && !hasWaitPage()
+     && el("#docBody").innerHTML.indexOf("申论 练什么？") >= 0
+     && pendingGen && pendingGen.viewing === false && subjectOf(pendingGen.module) === "zy",
+     "在途恢复: 别的科目起始页照常显示，不被在途出题顶掉");
+  switchSubject("zy");
+  ok(curSubject() === "zy" && _view === "start" && pendingGen && pendingGen.viewing === true && hasWaitPage(),
+     "在途恢复: 回到起题科目起始页，恢复等待页");
+  cancelWait();
+  ok(_view === "start" && curSubject() === "zy" && pendingGen === null
+     && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0,
+     "取消落点: 科目起始页等待页取消，留在该科目起始页");
+
+  /* G. 原题页「换一题」的等待页取消：回原题，题目 / 草稿 / 训练链原样保留 */
+  state.settings.subject = "zy"; state.flows = []; _flowId = null; pendingGen = null;
+  const oldQ = { background:"原来那道综应题的材料", requirements:"概括原因", score:20 };
+  current = { module:"zy.guina", subtype:"概括原因", question:oldQ, keyPoints:[], phase:"answer", limitMin:0, limitFrom:0 };
+  saveDraft(qSig(oldQ), "写了一半");
+  renderQuestion();
+  ok(_view === "q" && el("#answer").value === "写了一半", "原题页: 换一题前原题与草稿在位（前置）");
+  await fireGen(()=> el("#btnSwitch").onclick());
+  ok(pendingGen && pendingGen.originView === "q" && hasWaitPage(),
+     "出题在途: 从原题页换一题进等待页，记住原屏 q");
+  cancelWait();
+  ok(_view === "q" && current && current.question === oldQ && el("#answer").value === "写了一半",
+     "取消落点: 从原题页换一题的等待页取消，回原题且草稿还在");
+  clearDraft(qSig(oldQ));
+
+  /* G. 申论：原训练链上「换一题」取消后，原链（id 不变）与原题都还在 */
+  state.settings.subject = "sl"; state.flows = []; _flowId = null; pendingGen = null; current = null;
+  const oldQSl = { background:"申论原来那道题的材料", requirements:"概括问题", score:20 };
+  current = { module:"sl.guina", subtype:"概括问题", question:oldQSl, keyPoints:[] };
+  renderQuestion();
+  const flowId0 = activeFlow() && activeFlow().id;
+  ok(_view === "q" && !!flowId0 && el("#docBody").innerHTML.indexOf('id="btnSwitch"') >= 0,
+     "原题页: 申论原链有「换一题」出口（前置）");
+  await fireGen(()=> el("#btnSwitch").onclick());
+  ok(pendingGen && pendingGen.originView === "q" && hasWaitPage(),
+     "出题在途: 申论原链页换一题进等待页");
+  cancelWait();
+  ok(_view === "q" && activeFlow() && activeFlow().id === flowId0 && state.flows.length === 1
+     && current && current.question === oldQSl,
+     "取消落点: 申论原链页取消，原链 id 不变、原题不丢");
+  state.flows = []; _flowId = null; current = null;
+
+  /* H. 一次请求只发一次 gen：反复换模块 / 换页，计数始终 1，pending 不丢 */
+  state.settings.subject = "zy"; pendingGen = null; current = null; renderHome();
+  await fireGen(()=> startSubjectTask("zy"));
+  const otherMod = ["zy.gongwen","zy.guina","zy.fenxi","zy.duice","zy.shiwu"].filter(k=> k !== pendingGen.module)[0];
+  const calls = [genCalls];
+  tabClick(otherMod); calls.push(genCalls);
+  renderHome(); calls.push(genCalls);
+  renderStart(); calls.push(genCalls);
+  tabClick(pendingGen.module); calls.push(genCalls);
+  ok(pendingGen && pendingGen.viewing === true && hasWaitPage(),
+     "单次请求: 点回发起出题的模块恢复等待页");
+  tabClick(otherMod); calls.push(genCalls);
+  renderStart(); calls.push(genCalls);
+  ok(genCalls === 1 && calls.every(n=> n === 1) && !!pendingGen,
+     "单次请求: 换页与回屏只发起一次 gen（调用计数 " + genCalls + "）");
+  cancelWait();
+  ok(pendingGen === null && _view === "start", "单次请求: 取消收干净，不再发新请求");
+
+  /* I. 失败落点：按「人此刻站的页」报错并回去，而不是一律甩到科目起始页 */
+  // ① 落地页等待中失败 → 回该模块落地页 + banner 报错
+  state.settings.subject = "zy"; pendingGen = null; current = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  rejectGen({ code:"JSON" });
+  await waitUntil(()=> pendingGen === null);
+  ok(_view === "landing" && activeModule === "zy.guina" && pendingGen === null && !hasWaitPage()
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     "失败落点: 落地页等待中失败，回该模块落地页");
+  ok(el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
+     "失败落点: 失败当场 banner 报错，不让人干等");
+  // ② 首页等待中失败 → 回首页 + banner 报错
+  renderHome();
+  await fireGen(()=> startSubjectTask("zy"));
+  rejectGen({ code:"JSON" });
+  await waitUntil(()=> pendingGen === null);
+  ok(_view === "home" && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
+     && el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
+     "失败落点: 首页等待中失败，回首页并报错");
+  // ③ 人已在别的模块：本次不顶屏，failed 留在 pendingGen；回原模块才报「上次出题没有成功」
+  state.settings.subject = "zy"; pendingGen = null; current = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("zy.duice");
+  rejectGen({ code:"JSON" });
+  await waitUntil(()=> !!(pendingGen && pendingGen.status === "failed"));
+  ok(pendingGen && pendingGen.status === "failed" && pendingGen.viewing === false
+     && _view === "landing" && activeModule === "zy.duice" && !hasWaitPage()
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     "失败落点: 人在别的模块时失败不顶屏，failed 留在 pendingGen");
+  tabClick("zy.guina");
+  ok(pendingGen === null && _view === "landing" && activeModule === "zy.guina"
+     && el("#bannerSlot").innerHTML.indexOf("上次出题没有成功") >= 0
+     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     "失败落点: 回到原模块落地页才报「上次出题没有成功」，页面照常渲染");
+  // ④ 恢复等待页后失败：当场报错并回当前页（落地页），而不是请求最初来源
+  pendingGen = null; current = null;
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  tabClick("zy.duice");
+  tabClick("zy.guina");                          // 回匹配页恢复等待页（此时 reqSeq 已变）
+  rejectGen({ code:"JSON" });
+  await waitUntil(()=> pendingGen === null);
+  ok(_view === "landing" && activeModule === "zy.guina" && pendingGen === null && !hasWaitPage()
+     && el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
+     "失败落点: 恢复等待页后失败，当场报错并回当前页（落地页）");
+  // ⑤ 科目起始页等待中失败 → 回本科目起始页 + 报错
+  state.settings.subject = "zy"; pendingGen = null; current = null; renderStart();
+  await fireGen(()=> el("#btnSmart").onclick());
+  rejectGen({ code:"JSON" });
+  await waitUntil(()=> pendingGen === null);
+  ok(_view === "start" && pendingGen === null && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0
+     && el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
+     "失败落点: 科目起始页等待中失败，回本科目起始页并报错");
+  // ⑥ 失败后在别的科目页，再切回起题科目的起始页：正常显示 + 报「上次出题没有成功」（清理 pending 时不再对 null 取 viewing）
+  state.settings.subject = "zy"; pendingGen = null; current = null; renderStart();
+  await fireGen(()=> el("#btnSmart").onclick());
+  switchSubject("sl");                       // 在途时切到别的科目页（请求还跑着）
+  rejectGen({ code:"JSON" });
+  await waitUntil(()=> !!(pendingGen && pendingGen.status === "failed"));
+  ok(pendingGen && pendingGen.status === "failed" && curSubject() === "sl" && !hasWaitPage(),
+     "失败落点: 失败落在别的科目页时只留 failed，不顶屏");
+  let switchErr = null;
+  try { switchSubject("zy"); } catch(e){ switchErr = e; }   // 旧实现会在这里对已清空的 pendingGen 取 viewing，抛 TypeError
+  ok(!switchErr && _view === "start" && pendingGen === null && !hasWaitPage()
+     && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0
+     && el("#bannerSlot").innerHTML.indexOf("上次出题没有成功") >= 0,
+     "失败落点: 切回起题科目起始页，正常显示并报「上次出题没有成功」");
+  // ⑦ 原题页换一题失败 → 回原题，草稿不丢
+  const oldQF = { background:"换一题失败时原来那道材料", requirements:"概括原因", score:20 };
+  current = { module:"zy.guina", subtype:"概括原因", question:oldQF, keyPoints:[], phase:"answer", limitMin:0, limitFrom:0 };
+  saveDraft(qSig(oldQF), "失败也写了一半");
+  renderQuestion();
+  await fireGen(()=> el("#btnSwitch").onclick());
+  rejectGen({ code:"JSON" });
+  await waitUntil(()=> pendingGen === null);
+  ok(_view === "q" && current && current.question === oldQF && el("#answer").value === "失败也写了一半"
+     && el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
+     "失败落点: 原题页换一题失败，回原题、草稿还在并报错");
+  clearDraft(qSig(oldQF));
+
+  /* ⑧ 从等待页点开历史记录：这一页归记录，迟到的出题不许顶掉它；结果留在 pendingGen，回首页再进题 */
+  state.settings.subject = "zy"; pendingGen = null; current = null;
+  state.history = [{ ts:Date.now(), module:"zy.guina", subtype:"概括原因",
+    question:{ background:"历史记录里的材料", requirements:"r", score:20 },
+    answer:"历史答案", keyPoints:[], hits:[], grade:{ total:80, scores:{} } }];
+  renderModuleLanding("zy.guina");
+  await fireGen(()=> el("#btnLandStart").onclick());
+  const recQ = state.history[0].question;
+  const seqBeforeRec = reqSeq;
+  openHistRecord(state.history[0]);
+  ok(pendingGen && pendingGen.viewing === false && reqSeq > seqBeforeRec && _view === "q"
+     && current && current.question === recQ,
+     "等待页点开历史记录: 旧请求让出这一页，记录正常打开");
+  resolveGen(readyData());
+  await waitUntil(()=> !!(pendingGen && pendingGen.status === "ready"));
+  ok(_view === "q" && current && current.question === recQ && pendingGen && pendingGen.status === "ready",
+     "等待页点开历史记录: 结果回来不顶掉正在看的批改记录（ready 留在 pendingGen）");
+  renderHome();
+  ok(_view === "q" && current && current.module === "zy.guina" && current.question.background === "在途材料" && pendingGen === null,
+     "等待页点开历史记录: 回首页后直接进那道出好的题");
+  current = null; pendingGen = null;
+
+  /* 还原现场：假 gen / 假 Key / pending / current / 训练链都放回去，别污染后面的自检 */
+  gen = _gen; poolPick = _pool;
+  pendingGen = _pg; current = _cur; _flowId = _flowIdSave; state.flows = _flows; state.resumeZy = _resume;
+  state.history = _hist; lastGrade = _lg;
+  state.settings.apiKey = _key; state.settings.model = _model; state.tut.done = _tut; state.settings.subject = _subj;
+  banner("");
+  renderHome();
+}
 
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);

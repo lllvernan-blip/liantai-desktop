@@ -2443,10 +2443,21 @@ function wireCancelGen(mySeq){
   cg.onclick = ()=>{
     if(mySeq != null && (!pendingGen || pendingGen.mySeq !== mySeq)) return;
     if(mySeq == null && !pendingGen) return;
-    const goHome = _view === "home";
+    /* 落点看用户按取消时正在看哪一页，不是请求最初从哪发起（SPEC 4.5）。
+       落地页要靠 activeModule / originModule 兜底——恢复等待页时 activeModule 已经被让空。 */
+    const viewNow = _view;
+    const land = activeModule || pendingGen.originModule || pendingGen.module;
     pendingGen = null; reqSeq++;
-    if(goHome) renderHome(); else renderStart();
+    renderPendingLeave(viewNow, land);
   };
+}
+/* 离开等待页（取消 / 当场失败）回到哪一屏：按「此刻正在看的那一页」决定（SPEC 4.5 / 4.3）。
+   调用方必须先把 pendingGen 清掉——否则 renderHome / renderStart 又会把等待页恢复回来。 */
+function renderPendingLeave(viewNow, land){
+  if(viewNow === "home"){ renderHome(); return; }
+  if(viewNow === "landing"){ renderModuleLanding(land || lastModuleOf(curSubject())); return; }
+  if(viewNow === "q" && current && current.question){ renderQuestion(); return; }   // 原题页：current / 草稿 / 链都还在
+  renderStart();
 }
 
 /* 起始页两种形态（2026-10-08 分开，2026-10-12 首页改居中 hero）：
@@ -2562,11 +2573,11 @@ function renderHome(){
 function renderStart(){
   _view = "start";
   pdActive = false;   // 回起始页 = 退出判别轨（同 renderHome）：不然抬头还挂着「快判」
-  // 从哪个科目起的题，回那个科目的起始页就自动回到原位；别的科目页照常显示
+  // 起的题属于当前科目就回原位（首页 / 科目页 / 落地页起的一样）——SPEC 4.2：不再看最初来源。
+  // 别的科目页照常显示，但先把「正在看」让出去，旧请求不许往这一页写秒数与实况（SPEC 5.6）。
   if(pendingGen){
-    const psubj = subjectOf(pendingGen.module);
-    if(pendingGen.origin === "start" && psubj === curSubject() && showPendingView()) return;
-    pendingGen.viewing = false;
+    if(subjectOf(pendingGen.module) === curSubject() && showPendingView()) return;
+    if(pendingGen) pendingGen.viewing = false;   // 失败态已被 showPendingView 清掉；别对 null 取属性
   }
   reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
   activeModule = null; renderHeader();   // 起始页灰字如实报「综合 · 智能出题」，不再挂着上次练的模块名（页面下方写的不是它）
@@ -2584,7 +2595,8 @@ function renderStart(){
 function renderCurrentView(){
   if(_view === "q") return false;
   if(pdActive && pdRound){ if(pdRound.done) renderPDSummary(); else renderPDRound(); return true; }
-  if(_view === "landing") renderModuleLanding(activeModule || lastModuleOf(curSubject()));
+  // 等待页恢复时 activeModule 已被让空：落地页要知道自己原来是哪个模块，否则关个设置回来就换了页
+  if(_view === "landing") renderModuleLanding(activeModule || (pendingGen && pendingGen.viewing && pendingGen.module) || lastModuleOf(curSubject()));
   else if(_view === "home") renderHome();
   else renderStart();
   return true;
@@ -2793,6 +2805,10 @@ function tourResume(){
 function renderModuleLanding(k){
   _view = "landing";
   activeModule = k; renderHeader(); renderTabs();
+  /* 在途出题：回到发起它的那个模块落地页就恢复等待页 / 直接进题（SPEC 4.3）。
+     别的模块照常浏览，但先把「正在看」让出去；这里**不递增 reqSeq**——请求还活着，只是这一页不接管。 */
+  if(pendingForModule(k) && showPendingView()) return;
+  if(pendingGen) pendingGen.viewing = false;
   const m = MODULES[k];
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module===k) n++;
@@ -2858,16 +2874,17 @@ async function startModule(k){
 let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一次请求时才有资格上屏
 /* 在途出题：换页只放弃「自动上屏」，不丢结果。结果按 running / ready / failed 留在首页/科目页入口，
    用户点回来再进。以前换页只靠 reqSeq 把结果扔掉，等待页一没就再也找不回那道题。 */
-let pendingGen = null;   // running / ready 两态；origin = 从哪一屏发起的（home / start）
+let pendingGen = null;   // running / ready / failed 三态；originView / originModule = 从哪一屏、哪个模块发起的
+function pendingForModule(k){ return !!(pendingGen && pendingGen.module === k); }   // 恢复判断只认模块，不认最初入口
 async function loadQuestion(k, subtype){
   if(entryBlocked()) return;   // 兜底：所有出题路都从这里过，进加载态之前就得判（见 entryBlocked）
   banner("");
   const mySeq = ++reqSeq;
-  const prev = current;   // 出题失败时保住上一题，不打回首页
   const t0 = Date.now();
   showLoading(`AI 正在为「${MODULES[k].name}${subtype?' · '+subtype:''}」准备学习卡与仿真题…`, undefined, { cancel:true });
   pendingGen = { mySeq, module:k, subtype:subtype||null, startedAt:t0, status:"running", viewing:true, prepared:null,
-                 origin: _view === "home"? "home" : "start" };
+                 origin: _view === "home"? "home" : "start",   // 旧字段保留；恢复判断不再只看它
+                 originView: _view, originModule: k };
   wireCancelGen(mySeq);
   // 上屏资格：还是我这次请求、且人正看着这一页。换页后旧请求还在跑，但它不许再往别人的页面上写秒数与实况
   const owns = ()=> !!(pendingGen && pendingGen.mySeq === mySeq && pendingGen.viewing);
@@ -2918,20 +2935,24 @@ async function loadQuestion(k, subtype){
   }catch(e){
     if(mySeq !== reqSeq){
       if(pendingGen && pendingGen.mySeq === mySeq){
-        const origin = pendingGen.origin;
         if(pendingGen.viewing){   // 人正盯着等待页：当场说失败，别再让他干等
+          const viewNow = _view;
+          const land = activeModule || pendingGen.originModule || pendingGen.module;
           pendingGen = null; handleErr(e, true);
-          if(origin === "home") renderHome(); else renderStart();
+          renderPendingLeave(viewNow, land);
         }else{
           pendingGen.status = "failed"; pendingGen.error = e; pendingGen.viewing = false;
         }
       }
       return;
     }
+    /* 没离开过等待页就失败：回到按下出题时所在的那一屏报错（首页 / 科目页 / 落地页 / 原题页），
+       不把人甩到科目起始页，也不卡在加载态。 */
+    const viewNow = _view;
+    const land = activeModule || k;
     pendingGen = null;
     handleErr(e, true);   // 失败只提示，不清界面
-    if(prev && prev.question){ renderHeader(); renderQuestion(); }   // 回到上一题的现场
-    else renderStart();
+    renderPendingLeave(viewNow, land);
   }
   finally{ clearInterval(tick); }
 }
@@ -4891,6 +4912,9 @@ function profileHistHtml(){
 /* 从记录打开一次批改：记录是唯一事实源，这里不重新调 AI */
 function openHistRecord(h){
   if(!h || !h.question || !h.grade) return;
+  /* 从等待页点开一条历史记录也是离开等待页：旧请求不许把这一页顶掉（SPEC 5.6）。
+     只作废「自动上屏」，不动 pendingGen —— 结果仍留在里面，回匹配页再恢复/进题。 */
+  if(pendingGen && pendingGen.viewing){ pendingGen.viewing = false; reqSeq++; }
   const hits = Array.isArray(h.hits)? h.hits : [];
   const g = Object.assign({ hits }, h.grade);
   const pts = pointsOf(hits);
