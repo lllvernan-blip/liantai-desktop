@@ -2404,74 +2404,127 @@ ok(sfRev.length === 1 && sfRev[0].step === "draft", "flow 净化: 旧数据里�
 /* ---- 16. 闭环回执：错因这次犯没犯，以及快判的辨析点 ---- */
 
 /* 16.1 错因回执：批改里判定「带进去的错因这次犯没犯」，写回经验本身。
-   从 0.0.24 起回执必须带 evidence，fixed 还要过本地采分点核对、换题才算改掉。 */
+   从 0.0.24 起回执必须带 evidence 且引文要能在答卷里找到；fixed 还要过本地采分点核对、换题才算改掉。 */
 state.history = [];
 const qReceipt = { background:"新题回执材料", requirements:"回执要求" };
+const ansReceipt = "关于调整作息的通告指出，社区没有写经费来源，后续再议。";
 state.experiences = [
-  { id:"c1", type:"错因", title:"漏写落款", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
-  { id:"c2", type:"错因", title:"要点不全", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:"s" },
-  { id:"c3", type:"规则", title:"并列要同层", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
+  { id:"c1", type:"错因", kind:"格式", title:"漏写落款", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
+  { id:"c2", type:"错因", kind:"漏点", title:"要点不全", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:"s" },
+  { id:"c3", type:"规则", kind:"", title:"并列要同层", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
 ];
-const chk1 = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
-  { title:"漏写落款", status:"fixed", evidence:"答到：「关于调整作息的通告」" },
-  { title:"要点不全", status:"again", evidence:"「没有写经费来源」" },
-  { title:"不存在的经验", status:"again", evidence:"x" },
-  { title:"并列要同层", status:"na", evidence:"本题考不到并列" }
-]}, 1700000000000, qReceipt);
+const chk1 = applyExperienceChecks("sl.guina", {
+  // 真实 schema：满分项 kind 是 "-"；只有未满分项才带错因 kind
+  hits:[{ score:5, awarded:5, kind:"-" }, { score:5, awarded:2, kind:"漏点" }],
+  experienceChecks:[
+    { title:"漏写落款", status:"fixed", evidence:"答到：「关于调整作息的通告」" },
+    { title:"要点不全", status:"again", evidence:"「没有写经费来源」" },
+    { title:"不存在的经验", status:"again", evidence:"x" },
+    { title:"并列要同层", status:"na", evidence:"本题考不到并列" }
+  ]
+}, 1700000000000, qReceipt, ansReceipt);
 const ce1 = state.experiences.find(e=>e.id==="c1"), ce2 = state.experiences.find(e=>e.id==="c2"), ce3 = state.experiences.find(e=>e.id==="c3");
 ok(chk1.fixed.length === 1 && chk1.fixed[0] === "漏写落款" && chk1.again.length === 1 && chk1.again[0] === "要点不全"
-   && chk1.na.length === 1 && chk1.na[0] === "并列要同层" && chk1.rejected.length === 0,
-   "错因回执: 分列已改掉、又犯了、没考到");
+   && chk1.na.length === 1 && chk1.na[0] === "并列要同层"
+   && chk1.rejected.length === 1 && chk1.rejected[0].reason === "unknown-title",
+   "错因回执: 分列已改掉、又犯了、没考到；未知 title 进 rejected");
 ok(ce1.cleared === true && ce1.lastCheckAt === 1700000000000 && ce1.verifiedAt === 1700000000000
    && ce1.transferPasses === 1 && ce1.lastCheckEvidence.indexOf("通告") >= 0 && expState(ce1) === "cleared",
-   "错因回执: 换题 + evidence + 本地通过 -> 已改掉");
+   "错因回执: 换题 + evidence 在答卷里 + 本地通过 -> 已改掉");
 ok(ce2.recur === 1 && ce2.cleared === false && ce2.lastCheckEvidence.indexOf("经费") >= 0 && expState(ce2) === "recur",
    "错因回执: again -> 复犯计数，evidence 留痕");
 ok(ce3.lastCheckAt === undefined && ce3.naCount === 1 && expState(ce3) === "fresh", "错因回执: na 只记分母，不改状态");
 ok(expStatusText(ce1).indexOf("换题核过") >= 0 && expStatusText(ce2).indexOf("复犯 1 次") >= 0 && expStatusText(ce3) === "还没考到",
    "错因回执: 状态各自说法");
-applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"要点不全", status:"again", evidence:"「又漏了经费来源」" }] }, 1700000001000, qReceipt);
+applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"要点不全", status:"again", evidence:"「没有写经费来源」" }] }, 1700000001000, qReceipt, ansReceipt);
 ok(ce2.recur === 2 && ce2.lastCheckAt === 1700000001000, "错因回执: 再犯一次就累加");
 applyExperienceChecks("sl.guina", {});
 ok(ce2.recur === 2 && expState(ce1) === "cleared", "错因回执: 模型没给结果时什么都不动");
 
-/* 16.1b 没 evidence / 同题 fixed / 本地同 kind 冲突：都不许置 cleared */
+/* 16.1b evidence / 同题 / 本地核对 / 旧数据 / 状态保留 */
 state.experiences = [
   { id:"d1", type:"错因", title:"没证据", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
-  { id:"d2", type:"错因", title:"同题答对", kind:"", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:qSig(qReceipt) },
+  { id:"d2", type:"错因", title:"同题答对", kind:"格式", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:qSig(qReceipt) },
   { id:"d3", type:"错因", title:"本地冲突", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
 ];
 const chkBad = applyExperienceChecks("sl.guina", {
   hits:[{ score:5, awarded:2, kind:"漏点" }],
   experienceChecks:[
     { title:"没证据", status:"fixed" },
-    { title:"同题答对", status:"fixed", evidence:"答到：「……」" },
-    { title:"本地冲突", status:"fixed", evidence:"答到：「……」" }
+    { title:"同题答对", status:"fixed", evidence:"答到：「关于调整作息的通告」" },
+    { title:"本地冲突", status:"fixed", evidence:"答到：「关于调整作息的通告」" }
   ]
-}, 1700000000100, qReceipt);
+}, 1700000000100, qReceipt, ansReceipt);
 const d1 = state.experiences.find(e=>e.id==="d1"), d2 = state.experiences.find(e=>e.id==="d2"), d3 = state.experiences.find(e=>e.id==="d3");
 ok(d1.cleared !== true && chkBad.rejected.some(x=>x.title==="没证据" && x.reason==="no-evidence"),
    "回执校验: 没有 evidence 的 fixed 不改状态");
 ok(d2.cleared !== true && d2.pendingAt === 1700000000100 && expState(d2) === "pending" && expStatusText(d2).indexOf("待换题验证") >= 0,
    "回执校验: 同题 fixed 只算待换题验证");
 ok(d3.cleared !== true && chkBad.rejected.some(x=>x.title==="本地冲突" && x.reason==="local-conflict"),
-   "回执校验: 同 kind 采分点没全满分 -> 拒绝 fixed");
+   "回执校验: 同 kind 还有非满分项 -> 拒绝 fixed");
 ok(chkBad.pending.length === 1 && chkBad.fixed.length === 0, "回执校验: 不通过的 fixed 不进 fixed 列表");
-/* 换题 + 本地同 kind 全满分 -> 才可以置已改掉 */
+/* 换题 + 无本 kind 非满分项（满分项真实 kind 是 "-"）-> 才可以置已改掉 */
 state.experiences = [{ id:"d4", type:"错因", title:"本地通过", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
-const chkPass = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"漏点" }], experienceChecks:[
-  { title:"本地通过", status:"fixed", evidence:"答到：「……」" }
-]}, 1700000000200, qReceipt);
+const chkPass = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
+  { title:"本地通过", status:"fixed", evidence:"答到：「关于调整作息的通告」" }
+]}, 1700000000200, qReceipt, ansReceipt);
 const d4 = state.experiences[0];
 ok(d4.cleared === true && d4.verifiedAt === 1700000000200 && d4.transferPasses === 1 && chkPass.fixed[0] === "本地通过",
-   "回执校验: 换题 + 本地全满分 -> 已改掉");
+   "回执校验: 满分项 kind=- 时，换题 + 本地无再犯 -> 已改掉");
+/* evidence 引文找不到：仍是自证，不许改状态 */
+state.experiences = [{ id:"d5", type:"错因", title:"引文不在答卷", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
+const chkEvil = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
+  { title:"引文不在答卷", status:"fixed", evidence:"答到：「答案里没有」" }
+]}, 1700000000300, qReceipt, ansReceipt);
+ok(state.experiences[0].cleared !== true && chkEvil.rejected.some(x=>x.reason==="evidence-not-in-answer"),
+   "回执校验: evidence 引文不在答卷里 -> 拒绝 fixed");
+/* 无 sourceSig 的旧经验：只算待换题，不升级 */
+state.experiences = [{ id:"d6", type:"错因", title:"旧经验无签名", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false }];
+applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
+  { title:"旧经验无签名", status:"fixed", evidence:"答到：「关于调整作息的通告」" }
+]}, 1700000000400, qReceipt, ansReceipt);
+ok(state.experiences[0].cleared !== true && state.experiences[0].pendingAt === 1700000000400,
+   "回执校验: 无 sourceSig 只算待换题验证");
+/* 已换题验证过的，同题 fixed 不许抹回 pending */
+state.experiences = [{ id:"d7", type:"错因", title:"已验证", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:qSig(qReceipt), cleared:true, verifiedAt:1690000000000, lastCheckAt:1690000000000 }];
+applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
+  { title:"已验证", status:"fixed", evidence:"答到：「关于调整作息的通告」" }
+]}, 1700000000500, qReceipt, ansReceipt);
+ok(state.experiences[0].cleared === true && state.experiences[0].verifiedAt === 1690000000000,
+   "回执校验: 已验证的同题 fixed 保持 cleared");
+/* na 没有 evidence：按无效处理；未知 status 进 rejected */
+state.experiences = [{ id:"d8", type:"规则", kind:"", title:"规则条", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
+const chkNa = applyExperienceChecks("sl.guina", { experienceChecks:[
+  { title:"规则条", status:"na", evidence:"" },
+  { title:"规则条", status:"maybe", evidence:"x" }
+]}, 1700000000600, qReceipt, ansReceipt);
+ok(state.experiences[0].naCount === undefined && chkNa.rejected.some(x=>x.reason==="no-evidence")
+   && chkNa.rejected.some(x=>x.reason==="unknown-status"),
+   "回执校验: na 也要 evidence，未知 status 进 rejected");
+/* 同 kind 已经全满分，模型却说 again：本地与回执冲突，不累加复犯 */
+state.experiences = [{ id:"d9", type:"错因", title:"假复犯", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
+const chkAgain = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
+  { title:"假复犯", status:"again", evidence:"「关于调整作息的通告」" }
+]}, 1700000000700, qReceipt, ansReceipt);
+ok((state.experiences[0].recur || 0) === 0 && chkAgain.rejected.some(x=>x.reason==="local-conflict"),
+   "回执校验: 同 kind 全满分但说 again -> 拒绝复犯");
+/* 错因没有 kind：本地核不了，不许凭 evidence 直接置已改 */
+state.experiences = [{ id:"d10", type:"错因", title:"错因无kind", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
+const chkNoKind = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
+  { title:"错因无kind", status:"fixed", evidence:"「关于调整作息的通告」" }
+]}, 1700000000800, qReceipt, ansReceipt);
+ok(state.experiences[0].cleared !== true && chkNoKind.rejected.some(x=>x.reason==="no-local-hit"),
+   "回执校验: 错因没有 kind -> 本地无法核对，拒绝 fixed");
 /* 经验清洗：规则不能带 kind；数字/布尔字段归一 */
 const sanExp = sanitizeExperiences([
   { type:"规则", kind:"漏点", title:"规则条", body:"b", checks:"2", cleared:"1" },
-  { type:"错因", kind:"漏点", title:"错因条", body:"b" }
+  { type:"错因", kind:"漏点", title:"错因条", body:"b" },
+  { type:"错因", kind:"不存在的类", title:"坏 kind", body:"b" }
 ]);
-ok(sanExp[0].kind === "" && sanExp[0].checks === 2 && sanExp[0].cleared === true && sanExp[1].kind === "漏点",
-   "经验清洗: 规则不能带 kind，数字字段归一");
+ok(sanExp[0].kind === "" && sanExp[0].checks === 2 && sanExp[0].cleared === true
+   && sanExp[1].kind === "漏点" && sanExp[2].kind === "",
+   "经验清洗: 规则不能带 kind，错因 kind 只认闭集");
+ok(EXP_KINDS.join("|") === GRADE_TAG_KEYS.join("|"), "经验清洗: 错因闭集与 GRADE_TAGS 同步");
 
 /* 16.2 注入顺序：复犯的优先带上去接着考；已改掉的让位，但过了一周要回来复测 */
 const nowT = Date.now(), HOUR = 3600e3, DAY = 86400e3;
@@ -2503,7 +2556,7 @@ state.experiences = [
   { id:"s2", type:"错因", title:"乙", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, lastCheckAt: nowT - HOUR, cleared:false, recur:1, sourceSig:"s" },
   { id:"s3", type:"错因", title:"丙", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
 ];
-ok(experienceListHtml().indexOf("已改掉 1 条 · 复犯 1 条 · 待验证 1 条") >= 0, "经验列表: 三个状态可数");
+ok(experienceListHtml().indexOf("旧记录 1 条 · 复犯 1 条 · 待验证 1 条") >= 0, "经验列表: 旧记录、复犯、待验证各自可数");
 ok(experienceListHtml().indexOf("错因状态：") >= 0, "经验列表: 每条带错因状态");
 state.experiences = [{ id:"p1", type:"错因", title:"待换题的", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, pendingAt: nowT, sourceSig:"s" }];
 ok(expState(state.experiences[0]) === "pending" && expStatusText(state.experiences[0]).indexOf("待换题验证") >= 0
@@ -2514,15 +2567,19 @@ ok(expState(state.experiences[0]) === "pending" && expStatusText(state.experienc
 state.experiences = [{ id:"g1", type:"错因", title:"漏写落款", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"b", requirements:"r", score:20 }, cardPeeks:0 };
 const gExec = { hits:[{ point:"p", score:20, awarded:20, status:"满分", evidence:"" }], scores:{}, strengths:[], weaknesses:[], comment:"c" };
-const chkExec = applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"漏写落款", status:"again", evidence:"「漏了落款」" }] }, 1700000002000, qReceipt);
+const ansExec = "这份答案漏了落款，也没有写经费来源。";
+const chkExec = applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"漏写落款", status:"again", evidence:"「漏了落款」" }] }, 1700000002000, qReceipt, ansExec);
 lastGrade = { g:gExec, total:100, expCheck:chkExec };
 const execHtml = gradeHtml(gExec, 100);
 ok(execHtml.indexOf("记过的错因：") >= 0 && execHtml.indexOf("「漏写落款」又犯了") >= 0, "批改页: 漏写落款又犯了——回执落到页面上");
-lastGrade = { g:gExec, total:100, expCheck:{ fixed:["换题验证的"], pending:["同题的"] } };
+lastGrade = { g:gExec, total:100, expCheck:{ v:2, fixed:["换题验证的"], pending:["同题的"] } };
 const execHtml2 = gradeHtml(gExec, 100);
 ok(execHtml2.indexOf("这次换题没再犯") >= 0 && execHtml2.indexOf("同题答对，换题再验") >= 0,
    "批改页: 换题验证与待换题验证分开说");
-lastGrade = { g:gExec, total:100, expCheck:{ na:["没考到"] } };
+lastGrade = { g:gExec, total:100, expCheck:{ fixed:["旧换题的"] } };
+ok(gradeHtml(gExec, 100).indexOf("这次没再犯（旧记录）") >= 0 && gradeHtml(gExec, 100).indexOf("这次换题没再犯") < 0,
+   "批改页: 旧回执不冒充换题验证");
+lastGrade = { g:gExec, total:100, expCheck:{ v:2, na:["没考到"] } };
 ok(gradeHtml(gExec, 100).indexOf("记过的错因：") < 0, "批改页: 只有 na 不摆回执行");
 lastGrade = { g:gExec, total:100, expCheck:null };
 ok(gradeHtml(gExec, 100).indexOf("记过的错因：") < 0, "批改页: 没有回执就不摆空行");
@@ -2660,6 +2717,9 @@ ok(state.experiences.length === 1 && state.experiences[0].kind === "格式" && s
 storeExperiences([{ type:"规则", kind:"漏点", title:"并列要同层", body:"b" }], "sl.guina", "公文", { background:"b", requirements:"r" });
 ok(state.experiences.find(e=>e.title === "并列要同层").kind === "",
    "错因标签: 规则类经验不分错因类型（入库这一层就卡住）");
+storeExperiences([{ type:"规则", title:"漏写落款", body:"b3" }], "sl.guina", "公文", { background:"b", requirements:"r" });
+ok(state.experiences.find(e=>e.title === "漏写落款").kind === "",
+   "错因标签: 错因更新成规则时清空 kind");
 state.experiences = [];
 
 /* ---- 18. 网络抖动与分差口径：传输层失败重发一次；不给模型写兑现不了的分差承诺 ---- */
