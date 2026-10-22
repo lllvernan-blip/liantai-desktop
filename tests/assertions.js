@@ -357,14 +357,43 @@ let m = 0;
 localStorage.setItem = (k,v) => { if(k === "gw_history"){ m++; if(m <= 1) { const e = new Error("quota"); e.name = "QuotaExceededError"; throw e; } } realSet(k,v); };
 threw = false;
 el("#bannerSlot").innerHTML = "";
+_historyTrimWarned = false;
 try{ saveHistory(); }catch(e){ threw = true; }
 ok(!threw, "gw_history 写满时不再直接抛错崩掉");
 ok(state.history.length === 40, "gw_history 写满时自动裁练习记录 (-> " + state.history.length + ")");
 ok(el("#bannerSlot").innerHTML.indexOf("本地存储已满") < 0, "裁剪后重试成功时不误报存储已满");
+ok(el("#bannerSlot").innerHTML.indexOf("只保留了最近 40 条") >= 0, "裁剪可见: 只保留最近 40 条");
 localStorage.setItem = realSet;
 saveHistory();
 ok(load().history.length === 40, "练习记录写盘 + 读回往返一致");
 ok(loadHistory() === null || Array.isArray(loadHistory()), "loadHistory 对坏数据返回 null 而不是抛错");
+
+/* 6.0b 启动读取失败：暂停写入，原始数据不被默认值覆盖 */
+{
+  const rawState = localStorage.getItem("gw_state");
+  const rawHist = localStorage.getItem(HISTORY_KEY);
+  const prevState = state, prevFlag = _loadFailed;
+  const bad = "{not-json";
+  localStorage.setItem("gw_state", bad);
+  _loadFailed = null;
+  state = load();
+  ok(!!_loadFailed && state && state.settings && localStorage.getItem("gw_state") === bad,
+     "读取失败: 置 _loadFailed，原始 gw_state 不被改写");
+  ok(save() === false && localStorage.getItem("gw_state") === bad,
+     "读取失败: save() 拒绝覆盖原始数据");
+  ok(saveHistory() === false && localStorage.getItem(HISTORY_KEY) === rawHist,
+     "读取失败: saveHistory() 拒绝覆盖原始记录");
+  ok(rawStoragePayload().raw.gw_state === bad,
+     "读取失败: 原始快照保留坏数据原文");
+  el("#bannerSlot").innerHTML = "";
+  showStorageLoadFailure();
+  ok(el("#bannerSlot").innerHTML.indexOf("已暂停写入") >= 0 && el("#bannerSlot").innerHTML.indexOf("btnExportRaw") >= 0,
+     "读取失败: 横幅给出原始数据导出入口");
+  state = prevState; _loadFailed = prevFlag;
+  if(rawState == null) localStorage.removeItem("gw_state"); else localStorage.setItem("gw_state", rawState);
+  if(rawHist == null) localStorage.removeItem(HISTORY_KEY); else localStorage.setItem(HISTORY_KEY, rawHist);
+  banner("");
+}
 
 /* 6.1 history 拆 key 迁移 */
 localStorage.clear();
@@ -1221,7 +1250,11 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
   const hRec = { ts:Date.now(), module:"zy.guina", subtype:"概括问题", question:qDone, answer:"a", keyPoints:[],
                  hits:[], grade:{ total:80, scores:{} } };
   state.history = [hRec];
+  const _pgRec = pendingGen; pendingGen = null;
+  const seqRec = reqSeq;
   openHistRecord(hRec);
+  ok(reqSeq === seqRec + 1, "打开记录: 没有在途请求也作废序号（迟到的成绩不许顶屏）");
+  pendingGen = _pgRec;
   ok(current && current.question && current.question.background === qDone.background, "完成出口: 从记录页打开的是那一条记录");
   finishCurrent();
   ok(state.resumeZy && state.resumeZy.question && state.resumeZy.question.background === "还没做完的那道",
@@ -2124,7 +2157,9 @@ state.experiences = [];
 /* 14.11 importJSON：类型加固 + 危险键过滤 */
 globalThis.FileReader = class { readAsText(f){ this.result = f; if(this.onload) this.onload(); } };
 const __keyAtImport = state.settings.apiKey;   // 本机已填的 Key（导入不得改动它）
+_loadFailed = new Error("test-load-failure");
 importJSON('{"settings":{"apiKey":"sk-x","__proto__":{"polluted":1}},"profile":{"modules":{"sl.guina":{"dims":{}}},"lastModules":["sl.guina"]},"cache":{"studyCards":{"sl.guina::概括问题":{"title":"卡"}},"notes":{}},"experiences":[{"title":"t","body":"b"},{"bad":1}],"flows":[{"id":"f1","step":"read","question":{"background":"b"}}],"history":[]}');
+ok(_loadFailed === null, "导入: 有效备份解除读取失败禁写");
 ok(state.settings.apiKey === __keyAtImport && __keyAtImport !== "" && ({}).polluted === undefined,
    "导入: __proto__ 键被过滤，不污染原型；文件里的 Key 不被采用且本机 Key 原样保留");
 ok(state.profile.lastModules[0] === "sl.guina", "导入: profile 合法字段收下");

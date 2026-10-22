@@ -1174,20 +1174,33 @@ function sanitizeFlows(list){
 const MARK_COLORS = ["#fde68a","#a7f3d0","#bfdbfe","#fbcfe8","#fed7aa"];
 
 const HISTORY_KEY = "gw_history";
+let _historyTrimWarned = false;
 function loadHistory(){
   try{ const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || "null"); return Array.isArray(h) ? h : null; }
   catch(e){ return null; }
 }
 function saveHistory(){
+  if(_loadFailed) return false;   // 启动读取失败：先导出原始数据，任何写入都会覆盖原记录
   try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); return true; }
   catch(e){
     // 实在写不下：裁到 40 条再试，宁可丢最老的记录也不打断作答；有「导出」兑底
     try{
-      if(state.history.length > 40){ state.history.length = 40; localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); return true; }
+      if(state.history.length > 40){
+        state.history.length = 40;
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history));
+        if(!_historyTrimWarned){
+          _historyTrimWarned = true;
+          banner("练习记录较多：为腾出本地空间，只保留了最近 40 条；建议先用「导出」备份。", "error");
+        }
+        return true;
+      }
       throw e;
     }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。", "error"); return false; }
   }
 }
+/* 启动读取失败：所有写入口一律挂起，先把原始 localStorage 导出；导入一份有效备份可以恢复。
+   这个标记必须在 let state = load() 之前声明——load() 在模块顶层就调用。 */
+let _loadFailed = null;
 let state = load();
 let activeModule = null;   // 当前科目（state.settings.subject）下的模块，由 init() / 切科目时落定
 let current = null;
@@ -1246,6 +1259,7 @@ function sanitizeExperiences(list){
 
 function load(){
   try{
+    _loadFailed = null;
     const raw = localStorage.getItem("gw_state");
     if(!raw){
       // gw_state 缺失（首次使用/被单独清除）时，练习记录也不能丢：gw_history 里有的照读
@@ -1318,11 +1332,13 @@ function load(){
     // 读失败就整份回默认——但这件事不能不出声。这条路上任何一处抛异常（最典型的是某个符号
     // 声明在 load() 之后、撞了 TDZ），界面会以空壳启动，接着被 save() 写回去，
     // 用户看到的只是「数据全没了」。留一条日志，下次能顺着它找到那一行。
+    _loadFailed = e;
     console.error("[liantai] 读取本地存储失败，已按默认值启动；存储里的原始数据没有被清除。", e);
     return structuredClone(DEFAULT_STATE);
   }
 }
 function save(){
+  if(_loadFailed) return false;   // 启动读取失败：先导出原始数据，不拿默认值覆盖
   // gw_state 不再含练习记录（见 load 迁移）；写满时优先丢弃可再生的大块：学习卡缓存（手写笔记不在其中）
   // 返回值 = 这次到底写进去了没有。界面上那些「已保存 ✓」得据此说（2026-10-08 复查：
   // 原来存储写满时，banner 说「本次数据未能保存」，设置页同一屏却写着「已保存 ✓」）。
@@ -2525,7 +2541,8 @@ function closeModals(){
     const kv = $("#setKey") && $("#setKey").value.trim(); if(kv) state.settings.apiKey = kv;
     const bv = $("#setBase") && $("#setBase").value.trim(); if(bv) state.settings.baseUrl = bv;
     const mv = $("#setModel") && $("#setModel").value.trim(); if(mv) state.settings.model = mv;
-    const ok = save(); if(!ok) banner("设置没能保存：本地存储满了，先「导出」备份再清理旧记录。", "error");
+    // 读取失败时 save() 的 false 是“已暂停写入”，不是“存储满了”；别用错原因盖掉数据安全横幅
+    const ok = save(); if(!ok && !_loadFailed) banner("设置没能保存：本地存储满了，先「导出」备份再清理旧记录。", "error");
     renderHeader(); renderCurrentView();
   }
   tourResume();   // 弹层关掉，暂停中的引导就地恢复
@@ -4556,7 +4573,7 @@ async function submitAnswer(){
     // 草稿只在记录确实落盘后才清，而且只清「还是我刚才交的那份」：阅卷那 10-60 秒里
     // 又敲进去的字不能跟着一起删掉（那些字不在记录里，删了就再也找不回来）。
     if(saveHistory()){ clearDraftIfSubmitted(qSig(q), ans); }
-    else { banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
+    else if(!_loadFailed){ banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
     if(!inFlow && current && !usesFlowChain(mod)){ state.resumeZy = null; save(); }   // 综应A 交卷：快照作废，结果改从记录打开
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
@@ -5070,9 +5087,10 @@ function profileHistHtml(){
 /* 从记录打开一次批改：记录是唯一事实源，这里不重新调 AI */
 function openHistRecord(h){
   if(!h || !h.question || !h.grade) return;
-  /* 从等待页点开一条历史记录也是离开等待页：旧请求不许把这一页顶掉（SPEC 5.6）。
+  /* 打开记录 = 离开当前页：在途出题/阅卷一律作废，迟到的结果不许把这一页顶掉（SPEC 5.6）。
      只作废「自动上屏」，不动 pendingGen —— 结果仍留在里面，回匹配页再恢复/进题。 */
-  if(pendingGen && pendingGen.viewing){ pendingGen.viewing = false; reqSeq++; }
+  reqSeq++;
+  if(pendingGen && pendingGen.viewing) pendingGen.viewing = false;
   const hits = Array.isArray(h.hits)? h.hits : [];
   const g = Object.assign({ hits }, h.grade);
   const pts = pointsOf(hits);
@@ -5323,6 +5341,30 @@ function exportJSON(){
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
   banner(exportHelpText(d));
 }
+/* 启动读取失败时的原始快照：不做 JSON.parse、不做迁移、不删任何键，原样给用户。
+   这条路的用途是「先保住证据」，不是恢复；恢复走设置里的导入备份。 */
+function rawStoragePayload(){
+  const keys = ["gw_state", HISTORY_KEY, "gw_draft", "gw_marks"];
+  const raw = {};
+  for(const k of keys) raw[k] = localStorage.getItem(k);
+  return { exportedAt: new Date().toISOString(), note: "原始 localStorage 快照，未解析、未修改；恢复前不要继续写入。", raw };
+}
+function exportRawStorage(){
+  const blob = new Blob([JSON.stringify(rawStoragePayload(), null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); const d = new Date();
+  a.href = url;
+  a.download = `练习台-原始数据-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}-${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  banner("已生成原始数据快照。先备份好这个文件，再修复存储或到设置里导入一份有效备份。", "", "storage");
+}
+function showStorageLoadFailure(){
+  if(!_loadFailed) return;
+  banner("读取本地数据失败：为了不覆盖原数据，已暂停写入。<br>请先导出原始数据；修复后可在设置里导入备份恢复。"
+    + '<button class="linkbtn" id="btnExportRaw">导出原始数据</button>' + OPEN_SETTINGS_BTN, "error", "storage");
+  const b = $("#btnExportRaw"); if(b) b.onclick = exportRawStorage;
+}
 /* 导入白名单化重建：入口只收对象；profile/cache/flows/experiences 逐字段 typeof 校验，
    不合格字段丢弃用默认值，不整包失败；构造新对象时过滤 __proto__/constructor/prototype 键，防原型污染。 */
 function plainPick(o){
@@ -5341,9 +5383,11 @@ function importJSON(file){
     const rawSnap = {};
     ["gw_state", HISTORY_KEY, "gw_draft", "gw_marks"].forEach(k=>{ rawSnap[k] = localStorage.getItem(k); });
     const prevState = state, prevCur = current, prevLG = lastGrade, prevFlowId = _flowId;
+    const prevLoadFailed = _loadFailed;   // 有效导入是用户显式恢复：先解除禁写；失败再挂回去
     try{
       const s = JSON.parse(r.result);
       if(!s || typeof s !== "object" || Array.isArray(s)) throw new Error("格式不对");
+      _loadFailed = null;   // 只有解析通过后才解禁；下面任何一步失败都会在 catch 里恢复
       // 接口配置与 Key 只认本机：备份里的 provider/baseUrl/model/apiKey 一律不采用，
       // 否则一份改过的备份就能把本机 Key 带去别人的地址。
       const keepCfg = { provider: state.settings.provider, baseUrl: state.settings.baseUrl, model: state.settings.model, apiKey: state.settings.apiKey || "" };
@@ -5428,6 +5472,7 @@ function importJSON(file){
         for(const k of Object.keys(rawSnap)){ if(rawSnap[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, rawSnap[k]); }
       }catch(e2){}
       state = prevState; current = prevCur; lastGrade = prevLG; _flowId = prevFlowId;
+      _loadFailed = prevLoadFailed;
       banner(e && e.code === "SAVE"
         ? "导入失败：本地存储写不进去（可能是满了），本次导入没有生效。"
         : "导入失败：文件不是有效的备份 JSON。", "error");
@@ -5460,11 +5505,13 @@ function loadDraft(sig){ const d = loadDrafts()[sig]; return (d && typeof d.text
    （save() 会出声，草稿和划线反而不会）。同一个故障只报一次，不刷屏。 */
 let _storageWarned = false;
 function storageFail(what){
+  if(_loadFailed) return;   // 数据安全横幅已在说明“暂停写入”，别再拿“存储满了”盖掉它
   if(_storageWarned) return;
   _storageWarned = true;
   banner(`${what}没能存到本地（多半是本地存储已满），刷新或关掉应用就会丢；建议先用设置里的「导出」备份。`, "error");
 }
 function saveDraft(sig, text){
+  if(_loadFailed){ storageFail("这份草稿"); return; }   // 启动读取失败：先导出原始数据，别覆盖旧草稿
   try{
     const all = loadDrafts();
     if(!text){ delete all[sig]; }
@@ -5483,6 +5530,7 @@ function saveDraft(sig, text){
   }catch(e){ storageFail("这份草稿"); }
 }
 function clearDraft(sig){
+  if(_loadFailed) return;
   try{
     if(sig == null){ localStorage.removeItem(DRAFT_KEY); return; }
     const all = loadDrafts(); delete all[sig]; localStorage.setItem(DRAFT_KEY, JSON.stringify(all));
@@ -5559,6 +5607,7 @@ const MARKS_MAX = 8;
 function marksAll(){ try{ const d = JSON.parse(localStorage.getItem(MARKS_KEY)||"{}"); return (d && typeof d==="object" && !Array.isArray(d))? d : {}; }catch(e){ return {}; } }
 function loadMarks(sig){ const a = marksAll()[sig]; return new Set(Array.isArray(a)? a : []); }
 function saveMarks(sig, set){
+  if(_loadFailed){ storageFail("划线标记"); return; }
   try{
     const all = marksAll();
     delete all[sig];
@@ -5935,6 +5984,7 @@ renderChangelog();
   // 模型候选只有一个来源：这次启动就从接口实拉一遍（拉到什么就是什么）
   if(state.settings.apiKey) fetchModels(true);
   renderStartNotices();
+  showStorageLoadFailure();   // 读取失败时盖掉普通提示：暂停写入，先导原始数据
   $("#setProvider").onchange = onProviderChange;
   $("#btnTutReset").onclick = ()=>{
     if(tour) tourEnd(false);   // 若正播到一半（暂歇中）：旧播报作废，不推进游标，按重置后的序列重新来
