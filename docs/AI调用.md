@@ -65,7 +65,8 @@
 
 ## 回执与计分
 
-- 批改 prompt 要求逐条回报 `experienceChecks`（title 原样照抄 + `again/fixed/na`）。
+- 批改 prompt 要求逐条回报 `experienceChecks`（title 原样照抄 + `again/fixed/na` + **evidence**：`again/fixed` 必须引考生原句，`na` 写本题为什么考不到）。
+- 本地 `applyExperienceChecks` 只认带 evidence 的回执；`fixed` 还要过「同 kind 采分点存在且全满分」的本地核对，且必须换题才算改掉；同题 `fixed` 只算待换题验证；`na` 与 rejected 落历史，不改状态。
 - `experienceChecks` 与 `kind` **都不参与计分**（与 hits/scores 分开）；`awarded` 与总分口径一字不动。
 
 ## 报分

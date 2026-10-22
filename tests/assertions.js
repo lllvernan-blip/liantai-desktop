@@ -1150,6 +1150,8 @@ await gen("sl.guina","概括问题",null,false);
 ok(capI.user.indexOf("语言口语化") < 0 && capI.user.indexOf("漏写落款") >= 0, "注入: 停用的经验不再出现");
 await grade("sl.guina","概括问题",{ background:"b" },[],"答案");
 ok(capI.user.indexOf("漏写落款") >= 0, "注入: 阅卷请求同样带经验（请它盯防再犯）");
+ok(capI.sys.indexOf("evidence") >= 0 && capI.sys.indexOf("没有 evidence") >= 0,
+   "回执: 阅卷要求 evidence，没 evidence 不许改状态");
 state.experiences = [ { id:"z1", type:"规则", title:"综应格式三件套", body:"b", module:"zy.gongwen", subject:"zy", ts:1, disabled:false, sourceSig:"s" } ];
 await gen("zy.gongwen","通知",null,false);
 ok(capI.user.indexOf("综应格式三件套") >= 0, "注入: 综应A 出题同样带经验（两科共用机制）");
@@ -2111,6 +2113,7 @@ ok(cap14.user.indexOf('"existingTitles"') >= 0 && cap14.user.indexOf("漏写落�
    "经验去重: prompt 带当前模块已有经验 titles（≤10）");
 ok(cap14.sys.indexOf("title 原文") >= 0 && cap14.sys.indexOf("不要换措辞") >= 0,
    "经验去重: prompt 明确「本质相同就返回已有 title 原文，不要换措辞」");
+ok(cap14.sys.indexOf("至少提炼 1 条") >= 0, "经验: 有未满分采分点时优先提炼错因");
 callLLM = realCall14;
 
 /* 14.10 expBlock：注入上限 3 条 */
@@ -2126,7 +2129,8 @@ ok(state.settings.apiKey === __keyAtImport && __keyAtImport !== "" && ({}).pollu
    "导入: __proto__ 键被过滤，不污染原型；文件里的 Key 不被采用且本机 Key 原样保留");
 ok(state.profile.lastModules[0] === "sl.guina", "导入: profile 合法字段收下");
 ok(state.cache.studyCards["sl.guina::概括问题"] && state.cache.studyCards["sl.guina::概括问题"].title === "卡", "导入: cache 合法字段收下且键保留");
-ok(state.experiences.length === 1, "导入: experiences 逐条校验，坏条目丢弃");
+ok(state.experiences.length === 1 && state.experiences[0].checks === 0 && state.experiences[0].kind === "",
+   "导入: experiences 逐条校验，坏条目丢弃，字段归一");
 ok(state.flows.length === 1 && state.flows[0].id === "f1", "导入: flows 走 sanitizeFlows");
 importJSON('{"settings":"bad","profile":[1,2],"cache":"x","flows":"y","experiences":"z","modelCache":5,"history":"no"}');
 ok(state.settings.provider === "deepseek" && state.settings.apiKey === __keyAtImport, "导入: settings 非对象丢用默认值，不整包失败（本机 Key 不受影响）");
@@ -2399,29 +2403,75 @@ ok(sfRev.length === 1 && sfRev[0].step === "draft", "flow 净化: 旧数据里�
 
 /* ---- 16. 闭环回执：错因这次犯没犯，以及快判的辨析点 ---- */
 
-/* 16.1 错因回执：批改里判定「带进去的错因这次犯没犯」，写回经验本身 */
+/* 16.1 错因回执：批改里判定「带进去的错因这次犯没犯」，写回经验本身。
+   从 0.0.24 起回执必须带 evidence，fixed 还要过本地采分点核对、换题才算改掉。 */
 state.history = [];
+const qReceipt = { background:"新题回执材料", requirements:"回执要求" };
 state.experiences = [
   { id:"c1", type:"错因", title:"漏写落款", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
   { id:"c2", type:"错因", title:"要点不全", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:"s" },
   { id:"c3", type:"规则", title:"并列要同层", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
 ];
-const chk1 = applyExperienceChecks("sl.guina", { experienceChecks:[
-  { title:"漏写落款", status:"fixed" }, { title:"要点不全", status:"again" },
-  { title:"不存在的经验", status:"again" }, { title:"并列要同层", status:"na" }
-]}, 1700000000000);
+const chk1 = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"-" }], experienceChecks:[
+  { title:"漏写落款", status:"fixed", evidence:"答到：「关于调整作息的通告」" },
+  { title:"要点不全", status:"again", evidence:"「没有写经费来源」" },
+  { title:"不存在的经验", status:"again", evidence:"x" },
+  { title:"并列要同层", status:"na", evidence:"本题考不到并列" }
+]}, 1700000000000, qReceipt);
 const ce1 = state.experiences.find(e=>e.id==="c1"), ce2 = state.experiences.find(e=>e.id==="c2"), ce3 = state.experiences.find(e=>e.id==="c3");
-ok(chk1.fixed.length === 1 && chk1.fixed[0] === "漏写落款" && chk1.again.length === 1 && chk1.again[0] === "要点不全",
-   "错因回执: 分列已改掉与又犯了");
-ok(ce1.cleared === true && ce1.lastCheckAt === 1700000000000 && expState(ce1) === "cleared", "错因回执: fixed -> 已改掉");
-ok(ce2.recur === 1 && ce2.cleared === false && expState(ce2) === "recur", "错因回执: again -> 复犯计数");
-ok(ce3.lastCheckAt === undefined && ce3.recur === undefined && expState(ce3) === "fresh", "错因回执: na 与对不上的 title 都不改状态");
-ok(expStatusText(ce1).indexOf("已改掉") >= 0 && expStatusText(ce2).indexOf("复犯 1 次") >= 0 && expStatusText(ce3) === "还没考到",
-   "错因回执: 三种状态各自说法");
-applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"要点不全", status:"again" }] }, 1700000001000);
+ok(chk1.fixed.length === 1 && chk1.fixed[0] === "漏写落款" && chk1.again.length === 1 && chk1.again[0] === "要点不全"
+   && chk1.na.length === 1 && chk1.na[0] === "并列要同层" && chk1.rejected.length === 0,
+   "错因回执: 分列已改掉、又犯了、没考到");
+ok(ce1.cleared === true && ce1.lastCheckAt === 1700000000000 && ce1.verifiedAt === 1700000000000
+   && ce1.transferPasses === 1 && ce1.lastCheckEvidence.indexOf("通告") >= 0 && expState(ce1) === "cleared",
+   "错因回执: 换题 + evidence + 本地通过 -> 已改掉");
+ok(ce2.recur === 1 && ce2.cleared === false && ce2.lastCheckEvidence.indexOf("经费") >= 0 && expState(ce2) === "recur",
+   "错因回执: again -> 复犯计数，evidence 留痕");
+ok(ce3.lastCheckAt === undefined && ce3.naCount === 1 && expState(ce3) === "fresh", "错因回执: na 只记分母，不改状态");
+ok(expStatusText(ce1).indexOf("换题核过") >= 0 && expStatusText(ce2).indexOf("复犯 1 次") >= 0 && expStatusText(ce3) === "还没考到",
+   "错因回执: 状态各自说法");
+applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"要点不全", status:"again", evidence:"「又漏了经费来源」" }] }, 1700000001000, qReceipt);
 ok(ce2.recur === 2 && ce2.lastCheckAt === 1700000001000, "错因回执: 再犯一次就累加");
 applyExperienceChecks("sl.guina", {});
 ok(ce2.recur === 2 && expState(ce1) === "cleared", "错因回执: 模型没给结果时什么都不动");
+
+/* 16.1b 没 evidence / 同题 fixed / 本地同 kind 冲突：都不许置 cleared */
+state.experiences = [
+  { id:"d1", type:"错因", title:"没证据", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
+  { id:"d2", type:"错因", title:"同题答对", kind:"", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, sourceSig:qSig(qReceipt) },
+  { id:"d3", type:"错因", title:"本地冲突", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }
+];
+const chkBad = applyExperienceChecks("sl.guina", {
+  hits:[{ score:5, awarded:2, kind:"漏点" }],
+  experienceChecks:[
+    { title:"没证据", status:"fixed" },
+    { title:"同题答对", status:"fixed", evidence:"答到：「……」" },
+    { title:"本地冲突", status:"fixed", evidence:"答到：「……」" }
+  ]
+}, 1700000000100, qReceipt);
+const d1 = state.experiences.find(e=>e.id==="d1"), d2 = state.experiences.find(e=>e.id==="d2"), d3 = state.experiences.find(e=>e.id==="d3");
+ok(d1.cleared !== true && chkBad.rejected.some(x=>x.title==="没证据" && x.reason==="no-evidence"),
+   "回执校验: 没有 evidence 的 fixed 不改状态");
+ok(d2.cleared !== true && d2.pendingAt === 1700000000100 && expState(d2) === "pending" && expStatusText(d2).indexOf("待换题验证") >= 0,
+   "回执校验: 同题 fixed 只算待换题验证");
+ok(d3.cleared !== true && chkBad.rejected.some(x=>x.title==="本地冲突" && x.reason==="local-conflict"),
+   "回执校验: 同 kind 采分点没全满分 -> 拒绝 fixed");
+ok(chkBad.pending.length === 1 && chkBad.fixed.length === 0, "回执校验: 不通过的 fixed 不进 fixed 列表");
+/* 换题 + 本地同 kind 全满分 -> 才可以置已改掉 */
+state.experiences = [{ id:"d4", type:"错因", title:"本地通过", kind:"漏点", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
+const chkPass = applyExperienceChecks("sl.guina", { hits:[{ score:5, awarded:5, kind:"漏点" }], experienceChecks:[
+  { title:"本地通过", status:"fixed", evidence:"答到：「……」" }
+]}, 1700000000200, qReceipt);
+const d4 = state.experiences[0];
+ok(d4.cleared === true && d4.verifiedAt === 1700000000200 && d4.transferPasses === 1 && chkPass.fixed[0] === "本地通过",
+   "回执校验: 换题 + 本地全满分 -> 已改掉");
+/* 经验清洗：规则不能带 kind；数字/布尔字段归一 */
+const sanExp = sanitizeExperiences([
+  { type:"规则", kind:"漏点", title:"规则条", body:"b", checks:"2", cleared:"1" },
+  { type:"错因", kind:"漏点", title:"错因条", body:"b" }
+]);
+ok(sanExp[0].kind === "" && sanExp[0].checks === 2 && sanExp[0].cleared === true && sanExp[1].kind === "漏点",
+   "经验清洗: 规则不能带 kind，数字字段归一");
 
 /* 16.2 注入顺序：复犯的优先带上去接着考；已改掉的让位，但过了一周要回来复测 */
 const nowT = Date.now(), HOUR = 3600e3, DAY = 86400e3;
@@ -2435,6 +2485,15 @@ state.experiences = [
 const inj2 = activeExperiences("sl.guina").map(e=>e.id);
 ok(inj2[0] === "o4" && inj2[1] === "o2", "注入顺序: 复犯次数多的排前面");
 ok(inj2.indexOf("o1") < 0, "注入顺序: 刚核过且已改掉的让位（名额留给更该考的）");
+state.experiences = [{ id:"nostale", type:"错因", title:"刚改没到期", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, cleared:true, lastCheckAt: nowT - HOUR, sourceSig:"s" }];
+ok(activeExperiences("sl.guina").length === 0, "注入: 已改掉且未到期的新经验不再占名额");
+state.experiences = [
+  { id:"o1", type:"错因", title:"刚核过且已改", body:"b", module:"sl.guina", subject:"sl", ts:5, disabled:false, lastCheckAt: nowT - HOUR, lastClearAt: nowT - HOUR, cleared:true, sourceSig:"s" },
+  { id:"o2", type:"错因", title:"复犯的", body:"b", module:"sl.guina", subject:"sl", ts:4, disabled:false, lastCheckAt: nowT - 2*HOUR, cleared:false, recur:2, sourceSig:"s" },
+  { id:"o3", type:"错因", title:"没核过的", body:"b", module:"sl.guina", subject:"sl", ts:3, disabled:false, sourceSig:"s" },
+  { id:"o4", type:"错因", title:"复犯更多的", body:"b", module:"sl.guina", subject:"sl", ts:2, disabled:false, lastCheckAt: nowT - 3*HOUR, cleared:false, recur:3, sourceSig:"s" },
+  { id:"o5", type:"错因", title:"一周前核过的", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, lastCheckAt: nowT - 8*DAY, lastClearAt: nowT - 8*DAY, cleared:true, sourceSig:"s" }
+];
 ok(expDueRetest({ cleared:true, lastCheckAt: nowT - 8*DAY }, nowT) === true
    && expDueRetest({ cleared:true, lastCheckAt: nowT - HOUR }, nowT) === false
    && expDueRetest({}, nowT) === true && expDueRetest({ cleared:false, lastCheckAt: nowT }, nowT) === true,
@@ -2446,15 +2505,25 @@ state.experiences = [
 ];
 ok(experienceListHtml().indexOf("已改掉 1 条 · 复犯 1 条 · 待验证 1 条") >= 0, "经验列表: 三个状态可数");
 ok(experienceListHtml().indexOf("错因状态：") >= 0, "经验列表: 每条带错因状态");
+state.experiences = [{ id:"p1", type:"错因", title:"待换题的", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, pendingAt: nowT, sourceSig:"s" }];
+ok(expState(state.experiences[0]) === "pending" && expStatusText(state.experiences[0]).indexOf("待换题验证") >= 0
+   && expStatusSummaryHtml().indexOf("待换题验证 1 条") >= 0,
+   "经验列表: 待换题验证单独可见");
 
 /* 16.3 批改页：回执一行说清这次犯没犯（不报数字，数字在「我的经验」里） */
 state.experiences = [{ id:"g1", type:"错因", title:"漏写落款", body:"b", module:"sl.guina", subject:"sl", ts:1, disabled:false, sourceSig:"s" }];
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"b", requirements:"r", score:20 }, cardPeeks:0 };
 const gExec = { hits:[{ point:"p", score:20, awarded:20, status:"满分", evidence:"" }], scores:{}, strengths:[], weaknesses:[], comment:"c" };
-const chkExec = applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"漏写落款", status:"again" }] }, 1700000002000);
+const chkExec = applyExperienceChecks("sl.guina", { experienceChecks:[{ title:"漏写落款", status:"again", evidence:"「漏了落款」" }] }, 1700000002000, qReceipt);
 lastGrade = { g:gExec, total:100, expCheck:chkExec };
 const execHtml = gradeHtml(gExec, 100);
 ok(execHtml.indexOf("记过的错因：") >= 0 && execHtml.indexOf("「漏写落款」又犯了") >= 0, "批改页: 漏写落款又犯了——回执落到页面上");
+lastGrade = { g:gExec, total:100, expCheck:{ fixed:["换题验证的"], pending:["同题的"] } };
+const execHtml2 = gradeHtml(gExec, 100);
+ok(execHtml2.indexOf("这次换题没再犯") >= 0 && execHtml2.indexOf("同题答对，换题再验") >= 0,
+   "批改页: 换题验证与待换题验证分开说");
+lastGrade = { g:gExec, total:100, expCheck:{ na:["没考到"] } };
+ok(gradeHtml(gExec, 100).indexOf("记过的错因：") < 0, "批改页: 只有 na 不摆回执行");
 lastGrade = { g:gExec, total:100, expCheck:null };
 ok(gradeHtml(gExec, 100).indexOf("记过的错因：") < 0, "批改页: 没有回执就不摆空行");
 lastGrade = null; current = null;
