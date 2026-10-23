@@ -4173,6 +4173,18 @@ globalThis.window = _savedWinUpd;
     keyPoints:[{ point:"p", score:10, need:["a","b"] }], quote:quoteText });
   const quoteQ = await genPaperQuestion("给定资料1\n甲\n给定资料2\n"+quoteText+"\n给定资料3\n丙\n给定资料4\n丁", PAPER_SPEC[1], 1);
   ok(quoteQ.question.requirements.indexOf("“"+quoteText+"”") >= 0, "整卷: 分析题的引文只从本段材料里取");
+
+  const _callFinal = callLLM;
+  const mat2 = "给定资料1\n甲\n给定资料2\n2025年，某企业推动固态电池技术迭代，能量密度明显提升。固态电池产业发展既慢不得也急不得。\n给定资料3\n丙\n给定资料4\n丁";
+  callLLM = async ()=>({ question:{ requirements:"请结合给定资料2，谈谈你对“慢不得也急不得”的理解。要求：观点明确，分析深入。", score:10 },
+    keyPoints:[{ point:"p", score:10, need:["a","b"] }], quote:"慢不得也急不得" });
+  const aQ = await genPaperQuestion(mat2, PAPER_SPEC[1], 1);
+  ok(aQ.question.requirements.indexOf("慢不得") < 0 && aQ.question.requirements.indexOf("分析全面") >= 0
+     && aQ.question.requirements.indexOf("2025") >= 0, "整卷: 分析题不用格言，换具体材料句");
+  const eQ = await genPaperQuestion(mat2, PAPER_SPEC[4], 4);
+  ok(eQ.question.requirements.indexOf("如何") >= 0 && eQ.question.requirements.indexOf("唯有") < 0
+     && eQ.question.requirements.indexOf("全部给定资料") >= 0, "整卷: 作文只给问题不给结论");
+  callLLM = _callFinal;
   callLLM = _callClean;
 }
 

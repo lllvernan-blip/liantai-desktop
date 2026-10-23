@@ -2115,7 +2115,7 @@ function materialSectionText(material, label){
   return next >= 0 ? rest.slice(0, next) : rest;
 }
 /* 给“词句理解/作文”挑一句像真题的引文：短、含转折/否定，且不能把答案要点列在句子里。 */
-const PAPER_ESSAY_PROP = "创新与安全不是非此即彼的选择，民生与治理也不能顾此失彼；唯有统筹兼顾，发展才能既有速度又有质量";
+const PAPER_ESSAY_PROP = "创新要快、治理要稳，快与稳之间如何统筹";
 function pickEssayQuote(material){
   const sentences = (String(material || "").match(/[^。！？]+[。！？]?/g) || []).map(s=>s.trim()).filter(Boolean);
   const good = s => s.length >= 20 && s.length <= 80
@@ -2163,7 +2163,7 @@ async function genPaperQuestion(material, spec, idx){
     + `\n这套材料已经由命题人给定，**不要改写、不要另写材料**；只出第 ${idx+1} 题和采分点。返回 JSON：\n` + schema;
   const user = JSON.stringify({
     module:m.name, subtype:spec.subtype, material, score:m.score,
-    note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题），全卷总主题是“${PAPER_THEME}”。题目满分 ${m.score} 分；本题只准打 ${spec.section}（${spec.focus}），不得把其它资料的内容拉进来，不得用“等领域”式并列；题干必须落到材料中的具体主体（企业/部门/活动/人物），不得只写抽象口号；同一份卷子里不得与其它题共用同一种文种/场景；**这些命题约束不要写进 requirements**，requirements 只写作答身份、任务、字数与格式，不要写“不必写成完整公文”“不提其它资料”这类提示语；本题作答上限：${spec.ansLen || "按模块默认"}，必须写进 requirements；采分点 4-6 条，每条 need 2-3 条，只写最核心的可核对事实；不要输出 background。${spec.subtype==="讲话稿"? " 本题是具体活动上的讲话稿，不得写成展板文稿、宣传稿或意见建议；题干只写身份、会议/活动、任务，企业全称、门牌号、部门名单等具体事实留在材料里，不要写进题干；400字要能答完。" : ""}${spec.section==="给定资料4"? " 使用材料中已有的政策/制度表述（监管、召回、安全评估等），不得生造“汽车产品创新设计安全管理”这类堆叠提法。" : ""}${spec.kind==="quote"? " 第2题必须在 requirements 里引用给定资料2的一句短原句并围绕它设问；引文不得以“这些情况表明”开头，不得把多个采分点列在句子里，不得用“同一枚硬币”这类抽象格言。" : ""}${spec.kind==="essay"? " 第5题必须从材料中的具体事件/人物/数据切入，并明确结合全部给定资料，不得只扣一段，不得只给抽象主题，不得用抽象格言当引文；引文必须从给定资料3或4中选，不得与第2题同段。" : ""}`
+    note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题），全卷总主题是“${PAPER_THEME}”。题目满分 ${m.score} 分；本题只准打 ${spec.section}（${spec.focus}），不得把其它资料的内容拉进来，不得用“等领域”式并列；题干必须落到材料中的具体主体（企业/部门/活动/人物），不得只写抽象口号；同一份卷子里不得与其它题共用同一种文种/场景；**这些命题约束不要写进 requirements**，requirements 只写作答身份、任务、字数与格式，不要写“不必写成完整公文”“不提其它资料”这类提示语；本题作答上限：${spec.ansLen || "按模块默认"}，必须写进 requirements；采分点 4-6 条，每条 need 2-3 条，只写最核心的可核对事实；不要输出 background。${spec.subtype==="讲话稿"? " 本题是具体活动上的讲话稿，不得写成展板文稿、宣传稿或意见建议；题干只写身份、会议/活动、任务，企业全称、门牌号、部门名单等具体事实留在材料里，不要写进题干；400字要能答完。" : ""}${spec.section==="给定资料4"? " 使用材料中已有的政策/制度表述（监管、召回、安全评估等），不得生造“汽车产品创新设计安全管理”这类堆叠提法。" : ""}${spec.kind==="quote"? " 第2题必须在 requirements 里引用给定资料2的一句短原句并围绕它设问；引文不得以“这些情况表明”开头，不得把多个采分点列在句子里，不得用“同一枚硬币”“慢不得也急不得”这类抽象格言。" : ""}${spec.kind==="essay"? " 第5题只给问题/主题，不把中心论点或结论提前写死；不得用“唯有…才能…”式命题；必须明确结合全部给定资料。" : ""}`
   });
   const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
   if(!data || !data.question || !Array.isArray(data.keyPoints)) throw { code:"JSON", message:"整卷第 "+(idx+1)+" 题格式不对" };
@@ -2207,14 +2207,19 @@ async function genPaperQuestion(material, spec, idx){
     .replace(/[。；;]\s*$/, "");
   const quoteScope = spec.kind === "essay" ? material : materialSectionText(material, spec.section);
   const quoteBad = q => !q || q.length < 15 || q.length > 90 || /这些情况表明|具体包括|一是|二是|三是|四是/.test(q) || quoteScope.indexOf(q) < 0;
-  if(spec.kind === "quote" && quoteBad(quote)) quote = pickMaterialQuote(material, spec.section);
+  if(spec.kind === "quote"){
+    // 分析题强制从本段材料挑一句具体的，不用模型自己造的格言
+    const picked = pickMaterialQuote(material, spec.section);
+    if(picked) quote = picked;
+    if(quoteBad(quote)) quote = picked || quote;
+  }
   if(spec.kind === "essay"){
-    // 作文用能统摄四段的抽象判断，不摘案情/企业名/门牌号；不能和第2题共用同一句
-    quote = pickEssayQuote(material) || PAPER_ESSAY_PROP;
+    // 作文只给问题，不给结论；不摘案情/企业名/门牌号
+    quote = PAPER_ESSAY_PROP;
   }
   const quoteForReq = quote.replace(/“/g, "‘").replace(/”/g, "’");
   if(spec.kind === "quote" && quote && quoteScope.indexOf(quote) >= 0){
-    data.question.requirements = `请结合“${spec.section}”，谈谈你对“${quoteForReq}”的理解。要求：观点明确，分析深入，条理清晰；${spec.ansLen}。`;
+    data.question.requirements = `请根据“${spec.section}”，谈谈你对“${quoteForReq}”的理解。要求：观点明确，分析全面，条理清晰；${spec.ansLen}。`;
   }else if(spec.kind === "essay" && quote){
     data.question.requirements = `请结合全部给定资料，围绕“${quoteForReq}”，联系实际，自选角度，自拟题目，写一篇文章。要求：观点明确，见解深刻；参考给定资料，但不拘泥于给定资料；思路清晰，语言流畅；总字数${spec.ansLen}。`;
   }
