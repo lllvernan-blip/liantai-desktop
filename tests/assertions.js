@@ -4110,6 +4110,11 @@ globalThis.window = _savedWinUpd;
   ok(sanitizePaper(mkPaper()) && sanitizePaper(mkPaper()).questions.length === 5, "整卷: 合法卷通过清洗");
   ok(PAPER_SPEC.map(x=>x.ansLen).join("/") === "不超过350字/不超过300字/不超过400字/不超过400字/1000-1200字",
      "整卷: 作答上限按真卷这一套（350/300/400/400/1000-1200）");
+  ok(PAPER_SECTIONS.length === 4 && PAPER_SPEC.every(x=>x.section && x.focus),
+     "整卷: 四段专题、每题一个切口");
+  ok(materialSectionText("给定资料1\n甲\n给定资料2\n乙", "给定资料1").indexOf("甲") >= 0
+     && materialSectionText("给定资料1\n甲\n给定资料2\n乙", "给定资料1").indexOf("乙") < 0,
+     "整卷: 引用原句只在本段材料里找");
   ok(sanitizePaper({ material:"短", questions:[] }) === null
      && sanitizePaper({ material:"材料".repeat(600), questions:[{module:"zy.guina"}] }) === null,
      "整卷: 材料太短 / 题目模块不在卷内 -> 整卷丢弃");
@@ -4138,7 +4143,7 @@ globalThis.window = _savedWinUpd;
   callLLM = async (sys)=>{
     if(String(sys).indexOf("合并成一套申论给定资料") >= 0) return { background:"材料".repeat(1600), theme:"基层治理" };
     return { question:{ requirements:"请根据给定材料作答，不超过300字。", suggestedFormat:"", difficulty:"适中", theme:"基层治理" },
-             keyPoints:[{ point:"p", score:5, need:["n"] }] };
+             keyPoints:[{ point:"p", score:5, need:["n1","n2","n3","n4"] }] };
   };
   state.paper = null; _view = "start"; current = null;
   await startPaper();
@@ -4146,13 +4151,29 @@ globalThis.window = _savedWinUpd;
      && state.paper.questions.every(q=>q.question.score === MODULES[q.module].score)
      && state.paper.questions[0].question.requirements.indexOf("不超过350字") >= 0
      && state.paper.questions[3].question.requirements.indexOf("不超过400字") >= 0
-     && state.paper.questions[4].question.requirements.indexOf("1000-1200字") >= 0,
-     "整卷: 4 篇骨架拼材料，5 题共享材料、分值/作答上限按整卷口径");
+     && state.paper.questions[4].question.requirements.indexOf("1000-1200字") >= 0
+     && state.paper.questions.every(q=>q.keyPoints.every(k=>(k.need||[]).length <= 3)),
+     "整卷: 4 篇骨架拼材料，5 题共享材料、分值/作答上限/need 条数按整卷口径");
   const genHtml = el("#docBody").innerHTML;
   ok(_view === "paper" && genHtml.indexOf('id="btnPaperNew"') >= 0 && genHtml.length > 100, "整卷: 生成完直接上卷面");
   callLLM = _callPaper; globalThis.window = _winPaper;
   state.paper = _pPaper; state.settings.subject = _pSubj; state.settings.apiKey = _pKey; state.settings.model = _pModel;
   current = _pCur; _view = _pView; banner(""); save();
+
+  // 命题约束不许漏进题干；分析/作文的 quote 只在本段材料里找
+  const _callClean = callLLM;
+  callLLM = async ()=>({ question:{ requirements:"请根据给定资料3作答；不提其它资料内容；只需写出意见要点，不必写成完整公文；不超过400字。", score:20 },
+    keyPoints:[{ point:"p", score:20, need:["a","b","c","d"] }], quote:"" });
+  const cleanQ = await genPaperQuestion("给定资料1\n甲\n给定资料2\n乙\n给定资料3\n丙\n给定资料4\n丁", PAPER_SPEC[2], 2);
+  ok(cleanQ.question.requirements.indexOf("不提") < 0 && cleanQ.question.requirements.indexOf("只需") < 0
+     && cleanQ.question.requirements.indexOf("；；") < 0 && cleanQ.keyPoints[0].need.length === 3,
+     "整卷: 命题约束不漏进题干，need 截到 3 条");
+  const quoteText = "乙".repeat(20);
+  callLLM = async ()=>({ question:{ requirements:"请结合给定资料2作答。", score:10 },
+    keyPoints:[{ point:"p", score:10, need:["a","b"] }], quote:quoteText });
+  const quoteQ = await genPaperQuestion("给定资料1\n甲\n给定资料2\n"+quoteText+"\n给定资料3\n丙\n给定资料4\n丁", PAPER_SPEC[1], 1);
+  ok(quoteQ.question.requirements.indexOf("“"+quoteText+"”") >= 0, "整卷: 分析题的引文只从本段材料里取");
+  callLLM = _callClean;
 }
 
 console.log(T.join("\n"));

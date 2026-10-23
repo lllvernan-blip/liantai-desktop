@@ -892,12 +892,21 @@ const GONGWEN_KEY = "zy.gongwen";   // 公文写作：子类型就是文种，�
 
 /* 申论整卷：只做一套 5 题（与真题的题型顺序一致），共享同一份 4.5k-6k 材料。
    材料来自材料池多篇骨架合并，不是真题原文；分值取 MODULES.score。 */
+/* 整卷四段专题：每段对应一个材料池主题，题目只准打一段，避免把四个领域塞进一道题。
+   专题是可替换的：换池子时只改这张表和 PAPER_SPEC 的 section，不动出题代码。 */
+const PAPER_THEME = "统筹创新、安全、民生与治理";
+const PAPER_SECTIONS = [
+  { label:"给定资料1", focus:"银发旅游与适老服务", topics:["养老托育","民生保障"], keywords:["银发","老年","康养","养老"] },
+  { label:"给定资料2", focus:"固态电池科技创新与安全", topics:["科技创新"], keywords:["固态电池","电池"] },
+  { label:"给定资料3", focus:"非法码头生态治理", topics:["生态环保","基层治理"], keywords:["码头","岸线","非法装卸"] },
+  { label:"给定资料4", focus:"汽车产品安全监管", topics:["法治建设","科技创新"], keywords:["汽车","门把手","零重力","智能驾驶"] }
+];
 const PAPER_SPEC = [
-  { module:"sl.guina",  subtype:"概括做法", ansLen:"不超过350字" },
-  { module:"sl.fenxi",  subtype:"词句理解", ansLen:"不超过300字" },
-  { module:"sl.guanche", subtype:"意见建议", ansLen:"不超过400字" },
-  { module:"sl.duice",  subtype:"对策建议", ansLen:"不超过400字" },
-  { module:"sl.zuowen", subtype:"关系思辨", ansLen:"1000-1200字" }
+  { module:"sl.guina",  subtype:"概括做法", ansLen:"不超过350字", section:"给定资料1", focus:"银发旅游与适老服务", kind:"normal" },
+  { module:"sl.fenxi",  subtype:"词句理解", ansLen:"不超过300字", section:"给定资料2", focus:"固态电池科技创新与安全", kind:"quote" },
+  { module:"sl.guanche", subtype:"讲话稿", ansLen:"不超过400字", section:"给定资料3", focus:"非法码头生态治理", kind:"normal" },
+  { module:"sl.duice",  subtype:"对策建议", ansLen:"不超过400字", section:"给定资料4", focus:"汽车产品安全监管", kind:"normal" },
+  { module:"sl.zuowen", subtype:"关系思辨", ansLen:"1000-1200字", section:"综合", focus:"创新、安全、民生与治理的统筹", kind:"essay" }
 ];
 
 function subjectOf(k){ const s = String(k==null?"":k).split(".")[0]; return SUBJECTS[s]? s : null; }
@@ -2097,16 +2106,46 @@ async function gen(k, subtype, focusDim, needCard, onDelta, skel){
 /* ============ 申论整卷：多篇骨架拼一套 4.5k-6k 材料，再逐题出题 ============ */
 /* 材料只生成一次，5 道题共用。题面不重复存材料，避免 state.paper 里同一份 6k 文本存五遍；
    作答/批改时再由 openPaperQuestion 把 paper.material 填进 current.question.background。 */
-function paperSourcesText(picks){
-  return picks.map((p,i)=>`## 素材${i+1}${p.title? "："+p.title : ""}\n${p.text}`).join("\n\n");
+function materialSectionText(material, label){
+  const text = String(material || "");
+  const start = text.indexOf(label);
+  if(start < 0) return "";
+  const rest = text.slice(start + label.length);
+  const next = rest.search(/给定资料\s*[1-4]/);
+  return next >= 0 ? rest.slice(0, next) : rest;
 }
-async function genPaperMaterial(picks){
+/* 给“词句理解/作文”挑一句像真题的引文：短、含转折/否定，且不能把答案要点列在句子里。 */
+const PAPER_ESSAY_PROP = "创新与安全不是非此即彼的选择，民生与治理也不能顾此失彼；唯有统筹兼顾，发展才能既有速度又有质量";
+function pickEssayQuote(material){
+  const sentences = (String(material || "").match(/[^。！？]+[。！？]?/g) || []).map(s=>s.trim()).filter(Boolean);
+  const good = s => s.length >= 20 && s.length <= 80
+    && !/[0-9]{2,}|公司|门牌|路\d|号|区|县|市/.test(s)
+    && /既要|也要|不是|而是|不能|只有|才|统筹|兼顾/.test(s);
+  return (sentences.find(good) || "").replace(/[。；;]$/, "");
+}
+function pickMaterialQuote(material, label){
+  const sec = materialSectionText(material, label) || String(material || "");
+  const sentences = (sec.match(/[^。！？]+[。！？]?/g) || []).map(s=>s.trim()).filter(Boolean);
+  const bad = /这些情况表明|具体包括|一是|二是|三是|四是|五是|同一枚硬币|窗口期|厘清/;
+  const eligible = sentences.filter(s=>s.length >= 15 && s.length <= 90 && !bad.test(s));
+  const concrete = eligible.filter(s=>/[0-9０-９]|公司|企业|部门|市|县|区|年|码头|电池|游客|列车|工人|村民/.test(s));
+  const prefer = eligible.filter(s=>/[但而却只才不]/.test(s));
+  return (concrete[0] || prefer[0] || eligible[0] || "").replace(/[。；;]$/, "");
+}
+function paperSourcesText(picks){
+  return picks.map((p,i)=>{
+    const sec = p.section || PAPER_SECTIONS[i] || null;
+    return `## ${sec? sec.label : "素材"+(i+1)}（${sec? sec.focus : "补充素材"}）${p.title? "：来源标题："+p.title : ""}\n${p.text}`;
+  }).join("\n\n");
+}
+async function genPaperMaterial(picks, retry){
   const sys = `你是申论命题人。把用户给的多份事实骨架合并成一套申论给定资料，供 5 道题共用。硬要求：
 ① 只改写骨架里已有的事实，不新增人物、数字、做法、成效；骨架里的“背景/做法/成效/争议难点/建议主张”是栏目名，不能出现在材料里。
-② 写成连贯的书面材料，约 5500-6500 个汉字；不出现“素材1”“材料2”“骨架”“栏目”这类词，不用条目符号。
-③ 多篇骨架按主题合并成有层次的背景、做法、争议与建议；不同来源的事实不要张冠李戴。
-④ 只返回 JSON：{"background":"完整材料","theme":"本卷主题（4-8 字）"}。`;
-  const user = JSON.stringify({ material: paperSourcesText(picks), note:"这是申论整卷的共用材料，后面 5 道题都只依据这套材料。" });
+② 整套材料必须围绕同一个总主题“${PAPER_THEME}”：银发旅游讲需求升级与服务供给，固态电池讲创新节奏与安全边界，非法码头讲监管责任，汽车安全讲创新与风险前置；四段是同一主题下的四个案例，不是四个无关热点。
+③ 材料按四段专题组织，每段开头必须原样写“给定资料1”“给定资料2”“给定资料3”“给定资料4”；四段分别聚焦：银发旅游与适老服务 / 固态电池科技创新与安全 / 非法码头生态治理 / 汽车产品安全监管。某段骨架不足就写短一些，不许编造。
+④ 写成连贯的书面材料，${retry? "这次不得少于5500字，目标6000-6500字" : "约5500-6500个汉字"}；不出现“素材1”“骨架”“栏目”这类词，不用条目符号；不同来源的事实不要张冠李戴。
+⑤ 只返回 JSON：{"background":"完整材料","theme":"本卷主题（4-8 字）"}。`;
+  const user = JSON.stringify({ material: paperSourcesText(picks), note:`这是申论整卷的共用材料，总主题是“${PAPER_THEME}”，后面 5 道题都只依据这套材料。` });
   const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
   const background = String((data && data.background) || "").trim();
   if(background.length < 3000) throw { code:"JSON", message:"整卷材料太短" };
@@ -2114,22 +2153,71 @@ async function genPaperMaterial(picks){
 }
 async function genPaperQuestion(material, spec, idx){
   const m = MODULES[spec.module];
-  const kpSchema = `"keyPoints":[{"point":"采分点子项（3-6 条）","score":5,"need":["必须答到的具体情形1","必须答到的具体情形2"]}]`;
+  const kpSchema = `"keyPoints":[{"point":"采分点子项（4-6 条）","score":5,"need":["必须答到的核心事实1","必须答到的核心事实2"]}]`;
   const schema = `{
     "question":{"requirements":"完整的作答要求（含身份/对象/字数上限）","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","theme":"材料主题"},
+    "quote":"（第2/5题必填）从指定资料里逐字摘出的材料原句；其它题留空",
     ${kpSchema}
   }`;
   const sys = sysCoach(spec.module) + "\n" + modInstruction(spec.module) + GEN_POINT_RULES
     + `\n这套材料已经由命题人给定，**不要改写、不要另写材料**；只出第 ${idx+1} 题和采分点。返回 JSON：\n` + schema;
   const user = JSON.stringify({
     module:m.name, subtype:spec.subtype, material, score:m.score,
-    note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题）。题目满分 ${m.score} 分；本题作答上限：${spec.ansLen || "按模块默认"}，必须写进 requirements；只依据给定材料出题；采分点 3-6 条，一条只写一个可核对的事实；不要输出 background。`
+    note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题），全卷总主题是“${PAPER_THEME}”。题目满分 ${m.score} 分；本题只准打 ${spec.section}（${spec.focus}），不得把其它资料的内容拉进来，不得用“等领域”式并列；题干必须落到材料中的具体主体（企业/部门/活动/人物），不得只写抽象口号；同一份卷子里不得与其它题共用同一种文种/场景；**这些命题约束不要写进 requirements**，requirements 只写作答身份、任务、字数与格式，不要写“不必写成完整公文”“不提其它资料”这类提示语；本题作答上限：${spec.ansLen || "按模块默认"}，必须写进 requirements；采分点 4-6 条，每条 need 2-3 条，只写最核心的可核对事实；不要输出 background。${spec.subtype==="讲话稿"? " 本题是具体活动上的讲话稿，不得写成展板文稿、宣传稿或意见建议；题干只写身份、会议/活动、任务，企业全称、门牌号、部门名单等具体事实留在材料里，不要写进题干；400字要能答完。" : ""}${spec.section==="给定资料4"? " 使用材料中已有的政策/制度表述（监管、召回、安全评估等），不得生造“汽车产品创新设计安全管理”这类堆叠提法。" : ""}${spec.kind==="quote"? " 第2题必须在 requirements 里引用给定资料2的一句短原句并围绕它设问；引文不得以“这些情况表明”开头，不得把多个采分点列在句子里，不得用“同一枚硬币”这类抽象格言。" : ""}${spec.kind==="essay"? " 第5题必须从材料中的具体事件/人物/数据切入，并明确结合全部给定资料，不得只扣一段，不得只给抽象主题，不得用抽象格言当引文；引文必须从给定资料3或4中选，不得与第2题同段。" : ""}`
   });
   const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
   if(!data || !data.question || !Array.isArray(data.keyPoints)) throw { code:"JSON", message:"整卷第 "+(idx+1)+" 题格式不对" };
   data.question.background = material;
   data.question.score = m.score || 20;
   if(!data.question.theme) data.question.theme = "";
+  data.keyPoints = data.keyPoints.map(k=>({ ...k, need:(Array.isArray(k.need)? k.need.slice(0,3) : []) }));
+  // 命题约束不许漏进题干：真题不会写“不提其它资料”“不必写成完整公文”
+  let cleanReq = String(data.question.requirements || "").trim();
+  cleanReq = cleanReq
+    .replace(/[；;]?\s*不提(?:其它|其他)资料内容/g, "")
+    .replace(/[；;]?\s*只需写出[^。；]*[。；]?/g, "")
+    .replace(/[；;]?\s*命题约束[^。；]*[。；]?/g, "")
+    .trim();
+  data.question.requirements = cleanReq;
+  // 题干必须点出具体资料段；模型爱写“紧扣资料”，在整卷里等于没锚点
+  if(spec.kind !== "essay" && data.question.requirements.indexOf(spec.section) < 0){
+    data.question.requirements = data.question.requirements
+      .replace(/紧扣资料/g, `紧扣${spec.section}`)
+      .replace(/根据给定材料/g, `根据${spec.section}`)
+      .replace(/结合给定材料/g, `结合${spec.section}`);
+    if(data.question.requirements.indexOf(spec.section) < 0){
+      data.question.requirements = `根据${spec.section}，` + data.question.requirements;
+    }
+  }
+  // 整卷题干收口：一题一切口，不要把身份、参会名单、企业门牌都塞进 400 字题面
+  if(spec.module === "sl.guina"){
+    data.question.requirements = `请根据${spec.section}，概括当前银发旅游适老服务供给的主要做法。要求：全面、准确、条理清晰；${spec.ansLen}。`;
+  }
+  if(spec.subtype === "讲话稿"){
+    data.question.requirements = `根据${spec.section}，假如你是某区政府专项整治工作负责人，在全区非法码头专项整治推进会上作部署讲话。请拟写一份讲话稿。要求：紧扣${spec.section}，内容全面，条理清晰，语言得体；${spec.ansLen}。`;
+  }
+  if(spec.section === "给定资料4"){
+    data.question.requirements = String(data.question.requirements || "")
+      .replace(/汽车产品创新设计安全风险防控|汽车产品创新设计安全管理|汽车产品创新设计和研发测试验证管理/g, "汽车产品安全监管");
+  }
+  // 第2/5题用材料原句做抓手：模型给的 quote 必须短、在原段里、且不能把答案列在句子里；不合格就从材料里重挑
+  let quote = String(data.quote || "").trim()
+    .replace(/^[“”"']+|[“”"']+$/g, "")
+    .replace(/[。；;]+[”"]?\s*$/, "")
+    .replace(/[。；;]\s*$/, "");
+  const quoteScope = spec.kind === "essay" ? material : materialSectionText(material, spec.section);
+  const quoteBad = q => !q || q.length < 15 || q.length > 90 || /这些情况表明|具体包括|一是|二是|三是|四是/.test(q) || quoteScope.indexOf(q) < 0;
+  if(spec.kind === "quote" && quoteBad(quote)) quote = pickMaterialQuote(material, spec.section);
+  if(spec.kind === "essay"){
+    // 作文用能统摄四段的抽象判断，不摘案情/企业名/门牌号；不能和第2题共用同一句
+    quote = pickEssayQuote(material) || PAPER_ESSAY_PROP;
+  }
+  const quoteForReq = quote.replace(/“/g, "‘").replace(/”/g, "’");
+  if(spec.kind === "quote" && quote && quoteScope.indexOf(quote) >= 0){
+    data.question.requirements = `请结合“${spec.section}”，谈谈你对“${quoteForReq}”的理解。要求：观点明确，分析深入，条理清晰；${spec.ansLen}。`;
+  }else if(spec.kind === "essay" && quote){
+    data.question.requirements = `请结合全部给定资料，围绕“${quoteForReq}”，联系实际，自选角度，自拟题目，写一篇文章。要求：观点明确，见解深刻；参考给定资料，但不拘泥于给定资料；思路清晰，语言流畅；总字数${spec.ansLen}。`;
+  }
   // 整卷的作答上限按真卷这一套走，不跟单题模块默认（如归纳 350 而非 250、贯彻执行 400 而非 500）
   if(spec.ansLen){
     let req = String(data.question.requirements || "").trim();
@@ -2140,6 +2228,36 @@ async function genPaperQuestion(material, spec, idx){
       req += " 要求：" + spec.ansLen + "。";
     }
     data.question.requirements = req;
+  }
+  // 真题题干都有「要求：…」条款；模型偶发只写一句任务+字数，这里补最小完整要求
+  if(!/要求[:：]/.test(data.question.requirements)){
+    let req = String(data.question.requirements || "").trim()
+      .replace(/[。；]?\s*不超过\s*\d+\s*字[。]?\s*$/, "")
+      .replace(/[。；]$/, "");
+    req += `。要求：紧扣${spec.section}，内容全面，条理清晰；${spec.ansLen}。`;
+    data.question.requirements = req;
+  }
+  // 清掉清洗后留下的悬空标点；真题题干不会出现「，；」「；；」「”。。」这类拼接痕迹
+  data.question.requirements = String(data.question.requirements || "")
+    .replace(/，\s*；/g, "，")
+    .replace(/；\s*；/g, "；")
+    .replace(/，\s*。/g, "。")
+    .replace(/；\s*。/g, "。")
+    .replace(/。”。/g, "。”")
+    .replace(/([^，。；：\s])(不超过\s*\d+\s*字)/g, "$1；$2")
+    .replace(/[，；]\s*$/, "")
+    .trim();
+  // 作文固定用能统摄四段的总命题，不摘案情句/企业名；避免“只扣一段”的模拟题形态
+  if(spec.kind === "essay"){
+    data.question.requirements = `请结合全部给定资料，围绕“${PAPER_ESSAY_PROP}”，联系实际，自选角度，自拟题目，写一篇文章。要求：观点明确，见解深刻；参考给定资料，但不拘泥于给定资料；思路清晰，语言流畅；总字数${spec.ansLen}。`;
+  }
+  // 真卷题干带分值；补上（界面仍单独显示分值，不改计分）
+  if(!/[（(]\s*\d+\s*分\s*[）)]/.test(data.question.requirements)){
+    if(/要求[:：]/.test(data.question.requirements)){
+      data.question.requirements = data.question.requirements.replace(/([。；])\s*(要求[:：])/, `$1（${m.score}分）$2`);
+    }else{
+      data.question.requirements += `（${m.score}分）`;
+    }
   }
   return alignPointScores(data);
 }
@@ -3321,6 +3439,17 @@ function wirePaperCancel(mySeq){
     renderStart();
   };
 }
+async function poolPickForSection(sec){
+  let fallback = null;
+  for(let i=0;i<5;i++){
+    const p = await poolPick(sec.topics);
+    if(!p) break;
+    if(!fallback) fallback = p;
+    const text = String(p.text || "");
+    if(sec.keywords.some(k=>text.indexOf(k) >= 0)) return p;
+  }
+  return fallback;
+}
 async function startPaper(){
   if(entryBlocked()) return;
   banner("");
@@ -3329,20 +3458,34 @@ async function startPaper(){
   wirePaperCancel(mySeq);
   try{
     const picks = [], seen = new Set();
-    for(let i=0;i<4;i++){
-      const p = await poolPick(poolTopicsFor("sl.guina"));
-      if(!p) break;
-      const key = p.name || p.title || ("pick"+i);
+    for(const sec of PAPER_SECTIONS){
+      let p = await poolPickForSection(sec);
+      if(!p) p = await poolPick(null);   // 主题对不上也兜底给一篇；材料段不足由生成时写短
+      if(!p) continue;
+      const key = p.name || p.title || sec.label;
       if(seen.has(key)) continue;
-      seen.add(key); picks.push(p);
-      if(picks.length >= 4) break;
+      seen.add(key); picks.push(Object.assign({}, p, { section:sec }));
+    }
+    let fillGuard = 0;
+    while(picks.length < 4 && fillGuard++ < 8){
+      const p = await poolPick(null); if(!p) break;
+      const key = p.name || p.title || ("pick"+picks.length);
+      if(seen.has(key)) continue;
+      seen.add(key); picks.push(Object.assign({}, p, { section:PAPER_SECTIONS[picks.length] || null }));
     }
     if(picks.length < 3){
       banner("材料池里可用的骨架不足（至少 3 篇）：先在桌面壳里抓几篇，或检查材料池。", "error");
       renderStart(); return;
     }
     if(mySeq !== reqSeq) return;
-    const mat = await genPaperMaterial(picks);
+    let mat = await genPaperMaterial(picks, false);
+    if(mat.background.length < 5500){
+      showLoading("材料不足 5,500 字，正在重拼一次…", "只补长度，不换题；这次会更强约束。", {cancel:true});
+      wirePaperCancel(mySeq);
+      const again = await genPaperMaterial(picks, true);
+      if(mySeq !== reqSeq) return;
+      if(again.background.length > mat.background.length) mat = again;
+    }
     if(mySeq !== reqSeq) return;
     const questions = [];
     for(let i=0;i<PAPER_SPEC.length;i++){
@@ -3443,7 +3586,8 @@ function qHeadHtml(showQuestion, metaRight){
   if(showQuestion === false) return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  html += metaLineHtml(question, metaRight);
+  // 整卷题干里已带分值，题头不再重复报一次；难度仍保留
+  html += metaLineHtml(current && current.paperId? Object.assign({}, question, { score:0 }) : question, metaRight);
   return html;
 }
 /* 学习卡整页：综应A 的学习阶段与申论链的开头共用这一屏（先记知识点再动手，做的时候忘了还能随时翻）。
