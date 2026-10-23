@@ -4108,6 +4108,8 @@ globalThis.window = _savedWinUpd;
   const mkPaper = ()=> ({ id:"paper1", material:"材料".repeat(600), theme:"基层治理",
     sources:[{title:"某篇",topics:["基层治理"]}], questions:PAPER_SPEC.map(pQ), answers:{}, at:Date.now() });
   ok(sanitizePaper(mkPaper()) && sanitizePaper(mkPaper()).questions.length === 5, "整卷: 合法卷通过清洗");
+  ok(PAPER_SPEC.map(x=>x.ansLen).join("/") === "不超过350字/不超过300字/不超过400字/不超过400字/1000-1200字",
+     "整卷: 作答上限按真卷这一套（350/300/400/400/1000-1200）");
   ok(sanitizePaper({ material:"短", questions:[] }) === null
      && sanitizePaper({ material:"材料".repeat(600), questions:[{module:"zy.guina"}] }) === null,
      "整卷: 材料太短 / 题目模块不在卷内 -> 整卷丢弃");
@@ -4134,15 +4136,18 @@ globalThis.window = _savedWinUpd;
   let pn = 0;
   globalThis.window = { liantai: { poolPick: async ()=>({ name:"s"+(++pn)+".md", title:"素材"+pn, text:"## 背景\n- 事实", topics:["基层治理"] }) } };
   callLLM = async (sys)=>{
-    if(String(sys).indexOf("合并成一套申论给定资料") >= 0) return { background:"材料".repeat(800), theme:"基层治理" };
+    if(String(sys).indexOf("合并成一套申论给定资料") >= 0) return { background:"材料".repeat(1600), theme:"基层治理" };
     return { question:{ requirements:"请根据给定材料作答，不超过300字。", suggestedFormat:"", difficulty:"适中", theme:"基层治理" },
              keyPoints:[{ point:"p", score:5, need:["n"] }] };
   };
   state.paper = null; _view = "start"; current = null;
   await startPaper();
-  ok(state.paper && state.paper.questions.length === 5 && state.paper.material.length === 1600
-     && state.paper.questions.every(q=>q.question.score === MODULES[q.module].score),
-     "整卷: 4 篇骨架拼材料，5 题共享材料且分值按本地表");
+  ok(state.paper && state.paper.questions.length === 5 && state.paper.material.length === 3200
+     && state.paper.questions.every(q=>q.question.score === MODULES[q.module].score)
+     && state.paper.questions[0].question.requirements.indexOf("不超过350字") >= 0
+     && state.paper.questions[3].question.requirements.indexOf("不超过400字") >= 0
+     && state.paper.questions[4].question.requirements.indexOf("1000-1200字") >= 0,
+     "整卷: 4 篇骨架拼材料，5 题共享材料、分值/作答上限按整卷口径");
   const genHtml = el("#docBody").innerHTML;
   ok(_view === "paper" && genHtml.indexOf('id="btnPaperNew"') >= 0 && genHtml.length > 100, "整卷: 生成完直接上卷面");
   callLLM = _callPaper; globalThis.window = _winPaper;

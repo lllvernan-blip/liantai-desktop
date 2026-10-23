@@ -893,11 +893,11 @@ const GONGWEN_KEY = "zy.gongwen";   // 公文写作：子类型就是文种，�
 /* 申论整卷：只做一套 5 题（与真题的题型顺序一致），共享同一份 4.5k-6k 材料。
    材料来自材料池多篇骨架合并，不是真题原文；分值取 MODULES.score。 */
 const PAPER_SPEC = [
-  { module:"sl.guina",  subtype:"概括做法" },
-  { module:"sl.fenxi",  subtype:"词句理解" },
-  { module:"sl.duice",  subtype:"对策建议" },
-  { module:"sl.guanche", subtype:"意见建议" },
-  { module:"sl.zuowen", subtype:"关系思辨" }
+  { module:"sl.guina",  subtype:"概括做法", ansLen:"不超过350字" },
+  { module:"sl.fenxi",  subtype:"词句理解", ansLen:"不超过300字" },
+  { module:"sl.guanche", subtype:"意见建议", ansLen:"不超过400字" },
+  { module:"sl.duice",  subtype:"对策建议", ansLen:"不超过400字" },
+  { module:"sl.zuowen", subtype:"关系思辨", ansLen:"1000-1200字" }
 ];
 
 function subjectOf(k){ const s = String(k==null?"":k).split(".")[0]; return SUBJECTS[s]? s : null; }
@@ -2103,13 +2103,13 @@ function paperSourcesText(picks){
 async function genPaperMaterial(picks){
   const sys = `你是申论命题人。把用户给的多份事实骨架合并成一套申论给定资料，供 5 道题共用。硬要求：
 ① 只改写骨架里已有的事实，不新增人物、数字、做法、成效；骨架里的“背景/做法/成效/争议难点/建议主张”是栏目名，不能出现在材料里。
-② 写成连贯的书面材料，约 4500-6000 个汉字；不出现“素材1”“材料2”“骨架”“栏目”这类词，不用条目符号。
+② 写成连贯的书面材料，约 5500-6500 个汉字；不出现“素材1”“材料2”“骨架”“栏目”这类词，不用条目符号。
 ③ 多篇骨架按主题合并成有层次的背景、做法、争议与建议；不同来源的事实不要张冠李戴。
 ④ 只返回 JSON：{"background":"完整材料","theme":"本卷主题（4-8 字）"}。`;
   const user = JSON.stringify({ material: paperSourcesText(picks), note:"这是申论整卷的共用材料，后面 5 道题都只依据这套材料。" });
   const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
   const background = String((data && data.background) || "").trim();
-  if(background.length < 1500) throw { code:"JSON", message:"整卷材料太短" };
+  if(background.length < 3000) throw { code:"JSON", message:"整卷材料太短" };
   return { background, theme:String((data && data.theme) || "") };
 }
 async function genPaperQuestion(material, spec, idx){
@@ -2123,13 +2123,24 @@ async function genPaperQuestion(material, spec, idx){
     + `\n这套材料已经由命题人给定，**不要改写、不要另写材料**；只出第 ${idx+1} 题和采分点。返回 JSON：\n` + schema;
   const user = JSON.stringify({
     module:m.name, subtype:spec.subtype, material, score:m.score,
-    note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题）。题目满分 ${m.score} 分；只依据给定材料出题；采分点 3-6 条，一条只写一个可核对的事实；不要输出 background。`
+    note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题）。题目满分 ${m.score} 分；本题作答上限：${spec.ansLen || "按模块默认"}，必须写进 requirements；只依据给定材料出题；采分点 3-6 条，一条只写一个可核对的事实；不要输出 background。`
   });
   const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
   if(!data || !data.question || !Array.isArray(data.keyPoints)) throw { code:"JSON", message:"整卷第 "+(idx+1)+" 题格式不对" };
   data.question.background = material;
   data.question.score = m.score || 20;
   if(!data.question.theme) data.question.theme = "";
+  // 整卷的作答上限按真卷这一套走，不跟单题模块默认（如归纳 350 而非 250、贯彻执行 400 而非 500）
+  if(spec.ansLen){
+    let req = String(data.question.requirements || "").trim();
+    if(spec.ansLen.indexOf("不超过") === 0){
+      if(/不超过\s*\d+\s*字/.test(req)) req = req.replace(/不超过\s*\d+\s*字/g, spec.ansLen);
+      else req += " 要求：" + spec.ansLen + "。";
+    }else if(!/1000\s*[-—~至]\s*1200\s*字/.test(req)){
+      req += " 要求：" + spec.ansLen + "。";
+    }
+    data.question.requirements = req;
+  }
   return alignPointScores(data);
 }
 /* 阅卷温度：从 0.3 降到 0（2026-09-29 实测对比，原因见下）。
