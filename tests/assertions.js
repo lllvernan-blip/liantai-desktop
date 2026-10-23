@@ -3272,8 +3272,8 @@ ok(q21 && q21.question && q21.question.theme === "基层治理" && q21.question.
    "字段地基: 主题标签随题目回来，满分以本地表为准（40）");
 /* 出题 schema 有两条分支（要学习卡 / 不要学习卡），两条都得带 theme：
    只改一条分支的话，另一条路上的题永远没有主题标签（单跑一条 gen 看不出来，所以查页面原文） */
-ok((PAGE_HTML.match(/,"theme":"材料主题/g) || []).length === 2,
-   "字段地基: 出题 schema 两条分支都带 theme（漏一条分支 = 那条路上的题没标签）");
+ok((PAGE_HTML.match(/,"theme":"材料主题/g) || []).length === 3,
+   "字段地基: 出题 schema 两条分支 + 整卷逐题都带 theme（漏一条分支 = 那条路上的题没标签）");
 
 /* ============ 22. 批改页结构：我的答案（逐句标注）· 解析（为什么没拿到分）· 参考答案 ============ */
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 } };
@@ -4098,6 +4098,56 @@ globalThis.window = _savedWinUpd;
   state.settings.apiKey = _key; state.settings.model = _model; state.tut.done = _tut; state.settings.subject = _subj;
   banner("");
   renderHome();
+}
+
+/* ============ 23. 申论整卷：一套材料 5 题，逐题作答/批改 ============ */
+{
+  const pQ = spec => ({ module:spec.module, subtype:spec.subtype,
+    question:{ requirements:"请根据给定材料作答，不超过300字。", score:MODULES[spec.module].score },
+    keyPoints:[{ point:"p", score:MODULES[spec.module].score, need:["n"] }] });
+  const mkPaper = ()=> ({ id:"paper1", material:"材料".repeat(600), theme:"基层治理",
+    sources:[{title:"某篇",topics:["基层治理"]}], questions:PAPER_SPEC.map(pQ), answers:{}, at:Date.now() });
+  ok(sanitizePaper(mkPaper()) && sanitizePaper(mkPaper()).questions.length === 5, "整卷: 合法卷通过清洗");
+  ok(sanitizePaper({ material:"短", questions:[] }) === null
+     && sanitizePaper({ material:"材料".repeat(600), questions:[{module:"zy.guina"}] }) === null,
+     "整卷: 材料太短 / 题目模块不在卷内 -> 整卷丢弃");
+
+  const _pPaper = state.paper, _pView = _view, _pCur = current, _pSubj = state.settings.subject;
+  const _pKey = state.settings.apiKey, _pModel = state.settings.model;
+  state.settings.subject = "sl"; state.settings.apiKey = "sk-test"; state.settings.model = "m";
+  state.paper = sanitizePaper(mkPaper()); _view = "start"; current = null;
+  renderStart();
+  const startHtml = el("#docBody").innerHTML;
+  ok(startHtml.indexOf('id="btnPaper"') >= 0 && startHtml.indexOf("继续整卷") >= 0, "整卷: 申论起始页有继续入口");
+  openPaperQuestion(0);
+  const qHtml = el("#docBody").innerHTML;
+  ok(current && current.paperId === "paper1" && current.paperQ === 0 && current.phase === "answer"
+     && qHtml.indexOf("材料".repeat(20)) >= 0 && el("#btnSwitch").textContent === "回整卷",
+     "整卷: 打开第一题直接进作答页，材料共用，换一题出口改成回整卷");
+  rememberPaperAnswer({ hits:[], scores:{} }, 30, "第一题答案");
+  ok(state.paper.answers[0] && state.paper.answers[0].total === 30, "整卷: 交卷后把该题作答/得分写回卷面");
+  finishCurrent();
+  ok(_view === "paper" && el("#docBody").innerHTML.indexOf('id="btnPaperNew"') >= 0 && state.paper.answers[0], "整卷: 完成后回卷面，不丢已答题");
+
+  // 生成路径：池子给 4 篇，材料 + 5 题都由假 callLLM 返回；6 次调用必须全接上
+  const _callPaper = callLLM, _winPaper = globalThis.window;
+  let pn = 0;
+  globalThis.window = { liantai: { poolPick: async ()=>({ name:"s"+(++pn)+".md", title:"素材"+pn, text:"## 背景\n- 事实", topics:["基层治理"] }) } };
+  callLLM = async (sys)=>{
+    if(String(sys).indexOf("合并成一套申论给定资料") >= 0) return { background:"材料".repeat(800), theme:"基层治理" };
+    return { question:{ requirements:"请根据给定材料作答，不超过300字。", suggestedFormat:"", difficulty:"适中", theme:"基层治理" },
+             keyPoints:[{ point:"p", score:5, need:["n"] }] };
+  };
+  state.paper = null; _view = "start"; current = null;
+  await startPaper();
+  ok(state.paper && state.paper.questions.length === 5 && state.paper.material.length === 1600
+     && state.paper.questions.every(q=>q.question.score === MODULES[q.module].score),
+     "整卷: 4 篇骨架拼材料，5 题共享材料且分值按本地表");
+  const genHtml = el("#docBody").innerHTML;
+  ok(_view === "paper" && genHtml.indexOf('id="btnPaperNew"') >= 0 && genHtml.length > 100, "整卷: 生成完直接上卷面");
+  callLLM = _callPaper; globalThis.window = _winPaper;
+  state.paper = _pPaper; state.settings.subject = _pSubj; state.settings.apiKey = _pKey; state.settings.model = _pModel;
+  current = _pCur; _view = _pView; banner(""); save();
 }
 
 console.log(T.join("\n"));

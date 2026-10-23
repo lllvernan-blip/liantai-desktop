@@ -890,6 +890,16 @@ const SUBJECT_ORDER = ["zy","sl"];
 const DEFAULT_SUBJECT = "zy";
 const GONGWEN_KEY = "zy.gongwen";   // 公文写作：子类型就是文种，取 GONGWEN_TYPES 那一池
 
+/* 申论整卷：只做一套 5 题（与真题的题型顺序一致），共享同一份 4.5k-6k 材料。
+   材料来自材料池多篇骨架合并，不是真题原文；分值取 MODULES.score。 */
+const PAPER_SPEC = [
+  { module:"sl.guina",  subtype:"概括做法" },
+  { module:"sl.fenxi",  subtype:"词句理解" },
+  { module:"sl.duice",  subtype:"对策建议" },
+  { module:"sl.guanche", subtype:"意见建议" },
+  { module:"sl.zuowen", subtype:"关系思辨" }
+];
+
 function subjectOf(k){ const s = String(k==null?"":k).split(".")[0]; return SUBJECTS[s]? s : null; }
 function moduleKeysOf(subject){ const s = SUBJECTS[subject]; return s? s.modules : []; }
 function moduleName(k){ return (MODULES[k] && MODULES[k].name) || String(k==null?"":k); }
@@ -1007,6 +1017,7 @@ const DEFAULT_STATE = {
   history:[],
   flows:[],
   resumeZy:null,   // 综应A 当前题（不在 flows 里）：刷新 / 崩溃后靠它恢复题目与计时起点
+  paper:null,      // 申论整卷（一套材料 + 5 题 + 每题作答/批改）；一次只留一套，跨重启恢复
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
   digests:{},       // 跨题归纳缓存（见 normDigests）：模块键 → { at, basedOn, data }
   cache:{ studyCards:{}, notes:{} },
@@ -1257,6 +1268,39 @@ function sanitizeExperiences(list){
     });
 }
 
+function sanitizePaper(p){
+  if(!p || typeof p !== "object" || Array.isArray(p)) return null;
+  const material = String(p.material || "").trim();
+  if(material.length < 200) return null;
+  const allowed = PAPER_SPEC.map(x=>x.module);
+  const qs = [];
+  for(const q of (Array.isArray(p.questions)? p.questions : [])){
+    if(!q || typeof q !== "object" || !q.question || allowed.indexOf(q.module) < 0) continue;
+    const req = String(q.question.requirements || "").trim();
+    if(!req) continue;
+    qs.push({
+      module:q.module, subtype:String(q.subtype || ""),
+      question:{ requirements:req, score:Number(q.question.score) || MODULES[q.module].score || 20,
+                 suggestedFormat:String(q.question.suggestedFormat || ""), difficulty:String(q.question.difficulty || "") },
+      keyPoints:Array.isArray(q.keyPoints)? q.keyPoints.filter(x=>x && typeof x.point === "string") : []
+    });
+  }
+  if(!qs.length) return null;
+  const answers = {};
+  if(p.answers && typeof p.answers === "object" && !Array.isArray(p.answers)){
+    for(const k of Object.keys(p.answers)){
+      const i = Number(k); if(!(i >= 0 && i < qs.length)) continue;
+      const a = p.answers[k]; if(!a || typeof a !== "object") continue;
+      answers[i] = { answer:String(a.answer || ""), total:Number(a.total) || 0,
+                     g:(a.g && typeof a.g === "object")? a.g : null, at:Number(a.at) || 0 };
+    }
+  }
+  const sources = (Array.isArray(p.sources)? p.sources : []).slice(0, 8).map(s=>({
+    title:String((s && s.title) || ""), topics:Array.isArray(s && s.topics)? s.topics.map(String).slice(0,4) : []
+  })).filter(s=>s.title);
+  return { id:String(p.id || Date.now()), material, theme:String(p.theme || ""), sources,
+           questions:qs, answers, at:Number(p.at) || Date.now() };
+}
 function load(){
   try{
     _loadFailed = null;
@@ -1319,6 +1363,7 @@ function load(){
     // 训练链：非法 step 丢弃该项、缺失字段补默认（sanitizeFlows 幂等，二次 load 不再变化）
     s.flows = sanitizeFlows(s.flows);
     s.resumeZy = sanitizeResumeZy(s.resumeZy);
+    s.paper = sanitizePaper(s.paper);
     s.digests = normDigests(s.digests);
     // 练习记录的模块键补前缀；记录存在独立的 gw_history，得单独回写
     const mh = migrateHistory(s.history);
@@ -2048,6 +2093,45 @@ async function gen(k, subtype, focusDim, needCard, onDelta, skel){
   if(data && data.question) data.question.score = m.score || 20;
   return alignPointScores(data);
 }
+
+/* ============ 申论整卷：多篇骨架拼一套 4.5k-6k 材料，再逐题出题 ============ */
+/* 材料只生成一次，5 道题共用。题面不重复存材料，避免 state.paper 里同一份 6k 文本存五遍；
+   作答/批改时再由 openPaperQuestion 把 paper.material 填进 current.question.background。 */
+function paperSourcesText(picks){
+  return picks.map((p,i)=>`## 素材${i+1}${p.title? "："+p.title : ""}\n${p.text}`).join("\n\n");
+}
+async function genPaperMaterial(picks){
+  const sys = `你是申论命题人。把用户给的多份事实骨架合并成一套申论给定资料，供 5 道题共用。硬要求：
+① 只改写骨架里已有的事实，不新增人物、数字、做法、成效；骨架里的“背景/做法/成效/争议难点/建议主张”是栏目名，不能出现在材料里。
+② 写成连贯的书面材料，约 4500-6000 个汉字；不出现“素材1”“材料2”“骨架”“栏目”这类词，不用条目符号。
+③ 多篇骨架按主题合并成有层次的背景、做法、争议与建议；不同来源的事实不要张冠李戴。
+④ 只返回 JSON：{"background":"完整材料","theme":"本卷主题（4-8 字）"}。`;
+  const user = JSON.stringify({ material: paperSourcesText(picks), note:"这是申论整卷的共用材料，后面 5 道题都只依据这套材料。" });
+  const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
+  const background = String((data && data.background) || "").trim();
+  if(background.length < 1500) throw { code:"JSON", message:"整卷材料太短" };
+  return { background, theme:String((data && data.theme) || "") };
+}
+async function genPaperQuestion(material, spec, idx){
+  const m = MODULES[spec.module];
+  const kpSchema = `"keyPoints":[{"point":"采分点子项（3-6 条）","score":5,"need":["必须答到的具体情形1","必须答到的具体情形2"]}]`;
+  const schema = `{
+    "question":{"requirements":"完整的作答要求（含身份/对象/字数上限）","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","theme":"材料主题"},
+    ${kpSchema}
+  }`;
+  const sys = sysCoach(spec.module) + "\n" + modInstruction(spec.module) + GEN_POINT_RULES
+    + `\n这套材料已经由命题人给定，**不要改写、不要另写材料**；只出第 ${idx+1} 题和采分点。返回 JSON：\n` + schema;
+  const user = JSON.stringify({
+    module:m.name, subtype:spec.subtype, material, score:m.score,
+    note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题）。题目满分 ${m.score} 分；只依据给定材料出题；采分点 3-6 条，一条只写一个可核对的事实；不要输出 background。`
+  });
+  const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
+  if(!data || !data.question || !Array.isArray(data.keyPoints)) throw { code:"JSON", message:"整卷第 "+(idx+1)+" 题格式不对" };
+  data.question.background = material;
+  data.question.score = m.score || 20;
+  if(!data.question.theme) data.question.theme = "";
+  return alignPointScores(data);
+}
 /* 阅卷温度：从 0.3 降到 0（2026-09-29 实测对比，原因见下）。
    基线（0.3 + 旧的百分比阈值）：「写得具体」的卷 5 次 13/11.5×4（极差 1.5）、「只点名不给事实」的卷
    5 次 16/20/15.5/20（极差 4.5）。把三档改成「数点」之后，具体卷回到 5 次全 11.5（极差 0），
@@ -2649,6 +2733,9 @@ function startBoxHtml(resume){
   const foot = canStart()
     ? "没有账号，数据都在本地"
     : (state.settings.apiKey? "选好模型就能开始 · 没有账号，数据都在本地" : "填好 API Key 就能开始 · 没有账号，数据都在本地");
+  const paperEntry = (!home && curSubject() === "sl")
+    ? `<div class="actions" style="margin-top:16px"><button id="btnPaper">${state.paper? "继续整卷（5 题）" : (canStart()? "整卷练习（一套材料 5 题）" : "整卷练习（先填 Key）")}</button></div>`
+    : "";
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
     <div class="hero-big">今天练什么？</div>
@@ -2670,6 +2757,7 @@ function startBoxHtml(resume){
       ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>
+    ${paperEntry}
     ${resumeHtml}
     <div class="hero-foot">${foot}</div>
   </div>`;
@@ -2678,6 +2766,7 @@ function wireStartBox(){
   // 两种起始页各有自己的红按钮，各自都可能不在：取不到就跳过
   const q = $("#btnQuick"); if(q) q.onclick = ()=> startPDRound(PD_MIX);
   const sm = $("#btnSmart"); if(sm) sm.onclick = startSmart;
+  const bp = $("#btnPaper"); if(bp) bp.onclick = ()=> state.paper? renderPaper() : startPaper();
   const su = $("#btnSetup"); if(su) su.onclick = ()=> openModal("modalSettings");   // 没 Key 时起始页那颗：说了「先填 Key」就真把人送到设置页
   docBody.querySelectorAll("[data-big]").forEach(b=> b.onclick = ()=>{
     if(!canStart()){   // 没 Key：只把人送到该科目的起始页，不说「开始练」
@@ -2762,6 +2851,7 @@ function renderCurrentView(){
   if(pdActive && pdRound){ if(pdRound.done) renderPDSummary(); else renderPDRound(); return true; }
   // 等待页恢复时 activeModule 已被让空：落地页要知道自己原来是哪个模块，否则关个设置回来就换了页
   if(_view === "landing") renderModuleLanding(activeModule || (pendingGen && pendingGen.viewing && pendingGen.module) || lastModuleOf(curSubject()));
+  else if(_view === "paper") renderPaper();
   else if(_view === "home") renderHome();
   else renderStart();
   return true;
@@ -3211,11 +3301,116 @@ function cardHtml(studyCard){
   return `<div class="cardcols">${colsHtml}</div>`;
 }
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
+/* ============ 申论整卷：入口、卷面、逐题作答 ============ */
+function wirePaperCancel(mySeq){
+  const cg = $("#btnCancelGen"); if(!cg) return;
+  cg.onclick = ()=>{
+    if(mySeq !== reqSeq) return;
+    reqSeq++;
+    renderStart();
+  };
+}
+async function startPaper(){
+  if(entryBlocked()) return;
+  banner("");
+  const mySeq = ++reqSeq;
+  showLoading("AI 正在从材料池拼一套申论整卷…", "先拼共用材料，再逐题出题；通常 1-3 分钟。", {cancel:true});
+  wirePaperCancel(mySeq);
+  try{
+    const picks = [], seen = new Set();
+    for(let i=0;i<4;i++){
+      const p = await poolPick(poolTopicsFor("sl.guina"));
+      if(!p) break;
+      const key = p.name || p.title || ("pick"+i);
+      if(seen.has(key)) continue;
+      seen.add(key); picks.push(p);
+      if(picks.length >= 4) break;
+    }
+    if(picks.length < 3){
+      banner("材料池里可用的骨架不足（至少 3 篇）：先在桌面壳里抓几篇，或检查材料池。", "error");
+      renderStart(); return;
+    }
+    if(mySeq !== reqSeq) return;
+    const mat = await genPaperMaterial(picks);
+    if(mySeq !== reqSeq) return;
+    const questions = [];
+    for(let i=0;i<PAPER_SPEC.length;i++){
+      showLoading(`材料已拼好，正在出第 ${i+1}/${PAPER_SPEC.length} 题…`, "5 道题共用同一套材料；出完一起上屏。", {cancel:true});
+      wirePaperCancel(mySeq);
+      const q = await genPaperQuestion(mat.background, PAPER_SPEC[i], i);
+      if(mySeq !== reqSeq) return;
+      questions.push({ module:PAPER_SPEC[i].module, subtype:PAPER_SPEC[i].subtype,
+                       question:q.question, keyPoints:q.keyPoints });
+    }
+    state.paper = {
+      id:String(Date.now()), material:mat.background, theme:mat.theme || "",
+      sources:picks.map(p=>({ title:p.title || p.name || "", topics:Array.isArray(p.topics)? p.topics.slice(0,4) : [] })),
+      questions, answers:{}, at:Date.now()
+    };
+    save();
+    renderPaper();
+  }catch(e){
+    if(mySeq !== reqSeq) return;
+    console.error("[liantai] 整卷生成失败", e);
+    banner("整卷没有拼成：" + esc((e && (e.text || e.message)) || "请稍后重试。"), "error");
+    renderStart();
+  }
+}
+function renderPaper(){
+  const p = state.paper;
+  if(!p){ renderStart(); return; }
+  _view = "paper"; pdActive = false; activeModule = null;
+  if(state.settings.subject !== "sl"){ state.settings.subject = "sl"; save(); }
+  renderHeader(); renderTabs();
+  const rows = p.questions.map((q,i)=>{
+    const a = p.answers[i];
+    return `<div style="border-top:1px solid var(--line);padding:16px 0">
+      <div class="secrow" style="margin:0"><div class="sec-title">${i+1}. ${esc(MODULES[q.module].name)}${q.subtype? ` · ${esc(q.subtype)}`:""}</div>
+        <span class="secright">${a? `${a.total} 分` : `${q.question.score} 分`}</span></div>
+      <div class="require" style="margin-top:8px">${esc(q.question.requirements)}</div>
+      <div class="actions" style="margin-top:8px"><button data-pq="${i}">${a? "看批改" : "作答"}</button></div>
+    </div>`;
+  }).join("");
+  docBody.innerHTML = `<div class="startbox start-entry start-hero">
+    <div class="hero-big">申论整卷</div>
+    <div class="hero-sub">一套材料 · ${p.questions.length} 道题 · 逐题作答，批改后回卷面</div>
+    <div class="actions"><button class="primary" id="btnPaperNew">${p.questions.some((q,i)=>!p.answers[i])? "重新拼一套" : "再拼一套"}</button></div>
+    <div class="material mat-scroll" style="margin-top:24px"><div class="label">给定材料 · 本卷 ${p.questions.length} 题共用</div><div id="materialBox">${materialHtml({ background:p.material, requirements:"" })}</div></div>
+    <div class="secrow" style="margin:24px 0 0"><div class="sec-title">本卷题目</div><span class="secright">${p.questions.filter((q,i)=>p.answers[i]).length}/${p.questions.length} 已作答</span></div>
+    ${rows}
+    <div class="actions" style="margin-top:16px"><button id="btnPaperBack">回申论首页</button></div>
+  </div>`;
+  paintFab();
+  docBody.querySelectorAll("[data-pq]").forEach(b=> b.onclick = ()=> openPaperQuestion(Number(b.dataset.pq)));
+  $("#btnPaperBack").onclick = ()=> renderStart();
+  $("#btnPaperNew").onclick = ()=>{
+    if(typeof confirm === "function" && !confirm("重新拼一套会替换当前整卷；已作答的记录仍留在练习记录里。")) return;
+    startPaper();
+  };
+}
+function openPaperQuestion(i){
+  const p = state.paper; if(!p) { renderPaper(); return; }
+  const item = p.questions[i]; if(!item) return;
+  const a = p.answers[i];
+  current = {
+    module:item.module, subtype:item.subtype,
+    question:Object.assign({}, item.question, { background:p.material }),
+    keyPoints:item.keyPoints || [], paperId:p.id, paperQ:i, cardPeeks:0,
+    phase:(a && a.g)? "grade" : "answer"
+  };
+  if(a && a.g) current.grade = { g:a.g, total:a.total || 0 };
+  renderHeader(); renderQuestion();
+}
+function rememberPaperAnswer(g, total, ans){
+  if(!current || !current.paperId || !state.paper || current.paperQ == null) return;
+  state.paper.answers[current.paperQ] = { answer:String(ans||""), total:Number(total)||0, g, at:Date.now() };
+  save();
+}
 function renderQuestion(){
   if(!current || !current.question){ renderStart(); return; }
   _view = "q";
   renderTabs();
-  if(!usesFlowChain(current.module)){ renderZyPage(); return; }
+  if(current.paperId || !usesFlowChain(current.module)){ renderZyPage(); return; }
   ensureFlow(current.module, current.subtype, current.question, current.keyPoints);
   renderFlowStep();
 }
@@ -3283,12 +3478,20 @@ function renderZyPage(){
   wireZyPage(phase);
 }
 function wireZyPage(phase){
-  const sw = $("#btnSwitch"); if(sw) sw.onclick = ()=> loadQuestion(current.module, current.subtype);
+  const sw = $("#btnSwitch");
+  if(sw){
+    if(current.paperId){ sw.textContent = "回整卷"; sw.onclick = ()=> renderPaper(); }
+    else sw.onclick = ()=> loadQuestion(current.module, current.subtype);
+  }
   if(phase === "answer"){
     wireMarks();
     wireDraft(null);
   } else if(phase === "grade"){
-    const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
+    const br = $("#btnRetry");
+    if(br){
+      if(current.paperId){ br.textContent = "回整卷"; br.onclick = ()=> renderPaper(); }
+      else br.onclick = ()=> startModule(current.module);
+    }
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
     const bd = $("#btnDone"); if(bd) bd.onclick = finishCurrent;
     wireSelfNote();
@@ -4585,6 +4788,7 @@ async function submitAnswer(){
     save();
     if(!inFlow && current && !usesFlowChain(mod)){ state.resumeZy = null; save(); }   // 综应A 交卷：快照作废，结果改从记录打开
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
+    if(current && current.paperId) rememberPaperAnswer(g, total, ans);
     setLimitState(limMin, 0);   // 这一稿停表：交完就算一稿，下次进作答区重新起算
     _timeUpSaid = false;
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
@@ -4921,7 +5125,7 @@ function renderGrade(g, total, expCheck, time, answer){
   const forThis = !!(f && current && f.sig === qSig(current.question));
   /* flowId 是这份缓存的门牌：重渲这一屏时只认属于这条链的缓存，跨链一律不借（见 renderFlowStep）。 */
   lastGrade = { g, total, expCheck: expCheck || null, time: time || null, answer: ans, flowId: forThis? f.id : null };
-  if(current && usesFlowChain(current.module)){
+  if(current && !current.paperId && usesFlowChain(current.module)){
     if(forThis) f.step = "review";
     renderFlowStep();
   } else if(current){
@@ -4934,6 +5138,7 @@ function renderGrade(g, total, expCheck, time, answer){
    收口只影响首页那个「继续」入口；记录、答案、批改结果一律不动——state.history 里那份照样在「记录」页。
    综应A 没有链（current 就是全部现场），所以只回首页：两边观感一致，点完就到家。 */
 function finishCurrent(){
+  if(current && current.paperId){ current = null; lastGrade = null; renderPaper(); return; }
   const f = activeFlow();
   if(f && current && current.question && f.sig === qSig(current.question)) closeFlow(f);
   else if(current && current.question && !usesFlowChain(current.module)
@@ -5446,6 +5651,8 @@ function importJSON(file){
       state.flows = sanitizeFlows(Array.isArray(s.flows)? s.flows : []);
       // 综应A 的未完成题只活在快照里（不进 flows、不进 history）：导入与刷新两条入口得一个样，收的时候过同一道清洗
       state.resumeZy = sanitizeResumeZy(s.resumeZy);
+      // 整卷同理：材料/题目/每题批改结果逐项校验，坏卷整卷丢弃，不整包失败
+      state.paper = sanitizePaper(s.paper);
       // 跨题归纳缓存跟着备份走：换了机器不用从零再攒一遍（形状不对的项丢掉，不整包失败）
       const dg = plainObj(s.digests);
       if(dg) state.digests = normDigests(plainPick(dg));
