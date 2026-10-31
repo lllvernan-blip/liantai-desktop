@@ -1227,7 +1227,8 @@ const rq12 = { background:"恢复题材料。", requirements:"r" };
 const rFlow = ensureFlow("sl.guina", "概括问题", rq12, []);
 rFlow.step = "read"; rFlow.cardSeen = true;
 renderStart();
-ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") >= 0, "恢复现场: 有未关闭的链时首页给入口");
+ok(el("#docBody").innerHTML.indexOf('id="btnResume"') >= 0 && el("#docBody").innerHTML.indexOf("继续上次") >= 0,
+   "恢复现场: 有未关闭的链时首页给那一行「继续上次」");
 ok(el("#docBody").innerHTML.indexOf("materialBox") < 0, "恢复现场: 不自动跳进链里");
 el("#btnResume").onclick();
 ok(_flowId === rFlow.id && current && current.module === "sl.guina", "恢复现场: 点击后才回到链上");
@@ -1235,7 +1236,7 @@ ok(el("#docBody").innerHTML.indexOf("materialBox") >= 0, "恢复现场: 进入�
 rFlow.createdAt = Date.now() - 25*3600*1000;
 current = null; _flowId = null; state.resumeZy = null;
 renderStart();
-ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") < 0, "恢复现场: 超 24h 的链不再提示");
+ok(el("#docBody").innerHTML.indexOf('id="btnResume"') < 0, "恢复现场: 超 24h 的链不再提示");
 state.flows = []; _flowId = null;
 /* 综应A 不在 flows 里：当前题、阶段与计时起点另存 resumeZy，刷新后从首页继续 */
 {
@@ -1245,7 +1246,7 @@ state.flows = []; _flowId = null;
                      limitMin:30, limitFrom:Date.now() - 60000, ts:Date.now(), cardPeeks:0 };
   saveDraft(qSig(q), "写到一半的答案");
   renderHome();
-  ok(el("#docBody").innerHTML.indexOf("继续上次没做完的题") >= 0 && el("#docBody").innerHTML.indexOf("综应A") >= 0,
+  ok(el("#docBody").innerHTML.indexOf('id="btnResume"') >= 0 && el("#docBody").innerHTML.indexOf("综应A") >= 0,
      "恢复: 综应A 未完成的题在首页给「继续」入口");
   el("#btnResume").onclick();
   ok(current && current.question.background === q.background && current.phase === "answer"
@@ -1498,7 +1499,7 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
   renderStart();
   el("#btnResume").onclick();
   ok(current && current.studyCard && current.studyCard.title === "缓存卡",
-     "恢复: 「继续上次没做完的题」把学习卡一起带回来");
+     "恢复: 点「继续上次」把学习卡一起带回来");
   delete state.cache.studyCards["sl.guina::概括问题"];
 }
 
@@ -3619,6 +3620,15 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(PAGE_HTML.indexOf("#bannerSlot{margin:0 calc(54px * var(--paper-scale));}") >= 0
      && PAGE_HTML.indexOf(".banner-actions") < 0,
      "提示条: 左右让出 54×缩放落在正文列上（与顶栏 --tb-edge 同一个数）；欢迎框删了，它的 .banner-actions 不留死样式");
+  ok(PAGE_HTML.indexOf("--act-col:320px") >= 0
+     && PAGE_HTML.indexOf(".start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}") >= 0
+     && PAGE_HTML.indexOf(".start-entry .actions:has(.big) .big{width:100%;min-width:0;}") >= 0,
+     "入口屏: 主按钮 / 科目药丸 / 继续条共用一条 320 动作列（窄到放不下整列跟着缩，那颗 min-width:320 不再撑出纸面）");
+  ok(PAGE_HTML.indexOf('<div class="actions actline">') >= 0 && PAGE_HTML.indexOf("继续上次没做完的题") < 0
+     && PAGE_HTML.indexOf(".start-entry .actline .al-main{") >= 0,
+     "入口屏: 「继续上次」「整卷练习」收成一行信息 + 一颗文字键（原来两条描边大按钮比药丸宽、比红按钮轻，卡在中间谁都不像）");
+  ok(PAGE_HTML.indexOf(".start-entry .actline{") >= 0 && PAGE_HTML.indexOf(".start-entry .actline + .actline{margin-top:12px;}") >= 0,
+     "入口屏: 恢复那两行的间距走 24 / 12 两档（同组 12、跨组 24），不再各写一个 16");
 }
 
 /* 0.1 启动顺序：load() 引用的每个顶层常量都必须声明在它之前。

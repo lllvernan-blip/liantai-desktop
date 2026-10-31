@@ -38,8 +38,10 @@
        1304 是这张纸最宽的样子——两栏时它 = 材料栏 580 + 中缝 24 + 作答栏 560 + 纸边 140，
        单栏时它就是 1164 的版心里放一列 620 的字（左右各留 272 空白）。
        --text-col 是那一列的宽：纸可以宽，一行不许宽（规范 36：17–40 字/行）。
+       --act-col 是入口屏那条「动作列」的宽：主按钮、科目药丸、继续条同宽同左右缘（原来六行六种宽度，
+       每行自己居中，看着像贴了六张不同大小的纸）。
        --mat-col-h 是两栏时材料窗的高。这几个都由 applyPaperScale() 写，这里只是启动那一瞬的初值。 */
-    --paper-scale:1; --sheet-w:760px; --text-col:620px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
+    --paper-scale:1; --sheet-w:760px; --text-col:620px; --act-col:320px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
     /* 字号阶梯：相邻至少差 1.5px——差半像素等于没分级 */
     --fs-display:30px;   /* 分数这类大数 */
     --fs-hero:26px;      /* 整屏标题（入口页、小结页）*/
@@ -187,6 +189,18 @@ html,body{margin:0;padding:0;}
   .startbox .chip:hover{border-color:var(--line-strong);color:var(--ink);background:var(--paper);}
   .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
+  /* 入口屏的动作列：主按钮、科目药丸、继续条共用一个宽（320），左右缘落在同一条线上。
+     窄到放不下 320 时整列跟着缩到列宽，不撑出纸面（原来那颗 min-width:320 会直接溢出）。 */
+  .start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}
+  .start-entry .actions:has(.big) .big{width:100%;min-width:0;}
+  .start-entry .chiprow .chip{flex:1 1 auto;white-space:nowrap;justify-content:center;}
+  /* 「继续上次」「整卷练习」两行：一行信息 + 一颗文字键，不再各占一整条描边大按钮
+     （那颗比药丸宽、比红按钮轻，卡在中间谁都不像；文案一长还在窄窗里换成两行）。
+     字左对齐、键靠右，装不下就省略号收在中间那句上。 */
+  .start-entry .actline{display:flex;align-items:center;gap:8px;margin-top:24px;text-align:left;}
+  .start-entry .actline + .actline{margin-top:12px;}
+  .start-entry .actline .al-main{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:var(--fs-note);color:var(--muted);}
 
   .wrap{max-width:calc(var(--sheet-w) * var(--paper-scale));margin:calc(24px * var(--paper-scale)) auto;padding:0 16px;}
   /* overflow 用 clip 不用 hidden：hidden 会把纸变成一个滚动容器，里面的一切吸顶与 scrollIntoView 都得换基准；clip 只裁不接管滚动 */
@@ -2822,7 +2836,7 @@ function tabClick(k){
   revealDocHeading();
 }
 /* 返回综合：再点一次当前科目的按钮就回起始页（综合 · 智能出题）。
-   落点与切科目后完全一致；不收口进行中的训练链——它保持可恢复，起始页会给出「继续上次没做完的题」。 */
+   落点与切科目后完全一致；不收口进行中的训练链——它保持可恢复，起始页会给出那一行「继续上次」。 */
 function backToStart(){
   renderStart();
 }
@@ -2946,12 +2960,20 @@ function startBoxHtml(resume){
   }).join("");
   /* 脚注跟着有没有 Key 说话：填完还写「填好 API Key 就能开始」，界面就在说谎。
      「没有账号，数据都在本地」是必备声明，两种情况都留。 */
-  const resumeHtml = resume? `<div class="actions" style="margin-top:16px"><button id="btnResume">继续上次没做完的题（${esc(moduleName(resume.module))}${resume.subtype? " · "+esc(resume.subtype):""} · 停在「${esc(resume.label)}」）</button></div>` : "";
+  /* 「继续上次」与「整卷练习」是两行信息 + 一颗文字键，不是两条大按钮：这一屏只有一个主行动
+     （那颗红的），恢复现场的路径比它轻一档才不抢。文案落在左、键落在右，同一条动作列宽。 */
+  const resumeHtml = resume? `<div class="actions actline"><span class="al-main">${esc(moduleName(resume.module))}${resume.subtype? " · "+esc(resume.subtype):""} · 停在${esc(resume.label)}</span><button class="linkbtn" id="btnResume">继续上次</button></div>` : "";
   const foot = canStart()
     ? "没有账号，数据都在本地"
     : (state.settings.apiKey? "选好模型就能开始 · 没有账号，数据都在本地" : "填好 API Key 就能开始 · 没有账号，数据都在本地");
+  const paperAns = (state.paper && Array.isArray(state.paper.answers))? state.paper.answers.filter(Boolean).length : 0;
+  /* 整卷那颗：没有卷时它只是一个入口（一句话把「整卷」说清），有卷时才拆成「进度 + 动作」两半。
+     两行都留在 .actions 这个容器里：文案账（tools/entry-audit.mjs）按容器认区域，
+     `.actions` 记主行动、不认得的记成正文——换个类名就等于凭空给这一屏多写 11 个字。 */
   const paperEntry = (!home && curSubject() === "sl")
-    ? `<div class="actions" style="margin-top:16px"><button id="btnPaper">${state.paper? "继续整卷（5 题）" : (canStart()? "整卷练习（一套材料 5 题）" : "整卷练习（先填 Key）")}</button></div>`
+    ? (state.paper
+      ? `<div class="actions actline"><span class="al-main">已答 ${paperAns} / ${state.paper.questions.length} 题</span><button class="linkbtn" id="btnPaper">继续整卷</button></div>`
+      : `<div class="actions actline"><button class="linkbtn" id="btnPaper">整卷练习 · 一套材料 5 题</button></div>`)
     : "";
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
