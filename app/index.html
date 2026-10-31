@@ -1035,7 +1035,7 @@ const DEFAULT_STATE = {
              subject:DEFAULT_SUBJECT },
   profile:{ modules:{}, lastModules:[] },
   tut:{ seq:0, done:false },   // seq = 一条引导序列的游标（原始索引，指向下一个未消费的步骤）；done = 序列已完结
-  tutVersion:3,
+  tutVersion:4,
   history:[],
   flows:[],
   resumeZy:null,   // 综应A 当前题（不在 flows 里）：刷新 / 崩溃后靠它恢复题目与计时起点
@@ -3031,41 +3031,35 @@ function renderCurrentView(){
 /* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组：home → zy → sl。
    游标 state.tut.seq 指向下一个未消费的步骤：一组播完（点「知道了」）先收尾，后面屏幕的组
    等首次进入再接着播；中途跳屏/被切走不回头补弹；跳过 = 整条序列完结，任何屏都不再自动弹。
-   设置里可重置重新播。气泡不叠在弹层之上：弹层打开时引导暂歇（见 tourPause/tourResume）。 ---- */
+   设置里可重置重新播。气泡不叠在弹层之上：弹层打开时引导暂歇（见 tourPause/tourResume）。
+   每屏只有一步：引导的活儿是「这一步该点哪儿」，不是把页面每个控件讲解一遍——落点（聚光框）
+   已经指出了是哪个元素，话再说一遍它在干什么就是负担。功能一个不删，只是不占引导的字数。 ---- */
 const TUT_SEQ = [
-  // home：打开软件就落在这里，所以第一组是它——先点快判，再告诉两句大题各去哪个科目
-  { scr:"home", sel:"#btnQuick", text:"点这里直接开始：从材料里挑出对的说法，点选即判，一轮 5 题。",
-    nk:{ sel:"#btnSetup", text:"点这里填 API Key，出题和阅卷都要；填好就能开练。" } },
-  { scr:"home", sel:".chiprow", text:"想练整篇：这两句各自去综应或申论，点了就直接出题。",
-    nk:{ text:"想练整篇：这两句各自去综应或申论，都要先填 API Key。" } },
-  { scr:"home", sel:"#btnProfile", text:"练过的正确率、批改记录都在「我的画像」里。" },
-  // zy / sl：科目页的红按钮是本科目的主行动（快判不进顶栏、也没有自己的落地页，唯一入口是首页那颗红按钮，不在纸面上再放一个）。
-  // 引导的话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：没填 Key 的人照第一步做就被拦下来，
-  // 引导在承诺做不到的事；所以没 Key 时第一步改指纸面上那颗「先填 API Key」（nk），
-  // 末尾那步（也在讲 Key）整步去掉（onlyKey）——同一个元素讲两遍也是废话。
-  { scr:"zy", sel:"#btnSmart", text:"不选模块也可以，直接点这里开始；交卷后按采分点逐条列出得分。",
-    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）。" } },
-  { scr:"zy", sel:".pdforms .subtypechips", text:"想只练某一类，点下面那排里的模块。" },
-  { scr:"zy", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
-  { scr:"zy", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
-  { scr:"sl", sel:"#btnSmart", text:"点这里开始：先读材料划出要点，再归类成稿；交卷后按采分点逐条给分。",
-    nk:{ sel:"#btnSetup", text:"点这里填 API Key（出题和阅卷都要，设置页备了四步教程）。" } },
-  { scr:"sl", sel:".pdforms .subtypechips", text:"想只练某一类，点下面那排里的模块。" },
-  { scr:"sl", sel:"#btnProfile", text:"各模块的练习次数、均分和批改记录，都在「我的画像」里。" },
-  { scr:"sl", sel:"#btnSettings", text:"AI 出题和批改都要用 API Key，申请方法见设置页。", onlyKey:true },
+  // home 是打开软件落的屏，所以第一组是它；快判不进顶栏，唯一入口就是首页这颗红按钮。
+  { scr:"home", sel:"#btnQuick", text:"点这里开始。",
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key。" } },
+  // 科目页的红按钮是本科目的主行动。话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：
+  // 没填 Key 的人照这句话点下去会被拦下来，引导就在承诺做不到的事——所以没 Key 时改指
+  // 纸面上那颗「先填 API Key」（nk），讲的也是填 Key 这一件事。
+  { scr:"zy", sel:"#btnSmart", text:"不选模块也行，点这里开始。",
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key。" } },
+  { scr:"sl", sel:"#btnSmart", text:"不选模块也行，点这里开始。",
+    nk:{ sel:"#btnSetup", text:"点这里填 API Key。" } },
 ];
-/* 旧版四标记（tutVersion ≤ 2 的 { home, zy, sl, pd }）→ 新游标结构：
-   老用户只要看过任何一套就不再被弹（done:true），一套都没看过才从头播。 */
+/* 旧版引导（tutVersion ≤ 2 的 { home, zy, sl, pd } 四标记；= 3 的 11 步游标）→ 新结构：
+   四标记里看过任何一套就不再被弹；v3 的用户已经消费过旧序列里的某几步（那几步的文案已不在），
+   半截游标对不上新序列，一律算看过——想重看有设置里的「重置使用引导」。 */
 function migrateTut(t){
   const o = (t && typeof t === "object" && !Array.isArray(t))? t : {};
+  if(typeof o.seq === "number") return { seq:0, done: !!(o.done || o.seq > 0) };
   return { seq:0, done: !!(o.home || o.zy || o.sl || o.pd) };
 }
-/* 按当前 Key 有无给出可见步骤（带原始索引 raw）：没 Key 时 nk 变体替换 sel/text，onlyKey 的步整步跳过 */
+/* 按当前 Key 有无给出可见步骤（带原始索引 raw）：没 Key 时 nk 变体替换 sel/text */
 function visibleSteps(){
   const hasKey = !!state.settings.apiKey;
   const out = [];
   TUT_SEQ.forEach((s, idx)=>{
-    if(!hasKey){ if(s.onlyKey) return; out.push({ raw:idx, scr:s.scr, sel:(s.nk && s.nk.sel) || s.sel, text:(s.nk && s.nk.text) || s.text }); }
+    if(!hasKey){ out.push({ raw:idx, scr:s.scr, sel:(s.nk && s.nk.sel) || s.sel, text:(s.nk && s.nk.text) || s.text }); }
     else out.push({ raw:idx, scr:s.scr, sel:s.sel, text:s.text });
   });
   return out;

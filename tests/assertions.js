@@ -2397,14 +2397,20 @@ const tutGrpFirst = k => TUT_SEQ.find(s=> s.scr === k);
 ok(tutGrpFirst("home").sel === "#btnQuick" && TUT_SEQ.every(s=> s.scr !== "pd")
    && tutGrpFirst("zy").sel === "#btnSmart" && tutGrpFirst("sl").sel === "#btnSmart",
    "使用引导: 每组先讲主行动（首页快判按钮 / 科目页红按钮），快判不进引导序列（SPEC 4.2）");
+ok(["home","zy","sl"].every(k=> TUT_SEQ.filter(s=> s.scr === k).length === 1) && TUT_SEQ.length === 3,
+   "使用引导: 每屏只有 1 步——引导只说「这一步点哪儿」，逐个控件讲解不在引导里做");
 ok(PAGE_HTML.indexOf("tour-hole") >= 0 && PAGE_HTML.indexOf("跳过引导") >= 0, "使用引导: 聚光层与跳过入口存在");
 ok(PAGE_HTML.indexOf("重置使用引导") >= 0 && PAGE_HTML.indexOf("btnTutReset") >= 0, "使用引导: 设置里有重置入口");
-ok(DEFAULT_STATE.tut && DEFAULT_STATE.tut.seq === 0 && DEFAULT_STATE.tut.done === false && DEFAULT_STATE.tutVersion === 3,
-   "使用引导: state.tut 是 { seq, done }（seq=游标，done=序列已完结），tutVersion=3");
+ok(DEFAULT_STATE.tut && DEFAULT_STATE.tut.seq === 0 && DEFAULT_STATE.tut.done === false && DEFAULT_STATE.tutVersion === 4,
+   "使用引导: state.tut 是 { seq, done }（seq=游标，done=序列已完结），tutVersion=4");
 ok(migrateTut({ home:true, zy:false, sl:false, pd:false }).done === true
    && migrateTut({ home:false, zy:false, sl:false, pd:false }).done === false
    && migrateTut(undefined).seq === 0 && migrateTut(null).done === false,
    "使用引导: 迁移——旧四标记里看过任何一套 → done:true（老用户不再被弹），全没看过 → 从头播");
+// v3（11 步序列）升到 v4：那 11 步的文案已经不在了，半截游标对新序列没有意义
+ok(migrateTut({ seq:5, done:false }).done === true && migrateTut({ seq:0, done:true }).done === true
+   && migrateTut({ seq:0, done:false }).done === false,
+   "使用引导: 迁移——v3 走过任何一步（seq>0）算看过；一步没走的（seq=0 且未完结）从头播新序列");
 ok(openModal.toString().indexOf("tourPause()") >= 0 && closeModals.toString().indexOf("tourResume()") >= 0,
    "使用引导: 弹层打开时引导暂歇、关掉恢复（气泡不叠在弹层之上）");
 ok(renderStart.toString().indexOf('_view = "start"') >= 0 && renderModuleLanding.toString().indexOf('_view = "landing"') >= 0
@@ -3094,13 +3100,12 @@ const tutZyNoKey = tutNoKeySteps.find(s=> s.scr === "zy");
 ok(tutZyNoKey.sel === "#btnSetup" && tutZyNoKey.text.indexOf("API Key") >= 0
    && tutNoKeySteps.every(s=> s.scr !== "zy" || s.text.indexOf("直接点这里开始") < 0),
    "引导/无 Key: 科目页第一步指纸面上那颗「先填 API Key」（他此刻真该点的那颗），不承诺「点了就能开始」");
-ok(tutNoKeySteps.every(s=> !TUT_SEQ[s.raw].onlyKey) && tutNoKeySteps.length === TUT_SEQ.length - 2
-   && tutNoKeySteps.every(s=> !TUT_SEQ[s.raw].nk || s.text.indexOf("API Key") >= 0),
-   "引导/无 Key: onlyKey 的步整步跳过（科目页末尾讲 Key 的那步不再重复），nk 变体的文本讲 Key");
+ok(tutNoKeySteps.length === TUT_SEQ.length
+   && tutNoKeySteps.every(s=> s.sel === "#btnSetup" && s.text.indexOf("API Key") >= 0),
+   "引导/无 Key: 三步全指纸面上那颗「先填 API Key」，每一步都在讲 Key 这一件事（不承诺点了就能出题）");
 const tutHomeNoKey = tutNoKeySteps.filter(s=> s.scr === "home");
-ok(tutHomeNoKey.length === 3 && tutHomeNoKey[0].sel === "#btnSetup"
-   && tutHomeNoKey[0].text.indexOf("API Key") >= 0,
-   "引导/无 Key: home 组 3 步，第一步指那颗「先填 API Key」，如实讲填 Key");
+ok(tutHomeNoKey.length === 1 && tutHomeNoKey[0].sel === "#btnSetup",
+   "引导/无 Key: home 组只有 1 步，指的就是那颗「先填 API Key」");
 ok(tutNoKeySteps.every(s=> s.text.indexOf("不填 Key 也能练") < 0),
    "引导/无 Key: 不再说「不填 Key 也能练」（快判出题也要 Key 了）");
 ok(tutNoKeySteps.every(s=> s.scr !== "pd" || s.text.indexOf("示例") < 0)
@@ -3108,8 +3113,10 @@ ok(tutNoKeySteps.every(s=> s.scr !== "pd" || s.text.indexOf("示例") < 0)
    "引导: 快判页与全部引导步骤都不再有示例题的口径");
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0"; state.settings.model = "test-model";   // gate-allow: 演示用假 Key，不是真凭据
 const tutKeySteps = visibleSteps();
-ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === i && s.sel === TUT_SEQ[i].sel),
-   "引导/有 Key: 序列原样（onlyKey 步在，nk 变体不生效；科目页还是 4 步、第一步指红按钮）");
+ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === i && s.sel === TUT_SEQ[i].sel)
+   && tutKeySteps.every(s=> s.text.indexOf("API Key") < 0)
+   && ["home","zy","sl"].every(k=> tutKeySteps.filter(s=> s.scr === k).length === 1),
+   "引导/有 Key: 三步原样（每屏 1 步、落点是那颗红按钮，已能出题就不再讲 Key）");
 /* 19.12 入口标签得对应到真去处，产出反馈不能夸口（2026-10-08 再复查） */
 state.settings.apiKey = "";
 renderHome();
@@ -3655,8 +3662,8 @@ ok(renderHeader.toString().indexOf('_view === "q"') >= 0, "抬头: 子类型只�
 ok(PAGE_HTML.indexOf("@keyframes breathe") < 0 && PAGE_HTML.indexOf("animation:breathe") < 0,
    "加载页: 去掉循环呼吸线（全应用没有循环主动效）");
 ok(PAGE_HTML.indexOf('class="actions savebar"') >= 0, "设置: 保存是弹层底部固定条，滚到哪都够得着");
-ok(TUT_SEQ[1] && TUT_SEQ[1].sel === ".chiprow" && TUT_SEQ.every(s2 => String(s2.sel).indexOf(".chip[data-mod]") < 0),
-   "引导: 整排 chip 一起挖孔，不再只罩第一颗");
+ok(TUT_SEQ.length === 3 && TUT_SEQ.every(s=> /^#btn(Quick|Smart)$/.test(s.sel) && (!s.nk || s.nk.sel === "#btnSetup")),
+   "引导: 每一步的落点只会是主行动那颗按钮（没 Key 时换成设置那颗）——不再罩整排 chips / 顶栏图标，讲解控件不是引导的活儿");
 ok(PAGE_HTML.indexOf(".material .label .from-mat,.material .label .from-src{") >= 0, "材料头: 抬头与来源之间用细线分开");
 ok(PAGE_HTML.indexOf("--ink-soft") < 0 && PAGE_HTML.indexOf("var(--ink-soft)") < 0, "颜色: 灰收回三档（--ink-soft 已并进 --muted）");
 {
