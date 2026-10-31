@@ -2357,30 +2357,20 @@ ok(el("#bannerSlot").innerHTML.indexOf("上次自动更新没成功") >= 0,
    "提示: 壳说的话会出现在首页提示区（换包失败不再只是一行日志）");
 delete globalThis.window;
 
-/* 15.7 设置：填完 Key 保存，首页那条「还没填 Key」当场收掉（以前要重启才消失） */
+/* 15.7 起始页提示区：那条「填 Key」的欢迎框整条删掉了，这里守住「删了，但通道还在、路也没断」 */
 const __baseBefore = state.settings.baseUrl;
 const __realFetch = globalThis.fetch;   // 15.7 要让 saveSettings 里的拉模型请求注定失败：先留一份真的，事后还回去
 state.settings.apiKey = "";
-state.settings.keyNoticeDismissed = false;
 renderStartNotices();
-ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") >= 0 && el("#bannerSlot").innerHTML.indexOf("btnKeyNoticeOff") >= 0,
-   "提示: 没填 Key 时，首页的欢迎提示如实只讲填 Key（示例轮已下线，不再说「不用 Key 也能练」）");
-ok(el("#bannerSlot").innerHTML.indexOf('class="banner-actions"') >= 0
-   && el("#bannerSlot").innerHTML.indexOf('class="banner-actions"> <button class="linkbtn" id="bnrOpenSettings"') >= 0,
-   "提示: 欢迎条的两个动作包在同一组里（窄窗折行不拆成两行字）");
-/* 欢迎条可关：点「关闭」当场收掉这条，之后没 Key 也不再弹；其他提示（小更新/预览窗警告）不受它影响 */
-el("#btnKeyNoticeOff").onclick();
-ok(state.settings.keyNoticeDismissed === true && el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") < 0
-   && el("#bannerSlot").innerHTML.indexOf("btnKeyNoticeOff") < 0,
-   "提示: 欢迎条点「关闭」当场收掉，之后没 Key 也不再弹（其他提示照旧）");
-ok(DEFAULT_STATE.settings.keyNoticeDismissed === false,
-   "提示: 关闭标记有默认值（老数据经 load 的 settings 合并自动补上 false）");
+ok(el("#bannerSlot").innerHTML === "",
+   "提示: 没填 Key 时起始页不再挂欢迎框——同屏红按钮、脚注、引导气泡已把「填 Key」说够三遍，第四条框只是把重复摆成界面");
+ok(PAGE_HTML.indexOf("keyNoticeDismissed") < 0 && DEFAULT_STATE.settings.keyNoticeDismissed === undefined,
+   "提示: 欢迎框的「关闭」标记随那条串一起清干净（不留没人再读的状态位）");
 globalThis.fetch = () => Promise.reject(new Error("net down"));
 el("#setKey").value = "sk-test-key";
 saveSettings();
-ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能开始练") < 0, "提示: 填完 Key 保存后当场收掉，不用重启");
+ok(el("#bannerSlot").innerHTML.indexOf("还没填 API Key") < 0, "提示: 填完 Key 保存后不残留「还没填」");
 ok(state.settings.apiKey === "sk-test-key", "提示: 保存真的写进了 settings（提示不是靠碰巧消失的）");
-ok(state.settings.keyNoticeDismissed === false, "提示: 刚填上 Key 保存后，关闭标记复位（下次没 Key 欢迎条照常出现）");
 globalThis.fetch = __realFetch;
 state.settings.baseUrl = __baseBefore;
 
@@ -3372,7 +3362,7 @@ ok((PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].indexOf("sticky") < 0
 ok(PAGE_HTML.indexOf("loselist") < 0 && PAGE_HTML.indexOf("loseDetail") < 0 && PAGE_HTML.indexOf("MISS_RE") < 0
    && PAGE_HTML.indexOf("clipTxt") < 0,
    "批改页: 丢分清单整块删净（含 CSS 与取值函数，不留死代码）");
-ok(PAGE_HTML.indexOf("white-space:pre-wrap;-webkit-text-stroke") >= 0,
+ok(PAGE_HTML.indexOf(".modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;") >= 0,
    "批改页: 范文容器自带 pre-wrap（不再靠折叠体兜）");
 ok(PAGE_HTML.indexOf('"causes":[{"title":"4—8 字归类标题"') >= 0 && PAGE_HTML.indexOf('"principle":"一句话收尾') >= 0,
    "阅卷 prompt: 解析换成归类归因（causes）+ 一句话原则（principle）");
@@ -3506,9 +3496,24 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
   const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
   ok(_deadVars.length === 0, "尺子: 没有定义了却没人用的 CSS 变量" + (_deadVars.length? "（" + _deadVars.join("、") + "）" : ""));
-  ok(paperScaleFor(1040) === 1 && Math.abs(paperScaleFor(1470) - 1.4) < 0.01 && paperScaleFor(1920) === 1.5 && paperScaleFor(0) === 1
-     && Math.abs(paperScaleFor(1470, 800) - 1.2) < 0.01 && Math.abs(paperScaleFor(1470, 756) - 1.15) < 0.01,
-     "纸面: 按窗口宽度等比放大（≤1050 不放大 / 1470 约 1.4 / 超宽封顶 1.5）；矮窗再收一档");
+  ok(paperScaleFor(1040) === 1 && Math.abs(paperScaleFor(1470) - 1.1196) < 0.001
+     && Math.abs(paperScaleFor(1920) - 1.4647) < 0.001 && paperScaleFor(0) === 1 && paperScaleFor(2560) === 1.5
+     && Math.abs(paperScaleFor(1920, 800) - 1.2) < 0.001 && Math.abs(paperScaleFor(1920, 756) - 1.15) < 0.001,
+     "纸面: 按窗口宽度等比放大（≤1314 不放大 / 1470 约 1.12 / 1920 约 1.46 / 超宽封顶 1.5）；矮窗再收一档");
+  /* 换屏不许挪纸：单栏屏与带材料的屏共用同一条曲线，这条是这一刀的立论本身。
+     以前单栏恒 760、带材料的屏长到 1304，从首页点进作答页，纸边与顶栏整条横移 190–392px。 */
+  ok([1040, 1200, 1314, 1440, 1920, 2560].every(function(w){ const A = layoutFor(w, 900, false), B = layoutFor(w, 900, true);
+    return A.sheet === B.sheet && A.scale === B.scale; }),
+     "纸宽: 同一个窗口下，带不带材料的屏纸宽与缩放都相等（换屏一格不挪）");
+  ok(layoutFor(760, 900, false).sheet === 760 && layoutFor(1040, 900, false).sheet === 1030
+     && layoutFor(1920, 900, false).sheet === 1304 && layoutFor(2560, 900, false).sheet === 1304,
+     "纸宽: 纸跟着窗口长，760 是地板 / 1304 是天花板（原来单栏恒 760，宽屏上一半桌面空着）");
+  /* 纸宽了字不许跟着宽：一行封顶 620（约 38 字），地板那档 760−纸边 140 正好等于它，
+     所以 620 不是新数字，是同一条正文列在窗口不够宽时的样子。 */
+  ok(Math.min(620, layoutFor(770, 900, false).sheet - 140) === 620
+     && PAGE_HTML.indexOf("#docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}") >= 0
+     && PAGE_HTML.indexOf("body.wide-cols #docBody>*{max-width:none;}") >= 0,
+     "正文列: 单栏一列封顶 620 并在版心里居中，两栏那屏豁免（作答栏由 grid 分管）");
   /* 两栏几何：带材料的屏在窗口够宽时左材料右作答。这里盯的是三条不变量——
      两栏的正文列仍是 560（让给材料的只有那 60px）、缩放下限仍是 1（字号不往小里探）、
      材料栏收到 400 就不再收。 */
@@ -3517,7 +3522,7 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "两栏: 窗口窄到 1134 以下收回单栏（材料落回到作答区上方）");
   ok(layoutFor(1040, 900, false).wide === false && layoutFor(1920, 1030, false).wide === false
      && layoutFor(1920, 1030, false).scale === paperScaleFor(1920),
-     "两栏: 没有材料的屏一律单栏，缩放仍走 paperScaleFor 那一套");
+     "两栏: 没有材料的屏一律单栏，缩放与带材料的屏同一套（同一个 paperScaleFor）");
   ok(layoutFor(1134, 900, true).matW === 400 && layoutFor(1280, 900, true).matW === 546
      && layoutFor(1314, 900, true).matW === 580 && layoutFor(1920, 1030, true).matW === 580,
      "两栏: 材料栏先收（400 是下限，再窄就得竖着读），够宽了给满 580");
@@ -3527,10 +3532,10 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(layoutFor(1920, 756, true).scale === 1.15 && layoutFor(1920, 800, true).scale === 1.2,
      "两栏: 矮窗那一档封顶照旧（1.15 / 1.2），不因分栏松开");
   ok(layoutFor(1470, 900, true).sheet === 1304 && Math.abs(layoutFor(1470, 900, true).scale - 1.1196) < 0.001,
-     "两栏: 满幅时纸宽锁 1304（作答栏 560 + 纸边 140 + 中缝 24 + 材料栏 580），顶栏按同一个数对齐纸边");
+     "两栏: 满幅时纸宽锁 1304（作答栏 560 + 纸边 140 + 中缝 24 + 材料栏 580）——这个数是所有屏共用的天花板");
   ok(PAGE_HTML.indexOf(".wrap{max-width:calc(var(--sheet-w) * var(--paper-scale))") >= 0
-     && PAGE_HTML.indexOf(".toolbar{display:flex;align-items:center;gap:8px;padding:8px max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px));") >= 0,
-     "两栏: 纸宽从写死的 760 换成 --sheet-w，顶栏与纸面仍共用同一个数");
+     && PAGE_HTML.indexOf(".toolbar{--tb-edge:max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px + 54px * var(--paper-scale)))") >= 0,
+     "纸宽: .wrap 与顶栏共用 --sheet-w × --paper-scale 这一个数（顶栏再让出 54px 纸边，对齐版心左缘）");
   ok(/body\.wide-cols \.paper-cols\{display:grid;grid-template-columns:var\(--mat-col-w\) 1fr/.test(PAGE_HTML)
      && PAGE_HTML.indexOf('grid-template-areas:"mat head" "mat work"') >= 0
      && PAGE_HTML.indexOf(".paper-cols{display:block;}") >= 0,
@@ -3558,6 +3563,45 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   // 守住 --ink-faint 不再回来：它只有 2.69:1，用途却全是必须看清的正文（脚注、分组小标题、输入框说明字）
   ok(PAGE_HTML.indexOf("--ink-faint") < 0,
      "对比度: 2.69:1 的 --ink-faint 已并入 --muted-2，不再回来");
+}
+
+/* 0.15 顶栏与设置页的尺子（2026-10-31 一轮 UI 盘点后钉住）：
+   顶栏原来对齐的是「纸边」，正文却在纸边再往里 54px——一屏里两套左基准；
+   设置页另养了一套小标题 / 折叠件 / 按钮高度，跟兄弟屏（画像弹层、作答页）对不上。 */
+{
+  ok(PAGE_HTML.indexOf(".toolbar{--tb-edge:max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px + 54px * var(--paper-scale)))") >= 0
+     && PAGE_HTML.indexOf("padding:8px var(--tb-edge);") >= 0
+     && PAGE_HTML.indexOf(".shell-mac .toolbar{padding-left:max(84px,var(--tb-edge))") >= 0,
+     "顶栏: 左右内边距 = 纸边 + 54×缩放，落在纸面正文列上（mac 红绿灯那 84 取 max，不再各写一套）");
+  ok(PAGE_HTML.indexOf(".subjbar{display:flex;align-items:center;gap:8px;}") >= 0
+     && PAGE_HTML.indexOf("margin-left:16px") < 0
+     && PAGE_HTML.indexOf(".toolbar button.brand{border:0;background:transparent;padding:0;min-height:var(--h-ctl-sm)") >= 0,
+     "顶栏: 品牌到科目胶囊走同一个 gap:8、盒高同档 30（原来 8+16=24 且 26 高，品牌读成一块孤牌）");
+  const _stroke = (PAGE_HTML.match(/-webkit-text-stroke:0\.3px/g) || []).length;
+  ok(PAGE_HTML.indexOf(".shell-mac .material,.shell-mac .answerreview,.shell-mac .modelanswer{-webkit-text-stroke:0.3px currentColor;}") >= 0
+     && _stroke === 1,
+     "跨平台: 仿宋描边只挂 mac（华文仿宋细要补，Win 的 SimFang 再描就糊）-> 描边声明 " + _stroke + " 处");
+  ok(PAGE_HTML.indexOf(".grpt{font-family:var(--hei);font-weight:700;font-size:var(--fs-body)") >= 0
+     && PAGE_HTML.indexOf("letter-spacing:1px;margin-bottom:12px;}") >= 0
+     && PAGE_HTML.indexOf(".setgrp{margin-top:24px") >= 0,
+     "设置页: 组标题走画像弹层同一套（黑体 14 / 700、标题下 12），区块间距回到 24 档");
+  ok(PAGE_HTML.indexOf("details.more") < 0 && PAGE_HTML.indexOf('class="more"') < 0,
+     "设置页: 折叠件全站只剩 .notebox 一种皮肤（更新日志不再另画带边框的那套）");
+  ok(PAGE_HTML.indexOf("button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);min-height:var(--h-ctl)") >= 0,
+     "设置页: 次级按钮与主按钮同档 36（原来 40，次级压过主行动）");
+  ok(PAGE_HTML.indexOf("#setBase,#setKey,#setModel{font-family:var(--yahei);}") >= 0,
+     "设置页: 技术串输入框只换字体不换字号（一个面板里两种字号）");
+  ok(PAGE_HTML.indexOf(".model-item:hover{background:var(--wash);") >= 0
+     && !/:\s*hover\s*\{[^}]*background:\s*var\(--canvas\)/.test(PAGE_HTML),
+     "用色: 可点行的悬停底一律 --wash——--canvas 是桌面底板色，铺进纸上就是一抹灰");
+  const _dis = PAGE_HTML.split("\n").filter(l => l.indexOf("var(--text-disabled)") >= 0);
+  ok(_dis.length > 0 && _dis.every(l => /::placeholder|disabled/.test(l)),
+     "对比度: --text-disabled（2.9:1）只出现在 placeholder / 禁用行 -> " + _dis.length + " 处");
+  ok(PAGE_HTML.indexOf("display:flex;gap:8px;position:relative;") < 0,
+     "设置页: 模型行的按钮间距回到全站按钮行的 12 档");
+  ok(PAGE_HTML.indexOf("#bannerSlot{margin:0 calc(54px * var(--paper-scale));}") >= 0
+     && PAGE_HTML.indexOf(".banner-actions") < 0,
+     "提示条: 左右让出 54×缩放落在正文列上（与顶栏 --tb-edge 同一个数）；欢迎框删了，它的 .banner-actions 不留死样式");
 }
 
 /* 0.1 启动顺序：load() 引用的每个顶层常量都必须声明在它之前。
