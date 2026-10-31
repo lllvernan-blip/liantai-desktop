@@ -31,6 +31,7 @@ const dryRun = process.argv.includes("--dry-run");
 
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const FLAG = join(root, "app", "build-test.json");
+const BUILD_JSON = join(root, "app", "build.json");
 const OUT = "dist-test";
 const CONF = join(root, OUT, "electron-builder-test.json");
 const BUILDER_CLI = join(root, "node_modules", ".bin", "electron-builder");
@@ -56,10 +57,12 @@ const conf = Object.assign({}, pkg.build, {
 if (dryRun) {
   console.log("  （--dry-run：只说不做）");
   console.log("  会写   app/build-test.json     壳看见它就把 userData 换成 …-test");
+  console.log("  会写   app/build.json          设置页显示 v" + pkg.version + "-test，与正式版区分");
   console.log("  会写   " + OUT + "/electron-builder-test.json");
   console.log("  会跑   electron-builder --mac --publish never --config " + CONF);
   console.log("  会删   app/build-test.json     打完就撤，工作区不留痕");
-  console.log("\n  产物：" + OUT + "/练习台 测试-" + pkg.version + "-arm64.dmg，装它的是那只 app");
+  console.log("  会还原 app/build.json          撤掉测试标记，恢复打包前的版本号");
+  console.log("\n  产物：" + OUT + "/liantai-desktop-" + pkg.version + "-arm64-test.dmg，装它的是那只 app");
   process.exit(0);
 }
 
@@ -71,6 +74,13 @@ if (!existsSync(BUILDER_CLI)) {
 /* ① 埋标记。它得在打包前就位，才能被 app/**\/* 收进 asar。 */
 writeFileSync(FLAG, JSON.stringify({ test: true, version: pkg.version }, null, 2) + "\n", "utf8");
 console.log("  埋好标记 app/build-test.json");
+
+/* 设置页版本号带 -test：同号的正式版已经发过，不标一下会分不清手里这份是哪边。
+   app/build.json 本来就不进 Git，打完按原样还原（没有就删掉）。 */
+let prevBuild = null;
+try { prevBuild = readFileSync(BUILD_JSON, "utf8"); } catch (e) { prevBuild = null; }
+writeFileSync(BUILD_JSON, JSON.stringify({ version: pkg.version + "-test" }, null, 2) + "\n", "utf8");
+console.log("  写测试版本号 app/build.json -> v" + pkg.version + "-test");
 
 /* ② 配置。electron-builder 的 --config 是「整份替换 package.json 的 build 段」，
       所以上面那份是从 pkg.build 派生出来的、字段一个不少。
@@ -89,6 +99,9 @@ const code = run(BUILDER_CLI, ["--mac", "--publish", "never", "--config", CONF],
 /* ④ 撤标记。失败也要撤：留在工作区里，下一次正式打包会把「测试版」这顶帽子扣到正式包上。 */
 rmSync(FLAG, { force: true });
 console.log("  撤掉标记 app/build-test.json");
+if (prevBuild === null) rmSync(BUILD_JSON, { force: true });
+else writeFileSync(BUILD_JSON, prevBuild, "utf8");
+console.log("  还原 app/build.json");
 
 if (code !== 0) {
   console.error("\n打包失败了。先看一眼 " + OUT + "/mac-arm64/ 有没有半成品，再重跑一次。");
@@ -97,6 +110,7 @@ if (code !== 0) {
 
 console.log("\n出好了。测试副本在 " + OUT + "/ ：");
 console.log("  mac-arm64/练习台 测试.app   ← 直接双击就能开，与正式版并存");
-console.log("  练习台 测试-" + pkg.version + "-arm64.dmg   ← 想装进 /Applications 就用它");
-console.log("\n它读的是自己那份数据（~/Library/Application Support/liantai-desktop-test）。");
+console.log("  liantai-desktop-" + pkg.version + "-arm64-test.dmg   ← 想装进 /Applications 就用它");
+console.log("\n设置页底部会显示 v" + pkg.version + "-test，用来和同号的正式版区分。");
+console.log("它读的是自己那份数据（~/Library/Application Support/liantai-desktop-test）。");
 console.log("要把正式版的记录搬过来：正式版「设置 → 导出」，测试版「设置 → 导入」。");
