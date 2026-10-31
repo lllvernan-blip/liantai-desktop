@@ -13,12 +13,14 @@ import { EventEmitter } from "node:events";
 import { setTimeout as realSetTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, chmodSync, cpSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, chmodSync, cpSync, statSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
+import { checkDocRefs } from "../tools/doc-refs.mjs";
+import { gateLockVersion, KEY_RULES, ALLOW_MARK } from "../tools/gate.mjs";
 
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -1451,6 +1453,68 @@ if (process.platform !== "darwin") {
   const upd = readOr(join(here, "..", "update.js"));
   ok(!/\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]/.test(upd),
      "壳/mac: 换包脚本里变量后紧跟中文的地方都用 ${} 括起来");
+}
+
+/* 工程闭环：npm run check 是「提交前该为真」的单一入口。
+   不重跑它（那会套娃跑一遍全量自检），只核入口与规则有没有被拆开：
+   钩子指着 loop、loop 指着发布闸门与文档检查的那一份规则。 */
+{
+  const pkgCheck = JSON.parse(readOr(join(here, "..", "package.json"), "{}"));
+  const sc = pkgCheck.scripts || {};
+  ok(/node tests\/run\.mjs/.test(sc.test || ""), "闭环: npm test 直接跑全量自检");
+  ok(/node tools\/loop\.mjs/.test(sc.check || ""), "闭环: npm run check 接在 tools/loop.mjs");
+  ok(/tools\/loop\.mjs[^\n]*--staged/.test(sc["check:staged"] || "") && /--quiet/.test(sc["check:staged"] || ""),
+     "闭环: check:staged 就是钩子要跑的那条（暂存区密钥 + 安静模式）");
+  ok(/install-hooks\.mjs/.test(sc["hooks:install"] || ""), "闭环: hooks:install 有独立入口（不自动装）");
+
+  const loop = readOr(join(here, "..", "tools", "loop.mjs"));
+  ok(/KEY_RULES/.test(loop) && /gateLockVersion\(\)/.test(loop) && /checkDocRefs\(root\)/.test(loop),
+     "闭环: 密钥 / 版本 / 文档引用都借发布侧那一份规则，不另写一套");
+  ok(/git\(\["show", ":" \+ p\]\)/.test(loop),
+     "闭环: --staged 读 git show :路径（暂存区内容，不是工作区）");
+  ok(/--no-tests/.test(loop) && /--quiet/.test(loop), "闭环: loop 认 --no-tests 与 --quiet");
+
+  const hook = readOr(join(here, "..", ".githooks", "pre-commit"));
+  ok(/tools\/loop\.mjs[^\n]*--staged/.test(hook), "闭环: pre-commit 调 loop --staged");
+  ok(/\.local\/opt\/node\/bin\/node/.test(hook), "闭环: 钩子找不到 PATH 里的 node 时有自备路径兜底");
+  const hookFile = join(here, "..", ".githooks", "pre-commit");
+  ok(existsSync(hookFile) && (process.platform === "win32" || (statSync(hookFile).mode & 0o111) !== 0),
+     "闭环: 钩子文件在，且（非 Windows）有可执行位——git 不执行没有这一位的钩子");
+
+  const inst = readOr(join(here, "..", "tools", "install-hooks.mjs"));
+  ok(/core\.hooksPath/.test(inst) && /--remove/.test(inst),
+     "闭环: 装钩子只改 core.hooksPath，且给得出卸载办法");
+  ok(/chmodSync/.test(inst), "闭环: 装钩子时补可执行位（重复克隆也不靠手敲 chmod）");
+
+  /* Qoder 的任务结束钩子：配置在项目级 .qoder/settings.json，脚本在 .qoder/hooks/。
+     配置里的命令走 shell，所以用 git 找根 + sh 包一层，不写死这台机器的中文路径。 */
+  let qoder = null;
+  try { qoder = JSON.parse(readOr(join(here, "..", ".qoder", "settings.json"), "{}")); } catch (e) { qoder = null; }
+  const stopHooks = ((qoder && qoder.hooks && qoder.hooks.Stop) || [])
+    .flatMap((g) => (g && Array.isArray(g.hooks) ? g.hooks : []));
+  ok(stopHooks.some((h) => h && h.type === "command" && /stop-check\.sh/.test(String(h.command || "")) && Number(h.timeout) >= 60),
+     "闭环/Qoder: Stop 钩子指向 .qoder/hooks/stop-check.sh，超时够跑完整套");
+  const stopJs = readOr(join(here, "..", "tools", "qoder-stop.mjs"));
+  ok(/stop_hook_active/.test(stopJs) && /liantai-loop-stamp/.test(stopJs) && /process\.exit\(2\)/.test(stopJs),
+     "闭环/Qoder: 钩子有防重入、同状态只查一次、失败时用退出码 2 回给模型");
+  ok(/git\(\["diff", "HEAD", "--binary"\]\)/.test(stopJs) && /hash-object/.test(stopJs),
+     "闭环/Qoder: 判断「内容变没变」看 diff 与 untracked 内容，不只看文件名");
+  const stopSh = readOr(join(here, "..", ".qoder", "hooks", "stop-check.sh"));
+  ok(/git rev-parse --show-toplevel/.test(stopSh) && /\.local\/opt\/node\/bin\/node/.test(stopSh),
+     "闭环/Qoder: 入口脚本自己找仓库根与 node（钩子的 PATH 不靠终端）");
+  ok(/\.qoder\/settings\.json/.test(loop), "闭环/Qoder: loop 自己也会核对这条接线（拆了会在检查里报）");
+
+  const d = checkDocRefs(join(here, ".."));
+  ok(d.checked > 0 && d.missing.length === 0,
+     "闭环: 文档引用的仓内文件都存在（当前 " + d.checked + " 处）"
+     + (d.missing.length ? "；缺：" + d.missing.join("、") : ""));
+  const v = gateLockVersion();
+  ok(v.ok, "闭环: package-lock 与 package.json 同版" + (v.ok ? "（" + pkgCheck.version + "）" : "；" + (v.why || []).join("；")));
+  ok(KEY_RULES.length >= 3 && KEY_RULES.some((r) => r.re.test("sk-" + "A".repeat(24))) && ALLOW_MARK === "gate-allow",
+     "闭环: 密钥规则与放行标记确实由 gate.mjs 导出（测试里没有第二份）");
+  ok(/npm run check/.test(readOr(join(here, "..", "README.md")))
+     && /npm run check/.test(readOr(join(here, "..", "docs", "验证工具.md"))),
+     "闭环: README 与验证工具文档都写了入口（新人不靠口口相传）");
 }
 
 console.log(T.join("\n"));

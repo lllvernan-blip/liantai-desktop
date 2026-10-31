@@ -25,6 +25,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
+import { checkDocRefs } from "./doc-refs.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -159,26 +160,11 @@ const localProblems = [];
 }
 {
   /* 文档里引用的仓内文件得真在：AGENTS.md / README.md 一旦指向一个不存在的脚本，
-     下一个人会照着敲一遍才发现。只看仓内的固定前缀，外链（http、/releases/…）不在此列。 */
-  const PREFIXES = ["app/", "tests/", "tools/", "docs/", "build/", "site/", ".github/"];
-  const ROOT_FILES = ["AGENTS.md", "README.md", "package.json", "main.js", "update.js", "打包.bat"];
-  const files = ["AGENTS.md", "README.md", ...readdirSync(join(root, "docs")).filter((f) => f.endsWith(".md")).map((f) => "docs/" + f)];
-  const missing = new Set();
-  let checked = 0;
-  for (const f of files) {
-    const text = readFileSync(join(root, f), "utf8");
-    for (const m of text.matchAll(/[A-Za-z0-9_\u4e00-\u9fa5./-]+\.(?:mjs|cjs|json|html|command|bat|yml|md|py|js)/g)) {
-      const t = m[0];
-      if (t.includes("://") || t.startsWith("/")) continue;
-      const internal = PREFIXES.some((p) => t.startsWith(p)) || ROOT_FILES.includes(t);
-      if (!internal) continue;
-      checked++;
-      if (!existsSync(join(root, t))) missing.add(f + " → " + t);
-    }
-  }
-  const list = [...missing];
-  localRows.push({ name: "文档引用的仓内文件都存在", ok: list.length === 0, note: list.length ? "缺 " + list.join("；") : "查了 " + checked + " 处" });
-  if (list.length) localProblems.push("文档引用了不存在的文件：" + list.join("；"));
+     下一个人会照着敲一遍才发现。只看仓内的固定前缀，外链（http、/releases/…）不在此列。
+     同一套检查也跑在本地闭环里（tools/loop.mjs），所以规则只有 tools/doc-refs.mjs 一份。 */
+  const d = checkDocRefs(root);
+  localRows.push({ name: "文档引用的仓内文件都存在", ok: d.missing.length === 0, note: d.missing.length ? "缺 " + d.missing.join("；") : "查了 " + d.checked + " 处" });
+  if (d.missing.length) localProblems.push("文档引用了不存在的文件：" + d.missing.join("；"));
 }
 
 const release = await fetchJson("/repos/" + REPO + "/releases/tags/" + tag);

@@ -7,6 +7,10 @@
   "author": "lllvernan",
   "scripts": {
     "start": "electron .",
+    "test": "node tests/run.mjs",
+    "check": "node tools/loop.mjs",
+    "check:staged": "node tools/loop.mjs --staged --quiet",
+    "hooks:install": "node tools/install-hooks.mjs",
     "dist": "node tools/stamp-build.mjs && electron-builder --win nsis --publish never",
     "test:build": "node tools/build-test.mjs",
     "drift": "node tools/drift.mjs",

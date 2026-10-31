@@ -1,0 +1,29 @@
+#!/bin/sh
+# 提交前检查：静态约束 + 全量自检 + 暂存区的明文密钥。
+#
+# 安装（每个克隆各做一次）：npm run hooks:install
+# 卸载：git config --unset core.hooksPath
+#
+# 它查的是「这次要提交的内容」加上「当前工作区」：
+#   - 密钥读暂存区（git show :路径），删掉工作区里的密钥但忘了 git add 也能拦住；
+#   - 测试跑的是工作区——**部分暂存时**，没暂存的那部分改动也会一起被跑。
+#     只提交一半时如果红了，先 git stash 再看，或者把整份改动一起暂存。
+set -u
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$root" || exit 1
+
+NODE=""
+if command -v node >/dev/null 2>&1; then
+  NODE=$(command -v node)
+else
+  for p in "$HOME/.local/opt/node/bin/node" "/opt/homebrew/bin/node" "/usr/local/bin/node"; do
+    if [ -x "$p" ]; then NODE="$p"; break; fi
+  done
+fi
+if [ -z "$NODE" ]; then
+  echo "pre-commit: 找不到 node，跳过工程闭环（装上 Node 后提交会自动恢复检查）。" >&2
+  exit 0
+fi
+
+exec "$NODE" tools/loop.mjs --staged --quiet

@@ -31,7 +31,7 @@ const root = join(here, "..");
 /* 各家 Key 的形态：`sk-` 后面不是固定十六进制（`sk-proj-…`、`sk-ant-api03-…` 都不含十六进制段）。
    2026-10-12 实测：原来那条只认十六进制尾巴的规则，上面两种真 Key 形态**全部漏过**。
    同一条扫描里带上 GitHub 令牌：这仓库有两处拿令牌推送的脚本，令牌被写进文件同样撤不回来。 */
-const KEY_RULES = [
+export const KEY_RULES = [
   { name: "服务商 API Key", re: /sk-[A-Za-z0-9_-]{16,}/ },
   /* 规则本身也得能喂给 git grep：那里用的是 POSIX ERE，不支持 (?:…) 非捕获组（2026-10-12 撞过：
      「repetition-operator operand invalid」）。所以两边只用 ERE 认识的写法：字符类、{m,n}、普通分组。 */
@@ -42,7 +42,7 @@ const KEY_RULES = [
 ];
 /* 演示/测试用的假 Key 要显式标记才放行：把「靠人眼认出这是假的」改成「写下来它是假的」。
    标记只放行它所在的那一行，写它的人得自己看那一行里有没有真东西。 */
-const ALLOW_MARK = "gate-allow";
+export const ALLOW_MARK = "gate-allow";
 
 function git(args) {
   return spawnSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
@@ -133,7 +133,7 @@ function gateNoSecrets() {
    靠人记着同步就会漏——2026-10-17 实际撞到：lock 还停在 0.0.15，包已经在 0.0.22，
    而 Windows 那边一跑 `npm install` 就被 npm 顺手改成 0.0.22，工作区当场变脏、第一条闸门把发布拦下。
    拦下的那一刻看到的是「工作区有未提交改动」，跟真正的原因（版本号两处分家）隔了一层。 */
-function gateLockVersion() {
+export function gateLockVersion() {
   let pkg;
   try { pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")); }
   catch (e) { return { ok: false, why: ["读不到 / 解析不了 package.json：" + (e && e.message ? e.message : e)] }; }

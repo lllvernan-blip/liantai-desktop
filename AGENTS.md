@@ -150,7 +150,7 @@
 
 ## 修改后验证
 
-`node tests/run.mjs` 必须看到 `N/N passed` 且退出码 0；涉及窗口 / 启动 / 加载方式再真跑 `npm start`；涉及浏览器交互、异步、设置弹层、导入导出或本地存储要真路径走一遍并看控制台。**细节（探针 / 漂移 / 调试坑）看 `docs/验证工具.md`**，别凭记忆改工具参数。几条最常踩的：
+`npm run check`（静态检查 + `node tests/run.mjs`）必须全绿；想拦在提交前跑一次 `npm run hooks:install`（只改本仓库 `core.hooksPath`，不自动装），Qoder 里由 `.qoder/settings.json` 的 Stop 钩子在任务结束时自动跑（工作区干净或内容没变则跳过）。只改文档 / 发布脚本可用 `npm run check -- --no-tests`。涉及窗口 / 启动 / 加载方式再真跑 `npm start`；涉及浏览器交互、异步、设置弹层、导入导出或本地存储要真路径走一遍并看控制台。**细节（探针 / 漂移 / 调试坑）看 `docs/验证工具.md`**，别凭记忆改工具参数。几条最常踩的：
 
 - 临时量一段真行为：写成探针文件再跑 `node tools/probe.mjs 我的探针.js`（可用应用全部函数与常量；一次性，用完删）。
 - 量阅卷漂移用 `tools/drift.mjs`，**基线必须两份答卷都跑**；Key 不给也能跑（从本机已存的那份取），细节见 `docs/验证工具.md`。

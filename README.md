@@ -39,8 +39,9 @@ mac 版**没有 Apple 开发者证书**，所以不签名、不公证，也不�
 | `materials/` | 出题用的材料池（事实骨架，`pool/` 下每篇一份）与其说明；**它跑在自己那套发布链上**（`npm run materials:pack`），不跟安装包走——所以材料改动进 git，审材料就是看 diff |
 | `docs/` | 协作规则的细节层（逐份说明见 `AGENTS.md` 的「细节在哪」）：`AI调用.md`、`训练机制.md`、`发布与更新.md`、`界面规范.md`、`题型规范.md`（改 `MODULES` / `GONGWEN_TYPES` / `PD_FORMS` 必须同步它）、`材料规范.md`、`验证工具.md` |
 | `打包.bat` | 双击自助出包（Windows）：跑 `npm run dist`，完成后自动打开 `dist/`（GBK 编码，勿用普通文本工具改） |
+| `.qoder/settings.json` | Qoder 项目级 `Stop` 钩子：任务结束时自动跑工程闭环（工作区有改动才跑；入口脚本在 `.qoder/hooks/`） |
 | `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
-| `tools/` | 打包与发布辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版（顺手给 zip 签 `.sig`）；`gate.mjs` 发布闸门（发布脚本开头自动跑）；`mac-key.mjs` 管发布签名密钥；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`material-pool.mjs` 抓一手材料并提炼成骨架（`npm run materials`）；`materials-pack.mjs` 打包签名发布材料池（`npm run materials:pack`）；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
+| `tools/` | 打包与发布辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版（顺手给 zip 签 `.sig`）；`gate.mjs` 发布闸门（发布脚本开头自动跑）；`mac-key.mjs` 管发布签名密钥；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`material-pool.mjs` 抓一手材料并提炼成骨架（`npm run materials`）；`materials-pack.mjs` 打包签名发布材料池（`npm run materials:pack`）；`loop.mjs` 工程闭环（`npm run check`；`doc-refs.mjs` 是它与发布对账共用的文档引用检查；`install-hooks.mjs` 负责装 pre-commit；`qoder-stop.mjs` 是 Qoder Stop 钩子的主体）；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
 | `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
@@ -106,10 +107,18 @@ npm run site:data     # 写 site/latest.json 与 site/changelog.json，提交推
 ## 自检
 
 ```powershell
-node tests/run.mjs
+npm run check                 # 工程闭环：静态检查 + 全量自检（约 5 秒）
+npm run check -- --no-tests   # 只查静态项（语法 / 单文件页面 / 规则文件尺寸 / 版本 / 文档引用 / 密钥 / 闭环入口）
+node tests/run.mjs            # 只跑自检
 ```
 
-看到 `N/N passed` 且退出码为 0 才算过。自检不依赖 Electron，也不需要浏览器。
+`npm run check` 全绿才算过：每一项都打 ✔，三份自检都给出 `N/N passed`，退出码 0。红了会逐项列出哪条判据没过，并给出下一步；最后一行是总结。自检不依赖 Electron，也不需要浏览器。
+
+七类静态检查都是机械可判的：脚本能不能解析、页面还是不是单文件、规则文件有没有超尺寸、版本号两边同不同步、文档里引用的仓内文件在不在、有没有明文密钥、闭环入口有没有接丢。判据与修法见 `docs/验证工具.md`。
+
+想让它拦在提交前：`npm run hooks:install`（只把本仓库的 `core.hooksPath` 指到 `.githooks`，换台机器要重装；撤掉用 `npm run hooks:install -- --remove`）。钩子读暂存区里的密钥，其余检查跑当前工作区——**只提交一半改动时，没暂存的那部分也会被跑**；红了先把改动一起暂存，或 `git stash` 后再试。
+
+在 Qoder 里打开这个项目时，`.qoder/settings.json` 的 `Stop` 钩子会在任务结束时自动跑同一套检查：工作区干净或内容没变就跳过；没过会回给模型去修，同一份内容只拦一次。它只在打开这个项目时生效，也不会替代发布闸门。细节见 `docs/验证工具.md`。
 
 两个平台的通过数不一样（不是出错）：壳侧那份里第 6 组用的是 macOS 的解压与 plist 工具（`ditto` / `PlistBuddy`），只在 mac 上跑；Windows 上会打印一行「跳过第 6 组」，总数因此比 mac 少那一组。页面那份两边一样。（数字随断言增加而变，别往别处抄。）
 
