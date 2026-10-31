@@ -4136,6 +4136,36 @@ globalThis.window = _savedWinUpd;
   finishCurrent();
   ok(_view === "paper" && el("#docBody").innerHTML.indexOf('id="btnPaperNew"') >= 0 && state.paper.answers[0], "整卷: 完成后回卷面，不丢已答题");
 
+  // 卷面分数只报卷面口径（实得 / 子项满分）；折百分制留给画像比较，不能标成「分」
+  state.paper.sources = [{ title:"某篇", media:"人民日报", date:"2025-06-01", topics:["基层治理"] }];
+  state.paper.answers[0] = { answer:"第一题答案", total:80, at:Date.now(),
+    g:{ hits:[{ point:"p", evidence:"e", score:15, awarded:12 }] },
+    expCheck:{ v:2, again:["漏点"] }, time:{ min:20, usedSec:600 } };
+  renderPaper();
+  const paperHtml = el("#docBody").innerHTML;
+  ok(paperHtml.indexOf("12 / 15 分") >= 0 && paperHtml.indexOf("80 分") < 0,
+     "整卷: 题目行按卷面分显示（实得/满分），不把百分制标成分");
+  ok(paperHtml.indexOf("10 分") >= 0, "整卷: 未作答的题显示该题满分");
+  ok(paperHtml.indexOf("材料来源") >= 0 && paperHtml.indexOf("人民日报") >= 0,
+     "整卷: 卷面标出材料来自材料池（媒体/日期/主题）");
+
+  // 复看批改：我的答案 / 逐句标注 / 回执 / 限时都要按这一题还原；换一题不能串
+  openPaperQuestion(0);
+  ok(current.phase === "grade" && lastGrade && lastGrade.answer === "第一题答案"
+     && lastGrade.expCheck && lastGrade.expCheck.again[0] === "漏点" && lastGrade.time.usedSec === 600,
+     "整卷: 复看批改恢复我的答案/回执/限时");
+  ok(el("#docBody").innerHTML.indexOf("第一题答案") >= 0, "整卷: 批改页能看见原答卷");
+  openPaperQuestion(1);
+  ok(!lastGrade && current.phase === "answer" && el("#docBody").innerHTML.indexOf("第一题答案") < 0,
+     "整卷: 打开另一题不串上一题的答卷与批改");
+  const aHtml = el("#docBody").innerHTML;
+  ok(aHtml.indexOf("仿真编写") < 0 && aHtml.indexOf("人民日报") >= 0,
+     "整卷: 作答页不把材料池来的材料标成仿真编写");
+  const paperRound = sanitizePaper(JSON.parse(JSON.stringify(state.paper)));
+  ok(paperRound && paperRound.answers[0] && paperRound.answers[0].expCheck
+     && paperRound.answers[0].time && paperRound.sources[0].media === "人民日报",
+     "整卷: 复看所需的答卷/回执/限时与来源明细随卷保存");
+
   // 生成路径：池子给 4 篇，材料 + 5 题都由假 callLLM 返回；6 次调用必须全接上
   const _callPaper = callLLM, _winPaper = globalThis.window;
   let pn = 0;
@@ -4159,6 +4189,40 @@ globalThis.window = _savedWinUpd;
   callLLM = _callPaper; globalThis.window = _winPaper;
   state.paper = _pPaper; state.settings.subject = _pSubj; state.settings.apiKey = _pKey; state.settings.model = _pModel;
   current = _pCur; _view = _pView; banner(""); save();
+
+  /* 在途整卷：换页 / 关设置只放弃自动上屏，结果不丢（pendingGen 三态） */
+  const _gpMat = genPaperMaterial, _gpQ = genPaperQuestion, _pps = poolPickForSection;
+  const _navPaper = state.paper, _navView = _view, _navCur = current, _navSubj = state.settings.subject;
+  const _navLg = lastGrade, _navPending = pendingGen;
+  let releaseMat = null;
+  poolPickForSection = async sec=>({ name:sec.label, title:sec.focus, text:"事实", topics:sec.topics });
+  genPaperMaterial = ()=> new Promise(res=>{ releaseMat = ()=> res({ background:"材料".repeat(2800), theme:"基层治理" }); });
+  genPaperQuestion = async (mat, spec)=>({ question:{ requirements:"请根据给定材料作答，不超过300字。", score:MODULES[spec.module].score },
+                                           keyPoints:[{ point:"p", score:5, need:["n"] }] });
+  state.settings.subject = "sl"; state.settings.apiKey = "sk-test"; state.settings.model = "m";
+  state.paper = null; _view = "start"; current = null; lastGrade = null; pendingGen = null;
+  const navRun = startPaper();
+  for(let i=0;i<8;i++) await Promise.resolve();
+  ok(pendingGen && pendingGen.kind === "paper" && pendingGen.status === "running",
+     "整卷在途: 生成中挂上 pendingGen");
+  const seqBefore = reqSeq;
+  renderStart();   // 关设置后重画起始页走的就是这条路
+  ok(pendingGen && pendingGen.status === "running" && reqSeq === seqBefore
+     && el("#docBody").innerHTML.indexOf("btnCancelGen") >= 0,
+     "整卷在途: 回到申论起始页恢复等待页，不递增请求序号");
+  state.settings.subject = "zy"; renderStart();   // 换到别的科目：只放弃上屏
+  ok(pendingGen && pendingGen.viewing === false, "整卷在途: 换到别的科目，请求仍在跑");
+  releaseMat();
+  await navRun;
+  ok(pendingGen && pendingGen.status === "ready" && pendingGen.prepared && pendingGen.prepared.paper
+     && state.paper && state.paper.questions.length === 5,
+     "整卷在途: 离开等待页期间出好，结果留成 ready 不丢");
+  state.settings.subject = "sl"; renderStart();
+  ok(_view === "paper" && pendingGen === null && el("#docBody").innerHTML.indexOf('id="btnPaperNew"') >= 0,
+     "整卷在途: 回到申论起始页直接进入出好的卷面");
+  genPaperMaterial = _gpMat; genPaperQuestion = _gpQ; poolPickForSection = _pps;
+  state.paper = _navPaper; _view = _navView; current = _navCur; state.settings.subject = _navSubj;
+  lastGrade = _navLg; pendingGen = _navPending; banner(""); save();
 
   // 命题约束不许漏进题干；分析/作文的 quote 只在本段材料里找
   const _callClean = callLLM;

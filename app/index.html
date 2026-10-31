@@ -1301,11 +1301,17 @@ function sanitizePaper(p){
       const i = Number(k); if(!(i >= 0 && i < qs.length)) continue;
       const a = p.answers[k]; if(!a || typeof a !== "object") continue;
       answers[i] = { answer:String(a.answer || ""), total:Number(a.total) || 0,
-                     g:(a.g && typeof a.g === "object")? a.g : null, at:Number(a.at) || 0 };
+                     g:(a.g && typeof a.g === "object")? a.g : null,
+                     /* 复看批改要用回执与限时：跟答卷一起存，重开应用也还在 */
+                     expCheck:(a.expCheck && typeof a.expCheck === "object")? a.expCheck : null,
+                     time:(a.time && typeof a.time === "object")? a.time : null,
+                     at:Number(a.at) || 0 };
     }
   }
+  /* 来源明细要跟着卷走：媒体/日期是「这材料来自真实报道」的证据，重开应用后不能只剩标题 */
   const sources = (Array.isArray(p.sources)? p.sources : []).slice(0, 8).map(s=>({
-    title:String((s && s.title) || ""), topics:Array.isArray(s && s.topics)? s.topics.map(String).slice(0,4) : []
+    title:String((s && s.title) || ""), media:String((s && s.media) || ""), date:String((s && s.date) || ""),
+    topics:Array.isArray(s && s.topics)? s.topics.map(String).slice(0,4) : []
   })).filter(s=>s.title);
   return { id:String(p.id || Date.now()), material, theme:String(p.theme || ""), sources,
            questions:qs, answers, at:Number(p.at) || Date.now() };
@@ -2838,6 +2844,7 @@ function wireCancelGen(mySeq){
    调用方必须先把 pendingGen 清掉——否则 renderHome / renderStart 又会把等待页恢复回来。 */
 function renderPendingLeave(viewNow, land){
   if(viewNow === "home"){ renderHome(); return; }
+  if(viewNow === "paper" && state.paper){ renderPaper(); return; }   // 从卷面点「重新拼一套」后取消/失败：回旧卷
   if(viewNow === "landing"){ renderModuleLanding(land || lastModuleOf(curSubject())); return; }
   if(viewNow === "q" && current && current.question){ renderQuestion(); return; }   // 原题页：current / 草稿 / 链都还在
   renderStart();
@@ -2964,7 +2971,7 @@ function renderStart(){
   // 起的题属于当前科目就回原位（首页 / 科目页 / 落地页起的一样）——SPEC 4.2：不再看最初来源。
   // 别的科目页照常显示，但先把「正在看」让出去，旧请求不许往这一页写秒数与实况（SPEC 5.6）。
   if(pendingGen){
-    if(subjectOf(pendingGen.module) === curSubject() && showPendingView()) return;
+    if(pendingSubject(pendingGen) === curSubject() && showPendingView()) return;
     if(pendingGen) pendingGen.viewing = false;   // 失败态已被 showPendingView 清掉；别对 null 取属性
   }
   reqSeq++;   // 回起始页 = 作废全部在途请求：结果回来时 reqSeq 已变，直接丢弃，不会把用户从起始页拽走
@@ -3265,6 +3272,8 @@ let reqSeq = 0;  // 请求序号：任何异步结果，只有它还是最新一
    用户点回来再进。以前换页只靠 reqSeq 把结果扔掉，等待页一没就再也找不回那道题。 */
 let pendingGen = null;   // running / ready / failed 三态；originView / originModule = 从哪一屏、哪个模块发起的
 function pendingForModule(k){ return !!(pendingGen && pendingGen.module === k); }   // 恢复判断只认模块，不认最初入口
+/* 在途请求属于哪一科：整卷没有 module（它不属于某个模块），但材料与题目都归申论。 */
+function pendingSubject(p){ p = p || pendingGen; if(!p) return null; return p.kind === "paper"? "sl" : subjectOf(p.module); }
 async function loadQuestion(k, subtype){
   if(entryBlocked()) return;   // 兜底：所有出题路都从这里过，进加载态之前就得判（见 entryBlocked）
   banner("");
@@ -3350,14 +3359,17 @@ async function loadQuestion(k, subtype){
 function showPendingView(){
   const p = pendingGen; if(!p) return false;
   if(p.status === "running"){
-    const subj = subjectOf(p.module);
+    const subj = pendingSubject(p);
     if(subj && subj !== curSubject()){ state.settings.subject = subj; save(); }
     activeModule = null;
     renderTabs(); renderHeader();
     showPendingLoading();
     return true;
   }
-  if(p.status === "ready"){ openPendingGen(); return true; }
+  if(p.status === "ready"){
+    if(p.kind === "paper") openPendingPaper(); else openPendingGen();
+    return true;
+  }
   pendingGen = null;   // failed：清掉，让调用方照常渲染，并告诉用户上次没成
   banner("上次出题没有成功，可以重新开始。", "error");
   return false;
@@ -3366,7 +3378,10 @@ function showPendingView(){
 function showPendingLoading(){
   const p = pendingGen; if(!p || p.status !== "running") return;
   p.viewing = true;
-  showLoading(`AI 正在为「${MODULES[p.module].name}${p.subtype?' · '+p.subtype:''}」准备学习卡与仿真题…`, undefined, { cancel:true });
+  const isPaper = p.kind === "paper";
+  showLoading(isPaper? (p.stage || "AI 正在从材料池拼一套申论整卷…")
+                     : `AI 正在为「${MODULES[p.module].name}${p.subtype?' · '+p.subtype:''}」准备学习卡与仿真题…`,
+              isPaper? (p.stageTail || "先拼共用材料，再逐题出题；通常 1-3 分钟。") : undefined, { cancel:true });
   wireCancelGen(null);
   const t0 = p.startedAt;
   const tick = setInterval(()=>{
@@ -3385,6 +3400,14 @@ function openPendingGen(){
               studyCard: pr.studyCard, cardPeeks:0, phase:"card" };
   if(!usesFlowChain(pr.module)){ syncZyResume(); save(); }
   renderTabs(); renderHeader(); renderQuestion();
+}
+/* 整卷出好了：卷面才是它的落脚处。结果在生成时就已落盘，这里只负责接上屏。 */
+function openPendingPaper(){
+  const p = pendingGen; if(!p || p.status !== "ready" || !p.prepared || !p.prepared.paper) return;
+  const paper = p.prepared.paper;
+  pendingGen = null;
+  state.paper = paper; save();
+  renderPaper();
 }
 /* 学习卡不再单独占一个阶段：并入训练链的「读材料」步骤（折叠的卡片，展开可看、可记笔记）。
    翻卡计数保留：每看一次计一次，翻卡次数就是熟悉度的客观信号，参与出题调度。 */
@@ -3436,14 +3459,6 @@ function cardHtml(studyCard){
 }
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 /* ============ 申论整卷：入口、卷面、逐题作答 ============ */
-function wirePaperCancel(mySeq){
-  const cg = $("#btnCancelGen"); if(!cg) return;
-  cg.onclick = ()=>{
-    if(mySeq !== reqSeq) return;
-    reqSeq++;
-    renderStart();
-  };
-}
 async function poolPickForSection(sec){
   let fallback = null;
   for(let i=0;i<5;i++){
@@ -3456,11 +3471,26 @@ async function poolPickForSection(sec){
   return fallback;
 }
 async function startPaper(){
+  /* 已经在拼就回等待页，不并发再拼第二套（按钮在卷面/起始页都可能被点到） */
+  if(pendingGen && pendingGen.kind === "paper"){ showPendingView(); return; }
   if(entryBlocked()) return;
   banner("");
   const mySeq = ++reqSeq;
-  showLoading("AI 正在从材料池拼一套申论整卷…", "先拼共用材料，再逐题出题；通常 1-3 分钟。", {cancel:true});
-  wirePaperCancel(mySeq);
+  const t0 = Date.now();
+  /* 整卷也是「在途出题」：同样挂 pendingGen。换页只放弃自动上屏，1-3 分钟的结果仍留在 ready 里，
+     回申论起始页/首页再进——不能像以前那样靠 reqSeq 静默扔掉。 */
+  pendingGen = { kind:"paper", mySeq, module:null, subtype:null, startedAt:t0, status:"running", viewing:true,
+                 prepared:null, origin:_view === "home"? "home" : "start", originView:_view, originModule:null,
+                 stage:"AI 正在从材料池拼一套申论整卷…", stageTail:"先拼共用材料，再逐题出题；通常 1-3 分钟。" };
+  const ownsGen = ()=> !!(pendingGen && pendingGen.mySeq === mySeq);   // 取消才会清掉；换页仍算活着
+  const viewing = ()=> ownsGen() && pendingGen.viewing;
+  const stage = (t, tail)=>{
+    if(ownsGen()){ pendingGen.stage = t; pendingGen.stageTail = tail; }
+    if(!viewing()) return;
+    showLoading(t, tail, {cancel:true});
+    wireCancelGen(mySeq);
+  };
+  stage(pendingGen.stage, pendingGen.stageTail);
   try{
     const picks = [], seen = new Set();
     for(const sec of PAPER_SECTIONS){
@@ -3478,41 +3508,59 @@ async function startPaper(){
       if(seen.has(key)) continue;
       seen.add(key); picks.push(Object.assign({}, p, { section:PAPER_SECTIONS[picks.length] || null }));
     }
+    if(!ownsGen()) return;   // 等待期间被取消
     if(picks.length < 3){
-      banner("材料池里可用的骨架不足（至少 3 篇）：先在桌面壳里抓几篇，或检查材料池。", "error");
-      renderStart(); return;
+      const msg = "材料池里可用的骨架不足（至少 3 篇）：先在桌面壳里抓几篇，或检查材料池。";
+      const viewNow = _view;
+      pendingGen = null;
+      banner(msg, "error");
+      renderPendingLeave(viewNow);
+      return;
     }
-    if(mySeq !== reqSeq) return;
     let mat = await genPaperMaterial(picks, false);
+    if(!ownsGen()) return;
     if(mat.background.length < 5500){
-      showLoading("材料不足 5,500 字，正在重拼一次…", "只补长度，不换题；这次会更强约束。", {cancel:true});
-      wirePaperCancel(mySeq);
+      stage("材料不足 5,500 字，正在重拼一次…", "只补长度，不换题；这次会更强约束。");
       const again = await genPaperMaterial(picks, true);
-      if(mySeq !== reqSeq) return;
+      if(!ownsGen()) return;
       if(again.background.length > mat.background.length) mat = again;
     }
-    if(mySeq !== reqSeq) return;
     const questions = [];
     for(let i=0;i<PAPER_SPEC.length;i++){
-      showLoading(`材料已拼好，正在出第 ${i+1}/${PAPER_SPEC.length} 题…`, "5 道题共用同一套材料；出完一起上屏。", {cancel:true});
-      wirePaperCancel(mySeq);
+      stage(`材料已拼好，正在出第 ${i+1}/${PAPER_SPEC.length} 题…`, "5 道题共用同一套材料；出完一起上屏。");
+      if(!ownsGen()) return;
       const q = await genPaperQuestion(mat.background, PAPER_SPEC[i], i);
-      if(mySeq !== reqSeq) return;
+      if(!ownsGen()) return;
       questions.push({ module:PAPER_SPEC[i].module, subtype:PAPER_SPEC[i].subtype,
                        question:q.question, keyPoints:q.keyPoints });
     }
-    state.paper = {
+    const paper = {
       id:String(Date.now()), material:mat.background, theme:mat.theme || "",
-      sources:picks.map(p=>({ title:p.title || p.name || "", topics:Array.isArray(p.topics)? p.topics.slice(0,4) : [] })),
+      /* 媒体/日期一并留下：卷面和作答页要靠它说明「材料来自真实报道」，不能又标成仿真 */
+      sources:picks.map(p=>({ title:p.title || p.name || "",
+                              media:p.media || "", date:p.date || "",
+                              topics:Array.isArray(p.topics)? p.topics.slice(0,4) : [] })),
       questions, answers:{}, at:Date.now()
     };
-    save();
-    renderPaper();
+    if(!ownsGen()) return;
+    state.paper = paper; save();   // 先落盘：无论人在哪一页，这套卷都已经存在
+    if(pendingGen.viewing){
+      pendingGen = null;
+      renderPaper();
+    }else{
+      pendingGen.status = "ready"; pendingGen.prepared = { paper };
+    }
   }catch(e){
-    if(mySeq !== reqSeq) return;
     console.error("[liantai] 整卷生成失败", e);
-    banner("整卷没有拼成：" + esc((e && (e.text || e.message)) || "请稍后重试。"), "error");
-    renderStart();
+    if(!ownsGen()) return;
+    if(pendingGen.viewing){   // 人正盯着等待页：当场说失败，回到发起的那一屏
+      const viewNow = _view;
+      pendingGen = null;
+      banner("整卷没有拼成：" + esc((e && (e.text || e.message)) || "请稍后重试。"), "error");
+      renderPendingLeave(viewNow);
+    }else{
+      pendingGen.status = "failed"; pendingGen.error = e; pendingGen.viewing = false;
+    }
   }
 }
 function renderPaper(){
@@ -3521,11 +3569,19 @@ function renderPaper(){
   _view = "paper"; pdActive = false; activeModule = null;
   if(state.settings.subject !== "sl"){ state.settings.subject = "sl"; save(); }
   renderHeader(); renderTabs();
+  const srcFx = paperSrcOf(p);
+  const sourceLine = srcFx
+    ? `<div class="hint" style="margin-top:8px">材料来源：${esc(srcFx.fromPool)}${matSrcTag(srcFx)}</div>`
+    : "";
   const rows = p.questions.map((q,i)=>{
     const a = p.answers[i];
+    const pts = (a && a.g)? pointsOf(a.g.hits) : null;
+    /* 分数只按卷面口径：已批改报「实得 / 子项满分」，未作答报该题满分。
+       折百分制是给画像比较用的，不能拿来冒充卷面分（以前 30 分的题批完显示「80 分」）。 */
+    const scoreText = a? (pts? `${pts.got} / ${pts.max} 分` : "已作答") : `${q.question.score} 分`;
     return `<div style="border-top:1px solid var(--line);padding:16px 0">
       <div class="secrow" style="margin:0"><div class="sec-title">${i+1}. ${esc(MODULES[q.module].name)}${q.subtype? ` · ${esc(q.subtype)}`:""}</div>
-        <span class="secright">${a? `${a.total} 分` : `${q.question.score} 分`}</span></div>
+        <span class="secright">${scoreText}</span></div>
       <div class="require" style="margin-top:8px">${esc(q.question.requirements)}</div>
       <div class="actions" style="margin-top:8px"><button data-pq="${i}">${a? "看批改" : "作答"}</button></div>
     </div>`;
@@ -3534,7 +3590,7 @@ function renderPaper(){
     <div class="hero-big">申论整卷</div>
     <div class="hero-sub">一套材料 · ${p.questions.length} 道题 · 逐题作答，批改后回卷面</div>
     <div class="actions"><button class="primary" id="btnPaperNew">${p.questions.some((q,i)=>!p.answers[i])? "重新拼一套" : "再拼一套"}</button></div>
-    <div class="material mat-scroll" style="margin-top:24px"><div class="label">给定材料 · 本卷 ${p.questions.length} 题共用</div><div id="materialBox">${materialHtml({ background:p.material, requirements:"" })}</div></div>
+    <div class="material mat-scroll" style="margin-top:24px"><div class="label">给定材料 · 本卷 ${p.questions.length} 题共用</div>${sourceLine}<div id="materialBox">${materialHtml({ background:p.material, requirements:"" })}</div></div>
     <div class="secrow" style="margin:24px 0 0"><div class="sec-title">本卷题目</div><span class="secright">${p.questions.filter((q,i)=>p.answers[i]).length}/${p.questions.length} 已作答</span></div>
     ${rows}
     <div class="actions" style="margin-top:16px"><button id="btnPaperBack">回申论首页</button></div>
@@ -3547,22 +3603,50 @@ function renderPaper(){
     startPaper();
   };
 }
+/* 整卷材料来自材料池：把几篇骨架的媒体/日期/主题并成一条，交给卷面与作答页标来源。
+   没有来源明细（老卷）返回 null——只说明「来自材料池」，绝不标成仿真编写。 */
+function paperSrcOf(p){
+  const list = (p && Array.isArray(p.sources))? p.sources : [];
+  const titles = [], medias = [], dates = [], topics = [];
+  const add = (arr, v)=>{ v = String(v || "").trim(); if(v && arr.indexOf(v) < 0) arr.push(v); };
+  for(const s of list){
+    if(!s) continue;
+    add(titles, s.title); add(medias, s.media); add(dates, s.date);
+    for(const t of (Array.isArray(s.topics)? s.topics : [])) add(topics, t);
+  }
+  if(!titles.length) return null;
+  return { fromPool:"材料池 · " + titles.map(t=>`《${t}》`).join("、"),
+           src:{ media:medias.join("、"), date:dates.join("、"), topics:topics.slice(0,4) } };
+}
 function openPaperQuestion(i){
   const p = state.paper; if(!p) { renderPaper(); return; }
   const item = p.questions[i]; if(!item) return;
   const a = p.answers[i];
+  const srcFx = paperSrcOf(p);
   current = {
     module:item.module, subtype:item.subtype,
-    question:Object.assign({}, item.question, { background:p.material }),
+    question:Object.assign({}, item.question, { background:p.material }, srcFx? { fromPool:srcFx.fromPool, src:srcFx.src } : {}),
     keyPoints:item.keyPoints || [], paperId:p.id, paperQ:i, cardPeeks:0,
     phase:(a && a.g)? "grade" : "answer"
   };
-  if(a && a.g) current.grade = { g:a.g, total:a.total || 0 };
+  /* 复看批改：「我的答案」/逐句标注/回执/限时都由 lastGrade 供给。不按这一题存的那份还原，
+     重开应用就只剩分数，同一会话里还会沿用上一题的答卷。 */
+  lastGrade = null;
+  if(a && a.g){
+    current.grade = { g:a.g, total:a.total || 0 };
+    const hits = Array.isArray(a.g.hits)? a.g.hits : [];
+    const pts = pointsOf(hits);
+    lastGrade = { g:Object.assign({}, a.g, { hits }),
+      total: a.total != null? a.total : (pts? Math.round(pts.got/pts.max*100) : 0),
+      expCheck: a.expCheck || null, time: a.time || null,
+      answer: String(a.answer || ""), flowId: null };
+  }
   renderHeader(); renderQuestion();
 }
-function rememberPaperAnswer(g, total, ans){
+function rememberPaperAnswer(g, total, ans, expCheck, time){
   if(!current || !current.paperId || !state.paper || current.paperQ == null) return;
-  state.paper.answers[current.paperQ] = { answer:String(ans||""), total:Number(total)||0, g, at:Date.now() };
+  state.paper.answers[current.paperQ] = { answer:String(ans||""), total:Number(total)||0, g,
+    expCheck: expCheck || undefined, time: time || undefined, at:Date.now() };
   save();
 }
 function renderQuestion(){
@@ -4948,7 +5032,7 @@ async function submitAnswer(){
     save();
     if(!inFlow && current && !usesFlowChain(mod)){ state.resumeZy = null; save(); }   // 综应A 交卷：快照作废，结果改从记录打开
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
-    if(current && current.paperId) rememberPaperAnswer(g, total, ans);
+    if(current && current.paperId) rememberPaperAnswer(g, total, ans, expCheck, usedSec == null? null : { min: limMin, usedSec });
     setLimitState(limMin, 0);   // 这一稿停表：交完就算一稿，下次进作答区重新起算
     _timeUpSaid = false;
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
