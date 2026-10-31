@@ -807,7 +807,7 @@ state.history = [];
 ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf("zy.guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
 renderHome();
 ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
-   && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
+   && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0
    && el("#docBody").innerHTML.indexOf('data-big="zy">综应A 练一轮') >= 0
    && el("#docBody").innerHTML.indexOf('data-big="sl">写一篇申论') >= 0,
    "首页: 居中 hero——大标题下主行动是快判，两枚 chips 各自点名科目");
@@ -1304,7 +1304,7 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
      && el("#docBody").innerHTML.indexOf('id="btnCancelGen"') >= 0,
      "出题在途: 从首页起的题，回同科目起始页恢复等待页（SPEC 4.2 不再看最初来源）");
   switchSubject("zy");
-  ok(el("#docBody").innerHTML.indexOf("正在为") < 0 && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0
+  ok(el("#docBody").innerHTML.indexOf("正在为") < 0 && el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0
      && pendingGen && pendingGen.viewing === false && subjectOf(pendingGen.module) === "sl",
      "出题在途: 别的科目起始页才正常显示、不顶屏，待出结果保留");
   renderHome();
@@ -1323,7 +1323,7 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
   renderHome();
   ok(!!el("#btnCancelGen"), "出题在途: 等待页给一个取消出口");
   el("#btnCancelGen").onclick();
-  ok(pendingGen === null && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0,
+  ok(pendingGen === null && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0,
      "出题在途: 取消后回首页，状态清干净");
 
   // ③ 从科目页起题：回原科目起始页也回到等待页
@@ -1666,7 +1666,7 @@ ok(gwLand.indexOf("subtypechips-grouped") >= 0 && gwLand.indexOf("法定公文<s
    "公文落地页: 21 个文种收成两组、默认收起（类别名是折叠头、带数量，收起时也说得出后面铺什么）");
 ok((gwLand.match(/data-t="/g) || []).length === GONGWEN_TYPES.length,
    "公文落地页: 折叠只改排法，文种一颗不少、一颗不合并");
-ok(el("#docBody").innerHTML.indexOf("data-start=") < 0,
+ok(el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0,
    "返回综合: 前置——人在公文写作落地页");
 backToStart();
 ok(el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0,
@@ -1812,9 +1812,9 @@ const startUp = el("#docBody").innerHTML;
 ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
    && startUp.indexOf("开始快判") < 0 && startUp.indexOf("btnSample") < 0,
    "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快判」");
-ok(startUp.indexOf("填好 API Key 就能开始 · 没有账号，数据都在本地") >= 0,
-   "首页（没填 Key）: 脚注说清要先填 Key，必备声明照在");
-ok(el(".redhead").style.display === "" && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0,
+ok(startUp.indexOf("填好 API Key 就能开始") >= 0 && startUp.indexOf("没有账号") < 0,
+   "首页（没填 Key）: 脚注只说要先填 Key；「数据只存这台机器」归设置页，不在入口屏再说一遍");
+ok(el(".redhead").style.display === "" && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0,
    "首页: 公文红头回到卷首，hero（今天练什么？）接在下方——两张皮合成一张纸");
 el("#btnSetup").onclick();
 ok(el("#modalSettings").hidden === false,
@@ -1828,12 +1828,12 @@ ok(wireStartBox.toString().indexOf("canStart()") >= 0,
 state.settings.apiKey = "sk-test";
 renderHome();
 ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
-   && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
-   && el("#docBody").innerHTML.indexOf('<div class="hero-sub">写完就有分</div>') >= 0
-   && el("#docBody").innerHTML.indexOf("没有账号，数据都在本地") >= 0
+   && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0
+   && el("#docBody").innerHTML.indexOf("hero-big") < 0 && el("#docBody").innerHTML.indexOf("hero-sub") < 0
+   && el("#docBody").innerHTML.indexOf("没有账号") < 0 && el("#docBody").innerHTML.indexOf("hero-foot") < 0
    && el("#docBody").innerHTML.indexOf("填好 API Key 就能开始") < 0
    && el("#docBody").innerHTML.indexOf("btnSample") < 0,
-   "首页 hero: 大标题 / 副题 / 主按钮 / 脚注都住；填了 Key 后脚注不再说「填好 Key 就能开始」");
+   "首页: 不摆问句标题与说明小字（主行动自己就是标题），填了 Key 连脚注都不出现");
 state.settings.apiKey = "";
 /* ②b 科目首页（综应A / 申论）：红按钮是本科目的主行动，快判不在纸面上抢红
      （快判入口常驻顶栏最左那颗胶囊，科目页再放一遍就是同一条路开两个门） */
@@ -1844,7 +1844,7 @@ ok(subjStart.indexOf('class="primary big" id="btnSetup">先填 API Key') >= 0
    "科目页（没填 Key）: 红按钮改说「先填 API Key」——出题这条路当下走不通，就不说「开始练习」");
 ok(subjStart.indexOf("开始快判") < 0,
    "科目页: 不出现「开始快判」（快判是顶栏最左那颗胶囊的事）");
-ok(subjStart.indexOf("综应A 练什么？") >= 0 && subjStart.indexOf('class="hero-sub"') < 0
+ok(subjStart.indexOf('data-start="subj"') >= 0 && subjStart.indexOf('class="hero-sub"') < 0
    && subjStart.indexOf("→") < 0 && subjStart.indexOf("写完就有分") < 0,
    "综应A布局: 科目页不摆说明句——流程与「写完就有分」都不是入口屏该说的话");
 ok(subjStart.indexOf("data-big") < 0,
@@ -1861,7 +1861,7 @@ state.settings.subject = "sl"; renderStart();
 const slNoKeyStart = el("#docBody").innerHTML;
 ok(slNoKeyStart.indexOf('id="btnSetup">先填 API Key') >= 0,
    "科目页（没填 Key）: 换到申论也是同一个形态，不为某个科目开特例");
-ok(slNoKeyStart.indexOf("申论 练什么？") >= 0 && slNoKeyStart.indexOf('class="hero-sub"') < 0,
+ok(slNoKeyStart.indexOf('data-start="subj"') >= 0 && slNoKeyStart.indexOf('class="hero-sub"') < 0,
    "申论布局（没填 Key）: 科目页与综应A 同一形态，不为某个科目开特例");
 
 /* ②c 填了 Key 的科目首页：红按钮回到本科目的主行动 */
@@ -2007,8 +2007,8 @@ renderHome();
 const homePlain = el("#docBody").innerHTML;
 ok(homePlain.indexOf("开始今天的练习") < 0 && homePlain.indexOf('data-start="home"') >= 0,
    "废话精简: 首页也不再写「开始今天的练习」——主行动自己就是标题");
-ok(homePlain.indexOf("写完就有分") >= 0 && homePlain.indexOf("按你最近的练习情况") < 0,
-   "废话精简: 首页副题只留那句承诺——题是怎么挑出来的，不在入口屏解释");
+ok(homePlain.indexOf("写完就有分") < 0 && homePlain.indexOf("按你最近的练习情况") < 0,
+   "废话精简: 首页连「写完就有分」也不写——入口屏不摆说明句，题是怎么挑出来的更不解释");
 renderModuleLanding("zy.guina");
 const landPlain = el("#docBody").innerHTML;
 ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") < 0
@@ -2017,9 +2017,10 @@ ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") <
 ok(landPlain.indexOf("近期加权均分") >= 0 || landPlain.indexOf("还没练过") >= 0,
    "废话精简: 但成绩那行留着（是数据，不是废话）");
 renderModuleLanding("zy.duice");
-ok(el("#docBody").innerHTML.indexOf('class="hero-sub">针对问题提出解决措施') >= 0
+ok(el("#docBody").innerHTML.indexOf('class="hero-sub"') < 0
+   && el("#docBody").innerHTML.indexOf("针对问题提出解决措施") < 0
    && el("#docBody").innerHTML.indexOf("<h2>") < 0,
-   "废话精简: 真在描述「这是什么」的 note（提出对策）还留着，只去掉重复的标题");
+   "废话精简: 落地页不摆模块说明句——抬头报过模块名、胶囊里也点亮了它，同一件事不写两遍");
 renderHome();
 
 /* ⑤ 首页是快判唯一入口；科目仍从顶栏切换。 */
@@ -3626,8 +3627,18 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "入口屏: 主按钮 / 科目药丸 / 继续条共用一条 320 动作列（窄到放不下整列跟着缩，那颗 min-width:320 不再撑出纸面）");
   ok(PAGE_HTML.indexOf('<div class="actions actline">') >= 0 && PAGE_HTML.indexOf("继续上次没做完的题") < 0
      && PAGE_HTML.indexOf(".start-entry .actline .al-main{") >= 0,
-     "入口屏: 「继续上次」「整卷练习」收成一行信息 + 一颗文字键（原来两条描边大按钮比药丸宽、比红按钮轻，卡在中间谁都不像）");
-  ok(PAGE_HTML.indexOf(".start-entry .actline{") >= 0 && PAGE_HTML.indexOf(".start-entry .actline + .actline{margin-top:12px;}") >= 0,
+     "入口屏: 恢复现场是一行信息 + 一颗描边键（原来两条描边大按钮比药丸宽、比红按钮轻，卡在中间谁都不像）");
+  ok(PAGE_HTML.indexOf('<button class="ghost" id="btnResume">') >= 0
+   && PAGE_HTML.indexOf('<button class="linkbtn" id="btnResume">') < 0
+   && PAGE_HTML.indexOf('<button class="ghost wide" id="btnPaper">做一套题</button>') >= 0
+   && PAGE_HTML.indexOf("整卷练习") < 0 && PAGE_HTML.indexOf("一套材料 5 题") < 0
+   && PAGE_HTML.indexOf(".start-entry .actline button.ghost{") >= 0,
+   "入口可点性: 继续上次 / 做一套题是描边按钮，不再是透明灰字（灰字在入口屏读成说明句）");
+ok(PAGE_HTML.indexOf('hero-big">今天练什么？') < 0 && PAGE_HTML.indexOf('hero-big">${esc(subj.name)} 练什么？') < 0
+   && PAGE_HTML.indexOf('hero-big">这类题怎么练？') < 0 && PAGE_HTML.indexOf("写完就有分") < 0
+   && PAGE_HTML.indexOf('data-start="landing"') >= 0,
+   "入口文案: 首页 / 科目页 / 落地页都不摆问句标题与说明小字，落地页另有自己的标记");
+ok(PAGE_HTML.indexOf(".start-entry .actline{") >= 0 && PAGE_HTML.indexOf(".start-entry .actline + .actline{margin-top:12px;}") >= 0,
      "入口屏: 恢复那两行的间距走 24 / 12 两档（同组 12、跨组 24），不再各写一个 16");
 }
 
@@ -3764,7 +3775,7 @@ ok(PAGE_HTML.indexOf('class="secright">${meta}<button class="linkbtn" id="btnSwi
    && PAGE_HTML.indexOf('class="metarow"') >= 0
    && PAGE_HTML.indexOf("<b>分值</b>") >= 0 && PAGE_HTML.indexOf("分值：</b>") < 0,
    "题面: 作答页把分值与难度并进「题目」那一行右侧，其余屏仍单独一行（标签紧贴值，不用 5em 悬挂缩进）");
-ok(PAGE_HTML.indexOf("这类题怎么练？") >= 0 && PAGE_HTML.indexOf("${esc(m.name)} 练什么？") < 0,
+ok(PAGE_HTML.indexOf('data-start="landing"') >= 0 && PAGE_HTML.indexOf("${esc(m.name)} 练什么？") < 0,
    "落地页: 标题只说「这类题怎么练」，不复述抬头里的模块名");
 ok(renderHeader.toString().indexOf('_view === "q"') >= 0, "抬头: 子类型只在作答页报，落地页不带上一题的子类型");
 ok(PAGE_HTML.indexOf("@keyframes breathe") < 0 && PAGE_HTML.indexOf("animation:breathe") < 0,
@@ -3941,7 +3952,7 @@ globalThis.window = _savedWinUpd;
      && el("#docBody").innerHTML.indexOf('id="btnCancelGen"') >= 0,
      "在途恢复: 综应A 首页起题，回同科目起始页恢复等待页（含取消出口）");
   cancelWait();
-  ok(pendingGen === null && _view === "start" && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0,
+  ok(pendingGen === null && _view === "start" && el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0,
      "取消落点: 综应A 起始页取消，留在该科目起始页");
 
   /* C. 申论同一路径：首页起题 → 回申论起始页同样恢复等待页 */
@@ -3952,7 +3963,7 @@ globalThis.window = _savedWinUpd;
      && subjectOf(pendingGen.module) === "sl",
      "在途恢复: 申论 首页起题，回同科目起始页同样恢复等待页");
   cancelWait();
-  ok(pendingGen === null && _view === "start" && el("#docBody").innerHTML.indexOf("申论 练什么？") >= 0,
+  ok(pendingGen === null && _view === "start" && el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0,
      "取消落点: 申论 起始页取消，留在申论起始页");
 
   /* B. 综应A：模块落地页发起 → 别的模块正常浏览（不顶屏、pending 保留）→ 回原模块恢复等待页 */
@@ -3968,7 +3979,7 @@ globalThis.window = _savedWinUpd;
      "在途恢复: renderModuleLanding 恢复等待页不递增 reqSeq（请求还活着）");
   tabClick("zy.duice");
   ok(_view === "landing" && activeModule === "zy.duice" && !hasWaitPage()
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0
      && pendingGen && pendingGen.viewing === false && pendingGen.module === "zy.guina",
      "在途恢复: 别的模块落地页照常浏览，不被在途出题顶掉");
   tabClick("zy.guina");
@@ -3976,7 +3987,7 @@ globalThis.window = _savedWinUpd;
      "在途恢复: 回到发起出题的模块落地页，恢复等待页");
   cancelWait();
   ok(_view === "landing" && activeModule === "zy.guina" && pendingGen === null && !hasWaitPage()
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0
      && el("#docBody").innerHTML.indexOf("综应A 练什么？") < 0,
      "取消落点: 落地页等待页取消，回该模块落地页（不是科目起始页）");
 
@@ -3986,7 +3997,7 @@ globalThis.window = _savedWinUpd;
   await fireGen(()=> el("#btnLandStart").onclick());
   tabClick("sl.guanche");
   ok(_view === "landing" && activeModule === "sl.guanche" && !hasWaitPage()
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0
      && pendingGen && pendingGen.viewing === false && subjectOf(pendingGen.module) === "sl",
      "在途恢复: 申论 别的模块落地页照常浏览，不被在途出题顶掉");
   tabClick("sl.guina");
@@ -3994,7 +4005,7 @@ globalThis.window = _savedWinUpd;
      "在途恢复: 申论 回发起模块落地页恢复等待页");
   cancelWait();
   ok(_view === "landing" && activeModule === "sl.guina" && pendingGen === null
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0,
      "取消落点: 申论 落地页等待页取消回该模块落地页");
 
   /* 就地重渲染兜底（SPEC 5 / minor-2）：恢复等待页时 activeModule 已被让空，
@@ -4011,7 +4022,7 @@ globalThis.window = _savedWinUpd;
      "就地重渲染: renderCurrentView 按 pendingGen 的模块留在等待页");
   cancelWait();
   ok(_view === "landing" && activeModule === "zy.guina" && pendingGen === null
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0,
      "就地重渲染: 等待页取消后落回原模块落地页");
 
   /* D. 出好回匹配页直接进题；人在别处时结果不顶屏，回来才进题 */
@@ -4069,7 +4080,7 @@ globalThis.window = _savedWinUpd;
      "在途恢复: 科目起始页发起的 pending 记住原屏 start");
   switchSubject("sl");
   ok(curSubject() === "sl" && _view === "start" && !hasWaitPage()
-     && el("#docBody").innerHTML.indexOf("申论 练什么？") >= 0
+     && el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0
      && pendingGen && pendingGen.viewing === false && subjectOf(pendingGen.module) === "zy",
      "在途恢复: 别的科目起始页照常显示，不被在途出题顶掉");
   switchSubject("zy");
@@ -4077,7 +4088,7 @@ globalThis.window = _savedWinUpd;
      "在途恢复: 回到起题科目起始页，恢复等待页");
   cancelWait();
   ok(_view === "start" && curSubject() === "zy" && pendingGen === null
-     && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0,
+     && el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0,
      "取消落点: 科目起始页等待页取消，留在该科目起始页");
 
   /* G. 原题页「换一题」的等待页取消：回原题，题目 / 草稿 / 训练链原样保留 */
@@ -4138,7 +4149,7 @@ globalThis.window = _savedWinUpd;
   rejectGen({ code:"JSON" });
   await waitUntil(()=> pendingGen === null);
   ok(_view === "landing" && activeModule === "zy.guina" && pendingGen === null && !hasWaitPage()
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0,
      "失败落点: 落地页等待中失败，回该模块落地页");
   ok(el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
      "失败落点: 失败当场 banner 报错，不让人干等");
@@ -4147,7 +4158,7 @@ globalThis.window = _savedWinUpd;
   await fireGen(()=> startSubjectTask("zy"));
   rejectGen({ code:"JSON" });
   await waitUntil(()=> pendingGen === null);
-  ok(_view === "home" && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
+  ok(_view === "home" && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0
      && el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
      "失败落点: 首页等待中失败，回首页并报错");
   // ③ 人已在别的模块：本次不顶屏，failed 留在 pendingGen；回原模块才报「上次出题没有成功」
@@ -4159,12 +4170,12 @@ globalThis.window = _savedWinUpd;
   await waitUntil(()=> !!(pendingGen && pendingGen.status === "failed"));
   ok(pendingGen && pendingGen.status === "failed" && pendingGen.viewing === false
      && _view === "landing" && activeModule === "zy.duice" && !hasWaitPage()
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0,
      "失败落点: 人在别的模块时失败不顶屏，failed 留在 pendingGen");
   tabClick("zy.guina");
   ok(pendingGen === null && _view === "landing" && activeModule === "zy.guina"
      && el("#bannerSlot").innerHTML.indexOf("上次出题没有成功") >= 0
-     && el("#docBody").innerHTML.indexOf("这类题怎么练？") >= 0,
+     && el("#docBody").innerHTML.indexOf('data-start="landing"') >= 0,
      "失败落点: 回到原模块落地页才报「上次出题没有成功」，页面照常渲染");
   // ④ 恢复等待页后失败：当场报错并回当前页（落地页），而不是请求最初来源
   pendingGen = null; current = null;
@@ -4182,7 +4193,7 @@ globalThis.window = _savedWinUpd;
   await fireGen(()=> el("#btnSmart").onclick());
   rejectGen({ code:"JSON" });
   await waitUntil(()=> pendingGen === null);
-  ok(_view === "start" && pendingGen === null && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0
+  ok(_view === "start" && pendingGen === null && el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0
      && el("#bannerSlot").innerHTML.indexOf("AI 返回格式异常") >= 0,
      "失败落点: 科目起始页等待中失败，回本科目起始页并报错");
   // ⑥ 失败后在别的科目页，再切回起题科目的起始页：正常显示 + 报「上次出题没有成功」（清理 pending 时不再对 null 取 viewing）
@@ -4196,7 +4207,7 @@ globalThis.window = _savedWinUpd;
   let switchErr = null;
   try { switchSubject("zy"); } catch(e){ switchErr = e; }   // 旧实现会在这里对已清空的 pendingGen 取 viewing，抛 TypeError
   ok(!switchErr && _view === "start" && pendingGen === null && !hasWaitPage()
-     && el("#docBody").innerHTML.indexOf("综应A 练什么？") >= 0
+     && el("#docBody").innerHTML.indexOf('data-start="subj"') >= 0
      && el("#bannerSlot").innerHTML.indexOf("上次出题没有成功") >= 0,
      "失败落点: 切回起题科目起始页，正常显示并报「上次出题没有成功」");
   // ⑦ 原题页换一题失败 → 回原题，草稿不丢
@@ -4268,7 +4279,7 @@ globalThis.window = _savedWinUpd;
   state.paper = sanitizePaper(mkPaper()); _view = "start"; current = null;
   renderStart();
   const startHtml = el("#docBody").innerHTML;
-  ok(startHtml.indexOf('id="btnPaper"') >= 0 && startHtml.indexOf("继续整卷") >= 0, "整卷: 申论起始页有继续入口");
+  ok(startHtml.indexOf('id="btnPaper"') >= 0 && startHtml.indexOf("接着做这套题") >= 0, "整卷: 申论起始页有接着做的入口");
   openPaperQuestion(0);
   const qHtml = el("#docBody").innerHTML;
   ok(current && current.paperId === "paper1" && current.paperQ === 0 && current.phase === "answer"
@@ -4278,6 +4289,25 @@ globalThis.window = _savedWinUpd;
   ok(state.paper.answers[0] && state.paper.answers[0].total === 30, "整卷: 交卷后把该题作答/得分写回卷面");
   finishCurrent();
   ok(_view === "paper" && el("#docBody").innerHTML.indexOf('id="btnPaperNew"') >= 0 && state.paper.answers[0], "整卷: 完成后回卷面，不丢已答题");
+
+  // 换卷走页面内两步确认，不弹原生框（Electron 弹过原生对话框后窗口焦点会坏）
+  ok(!/(^|[^A-Za-z0-9_.$])(window\.)?(confirm|alert|prompt)\s*\(/.test(PAGE_HTML),
+     "页面: 不出现原生 confirm/alert/prompt 调用");
+  const _spReal = startPaper; let _spCalls = 0; startPaper = ()=>{ _spCalls++; };
+  const btnNew = el("#btnPaperNew");
+  btnNew.onclick();
+  ok(btnNew.textContent === "再点一次确认换卷" && _spCalls === 0,
+     "整卷: 写了一半换卷，第一击只改按钮不换卷");
+  btnNew.onclick();
+  ok(_spCalls === 1, "整卷: 第二击直接换卷");
+  const _ansSnap = state.paper.answers;
+  state.paper.answers = {}; renderPaper();
+  const btnNew2 = el("#btnPaperNew");
+  btnNew2.textContent = "重新拼一套";   // 桩不会从 innerHTML 重建节点，手工摆回渲染后的标签
+  btnNew2.onclick();
+  ok(_spCalls === 2 && btnNew2.textContent === "重新拼一套", "整卷: 没动过笔的卷不拦，一击即换");
+  state.paper.answers = _ansSnap; renderPaper();
+  startPaper = _spReal;
 
   // 卷面分数只报卷面口径（实得 / 子项满分）；折百分制留给画像比较，不能标成「分」
   state.paper.sources = [{ title:"某篇", media:"人民日报", date:"2025-06-01", topics:["基层治理"] }];

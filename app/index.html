@@ -193,14 +193,21 @@ html,body{margin:0;padding:0;}
      窄到放不下 320 时整列跟着缩到列宽，不撑出纸面（原来那颗 min-width:320 会直接溢出）。 */
   .start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}
   .start-entry .actions:has(.big) .big{width:100%;min-width:0;}
-  .start-entry .chiprow .chip{flex:1 1 auto;white-space:nowrap;justify-content:center;}
-  /* 「继续上次」「整卷练习」两行：一行信息 + 一颗文字键，不再各占一整条描边大按钮
-     （那颗比药丸宽、比红按钮轻，卡在中间谁都不像；文案一长还在窄窗里换成两行）。
+  /* 药丸按字长给宽、整行居中：跟主按钮一起被拉成等宽时，「去综应A」这种四字胶囊会有半截空着 */
+  .start-entry .chiprow .chip{flex:0 0 auto;white-space:nowrap;justify-content:center;}
+  /* 「继续上次」「做一套卷」两行：一行信息 + 一颗按钮。那颗键必须是看得见的按钮——
+     透明灰字看不住能点，整片入口会被读成说明文字（2026-11-01 改回描边）。
      字左对齐、键靠右，装不下就省略号收在中间那句上。 */
   .start-entry .actline{display:flex;align-items:center;gap:8px;margin-top:24px;text-align:left;}
   .start-entry .actline + .actline{margin-top:12px;}
   .start-entry .actline .al-main{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     font-size:var(--fs-note);color:var(--muted);}
+  .start-entry .actline button.ghost{flex:0 0 auto;min-height:var(--h-ctl-sm);padding:0 12px;
+    border-color:var(--chip-line);color:var(--chip-ink);}   /* 跟药丸同一套描边：纸面上的边要比全局 --line 重一点才咬得住 */
+  /* 整卷那一行没有左侧信息，就整条做成按钮，右缘给一枚 › 指路 */
+  .start-entry .actline button.ghost.wide{flex:1 1 auto;min-height:var(--h-ctl);display:flex;align-items:center;
+    justify-content:space-between;gap:12px;padding:0 16px;text-align:left;color:var(--ink);}
+  .start-entry .actline .algo{color:var(--muted-2);}
 
   .wrap{max-width:calc(var(--sheet-w) * var(--paper-scale));margin:calc(24px * var(--paper-scale)) auto;padding:0 16px;}
   /* overflow 用 clip 不用 hidden：hidden 会把纸变成一个滚动容器，里面的一切吸顶与 scrollIntoView 都得换基准；clip 只裁不接管滚动 */
@@ -2958,46 +2965,43 @@ function startBoxHtml(resume){
       : ("去" + esc(name));   // 没 Key 时不承诺出题：点了只进科目页
     return `<button class="chip" data-big="${id}">${label}</button>`;
   }).join("");
-  /* 脚注跟着有没有 Key 说话：填完还写「填好 API Key 就能开始」，界面就在说谎。
-     「没有账号，数据都在本地」是必备声明，两种情况都留。 */
-  /* 「继续上次」与「整卷练习」是两行信息 + 一颗文字键，不是两条大按钮：这一屏只有一个主行动
+  /* 「继续上次」与「做一套卷」是两行信息 + 一颗按钮，不是两条描边大按钮：这一屏只有一个主行动
      （那颗红的），恢复现场的路径比它轻一档才不抢。文案落在左、键落在右，同一条动作列宽。 */
-  const resumeHtml = resume? `<div class="actions actline"><span class="al-main">${esc(moduleName(resume.module))}${resume.subtype? " · "+esc(resume.subtype):""} · 停在${esc(resume.label)}</span><button class="linkbtn" id="btnResume">继续上次</button></div>` : "";
+  const resumeHtml = resume? `<div class="actions actline"><span class="al-main">${esc(moduleName(resume.module))}${resume.subtype? " · "+esc(resume.subtype):""} · 停在${esc(resume.label)}</span><button class="ghost" id="btnResume">继续上次</button></div>` : "";
+  /* 脚注只在走不通时说话（缺 Key / 缺模型）。走得通时这一屏不摆声明：
+     「数据只存这台机器」在设置页的「数据与备份」里已经说过一次，入口屏再写一遍只是凑数。 */
   const foot = canStart()
-    ? "没有账号，数据都在本地"
-    : (state.settings.apiKey? "选好模型就能开始 · 没有账号，数据都在本地" : "填好 API Key 就能开始 · 没有账号，数据都在本地");
+    ? ""
+    : (state.settings.apiKey? "选好模型就能开始" : "填好 API Key 就能开始");
   const paperAns = (state.paper && Array.isArray(state.paper.answers))? state.paper.answers.filter(Boolean).length : 0;
   /* 整卷那颗：没有卷时它只是一个入口（一句话把「整卷」说清），有卷时才拆成「进度 + 动作」两半。
      两行都留在 .actions 这个容器里：文案账（tools/entry-audit.mjs）按容器认区域，
      `.actions` 记主行动、不认得的记成正文——换个类名就等于凭空给这一屏多写 11 个字。 */
   const paperEntry = (!home && curSubject() === "sl")
     ? (state.paper
-      ? `<div class="actions actline"><span class="al-main">已答 ${paperAns} / ${state.paper.questions.length} 题</span><button class="linkbtn" id="btnPaper">继续整卷</button></div>`
-      : `<div class="actions actline"><button class="linkbtn" id="btnPaper">整卷练习 · 一套材料 5 题</button></div>`)
+      ? `<div class="actions actline"><button class="ghost wide" id="btnPaper">接着做这套题</button></div>`
+      : `<div class="actions actline"><button class="ghost wide" id="btnPaper">做一套题</button></div>`)
     : "";
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
-    <div class="hero-big">今天练什么？</div>
-    <div class="hero-sub">写完就有分</div>
     <div class="actions">${canStart()
       ? `<button class="primary big" id="btnQuick">开始快判</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="chiprow">${bigs}</div>
     ${resumeHtml}
-    <div class="hero-foot">${foot}</div>
+    ${foot? `<div class="hero-foot">${foot}</div>` : ""}
   </div>`;
   }
-  // 科目页与首页同一套 hero 排布，但不写说明句：入口屏只说「这是什么 + 怎么开始」，
-  // 流程与「写完就有分」都归首页那一句——重复的口径并到一处说，别十三屏各说一遍。
+  // 科目页与首页同一套排布：入口屏不摆问句标题（「今天练什么？」「综应A 练什么？」），
+  // 抬头已经说了这是什么，主行动自己就是这一屏要办的事。
   return `<div class="startbox start-entry start-hero" data-start="subj">
-    <div class="hero-big">${esc(subj.name)} 练什么？</div>
     <div class="actions">${canStart()
       ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>
     ${paperEntry}
     ${resumeHtml}
-    <div class="hero-foot">${foot}</div>
+    ${foot? `<div class="hero-foot">${foot}</div>` : ""}
   </div>`;
 }
 function wireStartBox(){
@@ -3323,14 +3327,11 @@ function renderModuleLanding(k){
   }else{
     subsHtml = `<div class="subtypechips" style="margin-top:16px">${subs.map(chipFor).join("")}</div>`;
   }
-  const noteRedundant = subs.length > 0 && m.note.split(/[\/、·]/).map(s=>s.trim()).filter(Boolean)
-    .every(t=> subs.some(s=> s.indexOf(t) >= 0));
-  // 三个入口页共用同一套骨架：大标题、说明句（可省）、主按钮、次级选项。
+  // 三个入口页共用同一套骨架：主按钮、数据行、次级选项。不摆标题也不摆说明句——
+  // 抬头报模块名、下面那排胶囊里有一颗点亮的正是当前模块，再说一遍只是把同一件事写两遍。
   // 文种有二十来个，摆在主按钮前面会把主行动挤出第一屏——它是「自己挑一个」的次级入口，排在后面。
   const blocked = !canStart();
-  let html = `<div class="startbox start-entry start-hero">
-    <div class="hero-big">这类题怎么练？</div>
-    ${noteRedundant? "" : `<div class="hero-sub">${esc(m.note)}</div>`}
+  let html = `<div class="startbox start-entry start-hero" data-start="landing">
     <div class="actions"><button class="primary big" id="btnLandStart">${blocked? setupActionLabel() : "开始练习"}</button></div>
     <div class="hint" style="margin-top:16px">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过"}</div>
     ${subsHtml}
@@ -3672,6 +3673,7 @@ async function startPaper(){
     }
   }
 }
+let _paperArm = 0;   // 换卷两步确认的落点：不用 window.confirm —— Electron 里弹过原生对话框后窗口焦点会坏（打不了字、光标消失）
 function renderPaper(){
   const p = state.paper;
   if(!p){ renderStart(); return; }
@@ -3696,8 +3698,7 @@ function renderPaper(){
     </div>`;
   }).join("");
   docBody.innerHTML = `<div class="startbox start-entry start-hero">
-    <div class="hero-big">申论整卷</div>
-    <div class="hero-sub">一套材料 · ${p.questions.length} 道题</div>
+    <div class="hero-big">一套申论题</div>
     <div class="actions"><button class="primary" id="btnPaperNew">${p.questions.some((q,i)=>!p.answers[i])? "重新拼一套" : "再拼一套"}</button></div>
     <div class="material mat-scroll" style="margin-top:24px"><div class="label">给定材料 · 本卷 ${p.questions.length} 题共用</div>${sourceLine}<div id="materialBox">${materialHtml({ background:p.material, requirements:"" })}</div></div>
     <div class="secrow" style="margin:24px 0 0"><div class="sec-title">本卷题目</div><span class="secright">${p.questions.filter((q,i)=>p.answers[i]).length}/${p.questions.length} 已作答</span></div>
@@ -3708,7 +3709,18 @@ function renderPaper(){
   docBody.querySelectorAll("[data-pq]").forEach(b=> b.onclick = ()=> openPaperQuestion(Number(b.dataset.pq)));
   $("#btnPaperBack").onclick = ()=> renderStart();
   $("#btnPaperNew").onclick = ()=>{
-    if(typeof confirm === "function" && !confirm("重新拼一套会替换当前整卷；已作答的记录仍留在练习记录里。")) return;
+    const btn = $("#btnPaperNew");
+    /* 只在「写过又没写完」时拦一下：全新没动笔的卷与已答完的卷都不值得再问一遍 */
+    const touched = p.questions.some((q,i)=> p.answers[i]);
+    const unfinished = p.questions.some((q,i)=>!p.answers[i]);
+    if(btn && touched && unfinished && Date.now() - _paperArm > 4000){
+      _paperArm = Date.now();
+      const label = btn.textContent;
+      btn.textContent = "再点一次确认换卷";
+      setTimeout(()=>{ const b=$("#btnPaperNew"); if(b && Date.now() - _paperArm >= 3900) b.textContent = label; }, 4100);
+      return;
+    }
+    _paperArm = 0;
     startPaper();
   };
 }

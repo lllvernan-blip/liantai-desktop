@@ -234,7 +234,7 @@ if (noTests) {
    判据（流程句 / 机制词 / 重复口径 / 折叠内字数）都在 tools/entry-audit.mjs 里，这里只跑一次、看结果。
    预算是砍完之后冻结的实测值，**零余量**：往里加字就 FAIL；把字砍掉了就把这个数改成新的实测值——
    往下改，不是往上留空间。写宽了就等于没写（这条闸门的目标是「不再胖回去」，不是「够胖才舒服」）。 */
-const ENTRY_TOTAL_BUDGET = 165;
+const ENTRY_TOTAL_BUDGET = 0;
 {
   const r = spawnSync(process.execPath,
     [join(root, "tools", "entry-audit.mjs"), "--strict", "--max-total", String(ENTRY_TOTAL_BUDGET)],

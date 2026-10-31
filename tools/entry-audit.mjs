@@ -7,8 +7,8 @@
  *   node tools/entry-audit.mjs --json          机器可读，砍前后拿同一份口径对账
  *
  * 预算给两个口径：合计看「这一刀砍下去没有」（单屏会放过一句超长说明句），
- * 单屏看「有没有哪一屏偷偷长回去」。模块说明句（如「按身份与场合写讲话稿 / 倡议书」）是
- * 「这类题包括什么」，按四类规矩要留，所以合计比单屏更适合作为主闸门。
+ * 单屏看「有没有哪一屏偷偷长回去」。2026-11-01 起入口屏一句说明性文案都不写（预算 0），
+ * 合计这一档只是把「零」钉住：哪屏又冒出一句，数就立刻不是 0。
  *
  * 为什么要拿脚本盯文案
  * ────────────────────
@@ -54,7 +54,7 @@ if (maxCharsIdx >= 0 && !(MAX_CHARS > 0)) {
 }
 const maxTotalIdx = flagOf("--max-total");
 const MAX_TOTAL = maxTotalIdx >= 0 ? Number(argv[maxTotalIdx + 1]) : null;
-if (maxTotalIdx >= 0 && !(MAX_TOTAL > 0)) {
+if (maxTotalIdx >= 0 && !(MAX_TOTAL >= 0)) {   // 允许 0：入口屏已经一句说明性文案都不写，预算就该是 0
   console.error("--max-total 要跟一个正整数");
   process.exit(2);
 }
