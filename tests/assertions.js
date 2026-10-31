@@ -3356,6 +3356,18 @@ ok(PAGE_HTML.indexOf('body.wide-review .grade-columns{grid-template-columns:minm
    "横版批改: 宽窗对照两栏，窄窗回单栏，区域可收缩不撑破纸面");
 ok(PAGE_HTML.indexOf('--mat:var(--wash)') >= 0 && PAGE_HTML.indexOf('--write:var(--ctl)') >= 0,
    "纸面配色: 材料使用中性浅底，作答使用控件纸色，不叠彩色纸面");
+ok(PAGE_HTML.indexOf('html{overflow-y:scroll;scrollbar-gutter:stable;}') >= 0,
+   "视觉对齐: 长短页面都保留滚动条槽，换页纸面不横移");
+const polishSelf = (PAGE_HTML.match(/\.selfbox\{[^}]+\}/) || [""])[0];
+ok(polishSelf.indexOf('padding:0;border:none;background:none') >= 0,
+   "视觉精修: 自述只保留可输入框，不在输入框外再套一层卡片");
+const polishHead = (PAGE_HTML.match(/\.ghead\{[^}]+\}/) || [""])[0];
+ok(polishHead.indexOf('padding:0 0 16px;background:none') >= 0
+   && polishHead.indexOf('border-bottom:1px solid var(--line-soft)') >= 0,
+   "视觉精修: 分数按正文边缘对齐，用轻底线分隔而非大底色卡片");
+ok(PAGE_HTML.indexOf('.grade-columns .secrow{min-height:28px;') >= 0
+   && PAGE_HTML.indexOf('.grade-detail>.sec-title{min-height:28px;') >= 0,
+   "视觉对齐: 答卷图例与解析标题共享行高，左右内容同高起排");
 ok(H22.indexOf(">解析<") >= 0 && H22.indexOf(">我的答案<") < 0 && H22.indexOf(">参考答案<") < 0,
    "批改页: 只留「解析」标题，答卷与解析分区，范文平铺");
 ok(H22.indexOf('class="answerreview"') < H22.indexOf(">解析<")
