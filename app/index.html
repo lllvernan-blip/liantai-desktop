@@ -1151,6 +1151,13 @@ const SL_STUDY_CARDS = {
 };
 const MAX_OPEN_FLOWS = 20;   // state.flows 只留最近 20 条；有未提交草稿的 flow 永不自动裁剪
 let _flowId = null;          // 当前进行中的训练链 id
+/* 限时必须在这里：load() 在模块顶层就调用，读盘与导入都要用它夹平脏值，摆到后面会撞 TDZ。 */
+const LIMIT_MAX = 600;   // 时长不分档，上限只防手滑写错一位数；真要不限时，把框留空
+function normLimitMin(v){   // 空 / 0 / 乱填 = 不限时（0）；小数取整，超过上限按上限
+  const n = Math.round(Number(v));
+  if(!isFinite(n) || n <= 0) return 0;
+  return Math.min(LIMIT_MAX, n);
+}
 /* 必须定义在 let state = load() 之前：load() 的 flows 迁移要读 FLOW_STEPS，放后面会撞 TDZ 被静默吞掉 */
 /* 综应A 只在内存里放 current；恢复快照必须校验过才用（导入 / 旧数据都可能塞进坏形状）。 */
 function sanitizeResumeZy(r){
@@ -1159,7 +1166,7 @@ function sanitizeResumeZy(r){
   if(!q || typeof q!=="object" || typeof q.background!=="string" || typeof q.requirements!=="string") return null;
   const m = migrateModuleKey(String(r.module || ""));
   if(!MODULES[m] || usesFlowChain(m)) return null;   // 申论走 flows，不走这个快照
-  const lim = Math.max(0, Math.min(600, Math.round(Number(r.limitMin) || 0)));
+  const lim = normLimitMin(r.limitMin);
   return { module:m, subtype: typeof r.subtype === "string"? r.subtype : "",
     question:q, keyPoints: Array.isArray(r.keyPoints)? r.keyPoints : [],
     studyCard: (r.studyCard && typeof r.studyCard === "object")? r.studyCard : null,
@@ -1192,6 +1199,10 @@ function sanitizeFlows(list){
     if(o.step === "distill") o.step = "review";   // 沉淀并进批改页：停在这一步的老链回到「批改」
     for(const k of ["keyPoints","attempts","selections","groups"]) if(!Array.isArray(o[k])) o[k] = [];
     if(o.closedAt == null) o.closedAt = null;
+    /* 限时与起点只收 0–LIMIT_MAX 的整数：脏值最后会进输入框属性。没带的保持 undefined——
+       curLimitMin 靠它回落到全局设置，夹成 0 会把「下一题沿用上次时长」弄丢。 */
+    if(o.limitMin != null) o.limitMin = normLimitMin(o.limitMin);
+    if(o.limitFrom != null) o.limitFrom = Math.max(0, Number(o.limitFrom) || 0);
     return o;
   });
 }
@@ -1310,8 +1321,16 @@ function sanitizePaper(p){
     for(const k of Object.keys(p.answers)){
       const i = Number(k); if(!(i >= 0 && i < qs.length)) continue;
       const a = p.answers[k]; if(!a || typeof a !== "object") continue;
+      /* 批改对象是复看页所有渲染的入口：备份里的形状不可信，hits/causes/weaknesses 不是数组就夹平，
+         否则复看一开门 answerMarks 就会撞上不可迭代物、weaknesses.map 也会直接抛。 */
+      const ag = (a.g && typeof a.g === "object" && !Array.isArray(a.g))? a.g : null;
+      const g = ag? Object.assign({}, ag, {
+        hits:Array.isArray(ag.hits)? ag.hits : [],
+        causes:Array.isArray(ag.causes)? ag.causes : [],
+        weaknesses:Array.isArray(ag.weaknesses)? ag.weaknesses : []
+      }) : null;
       answers[i] = { answer:String(a.answer || ""), total:Number(a.total) || 0,
-                     g:(a.g && typeof a.g === "object")? a.g : null,
+                     g,
                      /* 复看批改要用回执与限时：跟答卷一起存，重开应用也还在 */
                      expCheck:(a.expCheck && typeof a.expCheck === "object")? a.expCheck : null,
                      time:(a.time && typeof a.time === "object")? a.time : null,
@@ -1346,6 +1365,7 @@ function load(){
     s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings||{});
     if(s.settings.orgName === LEGACY_ORG) s.settings.orgName = "模拟练习专用";  // 旧默认机关名迁移：个人工具不必像真单位
     s.settings.markColor = normMarkColor(s.settings.markColor);   // 只认自己那几个色，别的值会让 --mark 变成一句废 CSS
+    s.settings.timeLimit = normLimitMin(s.settings.timeLimit);    // 限时同理：值会进输入框属性，读盘时就夹平
     if(!SUBJECTS[s.settings.subject]) s.settings.subject = DEFAULT_SUBJECT;       // 旧数据没有科目这一层，补默认
     s.profile = (s.profile && typeof s.profile === "object" && !Array.isArray(s.profile))? s.profile : {};
     // profile.modules 是旧数据 pass-through 容器：只补科目前缀，不再重建/补默认聚合字段（画像由 history 即时推导）
@@ -4587,12 +4607,6 @@ function stepPanelHtml(step, f, lg){
    读了多久、归了多久、写了多久都算在里，切步与刷新不重置；交卷停表（再进一稿是下一次尝试）。
    剩余时间在题目行与作答区标题行右侧，剩最后 5 分钟转焦橙，第一次超时时报一声
    （不自动交卷：写到一半被截断是不可逆的）。 */
-const LIMIT_MAX = 600;   // 时长不分档，上限只防手滑写错一位数；真要不限时，把框留空
-function normLimitMin(v){   // 空 / 0 / 乱填 = 不限时（0）；小数取整，超过上限按上限
-  const n = Math.round(Number(v));
-  if(!isFinite(n) || n <= 0) return 0;
-  return Math.min(LIMIT_MAX, n);
-}
 let _timeUpSaid = false, _timeTick = null;
 function curLimitMin(){
   const f = activeFlow();
@@ -4623,7 +4637,7 @@ function limitRowHtml(){
   const cur = curLimitMin();
   return `<span class="tlrow"><span class="tlcap">限时</span><span class="tlleft" id="timeLeft"></span><span class="tlset">` +
     `<input class="tlin" id="inpLimit" type="number" min="1" max="${LIMIT_MAX}" step="1" inputmode="numeric"` +
-    ` placeholder="不限时" value="${cur? cur : ""}" title="作答限时（分钟，留空为不限时）" aria-label="作答限时（分钟）">` +
+    ` placeholder="不限时" value="${cur? esc(String(cur)) : ""}" title="作答限时（分钟，留空为不限时）" aria-label="作答限时（分钟）">` +
     `<span class="tlunit">分钟</span></span></span>`;
 }
 function fmtClock(sec){   // mm:ss：剩余时间、用时、超时都用这一种写法
@@ -5886,6 +5900,7 @@ function importJSON(file){
       state.settings.apiKey = keepCfg.apiKey;
       if(state.settings.orgName === LEGACY_ORG) state.settings.orgName = "模拟练习专用";
       state.settings.markColor = normMarkColor(state.settings.markColor);   // 备份里的取值同样过这一道
+      state.settings.timeLimit = normLimitMin(state.settings.timeLimit);    // 限时也不许原样采用备份里的字符串
       if(!SUBJECTS[state.settings.subject]) state.settings.subject = DEFAULT_SUBJECT;
       /* 引导序列的进度：备份带的是同一代结构（tutVersion 相同）就接着用。
          不恢复的话，导入一份自己已经走完过的备份会从头再教一遍（结构不同代的不能硬搬，宁可重放）。 */

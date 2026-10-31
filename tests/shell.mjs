@@ -1057,8 +1057,9 @@ if (process.platform !== "darwin") {
 
   const csp = policy.cspFor("NONCE");
   ok(csp.indexOf("default-src 'none'") >= 0 && csp.indexOf("object-src 'none'") >= 0
-     && csp.indexOf("frame-ancestors 'none'") >= 0 && csp.indexOf("base-uri 'none'") >= 0,
-     "壳/CSP: 默认全禁（default/object/frame-ancestors/base-uri）");
+     && csp.indexOf("frame-ancestors 'none'") >= 0 && csp.indexOf("base-uri 'none'") >= 0
+     && csp.indexOf("form-action 'none'") >= 0,
+     "壳/CSP: 默认全禁（default/object/frame-ancestors/base-uri/form-action）");
   ok(csp.indexOf("script-src 'nonce-NONCE'") >= 0 && csp.indexOf("'unsafe-eval'") < 0
      && csp.indexOf("script-src 'self'") < 0,
      "壳/CSP: 脚本只认 nonce——不给 unsafe-eval，也不给 self（没有外部脚本要加载）");

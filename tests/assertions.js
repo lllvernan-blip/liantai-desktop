@@ -2185,6 +2185,22 @@ ok(JSON.stringify(state.profile.modules) === "{}" && JSON.stringify(state.profil
 ok(state.cache.studyCards && typeof state.cache.studyCards === "object", "导入: cache 非对象丢用默认值");
 ok(Array.isArray(state.experiences) && Array.isArray(state.flows) && Array.isArray(state.history), "导入: experiences/flows/history 非数组丢用默认值");
 
+/* 14.11d 限时：备份里的值会进输入框属性，入口夹平与输出转义两道都要在 */
+importJSON(JSON.stringify({ settings:{ timeLimit:'"><img src=x>' }, history:[] }));
+ok(state.settings.timeLimit === 0, "导入: 限时只认 0–600 的整数，脏值归 0（不限时）");
+ok(sanitizeFlows([{ id:"lim1", step:"read", question:{ background:"b" }, limitMin:'"><img src=x>', limitFrom:"nope" }])[0].limitMin === 0,
+   "训练链: limitMin 在导入时夹平");
+ok(sanitizeFlows([{ id:"lim2", step:"read", question:{ background:"b" } }])[0].limitMin === undefined,
+   "训练链: 没带 limitMin 的保持 undefined（下一题仍沿用上次时长）");
+{
+  const keepTL = state.settings.timeLimit, keepCur = current, keepFlowId = _flowId;
+  current = null; _flowId = null;
+  state.settings.timeLimit = '"><img src=x onerror=1>';
+  const tlHtml = limitRowHtml();
+  state.settings.timeLimit = keepTL; current = keepCur; _flowId = keepFlowId;
+  ok(tlHtml.indexOf("<img") < 0 && tlHtml.indexOf("&lt;img") >= 0, "限时: 输入框值转义，上游漏掉的脏值也变不成标签");
+}
+
 /* 14.11b 导入时草稿与划线同口径：本机已有的那份不被旧备份覆盖 */
 saveDraft("qImpDraft", "本机较新的草稿");
 importJSON('{"drafts":{"qImpDraft":{"text":"备份里的旧草稿"}}}');
@@ -4178,6 +4194,14 @@ globalThis.window = _savedWinUpd;
   ok(paperRound && paperRound.answers[0] && paperRound.answers[0].expCheck
      && paperRound.answers[0].time && paperRound.sources[0].media === "人民日报",
      "整卷: 复看所需的答卷/回执/限时与来源明细随卷保存");
+
+  // 备份里的批改对象形状不可信：hits 若是对象，复看页的 answerMarks 会撞上不可迭代物；weaknesses 同理
+  const dirtyG = sanitizePaper(Object.assign(mkPaper(), {
+    answers:{ 0:{ answer:"a", total:1, g:{ hits:{ bad:1 }, causes:"x", weaknesses:"不是数组" } } }
+  }));
+  ok(dirtyG && Array.isArray(dirtyG.answers[0].g.hits) && dirtyG.answers[0].g.hits.length === 0
+     && Array.isArray(dirtyG.answers[0].g.causes) && Array.isArray(dirtyG.answers[0].g.weaknesses),
+     "整卷: 脏批改对象在清洗时夹平（hits/causes/weaknesses 非数组先归空，复看不整页抛错）");
 
   // 生成路径：池子给 4 篇，材料 + 5 题都由假 callLLM 返回；6 次调用必须全接上
   const _callPaper = callLLM, _winPaper = globalThis.window;
