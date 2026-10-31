@@ -147,6 +147,13 @@ html,body{margin:0;padding:0;}
   .subtypechips .catgroup + .catgroup{margin-top:12px;}
   .subtypechips .catlabel{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);margin-bottom:8px;}
   .subtypechips .catchips{display:flex;flex-wrap:wrap;gap:8px;}
+  /* 类别名同时是折叠头（文种墙默认收起）：折叠三角走全局那一套——flex 行、margin-left:auto、12px + --line-strong */
+  .subtypechips .catgroup>summary{display:flex;align-items:baseline;gap:8px;cursor:pointer;list-style:none;}
+  .subtypechips .catgroup>summary::-webkit-details-marker{display:none;}
+  .subtypechips .catgroup>summary:hover{color:var(--ink);}
+  .subtypechips .catlabel small{font-size:var(--fs-note);color:var(--muted-2);font-weight:400;font-variant-numeric:tabular-nums;}   /* 同 .chip small：不写就掉进六档之外的野字号 */
+  .subtypechips .catgroup>summary::after{content:"▸";margin-left:auto;font-size:var(--fs-note);color:var(--line-strong);flex:0 0 auto;}
+  .subtypechips .catgroup[open]>summary::after{content:"▾";}
 /* 快判落地页：主行动 → 顶部形式入口 → 默认收起的主题设置。 */
 .pdforms{margin-top:24px;}
 /* 科目页/模块落地页尾部的模块切换行：这是次级导航，降半档（小一号、淡色），
@@ -3237,8 +3244,10 @@ function renderModuleLanding(k){
     const st = subtypeStat(k,t);
     return `<button class="chip" data-t="${t}">${t}${st? ` <small>${Math.round(st.avg)}分·${st.n}次</small>`:""}</button>`;
   };
-  /* 公文写作按法定公文 / 应用文分组：21 颗胶囊平铺时收尾必剩一颗孤儿行。
-     分组只改排版，点了仍是一颗文种出一次题 */
+  /* 公文写作按法定公文 / 应用文分组，且**默认收起**：二十来颗胶囊摊在入口屏是一面墙，
+     而它只在「我要自己挑一个文种」时才用得上——主行动与成绩那行才是这一屏的主角。
+     点类别名才铺（类别名同时是折叠头，带数量，收起时也说得清后面是什么）。
+     分组与折叠只改排法，点一颗仍是一颗文种出一次题。 */
   let subsHtml;
   if(k === GONGWEN_KEY){
     const groups = [];
@@ -3249,7 +3258,7 @@ function renderModuleLanding(k){
       g.types.push(t);
     }
     subsHtml = `<div class="subtypechips subtypechips-grouped" style="margin-top:16px">`
-      + groups.map(g=>`<div class="catgroup"><div class="catlabel">${esc(g.cat)}</div><div class="catchips">${g.types.map(chipFor).join("")}</div></div>`).join("")
+      + groups.map(g=>`<details class="catgroup"><summary class="catlabel">${esc(g.cat)}<small>${g.types.length} 种</small></summary><div class="catchips">${g.types.map(chipFor).join("")}</div></details>`).join("")
       + `</div>`;
   }else{
     subsHtml = `<div class="subtypechips" style="margin-top:16px">${subs.map(chipFor).join("")}</div>`;

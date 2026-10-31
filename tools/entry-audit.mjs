@@ -143,14 +143,17 @@ function splitBlocks(htmlText) {
     for (let i = stack.length - 1; i >= 0; i--) if (stack[i].region) return stack[i].region;
     return "其他";
   };
-  let buf = "", bufRegion = null, last = 0, m;
+  // 收起的 details 里的字此刻在屏幕上看不见，但字还是写了——分开记两行，别让「折起来」冒充「减了字」
+  const foldedNow = () => stack.some((s) => s.fold === "closed");
+  let buf = "", bufRegion = null, bufFolded = false, last = 0, m;
   const emit = () => {
     const t = decodeEnt(buf).replace(/\s+/g, " ").trim();
-    if (t) out.push({ region: bufRegion || "其他", text: t });
+    if (t) out.push({ region: bufRegion || "其他", text: t, folded: bufFolded });
     buf = "";
     bufRegion = null;
+    bufFolded = false;
   };
-  const add = (t) => { if (!bufRegion) bufRegion = regionNow(); buf += t; };
+  const add = (t) => { if (!bufRegion) { bufRegion = regionNow(); bufFolded = foldedNow(); } buf += t; };
   while ((m = tagRe.exec(htmlText))) {
     const chunk = htmlText.slice(last, m.index);
     last = tagRe.lastIndex;
@@ -179,7 +182,7 @@ function splitBlocks(htmlText) {
       const hit = REGION_BY_CLASS.find((r) => r[0] === token);
       if (hit) { region = hit[1]; break; }
     }
-    stack.push({ tag, region });
+    stack.push({ tag, region, fold: tag === "details" && !/\bopen\b/.test(m[3] || "") ? "closed" : "open" });
     if (BLOCK_TAGS.has(tag)) emit();
   }
   if (htmlText.length > last) add(htmlText.slice(last));
@@ -222,6 +225,7 @@ const rows = screens.map((sc) => {
   return {
     name: sc.name, kind: sc.kind, subject: sc.subject, module: sc.module,
     totalChars: blocks.reduce((n, b) => n + CHARS(b.text), 0),
+    foldedChars: blocks.filter((b) => b.folded).reduce((n, b) => n + CHARS(b.text), 0),
     proseChars, byRegion, clauses, blocks,
   };
 });
@@ -272,15 +276,17 @@ if (JSON_OUT) {
 
 const pad = (s, n) => s + " ".repeat(Math.max(0, n - [...s].reduce((a, ch) => a + (ch.charCodeAt(0) > 255 ? 2 : 1), 0)));
 const regionLine = (r) => ["标题", "说明句", "主行动", "胶囊", "声明", "数据行", "其他"].map((k) => `${k} ${r.byRegion[k] || 0}`).join(" · ");
+// 折叠里的字仍记账（字是写了的），但单独报一行——否则「把文案折起来」会冒充「把文案删掉」
+const foldNote = (r) => (r.foldedChars ? `   其中折叠内 ${r.foldedChars} 字（收起时看不见）` : "");
 
 console.log(`入口屏文案体检 · app/index.html（共 ${rows.length} 屏：首页 1 + 科目起始页 2 + 模块落地页 ${rows.length - 3}）`);
 console.log("文案账只记 标题 / 说明句 / 其他；按钮是行动、胶囊是模块名、声明与数据行各有各的规矩，不背这个账。");
 console.log("");
 for (const r of rows) {
-  console.log(`■ ${pad(r.name, 18)} 文案 ${String(r.proseChars).padStart(3)} 字 / 全页 ${String(r.totalChars).padStart(3)} 字   ${regionLine(r)}`);
+  console.log(`■ ${pad(r.name, 18)} 文案 ${String(r.proseChars).padStart(3)} 字 / 全页 ${String(r.totalChars).padStart(3)} 字   ${regionLine(r)}${foldNote(r)}`);
   for (const b of r.blocks) {
     if (!PROSE_REGIONS.has(b.region)) continue;
-    console.log(`    ▸ [${b.region}] ${b.text}`);
+    console.log(`    ▸ [${b.region}] ${b.text}${b.folded ? "（折叠内）" : ""}`);
   }
   for (const c of r.clauses) {
     const tags = [];
@@ -307,8 +313,10 @@ console.log(`  合计 ${tut.length} 步 · ${tut.reduce((n, t) => n + CHARS(t.te
 
 console.log("");
 console.log("—— 汇总 ——");
+const foldedTotal = rows.reduce((n, r) => n + r.foldedChars, 0);
 console.log(`  文案合计 ${proseTotal} 字（均值 ${(proseTotal / rows.length).toFixed(1)}）`
-  + (MAX_TOTAL > 0 ? ` / 预算 ${MAX_TOTAL}` + (overTotal ? " ✗ 超了" : " ✔") : ""));
+  + (MAX_TOTAL > 0 ? ` / 预算 ${MAX_TOTAL}` + (overTotal ? " ✗ 超了" : " ✔") : "")
+  + (foldedTotal ? `；另有 ${foldedTotal} 字收在折叠里（收起时看不见，账仍记着）` : ""));
 console.log(`  流程句 ${pipelineHits.length} 条 · 机制词命中 ${mechanismHits.length} 条 · 重复口径 ${repeats.size} 句`);
 for (const [text, names] of repeats) console.log(`    「${text}」×${names.length}：${names.slice(0, 4).join("、")}${names.length > 4 ? "…" : ""}`);
 

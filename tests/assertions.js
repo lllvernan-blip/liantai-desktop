@@ -1643,10 +1643,12 @@ ok(PD_FORMS[PD_MIX] && PD_FORM_ORDER.every(id=> PD_FORMS[id] && PD_FORMS[id].spe
 /* ①b 返回综合：再点当前科目按钮 = 回起始页，不用绕道切科目再切回来 */
 renderModuleLanding("zy.gongwen");
 const gwLand = el("#docBody").innerHTML;
-ok(gwLand.indexOf("subtypechips-grouped") >= 0 && gwLand.indexOf(">法定公文<") >= 0 && gwLand.indexOf(">应用文<") >= 0,
-   "公文落地页: 21 个文种按法定 / 应用文分组（不分组时收尾必剩孤儿行）");
+ok(gwLand.indexOf("subtypechips-grouped") >= 0 && gwLand.indexOf("法定公文<small>11 种</small>") >= 0
+   && gwLand.indexOf("应用文<small>10 种</small>") >= 0
+   && (gwLand.match(/<details class="catgroup">/g) || []).length === 2 && gwLand.indexOf('class="catgroup" open') < 0,
+   "公文落地页: 21 个文种收成两组、默认收起（类别名是折叠头、带数量，收起时也说得出后面铺什么）");
 ok((gwLand.match(/data-t="/g) || []).length === GONGWEN_TYPES.length,
-   "公文落地页: 分组只改排版，文种一颗不少");
+   "公文落地页: 折叠只改排法，文种一颗不少、一颗不合并");
 ok(el("#docBody").innerHTML.indexOf("data-start=") < 0,
    "返回综合: 前置——人在公文写作落地页");
 backToStart();
