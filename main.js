@@ -382,6 +382,15 @@ function applyMenu() {
    用户手动调过就记住（userData/window-bounds.json），下次按他的来；读不到/不合法就用默认，不算错。
    最大化/全屏状态不写回：那不是用户想要的「窗口大小」，下次开机不该被扣在全屏上。 */
 const WIN_DEFAULT = { width: 1280, height: 800 };
+/* Windows 的 width/height 是含标题栏的整窗尺寸，mac 的 hiddenInset 顶栏盖在内容上、同值就是内容尺寸：
+   同一个 800，Win 的可视高比 mac 少 32px 左右，正好跨过页面 780/820 两档封顶——同一版本两端纸面不一样大。
+   这里给非 mac 补回那 32px，并夹进当前显示器工作区（1366×768 的笔记本上任务栏后只剩 ~728，别把纸的底边裁掉）。 */
+const WIN_FRAME_H = 32;
+function defaultWinHeight(want) {
+  let h = (Number(want) || WIN_DEFAULT.height) + (process.platform === 'darwin' ? 0 : WIN_FRAME_H);
+  try { h = Math.min(h, screen.getPrimaryDisplay().workArea.height); } catch (e) {}
+  return Math.max(WIN_MIN.height, h);
+}
 /* 最小窗口与 loadWindowBounds 的合法下限同值（900×600）：拖到下限就停住，不再出现
    「本次拖到 850、下次启动被退回默认」；纸面 760px 加两侧 16px 留白也不至于贴到窗口边。 */
 const WIN_MIN = { width: 900, height: 600 };
@@ -463,7 +472,7 @@ function createWindow() {
   const saved = loadWindowBounds();
   mainWindow = new BrowserWindow({
     width: saved ? saved.width : WIN_DEFAULT.width,
-    height: saved ? saved.height : WIN_DEFAULT.height,
+    height: saved ? saved.height : defaultWinHeight(WIN_DEFAULT.height),
     minWidth: WIN_MIN.width,
     minHeight: WIN_MIN.height,
     ...(saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? { x: saved.x, y: saved.y } : { center: true }),
@@ -498,6 +507,15 @@ function createWindow() {
   if (process.platform !== 'darwin') mainWindow.setMenuBarVisibility(false);
 
   const wc = mainWindow.webContents;
+
+  /* 右键菜单：Electron 默认不给，作答框里连「粘贴」都点不出来（Windows 用户尤其靠右键粘贴，
+     而菜单栏在 Win 上是隐藏的，连个兜底入口都没有）。只在可编辑处弹，只给编辑四件，不掺别的。 */
+  wc.on('context-menu', (_e, params) => {
+    if (!params.isEditable) return;
+    Menu.buildFromTemplate([
+      { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+    ]).popup({ window: mainWindow });
+  });
 
   wc.on('did-finish-load', () => {
     log('did-finish-load', wc.getURL());
@@ -706,8 +724,18 @@ if (!gotLock) {
 
   app.on('window-all-closed', () => {
     log('window-all-closed');
+    /* mac 的惯例是关窗后留在 Dock、点图标重开（见下面的 activate）：这里不能停服务，
+       否则重开的窗口 load 的是一个已经关掉的端口。Windows / Linux 上关窗就是用完了，照旧退。 */
+    if (process.platform === 'darwin') return;
     stopServer();
     app.quit();
+  });
+
+  /* 只在 mac 上会触发：Dock 图标被点。窗口还在就抬到前面，已被关掉就重建一个 */
+  app.on('activate', () => {
+    log('activate', 'window=' + (mainWindow && !mainWindow.isDestroyed() ? 'exists' : 'none'));
+    if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); return; }
+    if (app.isReady()) createWindow();
   });
 
   app.on('before-quit', () => {

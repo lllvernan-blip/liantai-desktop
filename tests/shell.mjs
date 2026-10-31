@@ -1093,6 +1093,17 @@ if (process.platform !== "darwin") {
   ok(!/indexOf\('http:\/\/' \+ HOST \+ ':'\)/.test(mainSrc),
      "壳: 不再有「任何 127.0.0.1 端口都放行」的前缀判法");
 
+  /* 平台差异（2026-10-31 盘点）：这三处都是「在 mac 上开发、装到 Windows 才发现不对」那类 */
+  ok(/if \(process\.platform === 'darwin'\) return;/.test(mainSrc)
+     && /app\.on\('activate'/.test(mainSrc),
+     "壳/mac: 关窗后留在 Dock（不停服务，activate 里重建窗口），Windows 上照旧退出");
+  ok(/wc\.on\('context-menu'/.test(mainSrc) && /params\.isEditable/.test(mainSrc)
+     && /\{ role: 'paste' \}/.test(mainSrc),
+     "壳: 可编辑处右键给剪切/复制/粘贴（Win 菜单栏是隐藏的，不给就粘不进去）");
+  ok(/height: saved \? saved\.height : defaultWinHeight\(WIN_DEFAULT\.height\)/.test(mainSrc)
+     && /const WIN_FRAME_H = 32/.test(mainSrc) && /workArea\.height/.test(mainSrc),
+     "壳: 非 mac 的默认高补回标题栏那 32px 并夹进工作区（同一默认值两端内容高差不再跨过缩放档位）");
+
   /* 主进程 require 的仓内模块必须在 build.files 里：漏一个，包里的 main.js 就 require 不到——
      本地源码直跑一切正常，装上才知道。（electron-builder 只拿 files 列的东西，不是整个仓库。） */
   const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
