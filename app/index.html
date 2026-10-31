@@ -65,7 +65,6 @@
     --sh-1:0 1px 3px rgba(31,31,31,.06);
     --sh-2:0 2px 10px rgba(31,31,31,.10);
     --sh-3:0 12px 40px rgba(0,0,0,.18);
-    /* 纸面浮在桌面上（.doc、FAB 同用）：人感 Demo 的 --shadow 档——暖调、大而淡，白纸才立得住 */
     --scrim:rgba(25,22,16,.45);   /* 引导挖孔外的暗遮罩（暖调，与纸面同族） */
     --sh-tip:0 10px 30px rgba(25,22,16,.28), 0 2px 6px rgba(25,22,16,.18);   /* 墨底气泡的柔影 */
     --tip-dim:rgba(255,253,248,.55); --tip-dim-2:rgba(255,253,248,.6);   /* 墨底上的次级白字两档 */
@@ -193,6 +192,9 @@ html,body{margin:0;padding:0;}
   .start-entry .actions:has(.big) .big{width:100%;min-width:0;}
   /* 科目入口等分动作列，热区高 48。 */
   .start-entry .chiprow .chip{flex:1 1 0;white-space:nowrap;justify-content:center;min-height:96px;font-size:var(--fs-hero);padding:0 24px;border-radius:var(--r-ctl);}
+  /* 入口底部那一行进度：一屏三块动作占不满整张纸，剩下的空白用它压住。
+     数字全来自练习记录里带 grade 的那几条，没有记录就不出现（空态不摆「你还没开始练」这种话）。 */
+  .start-entry .histent{width:min(var(--act-col),100%);margin:32px auto 0;font-size:var(--fs-title);color:var(--muted);letter-spacing:.5px;}
   /* 「继续上次」「做一套卷」两行：一行信息 + 一颗按钮。那颗键必须是看得见的按钮——
      透明灰字看不住能点，整片入口会被读成说明文字（2026-11-01 改回描边）。
      字左对齐、键靠右，装不下就省略号收在中间那句上。 */
@@ -2989,6 +2991,11 @@ function startBoxHtml(resume){
     ? ""
     : (state.settings.apiKey? "选好模型就能开始" : "填好 API Key 就能开始");
   const paperAns = (state.paper && Array.isArray(state.paper.answers))? state.paper.answers.filter(Boolean).length : 0;
+  /* 进度只按真记录算：哪条有批改结果（grade.total > 0）才算练完一题。
+     平均表现用得分率——各题型满分不一样（10 / 15 / 20 分），直接平均分数是拿不同的尺子加在一起。 */
+  const done = (Array.isArray(state.history)? state.history : []).filter(h=> h && h.grade && h.grade.total > 0);
+  const avgRate = done.length? Math.round(done.reduce((a,h)=> a + (Number(h.grade.scored)||0) / h.grade.total, 0) / done.length * 100) : 0;
+  const statHtml = done.length? `<div class="histent">已练 ${done.length} 题 · 平均 ${avgRate}%</div>` : "";
   /* 整卷那颗：没有卷时它只是一个入口（一句话把「整卷」说清），有卷时才拆成「进度 + 动作」两半。
      两行都留在 .actions 这个容器里：文案账（tools/entry-audit.mjs）按容器认区域，
      `.actions` 记主行动、不认得的记成正文——换个类名就等于凭空给这一屏多写 11 个字。 */
@@ -3004,6 +3011,7 @@ function startBoxHtml(resume){
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="chiprow">${bigs}</div>
     ${resumeHtml}
+    ${statHtml}
     ${foot? `<div class="hero-foot">${foot}</div>` : ""}
   </div>`;
   }
