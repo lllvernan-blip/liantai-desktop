@@ -10,6 +10,7 @@
     "test": "node tests/run.mjs",
     "check": "node tools/loop.mjs",
     "check:staged": "node tools/loop.mjs --staged --quiet",
+    "audit:entry": "node tools/entry-audit.mjs",
     "hooks:install": "node tools/install-hooks.mjs",
     "dist": "node tools/stamp-build.mjs && electron-builder --win nsis --publish never",
     "test:build": "node tools/build-test.mjs",
