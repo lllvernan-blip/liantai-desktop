@@ -25,7 +25,7 @@ import { createRequire } from "node:module";
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -105,7 +105,7 @@ function initKey() {
 function doSign(file) {
   if (!file || !existsSync(file)) die("要签的包不存在：" + (file || "(没给路径)") + "\n用法：node tools/mac-key.mjs --sign dist/xxx.zip");
   const priv = loadPrivate();
-  const payload = macSigPayload(sha256Hex(file), file.split("/").pop());
+  const payload = macSigPayload(sha256Hex(file), basename(file));
   const sig = sign(null, Buffer.from(payload, "utf8"), priv).toString("base64");
   writeFileSync(file + ".sig", sig + "\n");
   console.log("已签名：" + file + ".sig");
@@ -118,7 +118,7 @@ function doVerify(file) {
   if (!file || !existsSync(file)) die("要验的包不存在：" + (file || "(没给路径)"));
   const priv = loadPrivate();
   const pub = createPublicKey(priv);
-  const payload = macSigPayload(sha256Hex(file), file.split("/").pop());
+  const payload = macSigPayload(sha256Hex(file), basename(file));
   const sig = readSig(file);
   const good = verify(null, Buffer.from(payload, "utf8"), pub, sig);
   if (!good) die("签名验不过：" + file + "\n（这次签名用的不是 " + KEY_PATH + " 里那把私钥，或者包在签名之后被改过。）");
