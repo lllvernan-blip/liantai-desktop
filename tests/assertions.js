@@ -1642,6 +1642,11 @@ ok(PD_FORMS[PD_MIX] && PD_FORM_ORDER.every(id=> PD_FORMS[id] && PD_FORMS[id].spe
 
 /* ①b 返回综合：再点当前科目按钮 = 回起始页，不用绕道切科目再切回来 */
 renderModuleLanding("zy.gongwen");
+const gwLand = el("#docBody").innerHTML;
+ok(gwLand.indexOf("subtypechips-grouped") >= 0 && gwLand.indexOf(">法定公文<") >= 0 && gwLand.indexOf(">应用文<") >= 0,
+   "公文落地页: 21 个文种按法定 / 应用文分组（不分组时收尾必剩孤儿行）");
+ok((gwLand.match(/data-t="/g) || []).length === GONGWEN_TYPES.length,
+   "公文落地页: 分组只改排版，文种一颗不少");
 ok(el("#docBody").innerHTML.indexOf("data-start=") < 0,
    "返回综合: 前置——人在公文写作落地页");
 backToStart();
@@ -1953,6 +1958,8 @@ ok(PAGE_HTML.indexOf('id="btnHome"') >= 0 && PAGE_HTML.indexOf('$("#btnHome").on
 ok(/id="btnHome"[^>]*data-tip="首页"[^>]*><img src="data:image\/png;base64,/.test(PAGE_HTML)
    && PAGE_HTML.indexOf(".toolbar .brand::before") < 0 && PAGE_HTML.indexOf('title="回到起始页"') < 0,
    "品牌位: 应用图标 data URI + 「首页」悬浮提示；红竖条代标与旧 title 双份提示都撤了");
+ok(/<link rel="icon" href="data:image\/svg\+xml,/.test(PAGE_HTML),
+   "窗口图标: 内联 data URI（不引外部资源，启动不再为 favicon 打 404）");
 renderHome();
 ok(_view === "home" && el("#subjbar").innerHTML.indexOf("active") < 0,
    "首页: 从科目页回得来，回到的是无选中态");
@@ -2341,6 +2348,9 @@ state.settings.keyNoticeDismissed = false;
 renderStartNotices();
 ok(el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") >= 0 && el("#bannerSlot").innerHTML.indexOf("btnKeyNoticeOff") >= 0,
    "提示: 没填 Key 时，首页的欢迎提示如实只讲填 Key（示例轮已下线，不再说「不用 Key 也能练」）");
+ok(el("#bannerSlot").innerHTML.indexOf('class="banner-actions"') >= 0
+   && el("#bannerSlot").innerHTML.indexOf('class="banner-actions"> <button class="linkbtn" id="bnrOpenSettings"') >= 0,
+   "提示: 欢迎条的两个动作包在同一组里（窄窗折行不拆成两行字）");
 /* 欢迎条可关：点「关闭」当场收掉这条，之后没 Key 也不再弹；其他提示（小更新/预览窗警告）不受它影响 */
 el("#btnKeyNoticeOff").onclick();
 ok(state.settings.keyNoticeDismissed === true && el("#bannerSlot").innerHTML.indexOf("填上 API Key 就能练大题与快判") < 0
@@ -2360,7 +2370,8 @@ state.settings.baseUrl = __baseBefore;
 /* ---- 静态 HTML：设置页的 API Key 申请教程（新用户的第一道坎）---- */
 ok(PAGE_HTML.includes("还没有 API Key？四步拿到"), "设置页: 无 Key 用户的 API Key 申请教程入口存在");
 ok(PAGE_HTML.includes("platform.deepseek.com") && PAGE_HTML.includes("「API keys」"), "设置页: 教程含 DeepSeek 平台地址与创建入口");
-ok(PAGE_HTML.indexOf("kh.open = !state.settings.apiKey") >= 0, "设置页: 无 Key 时自动展开教程，有 Key 保持折叠");
+ok(PAGE_HTML.indexOf("kh.open = false") >= 0 && PAGE_HTML.indexOf("kh.open = !state.settings.apiKey") < 0,
+   "设置页: 申请教程默认收起（展开会把「模型」挤出弹层首屏）");
 
 /* ---- 使用引导：一条首次引导序列（SPEC 4.4），按屏分组 home→pd→zy→sl，随屏接续，设置可重置 ---- */
 ok(Array.isArray(TUT_SEQ) && TUT_SEQ.length > 0 && TUT_SEQ.every(s=> s.scr && s.sel && s.text),

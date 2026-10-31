@@ -1086,6 +1086,9 @@ if (process.platform !== "darwin") {
      "壳: 三条判断都真接在了请求与导航上（写到策略文件里不等于生效）");
   ok(mainSrc.indexOf("'Content-Security-Policy': ") >= 0 && mainSrc.indexOf("policy.injectNonce(") >= 0,
      "壳: HTML 响应带 CSP 头，并给内联脚本打了 nonce");
+  ok(/minWidth:\s*WIN_MIN\.width/.test(mainSrc) && /minHeight:\s*WIN_MIN\.height/.test(mainSrc)
+     && /const WIN_MIN = \{ width: 900, height: 600 \}/.test(mainSrc),
+     "壳: 窗口有最小尺寸（纸面 760 + 两侧留白；与读回尺寸的下限一致）");
   ok(!/indexOf\('http:\/\/' \+ HOST \+ ':'\)/.test(mainSrc),
      "壳: 不再有「任何 127.0.0.1 端口都放行」的前缀判法");
 

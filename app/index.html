@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>练习台 · 综应、申论的练习与批改</title>
+<!-- 窗口图标内联成 SVG：不引外部资源，也不让每次启动都为缺图标打一个 404 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c0151a'/%3E%3Cpath d='M9 8.5h6.5a4.5 4.5 0 0 1 4.5 4.5v11a4 4 0 0 0-4-4H9z' fill='%23fffdf8'/%3E%3Cpath d='M9 8.5v15.5' stroke='%23c0151a' stroke-width='1.2'/%3E%3C/svg%3E">
 <style>
   :root{
     --gov-red:#c0151a;
@@ -139,6 +141,12 @@ html,body{margin:0;padding:0;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
   .start-entry .subtypechips{max-width:720px;}   /* 入口页的文种/子类型一行装得下，别剩一颗孤零零居中 */
   .start-entry .subtypechips .chip{padding:8px 16px;}
+  /* 公文落地页的 21 个文种按法条口径分两组摆：不分组时最后一行常剩一颗孤零零的胶囊，
+     一组一行、左对齐，标签用元信息灰；分组只是排版，选法仍是点一颗出一次题 */
+  .start-entry .subtypechips.subtypechips-grouped{display:block;text-align:left;}
+  .subtypechips .catgroup + .catgroup{margin-top:12px;}
+  .subtypechips .catlabel{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);margin-bottom:8px;}
+  .subtypechips .catchips{display:flex;flex-wrap:wrap;gap:8px;}
 /* 快判落地页：主行动 → 顶部形式入口 → 默认收起的主题设置。 */
 .pdforms{margin-top:24px;}
 /* 科目页/模块落地页尾部的模块切换行：这是次级导航，降半档（小一号、淡色），
@@ -537,6 +545,8 @@ html,body{margin:0;padding:0;}
      之前「欢迎」和「接口超时」长得一模一样，是全屏最像 bug 的一处 */
   .banner{background:var(--wash-2);border:1px solid var(--line);border-left:3px solid var(--gov-red);color:var(--ink);padding:12px 16px;font-size:var(--fs-note);margin-bottom:16px;border-radius:var(--r-ctl);}
   .banner.error{background:var(--danger-bg);border-color:var(--danger-line);border-left-color:var(--danger);color:var(--danger);}
+  /* 欢迎条里的动作跟那一句待在一起：窄窗折行时「打开设置 / 关闭」成组换行，不拆成两行字 */
+  .banner-actions{display:inline-flex;align-items:center;gap:4px;margin-left:4px;white-space:nowrap;vertical-align:middle;}
   .loading{font-size:var(--fs-body);color:var(--ink);padding:40px 0;text-align:center;}
   .loading .hint{display:inline-block;margin-top:4px;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
@@ -3209,6 +3219,27 @@ function renderModuleLanding(k){
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module===k) n++;
   const subs = subtypeListOf(k);
+  const chipFor = t=>{
+    const st = subtypeStat(k,t);
+    return `<button class="chip" data-t="${t}">${t}${st? ` <small>${Math.round(st.avg)}分·${st.n}次</small>`:""}</button>`;
+  };
+  /* 公文写作按法定公文 / 应用文分组：21 颗胶囊平铺时收尾必剩一颗孤儿行。
+     分组只改排版，点了仍是一颗文种出一次题 */
+  let subsHtml;
+  if(k === GONGWEN_KEY){
+    const groups = [];
+    for(const t of subs){
+      const cat = (GONGWEN_TYPES.find(x=>x.type===t)||{}).cat || "其他";
+      let g = groups.find(x=>x.cat===cat);
+      if(!g){ g = {cat, types:[]}; groups.push(g); }
+      g.types.push(t);
+    }
+    subsHtml = `<div class="subtypechips subtypechips-grouped" style="margin-top:16px">`
+      + groups.map(g=>`<div class="catgroup"><div class="catlabel">${esc(g.cat)}</div><div class="catchips">${g.types.map(chipFor).join("")}</div></div>`).join("")
+      + `</div>`;
+  }else{
+    subsHtml = `<div class="subtypechips" style="margin-top:16px">${subs.map(chipFor).join("")}</div>`;
+  }
   const noteRedundant = subs.length > 0 && m.note.split(/[\/、·]/).map(s=>s.trim()).filter(Boolean)
     .every(t=> subs.some(s=> s.indexOf(t) >= 0));
   // 三个入口页共用同一套骨架：大标题、说明句、主按钮、次级选项。
@@ -3219,12 +3250,7 @@ function renderModuleLanding(k){
     <div class="hero-sub">${noteRedundant? "每题都按采分点打分，写完就有分" : esc(m.note) + "，写完就有分"}</div>
     <div class="actions"><button class="primary big" id="btnLandStart">${blocked? setupActionLabel() : "开始练习"}</button></div>
     <div class="hint" style="margin-top:16px">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过"}</div>
-    <div class="subtypechips" style="margin-top:16px">
-    ${subs.map(t=>{
-      const st = subtypeStat(k,t);
-      return `<button class="chip" data-t="${t}">${t}${st? ` <small>${Math.round(st.avg)}分·${st.n}次</small>`:""}</button>`;
-    }).join("")}
-    </div>
+    ${subsHtml}
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k2=>`<button class="chip${k2===k?" on":""}" data-mod="${k2}">${esc(MODULES[k2].name)}</button>`).join("")}</div></div>
   </div>`;
   docBody.innerHTML = html;
@@ -5645,7 +5671,9 @@ function fillSettings(){
   const p = providerById($("#setProvider").value);
   $("#setBase").value = state.settings.baseUrl || p.baseUrl || "";
   $("#setKey").value = state.settings.apiKey||"";
-  const kh = $("#keyHelp"); if(kh) kh.open = !state.settings.apiKey;   // 没 Key 的人打开设置就看到申请教程；填了 Key 的保持折叠
+  /* 申请教程默认收起：展开会把「模型」挤出弹层首屏（「主按钮还在视口内」是硬约束）。
+     没有 Key 的人先看到摘要这一句，要细看再点开。 */
+  const kh = $("#keyHelp"); if(kh) kh.open = false;
   // 模型名与候选名单都只认实拉结果：值来自上次存下的选择，候选来自该地址的实拉缓存
   $("#setModel").value = state.settings.model || "";
   const cached = cachedModels(baseKey());
@@ -6425,7 +6453,7 @@ function renderStartNotices(){
   if(un) notices.push(un);
   if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
   // 欢迎条自带「关闭」：不想要这条的人当场就能收掉（小更新提示、预览窗警告不受它影响，照旧）
-  if(!state.settings.apiKey && !state.settings.keyNoticeDismissed) notices.push("欢迎。填上 API Key 就能练大题与快判。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。" + OPEN_SETTINGS_BTN + '<button class="linkbtn" id="btnKeyNoticeOff">关闭</button>');
+  if(!state.settings.apiKey && !state.settings.keyNoticeDismissed) notices.push('欢迎。填上 API Key 就能练大题与快判。设置页里备了四步申请教程（推荐 DeepSeek，几分钱练一次）。<span class="banner-actions">' + OPEN_SETTINGS_BTN + '<button class="linkbtn" id="btnKeyNoticeOff">关闭</button></span>');
   banner(notices.length? notices.join("<br>") : "", "", "notices");
   const kn = $("#btnKeyNoticeOff");
   if(kn) kn.onclick = ()=>{ state.settings.keyNoticeDismissed = true; save(); renderStartNotices(); };

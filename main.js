@@ -381,6 +381,9 @@ function applyMenu() {
    用户手动调过就记住（userData/window-bounds.json），下次按他的来；读不到/不合法就用默认，不算错。
    最大化/全屏状态不写回：那不是用户想要的「窗口大小」，下次开机不该被扣在全屏上。 */
 const WIN_DEFAULT = { width: 1040, height: 720 };
+/* 最小窗口与 loadWindowBounds 的合法下限同值（900×600）：拖到下限就停住，不再出现
+   「本次拖到 850、下次启动被退回默认」；纸面 760px 加两侧 16px 留白也不至于贴到窗口边。 */
+const WIN_MIN = { width: 900, height: 600 };
 function windowBoundsFile() { return path.join(app.getPath('userData'), 'window-bounds.json'); }
 function loadWindowBounds() {
   try {
@@ -460,6 +463,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: saved ? saved.width : WIN_DEFAULT.width,
     height: saved ? saved.height : WIN_DEFAULT.height,
+    minWidth: WIN_MIN.width,
+    minHeight: WIN_MIN.height,
     ...(saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? { x: saved.x, y: saved.y } : { center: true }),
     title: IS_TEST ? '练习台（测试）' : '练习台',
     autoHideMenuBar: true,
