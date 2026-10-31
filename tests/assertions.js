@@ -3541,8 +3541,9 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(PAGE_HTML.indexOf("红＝没拿满 · <i") >= 0 && PAGE_HTML.indexOf("橙＝拿满") < 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
      "层级: 批改页的标注图例挪进标题行（不再每题占一行），而且只留最短那一版说法");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') < 0
-     && PAGE_HTML.indexOf('justify-content:flex-end"><span class="secright"><span class="hint">${legend}') >= 0,
-     "层级: 标注图例自己占一行靠右，答案卡跟在它下面（不借「我的答案」这个题头）");
+     && PAGE_HTML.indexOf('<div class="ghead-right">') >= 0
+     && PAGE_HTML.indexOf('<div class="grade-columns"><section class="grade-answer" aria-label="我的答案">') >= 0,
+     "层级: 标注图例跟分数同处一条信息带（同一个右缘），两栏从那条线下方同高起排；左栏不再自占一行靠右");
   // 尺子本身不许有“定义了没人用”的死 token
   const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
   const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
@@ -3801,9 +3802,9 @@ ok(PAGE_HTML.indexOf(".start-entry .actline{") >= 0 && PAGE_HTML.indexOf(".start
 ok(PAGE_HTML.indexOf(".modal .box:focus{outline:none") >= 0, "弹层: 容器被聚焦时不画浏览器默认焦点环");
 ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*margin:0 8px 0 4px/) || [""])[0].length > 0, "批改页: 句末分数与下一句之间留出间距");
 ok(PAGE_HTML.indexOf("这道题卡在哪一步") >= 0 && PAGE_HTML.indexOf('"这道卡在哪一步') < 0, "批改页: 自述问句是「这道题卡在哪一步？」");
-ok(PAGE_HTML.indexOf('return \'<div class="mathint">选中文字划线') >= 0
-   && PAGE_HTML.indexOf('<span class="mathint">选中文字划线') < 0,
-   "划线说明: 只当材料下面那一块的空态，划过就换成清单（不再单独占一行把作答区往下推）");
+ok(PAGE_HTML.indexOf('${matSrcTag(current.question)}<span class="mathint">选中文字划线</span></div>') >= 0
+   && PAGE_HTML.indexOf('return \'<div class="mathint">选中文字划线') < 0,
+   "划线说明: 写在材料块头右侧（读材料之前就看得到），材料下面不再单占一行");
 ok(PAGE_HTML.indexOf("metaLineHtml(metaQ, switchBtn)") >= 0
    && PAGE_HTML.indexOf('class="metarow"') >= 0
    && PAGE_HTML.indexOf("<b>分值</b>") >= 0 && PAGE_HTML.indexOf("分值：</b>") < 0,

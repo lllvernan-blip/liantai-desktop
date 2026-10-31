@@ -193,7 +193,7 @@ html,body{margin:0;padding:0;}
   .start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}
   .start-entry .actions:has(.big) .big{width:100%;min-width:0;}
   /* 科目入口等分动作列，热区高 48。 */
-  .start-entry .chiprow .chip{flex:1 1 0;white-space:nowrap;justify-content:center;min-height:48px;border-radius:var(--r-ctl);}
+  .start-entry .chiprow .chip{flex:1 1 0;white-space:nowrap;justify-content:center;min-height:52px;border-radius:var(--r-ctl);}
   /* 「继续上次」「做一套卷」两行：一行信息 + 一颗按钮。那颗键必须是看得见的按钮——
      透明灰字看不住能点，整片入口会被读成说明文字（2026-11-01 改回描边）。
      字左对齐、键靠右，装不下就省略号收在中间那句上。 */
@@ -218,6 +218,10 @@ html,body{margin:0;padding:0;}
      两栏那一屏豁免：作答栏由 grid 分，宽度它自己管。 */
   #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
   body.wide-cols #docBody>*,body.wide-review #docBody>*{max-width:none;}
+  /* 入口屏不居中：整块贴版心左缘，与作答、批改两屏同一条起排线。原先 620 居中，纸上左右各空 255px，
+     而且它是唯一不站在左缘的一屏。仍是一列——不做左右横版。 */
+  #docBody>.startbox.start-entry{max-width:none;margin:0;text-align:left;}
+  #docBody>.startbox.start-entry>*{width:min(var(--act-col),100%);max-width:none;margin-left:0;margin-right:0;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 12px;}
   .redline{display:flex;align-items:center;}
@@ -236,10 +240,10 @@ html,body{margin:0;padding:0;}
   .startbox p{color:var(--muted);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
   /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
-  .startbox button.primary.big{font-family:var(--yahei);font-size:var(--fs-title);letter-spacing:1px;padding:16px 58px;border-radius:var(--r-ctl);box-shadow:none;}
+  .startbox button.primary.big{font-family:var(--yahei);font-size:var(--fs-title);letter-spacing:1px;padding:16px 58px;min-height:64px;border-radius:var(--r-ctl);box-shadow:none;}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:none;}
   .startbox .actions{justify-content:center;margin-top:24px;}
-  .startbox.start-home .actions,.startbox.start-hero .actions{margin-top:0;}   /* 有说明句时那 24px 由 hero-sub 的下边距出，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」）。首页与科目页同一条：主按钮都包在 .actions 里，几何一样宽 */
+  .startbox.start-home .actions:has(.big),.startbox.start-hero .actions:has(.big){margin-top:0;}   /* 只豁免装主按钮的那一行；下面「接着上次」仍吃 24px，否则贴着科目块 */
   /* 入口屏没有说明句时（科目页 / 说明与胶囊重复的落地页），24px 由标题与主按钮自己出：
      flex 行不并 margin，标题自带的 4px 在这种形态下要去掉，否则 28px 不落在五档上。 */
   .startbox .hero-big:has(+ .actions){margin-bottom:0;}
@@ -275,14 +279,14 @@ html,body{margin:0;padding:0;}
   /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
   .material{background:var(--mat);border-radius:var(--r-ctl);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;word-break:break-word;}
-  .material .label{font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
+  .material .label{display:flex;align-items:center;gap:8px;font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
   /* 分值与难度：标签紧贴值、两个一组。摆哪儿由调用点定——作答页把它们并进「题目」那一行的右侧，
      其余屏仍单独占一行（.metarow：左边报事实，右边说怎么用）。 */
   .metarow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;}
   .meta{display:flex;gap:24px;font-size:var(--fs-body);}
   .meta b{font-family:var(--hei);font-weight:700;margin-right:4px;}
-  /* 划线说明：材料下面那一块的空态；划过之后同一位置换成「我划的重点」，不各占一行 */
-  .mathint{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);text-align:right;letter-spacing:.5px;}
+  /* 划线说明：现在只在材料块头右侧说一遍（读之前就看得见）；划过之后材料下面换成「我划的重点」清单 */
+  .mathint{flex:0 0 auto;margin-left:auto;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);text-align:right;letter-spacing:.5px;}
   /* 「据材料」：材料由真实报道的事实骨架改写而来。只在没有来源明细的老记录上出现——
      有来源时「素材：…」已经说清，再挂一个标就是同一件事说两遍。 */
   .material .from-mat{font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:8px;letter-spacing:.5px;}
@@ -436,6 +440,8 @@ html,body{margin:0;padding:0;}
   body.wide-cols .c-head .require:first-child{margin-top:0;}
   body.wide-cols .col-work>.secrow:first-child{margin-top:0;}
   .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 16px;background:none;border-bottom:1px solid var(--line-soft);margin-bottom:24px;}
+  /* 分数带右侧：图例解释的就是左边这个数，两样共用一条基线与同一个右缘；「换一题」退到最外，动作与说明分开 */
+  .ghead-right{display:flex;align-items:center;gap:16px;}
   .grade .total{font-family:var(--hei);font-size:var(--fs-display);color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:var(--fs-note);color:var(--muted);font-weight:400;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
@@ -3854,7 +3860,7 @@ function renderZyPage(){
     // 带材料的屏走两栏：材料与「我划的重点」进左栏，题面与作答区进右栏。DOM 顺序仍是题面→材料→作答区，
     // 窗口窄到放不下两栏时这层壳等于不存在，落回原来的上下排（划的重点照旧回到作答区上方）。
     html = `<div class="paper-cols"><div class="c-head">${head}</div>`
-      + `<aside class="col-mat"><div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}</div><div id="materialBox">${materialHtml(current.question)}</div></div>`
+      + `<aside class="col-mat"><div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}<span class="mathint">选中文字划线</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`
       + `<div id="marksSlot">${marksRecapHtml(current.question)}</div></aside>`
       + `<div class="col-work">${draftPanelHtml(null)}</div></div>`;
   } else {
@@ -5455,8 +5461,14 @@ function gradeHtml(g, total){
   const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
   // 分数就是这一页的头：「换一题」落在它右侧；题面（作答要求/分值/难度）不在这一页重复（2026-10-13）
   // 只报卷面分（实得 / 子项满分）：折百分制是给画像比较用的，摆在批改页只会跟这个数打架（2026-10-16）
+  // 答卷的逐句标注与图例先算出来：图例解释的是「这一页的分怎么相加」，所以它跟分数同处一条信息带
+  const ansText = String((lastGrade && lastGrade.answer) || "");
+  const ansReview = answerReviewHtml(g, ansText);
+  const am = answerMarks(g.hits, ansText);
+  const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
+  const legend = (ansReview && am.usable)? `红＝没拿满 · <i class="asc">+N</i> ` + (allLocated? "相加＝总分" : "是本句得分") : "";
   let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分` : "/ 100 分"}</small></div>`
-    + `<button class="linkbtn" id="btnSwitch">换一题</button>`;
+    + `<div class="ghead-right">${legend? `<span class="hint">${legend}</span>` : ""}<button class="linkbtn" id="btnSwitch">换一题</button></div></div>`;
   // 打了分就不再另报「丢 N 分」：两个数说的是同一件事，写两遍只是噪音
   const hits = g.hits || [];
   html += `</div>`;
@@ -5470,16 +5482,9 @@ function gradeHtml(g, total){
   }
   // —— 正文三段 ——：我的答案（逐句标注）· 参考答案 · 解析。
   // 一页把「你写了什么、本该写成什么样、为什么」摆全，不另造清单，也不把两篇文章折起来（2026-10-13）。
-  const ansText = String((lastGrade && lastGrade.answer) || "");
-  const ansReview = answerReviewHtml(g, ansText);
-  const am = answerMarks(g.hits, ansText);
-  const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
-  // 左区展示带逐句分数的答卷，不附可见标题。
+  // 左区展示带逐句分数的答卷，不附可见标题：两栏的顶边由此齐平，图例已在分数带上。
   html += `<div class="grade-columns"><section class="grade-answer" aria-label="我的答案">`;
-  if(ansReview){
-    const legend = am.usable? `红＝没拿满 · <i class="asc">+N</i> ` + (allLocated? "相加＝总分" : "是本句得分") : "";
-    html += (legend? `<div class="secrow" style="justify-content:flex-end"><span class="secright"><span class="hint">${legend}</span></span></div>` : "") + ansReview;
-  }
+  if(ansReview) html += ansReview;
   // 解析：只讲「为什么拿不到分」——3—4 类归因 + 末句一句原则。逐句标注已经在上面标过「缺什么」，
   // 参考答案在下面给「写成什么样」；这一段再复述任何一边都是噪音（2026-10-19 定的三段口径）。
   html += selfNoteHtml(g, total);
@@ -6342,7 +6347,7 @@ function markedRuns(q){
    两样共用一个位置，不再各占一行把作答区往下推。 */
 function marksRecapHtml(q){
   const runs = markedRuns(q);
-  if(!runs.length) return '<div class="mathint">选中文字划线</div>';
+  if(!runs.length) return "";   // 划线说明已上提到材料块头，材料下面不占行
   return `<details class="notebox" open id="marksRecap"><summary>我划的重点（${runs.length} 处）</summary><div class="notebody" id="marksRecapBody">${marksRunsHtml(runs)}</div></details>`;
 }
 function marksRunsHtml(runs){
