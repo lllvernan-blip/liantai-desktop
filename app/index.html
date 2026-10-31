@@ -23,9 +23,9 @@
     --red-wash-2:#fbf1f1;/* 红底上的悬停 */
     --bar:#a9a49a;       /* 中性细条填充：6px 实心深灰曾是整行最重的东西，压到 4px 并调浅 */
     --scroll-thumb:#cfcac0; --scroll-thumb-hover:#b3ada1;   /* 滚动条滑块（悬停加深一档） */
-    --mat:#f6f2e7;       /* 材料纸底：比纸面明显黄一档，一眼能分出「给定资料」与「我写的地方」 */
+    --mat:var(--wash);  /* 材料与批改内容共用中性浅底 */
     --pick-bg:#e9e1cc; --pick-line:#cdbe97;   /* 材料区已点选：暖沙，不是淡蓝（淡蓝 + 蓝下划线看着像超链接） */
-    --write:#fffdf5;     /* 凡是「我写字的地方」共一色：作答区、笔记、下笔处 */
+    --write:var(--ctl);  /* 作答与笔记共用控件纸色 */
     --ctl:#fffefb;       /* 控件外表：不用纯白——纯白比纸面更冷更亮，贴上去像另一个应用 */
     --on-dark:#fff;      /* 墨底 / 红底上的字：主按钮、浮动菜单、步骤条当前格 */
     --focus-halo:0 0 0 3px rgba(192,21,26,.07);   /* 控件获得焦点时的外圈：输入框与两处大文本框共用 */
@@ -41,7 +41,7 @@
        --act-col 是入口屏那条「动作列」的宽：主按钮、科目药丸、继续条同宽同左右缘（原来六行六种宽度，
        每行自己居中，看着像贴了六张不同大小的纸）。
        --mat-col-h 是两栏时材料窗的高。这几个都由 applyPaperScale() 写，这里只是启动那一瞬的初值。 */
-    --paper-scale:1; --sheet-w:760px; --text-col:620px; --act-col:320px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
+    --paper-scale:1; --sheet-w:760px; --text-col:620px; --act-col:520px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
     /* 字号阶梯：相邻至少差 1.5px——差半像素等于没分级 */
     --fs-display:30px;   /* 分数这类大数 */
     --fs-hero:26px;      /* 整屏标题（入口页、小结页）*/
@@ -189,12 +189,11 @@ html,body{margin:0;padding:0;}
   .startbox .chip:hover{border-color:var(--line-strong);color:var(--ink);background:var(--paper);}
   .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
-  /* 入口屏的动作列：主按钮、科目药丸、继续条共用一个宽（320），左右缘落在同一条线上。
-     窄到放不下 320 时整列跟着缩到列宽，不撑出纸面（原来那颗 min-width:320 会直接溢出）。 */
+  /* 入口动作列宽 520；主按钮、科目入口与恢复入口对齐，窄窗随容器收缩。 */
   .start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}
   .start-entry .actions:has(.big) .big{width:100%;min-width:0;}
-  /* 药丸按字长给宽、整行居中：跟主按钮一起被拉成等宽时，「去综应A」这种四字胶囊会有半截空着 */
-  .start-entry .chiprow .chip{flex:0 0 auto;white-space:nowrap;justify-content:center;}
+  /* 科目入口等分动作列，热区高 48。 */
+  .start-entry .chiprow .chip{flex:1 1 0;white-space:nowrap;justify-content:center;min-height:48px;border-radius:var(--r-hero);}
   /* 「继续上次」「做一套卷」两行：一行信息 + 一颗按钮。那颗键必须是看得见的按钮——
      透明灰字看不住能点，整片入口会被读成说明文字（2026-11-01 改回描边）。
      字左对齐、键靠右，装不下就省略号收在中间那句上。 */
@@ -213,12 +212,12 @@ html,body{margin:0;padding:0;}
   /* overflow 用 clip 不用 hidden：hidden 会把纸变成一个滚动容器，里面的一切吸顶与 scrollIntoView 都得换基准；clip 只裁不接管滚动 */
   /* 纸面是公文纸不是网页卡片：纸立得住靠的是它自己的色（--paper 对底板 1.11:1）与撑满视口（下方不悬空，像真铺在桌上），
      不靠描边和投影。原先那圈 1px 边框（对纸 1.43:1）加两级 .06 的黑，实物上分辨不出，已去（2026-10-15）。 */
-  .doc{background:var(--paper);overflow:clip;padding:40px 54px 56px;zoom:var(--paper-scale);min-height:calc((100vh - 50px)/var(--paper-scale) - 48px);}
+  .doc{background:var(--paper);overflow:clip;padding:24px 54px 32px;zoom:var(--paper-scale);min-height:calc((100vh - 50px)/var(--paper-scale) - 48px);}
   /* 正文只占版心里那一列，剩下的宽度是页边空白：纸跟着窗口长到 1304，一行不能跟着长到 58 字。
      居中而不是贴左——红头本来就在版心中线上，字贴着左缘、标题却在中间，是两回事各排各的。
      两栏那一屏豁免：作答栏由 grid 分，宽度它自己管。 */
   #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
-  body.wide-cols #docBody>*{max-width:none;}
+  body.wide-cols #docBody>*,body.wide-review #docBody>*{max-width:none;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 12px;}
   .redline{display:flex;align-items:center;}
@@ -231,14 +230,14 @@ html,body{margin:0;padding:0;}
   /* 起始区 —— 入口纸面。垂直节奏只用四档（8 / 16 / 24 / 40px），同屏同类间距一致（人感 Demo 的排版纪律） */
   .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
   /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
-  .startbox.start-entry{padding:48px 36px 56px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
-    .startbox.start-home{padding:48px 36px 48px;}   /* 首页 hero：红头在上方，hero 接着往下走；大标题首行、主按钮、次级行与科目页共用同一套锚位 */
+  .startbox.start-entry{padding:24px 0 32px;min-height:320px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
+    .startbox.start-home{padding:24px 0 32px;}   /* 首页 hero：红头在上方，hero 接着往下走；大标题首行、主按钮、次级行与科目页共用同一套锚位 */
   .startbox h2{font-family:var(--hei);font-size:var(--fs-hero);margin:0 0 8px;letter-spacing:1px;}
   .startbox p{color:var(--muted);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
   /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
-  .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
-  .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
+  .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:var(--r-hero);box-shadow:var(--sh-1);}
+  .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:var(--sh-2);}
   .startbox .actions{justify-content:center;margin-top:24px;}
   .startbox.start-home .actions,.startbox.start-hero .actions{margin-top:0;}   /* 有说明句时那 24px 由 hero-sub 的下边距出，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」）。首页与科目页同一条：主按钮都包在 .actions 里，几何一样宽 */
   /* 入口屏没有说明句时（科目页 / 说明与胶囊重复的落地页），24px 由标题与主按钮自己出：
@@ -260,14 +259,13 @@ html,body{margin:0;padding:0;}
   .secrow .sec-title{margin:0;}   /* 标题自带的上 24 下 12 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
   /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
   .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
-  /* 三段各一个颜色标：我的答案（红，题头默认色）· 解析（橙）· 参考答案（绿）。同一页三段一眼分得开，
-     不用回去数标题在哪。 */
-  .sec-title.why{border-left-color:var(--warn);}
+  /* 批改内容按空间分区，解析标题不附彩色竖线。 */
+  .sec-title.why{border-left:none;padding-left:0;}
   /* 解析正文与原则句都走「纸上的字」那一档（与 .comment 同档），用变量不新增字面字号 */
   .cause{margin:0 0 12px;}
   .cause .ctitle{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);margin-bottom:4px;}
   .cause .cwhy{font-family:var(--fangsong);font-size:var(--fs-title);line-height:1.9;}
-  .principle{margin-top:16px;padding:12px;background:var(--wash);border-left:3px solid var(--gov-red);
+  .principle{margin-top:16px;padding:12px;background:var(--wash);border-left:none;
     font-family:var(--fangsong);font-size:var(--fs-title);line-height:1.8;}
   .secright{display:flex;align-items:center;gap:12px;}
   .secright button.linkbtn{min-height:var(--h-ctl-sm);}   /* 限时那一行：输入框与按钮同高 */
@@ -425,7 +423,16 @@ html,body{margin:0;padding:0;}
   .pditem .pdexp{color:var(--muted);font-size:var(--fs-note);line-height:1.75;white-space:pre-wrap;}
   details.pditem .pdexp{padding:0 12px 8px 38px;}
   /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
-  .grade{margin-top:24px;}
+  .grade{margin-top:16px;}
+  .grade-columns{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start;}
+  .grade-answer,.grade-detail{min-width:0;}
+  body.wide-review .grade-columns{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;}
+  body.wide-review .grade-detail{padding-left:24px;border-left:1px solid var(--line-soft);}
+  .grade-columns .secrow{margin:0 0 12px;}
+  .grade-detail>.sec-title,.grade-detail>.comment{margin-top:0;}
+  .grade-detail .modelanswer{margin-top:16px;}
+  body.wide-cols .c-head .require:first-child{margin-top:0;}
+  body.wide-cols .col-work>.secrow:first-child{margin-top:0;}
   .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 24px;background:var(--wash);border-radius:var(--r-card);margin-bottom:16px;}
   .grade .total{font-family:var(--hei);font-size:var(--fs-display);color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:var(--fs-note);color:var(--muted);font-weight:400;}
@@ -448,15 +455,12 @@ html,body{margin:0;padding:0;}
   /* 批改页题头分两层：只有「我的答案」用重题头（红竖线），参考答案与解析降成细线上方的
      墨灰小标题——一屏三个同重标题，眼睛找不到主次（2026-10-13）。 */
   .grade .sec-title.lite{margin:24px 0 8px;border-left:none;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
-  /* 我的答案（逐句批注）：批改页的主体，摆在三段的最上面。**有分的句子标色**——没拿满的标红
-     （红笔批改的样子），拿满的标焦橙；没分的句子什么都不挂。所以这一页的红色意思是「这里还差一点」、
-     焦橙是「这里拿满了」，全站其他地方的红仍是体例与警示（2026-10-16 定的口径）。
-     用仿宋：这是他的卷面，跟材料与范文同一套字体。 */
+  /* 答卷使用仿宋；没拿满的句子标红，满分句保持正文色，实得分记在句末。 */
   .answerreview{margin-top:0;background:var(--wash);border-radius:var(--r-card);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;}
   .answerreview .asent.got{color:var(--gov-red);}
-  .answerreview .asent.got.full{color:var(--warn);}
+  .answerreview .asent.got.full{color:var(--ink);}
   .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin:0 8px 0 4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
-  .answerreview .asc.full{color:var(--warn);}
+  .answerreview .asc.full{color:var(--muted);}
   .comment{margin-top:16px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
   .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
@@ -495,7 +499,7 @@ html,body{margin:0;padding:0;}
   .notebox>summary::-webkit-details-marker{display:none;}
   .notebody{padding:4px 0 12px;font-size:var(--fs-body);line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
-  .modelanswer{margin-top:24px;background:var(--success-bg);border-radius:var(--r-card);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;}
+  .modelanswer{margin-top:24px;background:var(--wash);border-radius:var(--r-card);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;}
   /* 作答前的规则展示位：动手那一刻要看见的东西，不折起来；一条一行 */
   .prepbox{margin:12px 0 16px;padding:12px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--write);}
   .prephead{font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--muted);}
@@ -5311,7 +5315,7 @@ function locateFrag(text, frag){
 /* 逐句标注的底账：分数是**派生**出来的，不额外问 AI 一次——
    每条采分项的证据里都带着考生原句，把它定位回答卷，得分就加到落上的那一句；
    一句覆盖多条时得分相加，所以「句末那些分加起来」就是页头那个总分。
-   full 只用来分两色：拿满的标焦橙、没拿满的标红。
+   full 区分满分句与未拿满句：前者使用正文色，后者标红。
    兜底只剩最后一档：证据整片对不上答卷（老记录、模型没按格式写）就只摆答案；
    半对不上不再退回——那一条本就该尽力落到最像的句子上。 */
 function answerMarks(hits, answer){
@@ -5336,7 +5340,7 @@ function answerMarks(hits, answer){
   }
   return { parts, got, full, need, ok, usable: !need || ok / need >= 0.5 };
 }
-/* 我的答案（逐句批注）：**有分的句子标色**——没拿满的标红、拿满的标焦橙，分跟在句末；
+/* 我的答案（逐句批注）：没拿满的句子标红，满分句用正文色，实得分跟在句末；
    没分的句子什么都不挂（0 分不写 +0，素色本身就是「这里没分」）。
    每条采分项的证据都定位到答卷时，标色的分加起来等于页头总分；有定位不到的项时，页头仍按全部采分点计分。 */
 function answerReviewHtml(g, answer){
@@ -5462,13 +5466,16 @@ function gradeHtml(g, total){
   const ansReview = answerReviewHtml(g, ansText);
   const am = answerMarks(g.hits, ansText);
   const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
-  // 自己写的答案不用标题：带底色的那张卡就是它，红橙两色已经把「这句拿没拿满」说了
+  // 左区展示带逐句分数的答卷，不附可见标题。
+  html += `<div class="grade-columns"><section class="grade-answer" aria-label="我的答案">`;
   if(ansReview){
-    const legend = am.usable? `红＝没拿满 · 橙＝拿满 · <i class="asc">+N</i> ` + (allLocated? "相加＝总分" : "是本句得分") : "";
+    const legend = am.usable? `红＝没拿满 · <i class="asc">+N</i> ` + (allLocated? "相加＝总分" : "是本句得分") : "";
     html += (legend? `<div class="secrow" style="justify-content:flex-end"><span class="secright"><span class="hint">${legend}</span></span></div>` : "") + ansReview;
   }
   // 解析：只讲「为什么拿不到分」——3—4 类归因 + 末句一句原则。逐句标注已经在上面标过「缺什么」，
   // 参考答案在下面给「写成什么样」；这一段再复述任何一边都是噪音（2026-10-19 定的三段口径）。
+  html += selfNoteHtml(g, total);
+  html += `</section><section class="grade-detail" aria-label="解析与参考答案">`;
   const causes = (Array.isArray(g.causes)? g.causes : []).filter(c=> c && (c.title || c.why));
   if(causes.length || g.principle){
     html += `<div class="sec-title why">解析</div><div class="causes">`
@@ -5480,9 +5487,9 @@ function gradeHtml(g, total){
     // 老记录（0.0.23 及以前）只有一段文字解析：原样显示，不硬塞进新结构
     html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
   }
-  // 参考答案也不挂标题：淡绿卡从头到尾就是一段整文，跟上面「你写了什么」和「为什么」区分得开
+  // 参考答案跟随解析，使用中性浅底，不附可见标题。
   if(g.modelAnswer) html += `<div class="modelanswer">${esc(g.modelAnswer)}</div>`;
-  html += selfNoteHtml(g, total);   // 趁印象还在问一句（可跳过）
+  html += `</section></div>`;
   // 老记录（无采分点、也没解析）退回「待改进」的原话
   if(!hits.length && !causes.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）
@@ -6694,13 +6701,17 @@ function paperScaleFor(w, h){
 function applyPaperScale(){
   if(typeof window === "undefined" || typeof document === "undefined" || !document.documentElement) return;
   const colMat = document.querySelector && document.querySelector("#docBody .paper-cols .col-mat");
-  const L = layoutFor(window.innerWidth, window.innerHeight, !!colMat);
+  const review = document.querySelector && document.querySelector("#docBody .grade-columns .answerreview");
+  const L = layoutFor(window.innerWidth, window.innerHeight, !!colMat || !!review);
   const num = (n)=> String(Math.round(n * 1000) / 1000);
   const st = document.documentElement.style;
   st.setProperty("--paper-scale", num(L.scale));
   st.setProperty("--sheet-w", num(L.sheet) + "px");
   st.setProperty("--mat-col-w", num(L.matW) + "px");
-  if(document.body) document.body.classList.toggle("wide-cols", L.wide);
+  if(document.body){
+    document.body.classList.toggle("wide-cols", L.wide && !!colMat);
+    document.body.classList.toggle("wide-review", L.wide && !!review);
+  }
   /* 材料窗的高按「这一栏离文档顶多远」现算（顶栏 + 红头 + 横幅占的多高并不固定），
      剩下的视口高减 24、再减掉窗下那一块（划线说明 / 我划的重点）就是它该占的高。
      两样的顶都不受自己的高影响，量一次就够，不会来回摆。 */

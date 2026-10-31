@@ -209,9 +209,9 @@ renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送�
             60, null, null, "关于调整作息的通知。各科室请注意作息调整，请遵照执行。特此通知。");
 ok(el("#docBody").innerHTML.indexOf("asent got") >= 0 && el("#docBody").innerHTML.indexOf(">我的答案<") < 0,
    "批改页: 首屏就是带标注的答案本身（不再另挂「我的答案」这个题头）");
-ok(el("#docBody").innerHTML.indexOf("asent got") >= 0, "批改页: 有分的句子标色（拿满的焦橙、没拿满的红）");
+ok(el("#docBody").innerHTML.indexOf("asent got") >= 0, "批改页: 有分的句子保留逐句分数标记");
 ok(el("#docBody").innerHTML.indexOf('class="asent got full"') >= 0 && el("#docBody").innerHTML.indexOf('class="asc full">+4<') >= 0,
-   "批改页: 拿满的句子标焦橙（跟没拿满的红分开）");
+   "批改页: 满分句保留 full 状态与句末实得分");
 ok(el("#docBody").innerHTML.indexOf('class="asc full">+4<') >= 0 && el("#docBody").innerHTML.indexOf('class="asc">+1<') >= 0,
    "批改页: 凡有分的句子都在句末报分（满分句也报，2026-10-16）");
 ok(el("#docBody").innerHTML.indexOf("+0<") < 0, "批改页: 没分的不标 +0（素色本身就是「这里没分」）");
@@ -327,7 +327,7 @@ ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody"
    "阅卷页: 完整范文仍在页面上");
 ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody").innerHTML.indexOf(">参考答案<") < 0
    && el("#docBody").innerHTML.indexOf("<details") < 0,
-   "阅卷页: 范文平铺在淡绿卡里（不折叠，也不挂「参考答案」题头）");
+   "阅卷页: 范文平铺在中性浅底里（不折叠，也不挂「参考答案」题头）");
 
 /* 5. 失败路径 */
 el("#docBody").innerHTML = "正在作答的题";
@@ -3341,14 +3341,29 @@ renderGrade({ scores:{},
          {point:"落款单位与日期",score:2,awarded:1,status:"半分",kind:"格式",evidence:"答到：「遵照执行」，【缺：成文日期】"} ] },
   78, null, null, "关于调整作息的通知。各科室请遵照执行。特此通知。");
 const H22 = el("#docBody").innerHTML;
+ok(H22.indexOf('class="grade-columns"') >= 0
+   && H22.indexOf('class="grade-answer"') < H22.indexOf('class="answerreview"')
+   && H22.indexOf('class="grade-detail"') < H22.indexOf('class="causes"'),
+   "横版批改: 答卷与解析分别进入左右区域，正文不再缩在一条居中列");
+ok(H22.indexOf('class="modelanswer"') > H22.indexOf('class="grade-detail"')
+   && H22.indexOf('class="nextrow"') > H22.indexOf('class="modelanswer"'),
+   "横版批改: 范文跟解析同区，完成等动作在对照区域之后");
+ok(PAGE_HTML.indexOf('.answerreview .asent.got.full{color:var(--ink);}') >= 0
+   && PAGE_HTML.indexOf('.answerreview .asc.full{color:var(--muted);}') >= 0,
+   "批改配色: 满分句用正文色与灰分数，红色只标没拿满的句子");
+ok(PAGE_HTML.indexOf('body.wide-review .grade-columns{grid-template-columns:minmax(0,1fr) minmax(0,1fr)') >= 0
+   && PAGE_HTML.indexOf('.grade-columns{display:grid;grid-template-columns:minmax(0,1fr)') >= 0,
+   "横版批改: 宽窗对照两栏，窄窗回单栏，区域可收缩不撑破纸面");
+ok(PAGE_HTML.indexOf('--mat:var(--wash)') >= 0 && PAGE_HTML.indexOf('--write:var(--ctl)') >= 0,
+   "纸面配色: 材料使用中性浅底，作答使用控件纸色，不叠彩色纸面");
 ok(H22.indexOf(">解析<") >= 0 && H22.indexOf(">我的答案<") < 0 && H22.indexOf(">参考答案<") < 0,
-   "批改页: 三块只留「解析」一个标题（自己写的答案靠灰卡、范文靠淡绿卡自己说明）");
+   "批改页: 只留「解析」标题，答卷与解析分区，范文平铺");
 ok(H22.indexOf('class="answerreview"') < H22.indexOf(">解析<")
    && H22.indexOf(">解析<") < H22.indexOf('class="modelanswer"'),
    "批改页: 次序是答案 → 解析 → 范文（先看自己写了什么，再看为什么，最后看成什么样）");
 ok(H22.indexOf('class="sec-title why">解析</div>') >= 0
    && H22.indexOf('class="sec-title answer"') < 0 && H22.indexOf("sec-title\">我的答案") < 0,
-   "批改页: 解析留一根橙色竖线，另外两块不再各配一根");
+   "批改页: 只留解析标题，不恢复我的答案与参考答案题头");
 ok(H22.indexOf('<div class="ctitle">格式缺项</div>') >= 0
    && H22.indexOf("采分点认的是成文日期这类落款要素") >= 0
    && H22.indexOf('<div class="ctitle">要点整块缺失</div>') >= 0,
@@ -3382,9 +3397,9 @@ ok((PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].indexOf("sticky") < 0
 ok(PAGE_HTML.indexOf("loselist") < 0 && PAGE_HTML.indexOf("loseDetail") < 0 && PAGE_HTML.indexOf("MISS_RE") < 0
    && PAGE_HTML.indexOf("clipTxt") < 0,
    "批改页: 丢分清单整块删净（含 CSS 与取值函数，不留死代码）");
-ok(PAGE_HTML.indexOf(".modelanswer{margin-top:24px;background:var(--success-bg);") >= 0
+ok(PAGE_HTML.indexOf(".modelanswer{margin-top:24px;background:var(--wash);") >= 0
    && PAGE_HTML.indexOf("line-height:2.05;white-space:pre-wrap;") >= 0,
-   "批改页: 范文是淡绿卡片、自带 pre-wrap（不再靠折叠体兜）");
+   "批改页: 范文共用中性浅底、自带 pre-wrap（不再靠折叠体兜）");
 ok(PAGE_HTML.indexOf('"causes":[{"title":"4—8 字归类标题"') >= 0 && PAGE_HTML.indexOf('"principle":"一句话收尾') >= 0,
    "阅卷 prompt: 解析换成归类归因（causes）+ 一句话原则（principle）");
 ok(PAGE_HTML.indexOf('"weaknesses"') < 0 && PAGE_HTML.indexOf('"strengths"') < 0 && PAGE_HTML.indexOf('"comment":"解析') < 0,
@@ -3511,7 +3526,7 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') < 0
      && PAGE_HTML.indexOf('<div class="pdstate" id="pdState"') >= 0,
      "层级: 快判一轮页不另起标题行（「快判」已由红头说），主题与进度落红头中段");
-  ok(PAGE_HTML.indexOf("红＝没拿满 · 橙＝拿满") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
+  ok(PAGE_HTML.indexOf("红＝没拿满 · <i") >= 0 && PAGE_HTML.indexOf("橙＝拿满") < 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
      "层级: 批改页的标注图例挪进标题行（不再每题占一行），而且只留最短那一版说法");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') < 0
      && PAGE_HTML.indexOf('justify-content:flex-end"><span class="secright"><span class="hint">${legend}') >= 0,
@@ -3536,8 +3551,8 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      所以 620 不是新数字，是同一条正文列在窗口不够宽时的样子。 */
   ok(Math.min(620, layoutFor(770, 900, false).sheet - 140) === 620
      && PAGE_HTML.indexOf("#docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}") >= 0
-     && PAGE_HTML.indexOf("body.wide-cols #docBody>*{max-width:none;}") >= 0,
-     "正文列: 单栏一列封顶 620 并在版心里居中，两栏那屏豁免（作答栏由 grid 分管）");
+     && PAGE_HTML.indexOf("body.wide-cols #docBody>*,body.wide-review #docBody>*{max-width:none;}") >= 0,
+     "正文列: 单栏封顶 620；材料作答与批改对照两栏使用整个版心");
   /* 两栏几何：带材料的屏在窗口够宽时左材料右作答。这里盯的是三条不变量——
      两栏的正文列仍是 560（让给材料的只有那 60px）、缩放下限仍是 1（字号不往小里探）、
      材料栏收到 400 就不再收。 */
@@ -3627,10 +3642,10 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(PAGE_HTML.indexOf("#bannerSlot{margin:0 calc(54px * var(--paper-scale));}") >= 0
      && PAGE_HTML.indexOf(".banner-actions") < 0,
      "提示条: 左右让出 54×缩放落在正文列上（与顶栏 --tb-edge 同一个数）；欢迎框删了，它的 .banner-actions 不留死样式");
-  ok(PAGE_HTML.indexOf("--act-col:320px") >= 0
+  ok(PAGE_HTML.indexOf("--act-col:520px") >= 0
      && PAGE_HTML.indexOf(".start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}") >= 0
      && PAGE_HTML.indexOf(".start-entry .actions:has(.big) .big{width:100%;min-width:0;}") >= 0,
-     "入口屏: 主按钮 / 科目药丸 / 继续条共用一条 320 动作列（窄到放不下整列跟着缩，那颗 min-width:320 不再撑出纸面）");
+     "入口屏: 主按钮 / 科目入口 / 继续条共用 520 动作列，窄窗随容器缩小");
   ok(PAGE_HTML.indexOf('<div class="actions actline">') >= 0 && PAGE_HTML.indexOf("继续上次没做完的题") < 0
      && PAGE_HTML.indexOf(".start-entry .actline .al-main{") >= 0,
      "入口屏: 恢复现场是一行信息 + 一颗描边键（原来两条描边大按钮比药丸宽、比红按钮轻，卡在中间谁都不像）");
