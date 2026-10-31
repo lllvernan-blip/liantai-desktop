@@ -30,6 +30,10 @@ const src = [
   // 预置 gw_history：页面脚本求值时必须能读到，专门抓“启动顺序”类回归（如 HISTORY_KEY 撞 TDZ 被静默吞掉）
   // 这条记录故意用旧格式（裸模块键 gongwen）：启动路径上就该被迁成 zy.gongwen，断言同时覆盖这一点
   "localStorage.setItem('gw_history', JSON.stringify([{ ts: 42, module: 'gongwen', grade: { total: 60, scores: {} } }]));",
+  // 再预置一份「有内容」的 gw_state：load() 的清洗链（经验/训练链/画像）必须整条跑通。
+  // 只预置 gw_history 不够——那条路在 gw_state 缺失时提前返回，EXP_KINDS 之类的 TDZ 照样溜过去。
+  "localStorage.setItem('gw_state', JSON.stringify({ settings: { subject: 'zy' }, profile: {}, cache: {}," +
+  " experiences: [{ type: '错因', kind: '漏点', title: '启动哨兵', body: '带数据启动不该回默认' }] }));",
   app,
   // 静态 HTML（页面里写死的部分）也纳入断言：DOM 桩子不解析页面结构，只有这份原文可查
   "const PAGE_HTML = " + JSON.stringify(html) + ";",

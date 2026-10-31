@@ -1218,6 +1218,10 @@ function saveHistory(){
     }catch(e2){ banner("本地存储已满，练习记录未能保存；建议先用「导出」备份，再清理练习记录。", "error"); return false; }
   }
 }
+/* 错因闭集（与 GRADE_TAGS 的 key 必须一致，有断言盯着）。放 load() 之前，
+   sanitizeExperiences 才能在顶层调用它；别引用 load 之后才声明的 GRADE_TAG_KEYS，会撞 TDZ。 */
+const EXP_KINDS = ["漏点","跑偏","结构","格式","表达","材料"];
+
 /* 启动读取失败：所有写入口一律挂起，先把原始 localStorage 导出；导入一份有效备份可以恢复。
    这个标记必须在 let state = load() 之前声明——load() 在模块顶层就调用。 */
 let _loadFailed = null;
@@ -1244,10 +1248,6 @@ function normTut(t){
   return { seq: (t && typeof t.seq === "number" && t.seq >= 0)? Math.floor(t.seq) : 0, done: !!(t && t.done) };
 }
 function normMarkColor(c){ return MARK_COLORS.indexOf(c) >= 0? c : DEFAULT_STATE.settings.markColor; }
-
-/* 错因闭集（与 GRADE_TAGS 的 key 必须一致，有断言盯着）。放 load() 之前，
-   sanitizeExperiences 才能在顶层调用它；别引用 load 之后才声明的 GRADE_TAG_KEYS，会撞 TDZ。 */
-const EXP_KINDS = ["漏点","跑偏","结构","格式","表达","材料"];
 
 /* 经验落盘/导入的字段清洗（load 与 importJSON 共用）。
    旧数据里出现过「规则」带着 kind（kind 只属于错因），也出现过回执字段形状不对；

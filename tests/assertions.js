@@ -20,6 +20,8 @@ fetchModelAnswer = async ()=> "";
 ok(state.history.length === 1 && state.history[0].ts === 42, "启动顺序: 首次求值即从 gw_history 读回练习记录");
 // 预置的是一条旧格式（裸模块键）记录：启动路径就得把它迁到科目前缀上
 ok(state.history[0].module === "zy.gongwen", "启动顺序: 旧裸模块键在首次 load 时就补上科目前缀");
+ok(_loadFailed === null && state.experiences.length === 1 && state.experiences[0].kind === "漏点",
+   "启动顺序: 带已有数据启动时清洗链不断（TDZ 会整份回默认，经验丢失）");
 
 /* 0.5 科目骨架：模块键全局唯一、科目定义齐备 */
 const ALL_MODULE_KEYS = SUBJECT_ORDER.reduce((a,s)=>a.concat(SUBJECTS[s].modules), []);
@@ -3497,8 +3499,8 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
 {
   const _src = PAGE_HTML.slice(PAGE_HTML.indexOf("<script>") + 8, PAGE_HTML.lastIndexOf("</script>"));
   const _at = _src.indexOf("let state = load();");
-  const _deps = ["DEFAULT_STATE","LEGACY_ORG","DEFAULT_SUBJECT","SUBJECTS","MODULES","MARK_COLORS",
-                 "HISTORY_KEY","SELF_KINDS","SELF_NOTE_MAX","FLOW_STEPS"];
+  const _deps = ["DEFAULT_STATE","LEGACY_ORG","DEFAULT_SUBJECT","SUBJECTS","MODULES","PAPER_SPEC","MARK_COLORS",
+                 "HISTORY_KEY","SELF_KINDS","SELF_NOTE_MAX","FLOW_STEPS","EXP_KINDS"];
   const _late = _deps.filter(n => {
     const m = new RegExp("^(?:const|let|var) " + n + "\\b", "m").exec(_src);
     return m && m.index > _at;
