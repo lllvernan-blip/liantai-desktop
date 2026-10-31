@@ -1593,8 +1593,8 @@ ok(orgName.indexOf("可跳过，不计分") >= 0 && orgHtml.indexOf("可跳过�
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"x", requirements:"r" }, keyPoints:[], cardPeeks:0 };
 const draftF = { groups:[{name:"甲组",facts:[0]}], selections:[{text:"甲点"}] };
 const dHtml = draftPanelHtml(draftF);
-const iTitle = dHtml.indexOf("作答区"), iBox = dHtml.indexOf('id="outlineBox"'), iTa = dHtml.indexOf('id="answer"');
-ok(iTitle >= 0 && iBox > iTitle && iBox < iTa, "提纲: 摆在作答区标题行下方、文本框之前");
+const iTools = dHtml.indexOf("justify-content:flex-end"), iBox = dHtml.indexOf('id="outlineBox"'), iTa = dHtml.indexOf('id="answer"');
+ok(iTools >= 0 && iBox > iTools && iBox < iTa, "提纲: 摆在作答框那一行下方、文本框之前");
 ok(dHtml.indexOf("我归的提纲") >= 0 && dHtml.indexOf("甲组：甲点") >= 0, "提纲: 一稿页看得到归出来的那一行");
 ok(!/id="outlineBox"[^>]*\bopen\b/.test(dHtml), "提纲: 默认收起（要用时点开）");
 ok(draftPanelHtml({ groups:[], selections:[] }).indexOf("outlineBox") < 0, "提纲: 一组都没有时不摆空框");
@@ -3499,15 +3499,15 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "层级: 区块标题只有一档（16px 红竖线）");
   ok(PAGE_HTML.indexOf(".sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body)") >= 0,
      "层级: 次级标题降一档（14px 灰、不缩进）");
-  ok(PAGE_HTML.indexOf('<div class="sec-title plain">作答区</div>') >= 0,
-     "层级: 「作答区」是容器标签，不比「题目」重");
+  ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<div class="secrow" style="justify-content:flex-end"><span class="secright">${orgBtn}${limitRowHtml()}') >= 0,
+     "层级: 作答框不再挂「作答区」这个标签——框和占位字已经说了；那一行只留归类、学习卡与限时");
   ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') >= 0,
      "层级: 两科的题头同一档（综应A 与申论不再各写一套）");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') < 0
      && PAGE_HTML.indexOf('<div class="pdstate" id="pdState"') >= 0,
      "层级: 快判一轮页不另起标题行（「快判」已由红头说），主题与进度落红头中段");
-  ok(PAGE_HTML.indexOf("红＝这句没拿满") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
-     "层级: 批改页的标注图例挪进标题行（不再每题占一行）");
+  ok(PAGE_HTML.indexOf("红＝没拿满 · 橙＝拿满") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
+     "层级: 批改页的标注图例挪进标题行（不再每题占一行），而且只留最短那一版说法");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0,
      "层级: 「我的答案」也是标题行带右侧图例");
   // 尺子本身不许有“定义了没人用”的死 token
@@ -3768,8 +3768,8 @@ ok(PAGE_HTML.indexOf(".start-entry .actline{") >= 0 && PAGE_HTML.indexOf(".start
 ok(PAGE_HTML.indexOf(".modal .box:focus{outline:none") >= 0, "弹层: 容器被聚焦时不画浏览器默认焦点环");
 ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*margin:0 8px 0 4px/) || [""])[0].length > 0, "批改页: 句末分数与下一句之间留出间距");
 ok(PAGE_HTML.indexOf("这道题卡在哪一步") >= 0 && PAGE_HTML.indexOf('"这道卡在哪一步') < 0, "批改页: 自述问句是「这道题卡在哪一步？」");
-ok(PAGE_HTML.indexOf('return \'<div class="mathint">选中文字即可划线') >= 0
-   && PAGE_HTML.indexOf('<span class="mathint">选中文字即可划线') < 0,
+ok(PAGE_HTML.indexOf('return \'<div class="mathint">选中文字划线') >= 0
+   && PAGE_HTML.indexOf('<span class="mathint">选中文字划线') < 0,
    "划线说明: 只当材料下面那一块的空态，划过就换成清单（不再单独占一行把作答区往下推）");
 ok(PAGE_HTML.indexOf('class="secright">${meta}<button class="linkbtn" id="btnSwitch"') >= 0
    && PAGE_HTML.indexOf('class="metarow"') >= 0

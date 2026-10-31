@@ -4857,7 +4857,7 @@ function draftPanelHtml(f){
     ? `<details class="notebox" id="outlineBox" style="margin:0 0 12px"><summary>我归的提纲（${outline.split("\n").length} 组 · 点开看）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`
     : "";
   html += `<div class="answer-wrap" id="answerArea">
-    <div class="secrow"><div class="sec-title plain">作答区</div><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
+    <div class="secrow" style="justify-content:flex-end"><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
     ${outlineBlock}
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
@@ -5400,7 +5400,7 @@ function selfNoteHtml(g, total){
     + `<div class="selfask">${esc(ask[0])}</div>`
     + `<textarea class="selfin" id="selfNote" maxlength="${SELF_NOTE_MAX}" placeholder="${esc(ask[1])}">${esc(cur)}</textarea>`
     + `<div class="selfrow"><button id="btnSelfSave">记下</button><button class="linkbtn" id="btnSelfSkip">跳过</button>`
-    + `<span class="hint" id="selfState">${cur? "已记下。攒够一个模块的量，就能看出你的做题习惯" : "跳过也行——跳过的题不参与归纳"}</span></div></div>`;
+    + `<span class="hint" id="selfState">${cur? "已记下" : ""}</span></div></div>`;
 }
 function wireSelfNote(){
   const box = $("#selfBox"); if(!box) return;
@@ -5463,7 +5463,7 @@ function gradeHtml(g, total){
   const am = answerMarks(g.hits, ansText);
   const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
   if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
-    + `<span class="secright"><span class="hint">${am.usable? "红＝这句没拿满 · 焦橙＝这句拿满 · <i class=\"asc\">+N</i> " + (allLocated? "相加＝总分" : "是本句得分") : ""}</span></span></div>` + ansReview;
+    + `<span class="secright"><span class="hint">${am.usable? "红＝没拿满 · 橙＝拿满 · <i class=\"asc\">+N</i> " + (allLocated? "相加＝总分" : "是本句得分") : ""}</span></span></div>` + ansReview;
   // 解析：只讲「为什么拿不到分」——3—4 类归因 + 末句一句原则。逐句标注已经在上面标过「缺什么」，
   // 参考答案在下面给「写成什么样」；这一段再复述任何一边都是噪音（2026-10-19 定的三段口径）。
   const causes = (Array.isArray(g.causes)? g.causes : []).filter(c=> c && (c.title || c.why));
@@ -6323,7 +6323,7 @@ function markedRuns(q){
    两样共用一个位置，不再各占一行把作答区往下推。 */
 function marksRecapHtml(q){
   const runs = markedRuns(q);
-  if(!runs.length) return '<div class="mathint">选中文字即可划线，点高亮处取消</div>';
+  if(!runs.length) return '<div class="mathint">选中文字划线</div>';
   return `<details class="notebox" open id="marksRecap"><summary>我划的重点（${runs.length} 处）</summary><div class="notebody" id="marksRecapBody">${marksRunsHtml(runs)}</div></details>`;
 }
 function marksRunsHtml(runs){
