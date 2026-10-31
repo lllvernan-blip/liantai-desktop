@@ -33,8 +33,12 @@
     /* 控件高度：同一行里的按钮 / 输入框 / 胶囊不再高低不齐 */
     --h-ctl:36px; --h-ctl-sm:30px;
     /* 纸面等比缩放：1–1.5，由 applyPaperScale() 按窗口宽度写。760px 的纸不拉宽（每行仍约 36 字），
-       整张纸连字号、控件一起放大；顶栏内边距与纸宽用同一个数，两边始终对齐纸边。 */
-    --paper-scale:1;
+       整张纸连字号、控件一起放大；顶栏内边距与纸宽用同一个数，两边始终对齐纸边。
+       --sheet-w 是这张纸当下有多宽：单栏 760（正文列 620），带材料的屏在窗口够宽时改成两栏
+       （作答栏 560 + 纸边 140 + 中缝 24 + 材料栏 580 = 1304），材料落左、作答落右。
+       两栏时正文列让出 60px（38 字/行 → 35 字）给材料（29 字/行 → 33 字）：读材料的时间远长于读题面。
+       --mat-col-h 是两栏时材料窗的高。这几个都由 applyPaperScale() 写，这里只是启动那一瞬的初值。 */
+    --paper-scale:1; --sheet-w:760px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
     /* 字号阶梯：相邻至少差 1.5px——差半像素等于没分级 */
     --fs-display:30px;   /* 分数这类大数 */
     --fs-hero:26px;      /* 整屏标题（入口页、小结页）*/
@@ -105,7 +109,7 @@ html,body{margin:0;padding:0;}
   /* 顶栏 */
   .topbar{position:sticky;top:0;z-index:20;background:var(--canvas);border-bottom:1px solid var(--line);}   /* 顶栏融进底板，不占一块纸（人感 Demo 同款） */
   /* 顶栏与科目栏与纸面对齐同一列：原来两端贴窗口边、正文却居中，一屏里出现两套左右基准 */
-  .toolbar{display:flex;align-items:center;gap:8px;padding:8px max(16px,calc((100% - 760px * var(--paper-scale))/2 + 16px));}
+  .toolbar{display:flex;align-items:center;gap:8px;padding:8px max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px));}
   /* 右上四个入口是工具，比品牌弱，但它们是纯文字、热区只有 13px 高：撑到能稳点中的高度，并给一点悬停反馈 */
   .toolbar button.linkbtn{padding:8px 12px;font-size:var(--fs-body);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-ctl);}
@@ -176,7 +180,7 @@ html,body{margin:0;padding:0;}
   .startbox .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
 
-  .wrap{max-width:calc(760px * var(--paper-scale));margin:calc(24px * var(--paper-scale)) auto;padding:0 16px;}
+  .wrap{max-width:calc(var(--sheet-w) * var(--paper-scale));margin:calc(24px * var(--paper-scale)) auto;padding:0 16px;}
   /* overflow 用 clip 不用 hidden：hidden 会把纸变成一个滚动容器，里面的一切吸顶与 scrollIntoView 都得换基准；clip 只裁不接管滚动 */
   /* 纸面是公文纸不是网页卡片：纸立得住靠的是它自己的色（--paper 对底板 1.11:1）与撑满视口（下方不悬空，像真铺在桌上），
      不靠描边和投影。原先那圈 1px 边框（对纸 1.43:1）加两级 .06 的黑，实物上分辨不出，已去（2026-10-15）。 */
@@ -241,12 +245,13 @@ html,body{margin:0;padding:0;}
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
   .material{background:var(--mat);border-radius:var(--r-card);padding:24px 24px;font-family:var(--fangsong);font-size:16px;line-height:2.05;-webkit-text-stroke:0.3px currentColor;white-space:pre-wrap;word-break:break-word;}
   .material .label{font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
-  /* 划线说明与「分值/难度」同一行：左边报事实，右边说怎么用，各自成组，不塞进材料块 */
+  /* 分值与难度：标签紧贴值、两个一组。摆哪儿由调用点定——作答页把它们并进「题目」那一行的右侧，
+     其余屏仍单独占一行（.metarow：左边报事实，右边说怎么用）。 */
   .metarow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;}
-  .metarow .meta{display:flex;gap:24px;font-size:var(--fs-body);}
-  .metarow .meta b{font-family:var(--hei);font-weight:700;margin-right:4px;}
+  .meta{display:flex;gap:24px;font-size:var(--fs-body);}
+  .meta b{font-family:var(--hei);font-weight:700;margin-right:4px;}
+  /* 划线说明：材料下面那一块的空态；划过之后同一位置换成「我划的重点」，不各占一行 */
   .mathint{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);text-align:right;letter-spacing:.5px;}
-  .metarow .mathint{margin:0;}
   /* 「据材料」：材料由真实报道的事实骨架改写而来。只在没有来源明细的老记录上出现——
      有来源时「素材：…」已经说清，再挂一个标就是同一件事说两遍。 */
   .material .from-mat{font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:8px;letter-spacing:.5px;}
@@ -269,6 +274,24 @@ html,body{margin:0;padding:0;}
   @media (max-height:820px){ .material.mat-scroll{max-height:calc(2.05em * 3 + 52.65px);} }   /* 矮窗：材料只露三行、内部可滚，作答区才进首屏 */
   @media (max-height:820px){ .require,.metarow{margin-top:8px;} }   /* 矮窗：题面几行收紧一档，把首屏留给作答区 */
   @media (min-height:1020px){ .material.mat-scroll{max-height:calc(2.05em * 12 + 52.65px);} }
+  /* 两栏（凡有材料的屏都这一套）：左材料、右作答。HTML 只写一种形态——.paper-cols 里三块（题面 / 材料 / 作答区），
+     单栏时这一壳等于不存在，按 DOM 顺序上下排，与今天一模一样。
+     分不分栏由 applyPaperScale() 按窗口宽度判，写 body.wide-cols 与 --sheet-w / --mat-col-w。 */
+  .paper-cols{display:block;}
+  /* 材料栏占左侧两行：题面只压在右栏上方，不给它整幅宽度（行宽不随窗口拉长——两栏时正文列 560，
+     比单栏的 620 窄 60px，那 60px 就是让给材料的） */
+  body.wide-cols .paper-cols{display:grid;grid-template-columns:var(--mat-col-w) 1fr;grid-template-rows:auto 1fr;
+    grid-template-areas:"mat head" "mat work";gap:var(--mat-gap);align-items:start;}
+  body.wide-cols .c-head{grid-area:head;}
+  body.wide-cols .col-work{grid-area:work;}
+  /* 两栏时材料不再靠「只露几行」给作答区让位（作答区在右边，不在它下面）：整窗按「这一栏离视口顶还有多远」
+     现算高度（--mat-col-h 由 applyPaperScale() 量），铺到视口底、自己滚。红头与横幅多高不固定，
+     写死一个数迟早对不上，所以量而不猜。不用 position:sticky——实测它在这张纸里滑不动：
+     材料窗比它所在的那一格还高，吸顶没有余量；窗高铺满后整页几乎不必滚动，也就不需要吸。 */
+  body.wide-cols .col-mat{grid-area:mat;}
+  body.wide-cols .col-mat .material.mat-scroll{max-height:var(--mat-col-h);}
+  /* 材料窗下面那一块：没划过线时是「怎么划」，划过之后是「我划的重点」（见 marksRecapHtml） */
+  #marksSlot{margin-top:12px;}
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   /* 材料上的两种标记长成同一套：一块底色 + 一道 2px 底边线。划线用的是设置里选的颜色，
      底边线由它加深一档（color-mix 让它跟着换色，不为每个颜色再维护一张线色表）。 */
@@ -3709,23 +3732,28 @@ function renderQuestion(){
 
 /* ============ 综应A 两阶段：学习卡（折叠+笔记+翻卡计数）→ 我已学习，开始作答 → 作答页；结果页与申论共用 gradeHtml ============ */
 // 不建训练链、不渲染步骤条；翻卡计次照旧进练习记录、参与调度（PEEK_WEIGHT）。
-function metaLineHtml(q, right){
-  // 分值与难度并成一行；右侧可挂同一层级的页面说明（如划线用法），各成一组
+/* 分值与难度：单独占一行太贵。作答页把它们并进「题目」那一行的右侧（metaInlineHtml），
+   其余屏仍单独一行（metaLineHtml：左边报事实，右边说怎么用）。 */
+function metaInlineHtml(q){
   const parts = [];
   if(q && q.score) parts.push(`<span><b>分值</b>${esc(q.score)} 分</span>`);
   if(q && q.difficulty) parts.push(`<span><b>难度</b>${esc(q.difficulty)}</span>`);
-  if(!parts.length && !right) return "";
-  return `<div class="metarow"><div class="meta">${parts.join("")}</div>${right || ""}</div>`;
+  return parts.length? `<span class="meta">${parts.join("")}</span>` : "";
 }
-function qHeadHtml(showQuestion, metaRight){
+function metaLineHtml(q, right){
+  const inline = metaInlineHtml(q);
+  if(!inline && !right) return "";
+  return `<div class="metarow">${inline}${right || ""}</div>`;
+}
+function qHeadHtml(showQuestion){
   const {question} = current;
-  let html = `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
+  // 整卷题干里已带分值，题头不再重复报一次；难度仍保留
+  const meta = metaInlineHtml(current && current.paperId? Object.assign({}, question, { score:0 }) : question);
+  let html = `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">题目</div><span class="secright">${meta}<button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
   // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）；这行只剩一颗按钮，不必带题头
   if(showQuestion === false) return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
   html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  // 整卷题干里已带分值，题头不再重复报一次；难度仍保留
-  html += metaLineHtml(current && current.paperId? Object.assign({}, question, { score:0 }) : question, metaRight);
   return html;
 }
 /* 学习卡整页：综应A 的学习阶段与申论链的开头共用这一屏（先记知识点再动手，做的时候忘了还能随时翻）。
@@ -3756,12 +3784,17 @@ function wireCardPage(btnId, onGo){
 function renderZyPage(){
   if(!current || !current.question){ renderStart(); return; }
   const phase = current.phase || "card";
-  let html = phase === "grade"? "" : qHeadHtml(phase !== "card", phase === "answer"? '<span class="mathint">选中文字即可划线，点高亮处取消</span>' : "");   // 批改页不重复题面：这一页的头是分数（换一题在分数那一行）
+  const head = phase === "grade"? "" : qHeadHtml(phase !== "card");   // 批改页不重复题面：这一页的头是分数（换一题在分数那一行）
+  let html = head;
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
   } else if(phase === "answer"){
-    html += `<div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}</div><div id="materialBox">${materialHtml(current.question)}</div></div>`;
-    html += draftPanelHtml(null);
+    // 带材料的屏走两栏：材料与「我划的重点」进左栏，题面与作答区进右栏。DOM 顺序仍是题面→材料→作答区，
+    // 窗口窄到放不下两栏时这层壳等于不存在，落回原来的上下排（划的重点照旧回到作答区上方）。
+    html = `<div class="paper-cols"><div class="c-head">${head}</div>`
+      + `<aside class="col-mat"><div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}</div><div id="materialBox">${materialHtml(current.question)}</div></div>`
+      + `<div id="marksSlot">${marksRecapHtml(current.question)}</div></aside>`
+      + `<div class="col-work">${draftPanelHtml(null)}</div></div>`;
   } else {
     html += cardPageHtml({ id:"btnZyAnswer", label:"我已学习，开始作答" });
   }
@@ -4751,7 +4784,6 @@ function openCardDrawer(count){
 function wireCardDrawer(count){ const b = $("#btnCard"); if(b) b.onclick = ()=> openCardDrawer(!!count); }
 function draftPanelHtml(f){
   const {module} = current;
-  const question = current.question;
   // 归类不再占一步：它是作答区那一行右侧的一个入口，想先理一遍要点再写就点它，归完回到这里
   const gN = f? (f.groups || []).length : 0;
   const orgBtn = f? `<button id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
@@ -4761,7 +4793,6 @@ function draftPanelHtml(f){
   const outlineBlock = outline
     ? `<details class="notebox" id="outlineBox" style="margin:0 0 12px"><summary>我归的提纲（${outline.split("\n").length} 组 · 点开看）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`
     : "";
-  if(!f) html += marksRecapHtml(question);   // 综应A：材料就在本页，划线随看随有用；申论一稿页无材料可划，要点已在提纲里，不再重复摆出
   html += `<div class="answer-wrap" id="answerArea">
     <div class="secrow"><div class="sec-title plain">作答区</div><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
     ${outlineBlock}
@@ -4856,13 +4887,18 @@ function wireMarks(unmarkOnClick){
     document.addEventListener("mousedown", _markOutsideHandler);
   }
 }
-/* 划线变了：只刷新「我划的重点」列表本身，不动折叠状态 */
+/* 划线变了：只刷材料下面那一块。清单已在就只换内容、不动折叠状态；
+   空态与清单之间换脸才整块重写，重写后材料窗的高要跟着重算。 */
 function refreshMarksRecap(){
-  const body = $("#marksRecapBody"); if(!body || !current || !current.question) return;
+  const slot = $("#marksSlot"); if(!slot || !current || !current.question) return;
   const runs = markedRuns(current.question);
-  body.innerHTML = marksRunsHtml(runs);
-  const sm = body.parentElement && body.parentElement.querySelector("summary");
-  if(sm) sm.textContent = `我划的重点（${runs.length} 处）`;
+  const body = $("#marksRecapBody");
+  if(body && runs.length){
+    body.innerHTML = marksRunsHtml(runs);
+    const sm = body.parentElement && body.parentElement.querySelector("summary");
+    if(sm) sm.textContent = `我划的重点（${runs.length} 处）`;
+  } else slot.innerHTML = marksRecapHtml(current.question);
+  applyPaperScale();
 }
 function wireDraft(f){
   const {module} = current;
@@ -6220,12 +6256,15 @@ function markedRuns(q){
   }
   return runs;
 }
+/* 材料下面这一块随划线状态换脸：一处没划就说「怎么用」，划过就列出划过的原句——
+   两样共用一个位置，不再各占一行把作答区往下推。 */
 function marksRecapHtml(q){
   const runs = markedRuns(q);
-  return `<details class="notebox"${runs.length? " open":""} id="marksRecap"><summary>我划的重点（${runs.length} 处）</summary><div class="notebody" id="marksRecapBody">${marksRunsHtml(runs)}</div></details>`;
+  if(!runs.length) return '<div class="mathint">选中文字即可划线，点高亮处取消</div>';
+  return `<details class="notebox" open id="marksRecap"><summary>我划的重点（${runs.length} 处）</summary><div class="notebody" id="marksRecapBody">${marksRunsHtml(runs)}</div></details>`;
 }
 function marksRunsHtml(runs){
-  return runs.length? runs.map(t=>`<div class="markrun">${esc(t)}</div>`).join("") : '<span class="hint">还没划。在上方材料里选中几个字，点「划线」。</span>';
+  return runs.map(t=>`<div class="markrun">${esc(t)}</div>`).join("");
 }
 /* 作答笔记已下线（题目笔记这个功能不要了）；学习卡笔记仍按模块+子类型存，
    写与看都在学习卡抽屉里（见 openCardDrawer）——同一个东西不留两个入口 */
@@ -6580,13 +6619,54 @@ function paperScaleFor(w, h){
 }
 function applyPaperScale(){
   if(typeof window === "undefined" || typeof document === "undefined" || !document.documentElement) return;
-  const s = paperScaleFor(window.innerWidth, window.innerHeight);
-  document.documentElement.style.setProperty("--paper-scale", String(Math.round(s * 1000) / 1000));
+  const colMat = document.querySelector && document.querySelector("#docBody .paper-cols .col-mat");
+  const L = layoutFor(window.innerWidth, window.innerHeight, !!colMat);
+  const num = (n)=> String(Math.round(n * 1000) / 1000);
+  const st = document.documentElement.style;
+  st.setProperty("--paper-scale", num(L.scale));
+  st.setProperty("--sheet-w", num(L.sheet) + "px");
+  st.setProperty("--mat-col-w", num(L.matW) + "px");
+  if(document.body) document.body.classList.toggle("wide-cols", L.wide);
+  /* 材料窗的高按「这一栏离文档顶多远」现算（顶栏 + 红头 + 横幅占的多高并不固定），
+     剩下的视口高减 24、再减掉窗下那一块（划线说明 / 我划的重点）就是它该占的高。
+     两样的顶都不受自己的高影响，量一次就够，不会来回摆。 */
+  if(colMat){
+    const top = colMat.getBoundingClientRect().top + (window.scrollY || 0);
+    const under = colMat.querySelector("#marksSlot");
+    const uh = under? under.getBoundingClientRect().height : 0;
+    st.setProperty("--mat-col-h", num(Math.max(160, (window.innerHeight - top - 24 - uh) / L.scale)) + "px");
+  }
+}
+
+/* 带材料的屏（.paper-cols）在窗口够宽时改成两栏：左材料、右作答。两栏把正文列让出 60px 给材料
+   ——纸 = 作答栏 560 + 纸边 140 + 中缝 24 + 材料栏 580 = 1304，与上一版同宽，只是左右换了个分法。
+   纸边 140 = .wrap 内边距 32 + .doc 内边距 108（单栏 760 − 正文 620 也是这个数）。
+   宽度不够时先把材料栏从 580 收到 400（收到 400 不再收：再窄材料就得竖着读），
+   还不够就收回单栏、材料落回作答区上方——缩放下限仍是 1，字号不往小里探。 */
+const PAPER_W = 760, MAT_EDGE = 140, WORK_W = 560, MAT_GAP = 24, MAT_W = 580, MAT_W_MIN = 400, SCROLL_GUTTER = 10;
+const MAT_SIDE = WORK_W + MAT_EDGE + MAT_GAP;   // 724：材料栏以外的一切
+function layoutFor(w, h, hasCols){
+  const avail = (Number(w) || 0) - SCROLL_GUTTER;   // 纸面居中可用的宽度：滚动条那一槽先扣掉
+  const stacked = { wide:false, sheet:PAPER_W, matW:MAT_W, scale:paperScaleFor(w, h) };
+  if(!hasCols) return stacked;
+  const minSheet = MAT_SIDE + MAT_W_MIN, fullSheet = MAT_SIDE + MAT_W;   // 1124 / 1304
+  if(avail < minSheet) return stacked;
+  if(avail < fullSheet) return { wide:true, sheet:avail, matW:avail - MAT_SIDE, scale:1 };
+  let s = Math.min(1.5, avail / fullSheet);   // 满幅材料栏，纸跟着窗口长（上限仍 1.5）
+  if(h && h < 780) s = Math.min(s, 1.15);
+  else if(h && h < 820) s = Math.min(s, 1.2);
+  return { wide:true, sheet:fullSheet, matW:MAT_W, scale:s };
 }
 
 applyPaperScale();
 init();
 if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", applyPaperScale);
+/* 换一屏就是换一次「这一屏带不带材料」，几何跟着重算。挂在这里而不是每个渲染函数各点一次：
+   渲染都从 #docBody 的子节点变化走出去，判定只留一处。 */
+if(typeof window !== "undefined" && typeof MutationObserver === "function"){
+  const _docBody = document.querySelector("#docBody");
+  if(_docBody) new MutationObserver(applyPaperScale).observe(_docBody, { childList: true });
+}
 </script>
 </body>
 </html>

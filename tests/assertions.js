@@ -2984,6 +2984,13 @@ ok(dtHtml().indexOf('class="sec-title">题目</div>') >= 0 && dtHtml().indexOf("
    "作答页: 「换一题」与题头同行（不独占一行，作答要求不被顶低一格）");
 ok(dtHtml().indexOf("作答要求：") < 0 || dtHtml().indexOf("作答要求：") < dtHtml().indexOf("背景材料"),
    "作答页: 题面在材料之前（先看要求再看材料）");
+ok(dtHtml().indexOf('class="paper-cols"') >= 0
+   && dtHtml().indexOf('class="c-head"') < dtHtml().indexOf('class="col-mat"')
+   && dtHtml().indexOf('class="col-mat"') < dtHtml().indexOf('id="marksSlot"')
+   && dtHtml().indexOf('id="marksSlot"') < dtHtml().indexOf('class="col-work"')
+   && dtHtml().indexOf('id="answer"') > dtHtml().indexOf('class="col-work"')
+   && dtHtml().indexOf("我划的重点") < 0,
+   "作答页: 题面 / 材料 / 作答区三块装进 .paper-cols，划的重点跟在材料窗下面（没划过时只留一句说明）");
 ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('value=""') >= 0,
    "限时: 综应A 作答页也有控件（与申论共用同一处渲染）");
 el("#answer").value = "综应A 的一段作答内容，用来验证不限时的时候什么也不报。";
@@ -3502,6 +3509,32 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
   ok(paperScaleFor(1040) === 1 && Math.abs(paperScaleFor(1470) - 1.4) < 0.01 && paperScaleFor(1920) === 1.5 && paperScaleFor(0) === 1
      && Math.abs(paperScaleFor(1470, 800) - 1.2) < 0.01 && Math.abs(paperScaleFor(1470, 756) - 1.15) < 0.01,
      "纸面: 按窗口宽度等比放大（≤1050 不放大 / 1470 约 1.4 / 超宽封顶 1.5）；矮窗再收一档");
+  /* 两栏几何：带材料的屏在窗口够宽时左材料右作答。这里盯的是三条不变量——
+     两栏的正文列仍是 560（让给材料的只有那 60px）、缩放下限仍是 1（字号不往小里探）、
+     材料栏收到 400 就不再收。 */
+  ok(layoutFor(1040, 900, true).wide === false && layoutFor(1133, 900, true).wide === false
+     && layoutFor(1134, 900, true).wide === true,
+     "两栏: 窗口窄到 1134 以下收回单栏（材料落回到作答区上方）");
+  ok(layoutFor(1040, 900, false).wide === false && layoutFor(1920, 1030, false).wide === false
+     && layoutFor(1920, 1030, false).scale === paperScaleFor(1920),
+     "两栏: 没有材料的屏一律单栏，缩放仍走 paperScaleFor 那一套");
+  ok(layoutFor(1134, 900, true).matW === 400 && layoutFor(1280, 900, true).matW === 546
+     && layoutFor(1314, 900, true).matW === 580 && layoutFor(1920, 1030, true).matW === 580,
+     "两栏: 材料栏先收（400 是下限，再窄就得竖着读），够宽了给满 580");
+  ok([1134, 1250, 1314, 1600, 1920, 2560].every(function(w){ const L = layoutFor(w, 900, true);
+    return L.wide && (L.sheet - L.matW - 140 - 24) === 560 && L.scale >= 1 && L.scale <= 1.5; }),
+  "两栏: 右栏正文列在哪个窗口宽度都还是 560（每行约 35 字），缩放始终 1–1.5");
+  ok(layoutFor(1920, 756, true).scale === 1.15 && layoutFor(1920, 800, true).scale === 1.2,
+     "两栏: 矮窗那一档封顶照旧（1.15 / 1.2），不因分栏松开");
+  ok(layoutFor(1470, 900, true).sheet === 1304 && Math.abs(layoutFor(1470, 900, true).scale - 1.1196) < 0.001,
+     "两栏: 满幅时纸宽锁 1304（作答栏 560 + 纸边 140 + 中缝 24 + 材料栏 580），顶栏按同一个数对齐纸边");
+  ok(PAGE_HTML.indexOf(".wrap{max-width:calc(var(--sheet-w) * var(--paper-scale))") >= 0
+     && PAGE_HTML.indexOf(".toolbar{display:flex;align-items:center;gap:8px;padding:8px max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px));") >= 0,
+     "两栏: 纸宽从写死的 760 换成 --sheet-w，顶栏与纸面仍共用同一个数");
+  ok(/body\.wide-cols \.paper-cols\{display:grid;grid-template-columns:var\(--mat-col-w\) 1fr/.test(PAGE_HTML)
+     && PAGE_HTML.indexOf('grid-template-areas:"mat head" "mat work"') >= 0
+     && PAGE_HTML.indexOf(".paper-cols{display:block;}") >= 0,
+     "两栏: 材料占左两行、题面只压在右栏上方（单栏时这层壳等于不存在）");
   // :root 外不写设计色 hex（用户可选的划线色是运行时变量，另算）
   const _css = PAGE_HTML.slice(PAGE_HTML.indexOf("<style>"), PAGE_HTML.indexOf("</style>"));
   const _rootEnd = _css.indexOf("}", _css.indexOf(":root{"));
@@ -3653,11 +3686,13 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
 ok(PAGE_HTML.indexOf(".modal .box:focus{outline:none") >= 0, "弹层: 容器被聚焦时不画浏览器默认焦点环");
 ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*margin:0 8px 0 4px/) || [""])[0].length > 0, "批改页: 句末分数与下一句之间留出间距");
 ok(PAGE_HTML.indexOf("这道题卡在哪一步") >= 0 && PAGE_HTML.indexOf('"这道卡在哪一步') < 0, "批改页: 自述问句是「这道题卡在哪一步？」");
-ok(PAGE_HTML.indexOf('<span class="mathint">选中文字即可划线') >= 0
-   && PAGE_HTML.indexOf('<span class="mathint">选中文字即可划线') < PAGE_HTML.indexOf('<div class="material mat-scroll">'),
-   "材料头: 划线说明与分值同一行，在材料之前");
-ok(PAGE_HTML.indexOf('class="metarow"') >= 0 && PAGE_HTML.indexOf("<b>分值</b>") >= 0 && PAGE_HTML.indexOf("分值：</b>") < 0,
-   "题面: 分值与难度同一行、标签紧贴值（不再用 5em 悬挂缩进拉开）");
+ok(PAGE_HTML.indexOf('return \'<div class="mathint">选中文字即可划线') >= 0
+   && PAGE_HTML.indexOf('<span class="mathint">选中文字即可划线') < 0,
+   "划线说明: 只当材料下面那一块的空态，划过就换成清单（不再单独占一行把作答区往下推）");
+ok(PAGE_HTML.indexOf('class="secright">${meta}<button class="linkbtn" id="btnSwitch"') >= 0
+   && PAGE_HTML.indexOf('class="metarow"') >= 0
+   && PAGE_HTML.indexOf("<b>分值</b>") >= 0 && PAGE_HTML.indexOf("分值：</b>") < 0,
+   "题面: 作答页把分值与难度并进「题目」那一行右侧，其余屏仍单独一行（标签紧贴值，不用 5em 悬挂缩进）");
 ok(PAGE_HTML.indexOf("这类题怎么练？") >= 0 && PAGE_HTML.indexOf("${esc(m.name)} 练什么？") < 0,
    "落地页: 标题只说「这类题怎么练」，不复述抬头里的模块名");
 ok(renderHeader.toString().indexOf('_view === "q"') >= 0, "抬头: 子类型只在作答页报，落地页不带上一题的子类型");
