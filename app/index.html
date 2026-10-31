@@ -66,7 +66,6 @@
     --sh-2:0 2px 10px rgba(31,31,31,.10);
     --sh-3:0 12px 40px rgba(0,0,0,.18);
     /* 纸面浮在桌面上（.doc、FAB 同用）：人感 Demo 的 --shadow 档——暖调、大而淡，白纸才立得住 */
-    --sh-paper:0 10px 30px rgba(60,50,40,.08), 0 2px 6px rgba(60,50,40,.05);
     --scrim:rgba(25,22,16,.45);   /* 引导挖孔外的暗遮罩（暖调，与纸面同族） */
     --sh-tip:0 10px 30px rgba(25,22,16,.28), 0 2px 6px rgba(25,22,16,.18);   /* 墨底气泡的柔影 */
     --tip-dim:rgba(255,253,248,.55); --tip-dim-2:rgba(255,253,248,.6);   /* 墨底上的次级白字两档 */
@@ -219,6 +218,8 @@ html,body{margin:0;padding:0;}
   #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
   body.wide-cols #docBody>*,body.wide-review #docBody>*{max-width:none;}
   /* 入口屏在版心中线上居中（纸的左缘不是这屏的基准）：整块 620 列居中，三条动作共用 520 宽、左右缘对齐。 */
+  /* 纸张够高时这一列在版心里竖向居中：入口只有三条动作，靠上排会让下半张纸空成一片。 */
+  #docBody>.startbox.start-entry{min-height:max(320px, calc(100vh / var(--paper-scale) - 250px));justify-content:center;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 12px;}
   .redline{display:flex;align-items:center;}
@@ -483,9 +484,11 @@ html,body{margin:0;padding:0;}
   .drawer[hidden]{display:none;}
   .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:16px 16px 24px;}
-  .fab{position:fixed;right:var(--fab-right,16px);bottom:16px;z-index:40;border-radius:var(--r-ctl);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);font-family:var(--hei);}
+  /* 学习卡入口是纸上的一个按钮：跟「先归类再写」「换一题」同一行、同一套描边与高度。
+     原先是一颗贴在窗口右下角的浮标，落在纸面外的灰边上——纸上没它的位置，看着像外挂。 */
+  .fab{display:inline-flex;align-items:center;border-radius:var(--r-ctl);padding:0 12px;min-height:var(--h-ctl-sm);background:var(--ctl);border:1px solid var(--line);color:var(--muted);font-family:var(--hei);font-size:var(--fs-body);cursor:pointer;}
   @media (max-width:1240px){ .fab .fabcount{display:none;} .fab{padding:8px 12px;} }   /* 窄窗纸两侧没地方：浮标只留动作名，仍挂在纸外 */
-  .fab:hover{background:var(--ctl);border-color:var(--line-hover);}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
+  .fab:hover{background:var(--paper);border-color:var(--line-hover);color:var(--ink);}
   .fab b{color:var(--ink);}
   .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:var(--r-ctl);box-shadow:0 0 0 200vmax var(--scrim);outline:2px solid var(--gov-red);display:none;}
   /* 引导气泡：墨底白字、控件圆角、暖调柔影；高亮框与气泡同一档圆角，孔和话才是同一套东西 */
@@ -4704,7 +4707,7 @@ function stepPanelHtml(step, f, lg){
     html += `<div class="hint" style="margin-top:12px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
-    html += `<div class="actions" style="margin-top:16px"><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
+    html += `<div class="actions" style="margin-top:16px"><span id="cardHost"></span><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
     return html;
   }
   // 归类降级成一稿页上的入口：f.orgOpen 打开时，一稿那一屏就换成归类面板
@@ -4824,8 +4827,10 @@ function setTimeLimit(m){
    而动画填充的 transform 会把那一块变成 fixed 的包含块——浮标就变成「滑到底才看得见」。
    act 为空 = 清空（这一屏不要浮标）。 */
 function paintFab(act, count){
-  const slot = $("#fabSlot"); if(!slot) return;
-  slot.innerHTML = act? (cardFabHtml(act, count) + cardDrawerHtml()) : "";
+  const slot = $("#fabSlot");
+  if(slot) slot.innerHTML = act? cardDrawerHtml() : "";   // 抽屉是覆盖层，仍挂在纸外（没入口就不该有抽屉）
+  const host = $("#cardHost");
+  if(host) host.innerHTML = act? cardFabHtml(act, count) : "";
 }
 function cardFabHtml(act, count){
   return `<button class="fab" id="btnCard">${act}${count? `<span class="fabcount"> · 已翻 <b>${current.cardPeeks||0}</b> 次</span>` : ""}</button>`;
@@ -4872,7 +4877,7 @@ function draftPanelHtml(f){
     ? `<details class="notebox" id="outlineBox" style="margin:0 0 12px"><summary>我归的提纲（${outline.split("\n").length} 组 · 点开看）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`
     : "";
   html += `<div class="answer-wrap" id="answerArea">
-    <div class="secrow" style="justify-content:flex-end"><span class="secright">${orgBtn}${limitRowHtml()}</span></div>
+    <div class="secrow" style="justify-content:flex-end"><span class="secright"><span id="cardHost"></span>${orgBtn}${limitRowHtml()}</span></div>
     ${outlineBlock}
     <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
     <div class="actions">
@@ -6718,14 +6723,6 @@ function applyPaperScale(){
   st.setProperty("--paper-scale", num(L.scale));
   st.setProperty("--sheet-w", num(L.sheet) + "px");
   st.setProperty("--mat-col-w", num(L.matW) + "px");
-  // 浮标（学习卡）跟着纸走：右缘对齐正文列的右缘，不贴窗口边。窗口宽了纸会缩放，
-  // 写死 16px 时纸上就剩它一个人对不齐；这里量一次纸的实际右缘算成 px。
-  const docEl = document.getElementById && document.getElementById("doc");
-  if(docEl){
-    const dr = docEl.getBoundingClientRect();
-    const vw = document.documentElement.clientWidth || window.innerWidth;
-    st.setProperty("--fab-right", Math.max(16, Math.round(vw - (dr.right - 54 * L.scale))) + "px");
-  }
   if(document.body){
     document.body.classList.toggle("wide-cols", L.wide && !!colMat);
     document.body.classList.toggle("wide-review", L.wide && !!review);

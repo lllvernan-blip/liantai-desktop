@@ -636,9 +636,9 @@ el("#btnChainStart").onclick();
 ok(activeFlow().cardSeen === true, "链前学习卡: 点过就记下来，这条链不再重复拦");
 ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "训练链: 步骤条在场，落点是读材料");
 ok(el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0 && el("#docBody").innerHTML.indexOf(">题目<") < 0, "读材料: 题目与材料同屏（找点合并后材料按句分段；题面不挂标签）");
-// 学习卡浮标挂在纸面之外：纸面里每个直接子元素都带入场动画，动画填充的 transform 会变成 fixed 的包含块
-ok(el("#fabSlot").innerHTML.indexOf("看学习卡") >= 0 && el("#docBody").innerHTML.indexOf("看学习卡") < 0,
-   "读材料: 学习卡浮标在纸面之外（否则滑到底才看得见）");
+// 学习卡入口是纸上的一颗按钮：跟「先归类再写」「限时」同一行，读材料时就在动作行里
+ok(el("#cardHost").innerHTML.indexOf("看学习卡") >= 0 && el("#fabSlot").innerHTML.indexOf("看学习卡") < 0,
+   "读材料: 学习卡入口在纸面上（与其它控件同一行，不做浮在灰边上的胶囊）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "读材料: 笔记不再摊在纸面上（收进抽屉）");
 /* 链上两栏（读材料 / 一稿）：材料进左栏，右栏摆「这一屏真正要产出的东西」——读的时候是挑下来的点，
    写的时候是作答区。DOM 顺序仍是题面 → 材料 → 面板，窄到放不下两栏时这层壳等于不存在，落回上下排。 */
@@ -661,8 +661,8 @@ ok(/mark\.ms\.on\{[^}]*box-shadow:inset 0 -2px 0/.test(PAGE_HTML) && /\.pt-seg\.
 ok((PAGE_HTML.match(/不要自造「江城市」这类看着像真的具体名字/g) || []).length >= 2,
    "出题: 主观题与快判两条出题要求都写明地名虚化，不写看着像真的具体地名");
 ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
-ok(el("#fabSlot").innerHTML.indexOf("btnCard") >= 0 && el("#fabSlot").innerHTML.indexOf("cardDrawer") >= 0,
-   "读材料: 学习卡收成常驻浮标 + 抽屉（不再压在材料上方）");
+ok(el("#cardHost").innerHTML.indexOf("btnCard") >= 0 && el("#fabSlot").innerHTML.indexOf("cardDrawer") >= 0,
+   "读材料: 学习卡是纸上一个入口 + 纸外的抽屉（不再压在材料上方）");
 flowGoStep("draft");
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷在场");
 ok(el("#docBody").innerHTML.indexOf("先归类再写") >= 0, "一稿: 归类是这一页上的入口");
@@ -702,7 +702,7 @@ el("#btnOrgNext").onclick();
 el("#btnOrgDone").onclick();
 ok(wf.orgOpen === false && el("#docBody").innerHTML.indexOf("提交阅卷") >= 0,
    "归类接线: 「写完了」收起面板回到一稿");
-ok(el("#fabSlot").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡浮标在场");
+ok(el("#cardHost").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡入口在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
 ok(el("#drawerBody").innerHTML.indexOf("解题要点") >= 0, "抽屉: 卡片原文只在抽屉里");
@@ -728,7 +728,7 @@ ok(genCallsCard === 1 && current && current.studyCard === SL_STUDY_CARDS["sl.gui
 ok(JSON.parse(capCard.user).library && JSON.parse(capCard.user).library.points.length >= 5, "申论学习卡: 资料库随出题注入（library 字段在场）");
 ok(el("#docBody").innerHTML.indexOf("我已学习，开始读材料") >= 0, "申论学习卡: 开链先摆一整页卡（与综应A 同一形）");
 el("#btnChainStart").onclick();
-ok(el("#fabSlot").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 读材料步给浮标入口（挂在纸面之外，一开始就看得见）");
+ok(el("#cardHost").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 读材料步给入口（在纸面上，一开始就看得见）");
 el("#btnCard").onclick();
 ok(el("#cardDrawerTitle").textContent.indexOf("归纳概括") >= 0 && el("#drawerBody").innerHTML.indexOf("btnNewCard") >= 0,
    "申论学习卡: 抽屉里写清是哪张卡，且照综应口径可「换一张」");
@@ -770,7 +770,7 @@ ok(cardHtml({points:[],pitfalls:[],templates:""}).indexOf("这类题长什么样
    "学习卡: 旧卡没有 example 也不渲染空栏目");
 el("#btnZyAnswer").onclick();
 ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("背景材料") >= 0, "综应A: 作答页 = 材料 + 作答区");
-ok(el("#fabSlot").innerHTML.indexOf("翻学习卡") >= 0, "综应A: 作答页翻卡浮标在场（与申论同一处，作答时随时能翻）");
+ok(el("#cardHost").innerHTML.indexOf("翻学习卡") >= 0, "综应A: 作答页翻卡入口在场（与申论同一套，作答时随时能翻）");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "综应A: 翻卡计次照旧（照旧参与调度）");
 el("#btnDrawerClose").onclick();
@@ -2082,8 +2082,8 @@ ok(/function renderCurrentView\(\)\{[\s\S]{0,420}?_view === "q"\) return false/.
    "设置: 重渲染跳过正在作答的题页（不能清掉他刚写的东西）");
 ok((function(){ const m = PAGE_HTML.match(/\.seg button\.active\{[^}]*\}/); return m && m[0].indexOf('var(--red-wash)') >= 0; })(),
    "圆润化: 分段控件（推理程度）选中态是淡红底红字，不是整块实红");
-ok((function(){ const m = PAGE_HTML.match(/\.fab\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-ctl)') >= 0 && m[0].indexOf('box-shadow:var(--sh-paper)') >= 0; })(),
-   "圆润化: FAB 圆角收进 8px 档、阴影用纸面同档柔影");
+ok((function(){ const m = PAGE_HTML.match(/\.fab\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-ctl)') >= 0 && m[0].indexOf('min-height:var(--h-ctl-sm)') >= 0 && m[0].indexOf('position:fixed') < 0; })(),
+   "学习卡入口: 与纸上其它控件同一套（小圆角、30px 高、不吸在窗口上）");
 
 /* 13 节用完 PD 出题桩就把真身装回去：
    以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
@@ -3529,7 +3529,7 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      "层级: 区块标题只有一档（16px 红竖线）");
   ok(PAGE_HTML.indexOf(".sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body)") >= 0,
      "层级: 次级标题降一档（14px 灰、不缩进）");
-  ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<div class="secrow" style="justify-content:flex-end"><span class="secright">${orgBtn}${limitRowHtml()}') >= 0,
+  ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<div class="secrow" style="justify-content:flex-end"><span class="secright"><span id="cardHost"></span>${orgBtn}${limitRowHtml()}') >= 0,
      "层级: 作答框不再挂「作答区」这个标签——框和占位字已经说了；那一行只留归类、学习卡与限时");
   ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') < 0
      && PAGE_HTML.indexOf("metaLineHtml(metaQ, switchBtn)") >= 0
