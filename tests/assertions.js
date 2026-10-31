@@ -639,6 +639,15 @@ ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#doc
 ok(el("#fabSlot").innerHTML.indexOf("看学习卡") >= 0 && el("#docBody").innerHTML.indexOf("看学习卡") < 0,
    "读材料: 学习卡浮标在纸面之外（否则滑到底才看得见）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "读材料: 笔记不再摊在纸面上（收进抽屉）");
+/* 链上两栏（读材料 / 一稿）：材料进左栏，右栏摆「这一屏真正要产出的东西」——读的时候是挑下来的点，
+   写的时候是作答区。DOM 顺序仍是题面 → 材料 → 面板，窄到放不下两栏时这层壳等于不存在，落回上下排。 */
+ok((function(){ const h = el("#docBody").innerHTML;
+  return h.indexOf('class="paper-cols"') >= 0 && h.indexOf('class="c-head"') < h.indexOf('class="col-mat"')
+     && h.indexOf('class="col-mat"') < h.indexOf('id="flowPanel"'); })(),
+   "链两栏: 读材料步也两栏——题面压右栏上方、材料进左栏、挑下来的点与主按钮进右栏");
+ok((function(){ const h = el("#docBody").innerHTML;
+  return h.indexOf('class="material"') >= 0 && h.indexOf("mat-scroll") < 0; })(),
+   "链两栏: 读材料那一屏的材料不带 mat-scroll——收回单栏时它铺满（那一屏它就是工作台，砍成三行等于让人对着滚动条读材料）");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: 不再挂 Next（每一步自带主行动）");
 ok(flowGoStep("organize") === false, "归类: 不再占一步（降级成一稿页上的入口）");
 ok(el("#popSlot").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存（弹窗挂在纸面外）");
@@ -658,7 +667,13 @@ ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷�
 ok(el("#docBody").innerHTML.indexOf("先归类再写") >= 0, "一稿: 归类是这一页上的入口");
 ok(el("#docBody").innerHTML.indexOf('id="btnOpenOrg"') > el("#docBody").innerHTML.indexOf("作答区"),
    "一稿: 归类入口坐在「作答区」那一行的右侧（不孤零零占一行）");
+ok((function(){ const h = el("#docBody").innerHTML;
+  return h.indexOf('class="paper-cols"') >= 0 && h.indexOf('class="material mat-scroll"') >= 0
+     && h.indexOf('class="material mat-scroll"') < h.indexOf('id="answer"'); })(),
+   "链两栏: 一稿页也两栏——材料回到左栏（挑过的点在上面仍亮着），作答区在右栏，不必回上一步去对材料");
 el("#btnOpenOrg").onclick();
+ok(el("#docBody").innerHTML.indexOf('class="paper-cols"') >= 0 && el("#docBody").innerHTML.indexOf('class="material mat-scroll"') >= 0,
+   "链两栏: 归类面板算一稿的另一张脸，左栏材料跟着一起在场（归的正是材料上的点）");
 ok(activeFlow().orgOpen === true && el("#docBody").innerHTML.indexOf("回到一稿") >= 0 && el("#docBody").innerHTML.indexOf("提交阅卷") < 0,
    "归类入口: 点它才展开归类面板（链上不再有这一步）");
 el("#btnFlowPrev").onclick();   // 从归类面板走开去读材料
@@ -1375,6 +1390,7 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
   current = { module:"sl.guina", subtype:"概括问题", question:qR, keyPoints:[], cardPeeks:0 };
   renderFlowStep();
   const rHtml = el("#docBody").innerHTML;
+  ok(rHtml.indexOf('class="paper-cols"') < 0, "链两栏: 批改步不带材料，仍是单栏（这一页要读的是分数与解析，不是材料）");
   ok(rHtml.indexOf("还没有批改结果") < 0, "恢复: 没有 lastGrade 也不留那句空页提示");
   ok(rHtml.indexOf("18") >= 0 && rHtml.indexOf("/ 20 分") >= 0, "恢复: 分数从记录里捞回来渲染");
   ok(rHtml.indexOf('id="btnSwitch"') >= 0, "恢复: 批改页照样有「换一题」");
@@ -3538,8 +3554,9 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "纸宽: .wrap 与顶栏共用 --sheet-w × --paper-scale 这一个数（顶栏再让出 54px 纸边，对齐版心左缘）");
   ok(/body\.wide-cols \.paper-cols\{display:grid;grid-template-columns:var\(--mat-col-w\) 1fr/.test(PAGE_HTML)
      && PAGE_HTML.indexOf('grid-template-areas:"mat head" "mat work"') >= 0
-     && PAGE_HTML.indexOf(".paper-cols{display:block;}") >= 0,
-     "两栏: 材料占左两行、题面只压在右栏上方（单栏时这层壳等于不存在）");
+     && PAGE_HTML.indexOf(".paper-cols{display:block;}") >= 0
+     && PAGE_HTML.indexOf("body.wide-cols .col-mat .material{max-height:var(--mat-col-h);}") >= 0,
+     "两栏: 材料占左两行、题面只压在右栏上方（单栏时这层壳等于不存在）；两栏时左栏材料一律按 --mat-col-h 铺底（不挑 mat-scroll）");
   // :root 外不写设计色 hex（用户可选的划线色是运行时变量，另算）
   const _css = PAGE_HTML.slice(PAGE_HTML.indexOf("<style>"), PAGE_HTML.indexOf("</style>"));
   const _rootEnd = _css.indexOf("}", _css.indexOf(":root{"));

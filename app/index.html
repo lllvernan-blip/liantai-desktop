@@ -302,7 +302,10 @@ html,body{margin:0;padding:0;}
      写死一个数迟早对不上，所以量而不猜。不用 position:sticky——实测它在这张纸里滑不动：
      材料窗比它所在的那一格还高，吸顶没有余量；窗高铺满后整页几乎不必滚动，也就不需要吸。 */
   body.wide-cols .col-mat{grid-area:mat;}
-  body.wide-cols .col-mat .material.mat-scroll{max-height:var(--mat-col-h);}
+  /* 这一条不挑 .mat-scroll：左栏那块就是材料，两栏时它一律按 --mat-col-h 铺到视口底自己滚。
+     带不带 mat-scroll 只管收回单栏那一档——带着的（综应作答页、申论一稿）收几行给下面的作答区让位，
+     不带的（申论读材料）铺满，因为那一屏材料就是工作台，砍成三行等于让人对着滚动条读完整则材料。 */
+  body.wide-cols .col-mat .material{max-height:var(--mat-col-h);}
   /* 材料窗下面那一块：没划过线时是「怎么划」，划过之后是「我划的重点」（见 marksRecapHtml） */
   #marksSlot{margin-top:12px;}
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
@@ -4614,28 +4617,42 @@ function renderFlowStep(){
      题目行（含「换一题」）与「作答要求」都撤掉——「换一题」在这里既打断归类，又和「回到一稿」抢路。
      限时不能跟着走：归类这几分钟算在作答用时里，它挪进归类标题行右侧（见 organizePanelHtml）。 */
   const orgOpen = !!(f && step === "draft" && f.orgOpen);
+  let head = "";
   // 批改步不重复题面：这一页的头是分数（换一题在分数那一行右侧，见 gradeHtml 的 .ghead）
   if(!orgOpen && step !== "review"){
-    html += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
-    html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-    if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-    html += metaLineHtml(question);
+    head += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
+    head += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
+    if(question.suggestedFormat) head += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
+    head += metaLineHtml(question);
   }
-  html += `<div id="flowPanel">${stepPanelHtml(step, f, lg)}</div>`;
-  if(f) html += navHtml(step);
+  const work = `<div id="flowPanel">${stepPanelHtml(step, f, lg)}</div>` + (f? navHtml(step) : "");
+  /* 带材料的两步（读材料 / 一稿，归类面板算一稿的另一张脸）在窗口够宽时改两栏：材料进左栏、
+     当前步的面板进右栏。读的时候右栏是「你挑下来的点」，写的时候是作答区——材料上挑过的点两栏都还
+     亮着，不必回上一步去对。批改步与学习卡不带材料，仍是单栏。窄到放不下两栏时这层壳等于不存在，
+     DOM 顺序（题面 → 材料 → 面板）就是原来的上下排。 */
+  const mat = (step === "read" || step === "draft")? chainMatHtml(step, f) : "";
+  html += mat? `<div class="paper-cols"><div class="c-head">${head}</div><aside class="col-mat">${mat}</aside><div class="col-work">${work}</div></div>`
+             : head + work;
   docBody.innerHTML = html;
   const fb = FAB_BY_STEP[step];   // 浮标挂在纸面之外：写与读材料时随时能翻卡
   paintFab(fb && fb.act, fb && fb.count);
   renderHeader();
   wireStep(step, f);
 }
-function stepPanelHtml(step, f, lg){
+/* 链上左栏那块材料。读材料步不带 mat-scroll（那一屏它就是工作台，单栏时铺满别砍），
+   一稿步带着（单栏时收几行，别让作答区掉出首屏）；两栏时两条都由 --mat-col-h 接管。
+   两栏共用 mergedMaterialHtml：挑过的点在写的时候仍然亮着，不用回上一步去对。 */
+function chainMatHtml(step, f){
   const question = current.question;
+  const label = step === "read"? "背景材料 · 读材料与找点" : "背景材料";
+  return `<div class="material${step === "read"? "" : " mat-scroll"}"><div class="label">${label} ${fromMatTag(question)}${matSrcTag(question)}</div>`
+    + `<div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
+}
+function stepPanelHtml(step, f, lg){
   if(step === "read"){
     let html = "";
     // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
     html += `<div class="hint" style="margin-top:12px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
-    html += `<div class="material"><div class="label">背景材料 · 读材料与找点 ${fromMatTag(question)}${matSrcTag(question)}</div><div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
     html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
     html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
     html += `<div class="actions" style="margin-top:16px"><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
