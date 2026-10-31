@@ -263,7 +263,6 @@ html,body{margin:0;padding:0;}
   /* 三段各一个颜色标：我的答案（红，题头默认色）· 解析（橙）· 参考答案（绿）。同一页三段一眼分得开，
      不用回去数标题在哪。 */
   .sec-title.why{border-left-color:var(--warn);}
-  .sec-title.answer{border-left-color:var(--success);}
   /* 解析正文与原则句都走「纸上的字」那一档（与 .comment 同档），用变量不新增字面字号 */
   .cause{margin:0 0 12px;}
   .cause .ctitle{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);margin-bottom:4px;}
@@ -496,7 +495,7 @@ html,body{margin:0;padding:0;}
   .notebox>summary::-webkit-details-marker{display:none;}
   .notebody{padding:4px 0 12px;font-size:var(--fs-body);line-height:1.85;white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
-  .modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;}
+  .modelanswer{margin-top:24px;background:var(--success-bg);border-radius:var(--r-card);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;}
   /* 作答前的规则展示位：动手那一刻要看见的东西，不折起来；一条一行 */
   .prepbox{margin:12px 0 16px;padding:12px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--write);}
   .prephead{font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--muted);}
@@ -3797,12 +3796,14 @@ function metaLineHtml(q, right){
 function qHeadHtml(showQuestion){
   const {question} = current;
   // 整卷题干里已带分值，题头不再重复报一次；难度仍保留
-  const meta = metaInlineHtml(current && current.paperId? Object.assign({}, question, { score:0 }) : question);
-  let html = `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">题目</div><span class="secright">${meta}<button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
-  // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）；这行只剩一颗按钮，不必带题头
-  if(showQuestion === false) return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button></span></div>`;
-  html += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
+  // 题面不挂「题目」这个标签——题干自己会说是题；分值与「换一题」落在题干末尾那一行
+  const metaQ = current && current.paperId? Object.assign({}, question, { score:0 }) : question;
+  const switchBtn = `<button class="linkbtn" id="btnSwitch">换一题</button>`;
+  // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）；这行只剩一颗按钮
+  if(showQuestion === false) return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright">${switchBtn}</span></div>`;
+  let html = `<div class="require" style="margin-top:8px"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
   if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
+  html += metaLineHtml(metaQ, switchBtn);
   return html;
 }
 /* 学习卡整页：综应A 的学习阶段与申论链的开头共用这一屏（先记知识点再动手，做的时候忘了还能随时翻）。
@@ -4654,10 +4655,9 @@ function renderFlowStep(){
   let head = "";
   // 批改步不重复题面：这一页的头是分数（换一题在分数那一行右侧，见 gradeHtml 的 .ghead）
   if(!orgOpen && step !== "review"){
-    head += `<div class="secrow"><div class="sec-title">题目</div><span class="secright"><button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}</span></div>`;
     head += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
     if(question.suggestedFormat) head += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-    head += metaLineHtml(question);
+    head += metaLineHtml(question, `<button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}`);
   }
   const work = `<div id="flowPanel">${stepPanelHtml(step, f, lg)}</div>` + (f? navHtml(step) : "");
   /* 带材料的两步（读材料 / 一稿，归类面板算一稿的另一张脸）在窗口够宽时改两栏：材料进左栏、
@@ -5462,8 +5462,11 @@ function gradeHtml(g, total){
   const ansReview = answerReviewHtml(g, ansText);
   const am = answerMarks(g.hits, ansText);
   const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
-  if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
-    + `<span class="secright"><span class="hint">${am.usable? "红＝没拿满 · 橙＝拿满 · <i class=\"asc\">+N</i> " + (allLocated? "相加＝总分" : "是本句得分") : ""}</span></span></div>` + ansReview;
+  // 自己写的答案不用标题：带底色的那张卡就是它，红橙两色已经把「这句拿没拿满」说了
+  if(ansReview){
+    const legend = am.usable? `红＝没拿满 · 橙＝拿满 · <i class="asc">+N</i> ` + (allLocated? "相加＝总分" : "是本句得分") : "";
+    html += (legend? `<div class="secrow" style="justify-content:flex-end"><span class="secright"><span class="hint">${legend}</span></span></div>` : "") + ansReview;
+  }
   // 解析：只讲「为什么拿不到分」——3—4 类归因 + 末句一句原则。逐句标注已经在上面标过「缺什么」，
   // 参考答案在下面给「写成什么样」；这一段再复述任何一边都是噪音（2026-10-19 定的三段口径）。
   const causes = (Array.isArray(g.causes)? g.causes : []).filter(c=> c && (c.title || c.why));
@@ -5477,7 +5480,8 @@ function gradeHtml(g, total){
     // 老记录（0.0.23 及以前）只有一段文字解析：原样显示，不硬塞进新结构
     html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
   }
-  if(g.modelAnswer) html += `<div class="sec-title answer">参考答案</div><div class="modelanswer">${esc(g.modelAnswer)}</div>`;
+  // 参考答案也不挂标题：淡绿卡从头到尾就是一段整文，跟上面「你写了什么」和「为什么」区分得开
+  if(g.modelAnswer) html += `<div class="modelanswer">${esc(g.modelAnswer)}</div>`;
   html += selfNoteHtml(g, total);   // 趁印象还在问一句（可跳过）
   // 老记录（无采分点、也没解析）退回「待改进」的原话
   if(!hits.length && !causes.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;

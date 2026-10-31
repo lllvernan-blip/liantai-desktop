@@ -207,8 +207,8 @@ renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送�
                      {point:"落款单位与日期",score:2,awarded:1,status:"半分",evidence:"答到：「遵照执行」只写了要求，【缺：成文日期】"} ],
               comment:"继续加油", modelAnswer:"关于调整作息的通知。各科室请遵照执行。" },
             60, null, null, "关于调整作息的通知。各科室请注意作息调整，请遵照执行。特此通知。");
-ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody").innerHTML.indexOf("asent got") >= 0,
-   "批改页: 首屏就是带标注的「我的答案」（2026-10-13）");
+ok(el("#docBody").innerHTML.indexOf("asent got") >= 0 && el("#docBody").innerHTML.indexOf(">我的答案<") < 0,
+   "批改页: 首屏就是带标注的答案本身（不再另挂「我的答案」这个题头）");
 ok(el("#docBody").innerHTML.indexOf("asent got") >= 0, "批改页: 有分的句子标色（拿满的焦橙、没拿满的红）");
 ok(el("#docBody").innerHTML.indexOf('class="asent got full"') >= 0 && el("#docBody").innerHTML.indexOf('class="asc full">+4<') >= 0,
    "批改页: 拿满的句子标焦橙（跟没拿满的红分开）");
@@ -325,8 +325,9 @@ ok(marksRecapHtml(qMk).indexOf("我划的重点（2 处）") >= 0 && marksRecapH
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", modelAnswer:"第一，迅速核实情况。第二，按预案上报。", hits:[] }, 50);
 ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody").innerHTML.indexOf("按预案上报") >= 0,
    "阅卷页: 完整范文仍在页面上");
-ok(el("#docBody").innerHTML.indexOf(">参考答案</div>") >= 0 && el("#docBody").innerHTML.indexOf("<details") < 0,
-   "阅卷页: 范文平铺在「参考答案」题头下（不再折叠）");
+ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody").innerHTML.indexOf(">参考答案<") < 0
+   && el("#docBody").innerHTML.indexOf("<details") < 0,
+   "阅卷页: 范文平铺在淡绿卡里（不折叠，也不挂「参考答案」题头）");
 
 /* 5. 失败路径 */
 el("#docBody").innerHTML = "正在作答的题";
@@ -634,7 +635,7 @@ ok(activeFlow().cardSeen === false, "链前学习卡: 新链记着「还没看�
 el("#btnChainStart").onclick();
 ok(activeFlow().cardSeen === true, "链前学习卡: 点过就记下来，这条链不再重复拦");
 ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "训练链: 步骤条在场，落点是读材料");
-ok(el("#docBody").innerHTML.indexOf('class="sec-title">题目') >= 0 && el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0, "读材料: 题目与材料同屏（找点合并后材料按句分段）");
+ok(el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0 && el("#docBody").innerHTML.indexOf(">题目<") < 0, "读材料: 题目与材料同屏（找点合并后材料按句分段；题面不挂标签）");
 // 学习卡浮标挂在纸面之外：纸面里每个直接子元素都带入场动画，动画填充的 transform 会变成 fixed 的包含块
 ok(el("#fabSlot").innerHTML.indexOf("看学习卡") >= 0 && el("#docBody").innerHTML.indexOf("看学习卡") < 0,
    "读材料: 学习卡浮标在纸面之外（否则滑到底才看得见）");
@@ -2988,8 +2989,9 @@ ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().
 state.settings.timeLimit = 0;
 current = { module:"zy.guina", subtype:"概括做法", question:{ background:"材".repeat(120), requirements:"不超过300字。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
 renderZyPage();
-ok(dtHtml().indexOf('class="sec-title">题目</div>') >= 0 && dtHtml().indexOf("作答要求：") >= 0,
-   "作答页: 「换一题」与题头同行（不独占一行，作答要求不被顶低一格）");
+ok(dtHtml().indexOf("作答要求：") >= 0 && dtHtml().indexOf("作答要求：") < dtHtml().indexOf('id="btnSwitch"')
+   && dtHtml().indexOf(">题目<") < 0,
+   "作答页: 题面不挂标签，「换一题」落在作答要求之后那一行（不独占一行）");
 ok(dtHtml().indexOf("作答要求：") < 0 || dtHtml().indexOf("作答要求：") < dtHtml().indexOf("背景材料"),
    "作答页: 题面在材料之前（先看要求再看材料）");
 ok(dtHtml().indexOf('class="paper-cols"') >= 0
@@ -3339,14 +3341,14 @@ renderGrade({ scores:{},
          {point:"落款单位与日期",score:2,awarded:1,status:"半分",kind:"格式",evidence:"答到：「遵照执行」，【缺：成文日期】"} ] },
   78, null, null, "关于调整作息的通知。各科室请遵照执行。特此通知。");
 const H22 = el("#docBody").innerHTML;
-ok(H22.indexOf(">我的答案</div>") >= 0 && H22.indexOf(">解析</div>") >= 0 && H22.indexOf(">参考答案</div>") >= 0,
-   "批改页: 三段并列——我的答案 / 解析 / 参考答案");
-ok(H22.indexOf(">我的答案</div>") < H22.indexOf(">解析</div>")
-   && H22.indexOf(">解析</div>") < H22.indexOf(">参考答案</div>"),
-   "批改页: 次序是我的答案 → 解析 → 参考答案（先看自己写了什么，再看为什么，最后看成什么样）");
-ok(H22.indexOf('class="sec-title">我的答案</div>') >= 0 && H22.indexOf('class="sec-title why">解析</div>') >= 0
-   && H22.indexOf('class="sec-title answer">参考答案</div>') >= 0,
-   "批改页: 三段各一个颜色标，一眼分得开");
+ok(H22.indexOf(">解析<") >= 0 && H22.indexOf(">我的答案<") < 0 && H22.indexOf(">参考答案<") < 0,
+   "批改页: 三块只留「解析」一个标题（自己写的答案靠灰卡、范文靠淡绿卡自己说明）");
+ok(H22.indexOf('class="answerreview"') < H22.indexOf(">解析<")
+   && H22.indexOf(">解析<") < H22.indexOf('class="modelanswer"'),
+   "批改页: 次序是答案 → 解析 → 范文（先看自己写了什么，再看为什么，最后看成什么样）");
+ok(H22.indexOf('class="sec-title why">解析</div>') >= 0
+   && H22.indexOf('class="sec-title answer"') < 0 && H22.indexOf("sec-title\">我的答案") < 0,
+   "批改页: 解析留一根橙色竖线，另外两块不再各配一根");
 ok(H22.indexOf('<div class="ctitle">格式缺项</div>') >= 0
    && H22.indexOf("采分点认的是成文日期这类落款要素") >= 0
    && H22.indexOf('<div class="ctitle">要点整块缺失</div>') >= 0,
@@ -3380,8 +3382,9 @@ ok((PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].indexOf("sticky") < 0
 ok(PAGE_HTML.indexOf("loselist") < 0 && PAGE_HTML.indexOf("loseDetail") < 0 && PAGE_HTML.indexOf("MISS_RE") < 0
    && PAGE_HTML.indexOf("clipTxt") < 0,
    "批改页: 丢分清单整块删净（含 CSS 与取值函数，不留死代码）");
-ok(PAGE_HTML.indexOf(".modelanswer{font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;") >= 0,
-   "批改页: 范文容器自带 pre-wrap（不再靠折叠体兜）");
+ok(PAGE_HTML.indexOf(".modelanswer{margin-top:24px;background:var(--success-bg);") >= 0
+   && PAGE_HTML.indexOf("line-height:2.05;white-space:pre-wrap;") >= 0,
+   "批改页: 范文是淡绿卡片、自带 pre-wrap（不再靠折叠体兜）");
 ok(PAGE_HTML.indexOf('"causes":[{"title":"4—8 字归类标题"') >= 0 && PAGE_HTML.indexOf('"principle":"一句话收尾') >= 0,
    "阅卷 prompt: 解析换成归类归因（causes）+ 一句话原则（principle）");
 ok(PAGE_HTML.indexOf('"weaknesses"') < 0 && PAGE_HTML.indexOf('"strengths"') < 0 && PAGE_HTML.indexOf('"comment":"解析') < 0,
@@ -3407,9 +3410,9 @@ ok(el("#docBody").innerHTML.indexOf("相加＝总分") >= 0, "批改页: 全部�
 /* 全满分：三段照常，不留空块 */
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x",
   hits:[{point:"a",score:5,awarded:5,status:"满分",evidence:"答到：「a」"}] }, 50, null, null, "我答了一句。");
-ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody").innerHTML.indexOf(">解析</div>") >= 0
+ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody").innerHTML.indexOf(">解析<") >= 0
    && el("#docBody").innerHTML.indexOf("loseline") < 0,
-   "批改页: 全满分时三段照常（没有清单可列，也不留空块）");
+   "批改页: 全满分时三块照常（没有清单可列，也不留空块）");
 
 /* ============ 23. 第 3 步：作答前的规则展示位 + 批改页思路自述 ============ */
 {
@@ -3501,15 +3504,18 @@ ok(el("#docBody").innerHTML.indexOf(">我的答案</div>") >= 0 && el("#docBody"
      "层级: 次级标题降一档（14px 灰、不缩进）");
   ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<div class="secrow" style="justify-content:flex-end"><span class="secright">${orgBtn}${limitRowHtml()}') >= 0,
      "层级: 作答框不再挂「作答区」这个标签——框和占位字已经说了；那一行只留归类、学习卡与限时");
-  ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') >= 0,
-     "层级: 两科的题头同一档（综应A 与申论不再各写一套）");
+  ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') < 0
+     && PAGE_HTML.indexOf("metaLineHtml(metaQ, switchBtn)") >= 0
+     && PAGE_HTML.indexOf('metaLineHtml(question, `<button class="linkbtn" id="btnSwitch"') >= 0,
+     "层级: 两科都不挂「题目」标签，分值与「换一题」都落在作答要求之后那一行");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') < 0
      && PAGE_HTML.indexOf('<div class="pdstate" id="pdState"') >= 0,
      "层级: 快判一轮页不另起标题行（「快判」已由红头说），主题与进度落红头中段");
   ok(PAGE_HTML.indexOf("红＝没拿满 · 橙＝拿满") >= 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
      "层级: 批改页的标注图例挪进标题行（不再每题占一行），而且只留最短那一版说法");
-  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0,
-     "层级: 「我的答案」也是标题行带右侧图例");
+  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') < 0
+     && PAGE_HTML.indexOf('justify-content:flex-end"><span class="secright"><span class="hint">${legend}') >= 0,
+     "层级: 标注图例自己占一行靠右，答案卡跟在它下面（不借「我的答案」这个题头）");
   // 尺子本身不许有“定义了没人用”的死 token
   const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
   const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
@@ -3771,10 +3777,10 @@ ok(PAGE_HTML.indexOf("这道题卡在哪一步") >= 0 && PAGE_HTML.indexOf('"这
 ok(PAGE_HTML.indexOf('return \'<div class="mathint">选中文字划线') >= 0
    && PAGE_HTML.indexOf('<span class="mathint">选中文字划线') < 0,
    "划线说明: 只当材料下面那一块的空态，划过就换成清单（不再单独占一行把作答区往下推）");
-ok(PAGE_HTML.indexOf('class="secright">${meta}<button class="linkbtn" id="btnSwitch"') >= 0
+ok(PAGE_HTML.indexOf("metaLineHtml(metaQ, switchBtn)") >= 0
    && PAGE_HTML.indexOf('class="metarow"') >= 0
    && PAGE_HTML.indexOf("<b>分值</b>") >= 0 && PAGE_HTML.indexOf("分值：</b>") < 0,
-   "题面: 作答页把分值与难度并进「题目」那一行右侧，其余屏仍单独一行（标签紧贴值，不用 5em 悬挂缩进）");
+   "题面: 分值与难度跟着题干走、落在作答要求之后，「换一题」在同一行右侧（标签紧贴值，不用 5em 悬挂缩进）");
 ok(PAGE_HTML.indexOf('data-start="landing"') >= 0 && PAGE_HTML.indexOf("${esc(m.name)} 练什么？") < 0,
    "落地页: 标题只说「这类题怎么练」，不复述抬头里的模块名");
 ok(renderHeader.toString().indexOf('_view === "q"') >= 0, "抬头: 子类型只在作答页报，落地页不带上一题的子类型");
