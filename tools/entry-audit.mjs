@@ -2,7 +2,7 @@
  * 入口屏文案体检（零依赖）
  *   node tools/entry-audit.mjs                 只报数（拿基线，不判失败）
  *   node tools/entry-audit.mjs --max-chars 40  任一入口屏「文案」超 40 字即失败
- *   node tools/entry-audit.mjs --max-total 220 全部入口屏文案合计超 220 字即失败
+ *   node tools/entry-audit.mjs --max-total 165 全部入口屏文案合计超这个数即失败（预算见 tools/loop.mjs）
  *   node tools/entry-audit.mjs --strict        有流程句 / 机制词命中即失败
  *   node tools/entry-audit.mjs --json          机器可读，砍前后拿同一份口径对账
  *
@@ -20,6 +20,8 @@
  *   流程句  句子里出现「→」就是在背流水线，不是在说人话；
  *   机制词  一张固定词表（采分点 / 点选即判 / 加权均分 …），命中就是在讲机制怎么运转；
  *   重复口径 同一句在 3 个以上入口屏重复出现——留一处说清，其余并掉。
+ * 另报一栏「折叠内」：收在没 open 的 details 里的字单独统计——字还是写了，账照记，但别让
+ * 「折起来」冒充「删掉了」（减负的读数和减字的读数不是一回事，混着报会骗人）。
  *
  * 手法与 tests/run.mjs、tools/probe.mjs 同一套：把 app/index.html 的 <script> 抠出来，配最小
  * DOM 桩子在 node 里跑起来，调真的 renderHome / renderStart / renderModuleLanding 把每一屏渲出来，
@@ -27,8 +29,9 @@
  * 为的是让红按钮走 canStart() 为真的那一支——那是用户填完 Key 之后真正看到的入口屏。
  * 桩子不解析 DOM，所以分块、实体解码这些活儿在本文件里自带。
  *
- * 基线不落纸：读数会随文案变，抄一份进注释或文档就成了第二份真相。要看现状直接跑本文件，
- * 要卡住回退就把命令连同预算插进 tools/loop.mjs（预算用砍完之后的实测值，零余量）。
+ * 基线不落纸：读数会随文案变，抄一份进注释或文档就成了第二份真相。要看现状直接跑本文件。
+ * 闸门已经接上：tools/loop.mjs 第 9 项用 `--strict --max-total <实测>` 跑它，预算那个常数就在
+ * loop.mjs 里（砍完把数往下改，别往上留余量）。
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

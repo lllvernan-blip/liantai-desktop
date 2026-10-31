@@ -230,6 +230,23 @@ if (noTests) {
       "单独跑一次看完整输出：node tests/run.mjs"]);
 }
 
+/* ================= 9. 入口屏文案预算 =================
+   判据（流程句 / 机制词 / 重复口径 / 折叠内字数）都在 tools/entry-audit.mjs 里，这里只跑一次、看结果。
+   预算是砍完之后冻结的实测值，**零余量**：往里加字就 FAIL；把字砍掉了就把这个数改成新的实测值——
+   往下改，不是往上留空间。写宽了就等于没写（这条闸门的目标是「不再胖回去」，不是「够胖才舒服」）。 */
+const ENTRY_TOTAL_BUDGET = 165;
+{
+  const r = spawnSync(process.execPath,
+    [join(root, "tools", "entry-audit.mjs"), "--strict", "--max-total", String(ENTRY_TOTAL_BUDGET)],
+    { cwd: root, encoding: "utf8", timeout: 60000, maxBuffer: 128 * 1024 * 1024 });
+  const out = (r.stdout || "") + (r.stderr || "");
+  const m = out.match(/文案合计 (\d+) 字/);
+  const flags = out.split("\n").filter((l) => /^\s*(⚑|✗|判定：FAIL)/.test(l)).slice(0, 20);
+  add("入口屏文案：流程句 / 机制词 / 重复口径 / 合计不超预算", r.status === 0 && !!m,
+    m ? m[1] + " 字 / 预算 " + ENTRY_TOTAL_BUDGET + " · 判据 strict" : "没读出合计字数（脚本本身失败了）",
+    r.status === 0 ? [] : [...flags, "单独跑一次看完整输出：npm run audit:entry"]);
+}
+
 /* ================= 汇报 =================
    安静模式成功时只留一行；失败无论哪种模式都逐条说，并给可执行的下一步。 */
 const failed = results.filter((r) => !r.ok);
