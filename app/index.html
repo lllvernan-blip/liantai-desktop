@@ -218,10 +218,7 @@ html,body{margin:0;padding:0;}
      两栏那一屏豁免：作答栏由 grid 分，宽度它自己管。 */
   #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
   body.wide-cols #docBody>*,body.wide-review #docBody>*{max-width:none;}
-  /* 入口屏不居中：整块贴版心左缘，与作答、批改两屏同一条起排线。原先 620 居中，纸上左右各空 255px，
-     而且它是唯一不站在左缘的一屏。仍是一列——不做左右横版。 */
-  #docBody>.startbox.start-entry{max-width:none;margin:0;text-align:left;}
-  #docBody>.startbox.start-entry>*{width:min(var(--act-col),100%);max-width:none;margin-left:0;margin-right:0;}
+  /* 入口屏在版心中线上居中（纸的左缘不是这屏的基准）：整块 620 列居中，三条动作共用 520 宽、左右缘对齐。 */
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 12px;}
   .redline{display:flex;align-items:center;}
@@ -486,7 +483,7 @@ html,body{margin:0;padding:0;}
   .drawer[hidden]{display:none;}
   .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:16px 16px 24px;}
-  .fab{position:fixed;right:16px;bottom:16px;z-index:40;border-radius:var(--r-ctl);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);font-family:var(--hei);}
+  .fab{position:fixed;right:var(--fab-right,16px);bottom:16px;z-index:40;border-radius:var(--r-ctl);padding:8px 16px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-paper);font-family:var(--hei);}
   @media (max-width:1240px){ .fab .fabcount{display:none;} .fab{padding:8px 12px;} }   /* 窄窗纸两侧没地方：浮标只留动作名，仍挂在纸外 */
   .fab:hover{background:var(--ctl);border-color:var(--line-hover);}   /* 浮标只做提示，不抢正文档的注意力：纸色底 + 轻阴影，不用重投影 */
   .fab b{color:var(--ink);}
@@ -6721,6 +6718,14 @@ function applyPaperScale(){
   st.setProperty("--paper-scale", num(L.scale));
   st.setProperty("--sheet-w", num(L.sheet) + "px");
   st.setProperty("--mat-col-w", num(L.matW) + "px");
+  // 浮标（学习卡）跟着纸走：右缘对齐正文列的右缘，不贴窗口边。窗口宽了纸会缩放，
+  // 写死 16px 时纸上就剩它一个人对不齐；这里量一次纸的实际右缘算成 px。
+  const docEl = document.getElementById && document.getElementById("doc");
+  if(docEl){
+    const dr = docEl.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    st.setProperty("--fab-right", Math.max(16, Math.round(vw - (dr.right - 54 * L.scale))) + "px");
+  }
   if(document.body){
     document.body.classList.toggle("wide-cols", L.wide && !!colMat);
     document.body.classList.toggle("wide-review", L.wide && !!review);
