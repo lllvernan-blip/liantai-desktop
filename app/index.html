@@ -195,12 +195,15 @@ html,body{margin:0;padding:0;}
   .startbox button.primary.big{font-size:var(--fs-title);padding:16px 58px;border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:0 9px 24px rgba(190,59,43,.34);}
   .startbox .actions{justify-content:center;margin-top:24px;}
-  .startbox.start-home .actions,.startbox.start-hero .actions{margin-top:0;}   /* hero 说明句自带 24px 下边距，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」）。首页与科目页同一条：主按钮都包在 .actions 里，几何一样宽 */
+  .startbox.start-home .actions,.startbox.start-hero .actions{margin-top:0;}   /* 有说明句时那 24px 由 hero-sub 的下边距出，主按钮容器不再叠加（不然隔 48px，又犯「隔太开」）。首页与科目页同一条：主按钮都包在 .actions 里，几何一样宽 */
+  /* 入口屏没有说明句时（科目页 / 说明与胶囊重复的落地页），24px 由标题与主按钮自己出：
+     flex 行不并 margin，标题自带的 4px 在这种形态下要去掉，否则 28px 不落在五档上。 */
+  .startbox .hero-big:has(+ .actions){margin-bottom:0;}
+  .startbox .hero-big + .actions{margin-top:24px;}
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
   .startbox .hero-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
   .startbox .hero-sub{font-size:var(--fs-body);color:var(--muted);line-height:1.7;margin:0 0 24px;}
   .startbox .hero-foot{font-size:var(--fs-note);color:var(--muted-2);margin:24px 0 0;}
-  .startbox .hero-sub .arrow{padding:0 4px;color:var(--muted-2);}   /* 科目页 hero 说明句里的流程箭头（学习卡 → 作答 → 批改） */
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
   /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
@@ -2889,8 +2892,6 @@ function renderPendingLeave(viewNow, land){
 function startBoxHtml(resume){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
-  const flow = curSubject() === "sl"? ["学习卡","读材料找点","一稿","批改"] : ["学习卡","作答","批改"];
-  const flowHtml = flow.map((step,i)=>`${i? `<span class="arrow" aria-hidden="true">→</span>`:""}<span>${step}</span>`).join("");
   const bigs = SUBJECT_ORDER.map(id=>{
     const name = SUBJECTS[id].name;
     const label = canStart()
@@ -2910,7 +2911,7 @@ function startBoxHtml(resume){
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
     <div class="hero-big">今天练什么？</div>
-    <div class="hero-sub">按你最近的练习情况出题，写完就有分</div>
+    <div class="hero-sub">写完就有分</div>
     <div class="actions">${canStart()
       ? `<button class="primary big" id="btnQuick">开始快判</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
@@ -2919,11 +2920,10 @@ function startBoxHtml(resume){
     <div class="hero-foot">${foot}</div>
   </div>`;
   }
-  // 科目页与首页同一套 hero 排布（2026-10-12 拍板）：大标题点科目、说明句预览本页流程、主按钮、模块 chips、必备声明。
-  // 说明句和首页同口径但换成当前页的话：首页说「按你最近的练习情况出题」，这里报自己的流程，尾部同收「写完就有分」。
+  // 科目页与首页同一套 hero 排布，但不写说明句：入口屏只说「这是什么 + 怎么开始」，
+  // 流程与「写完就有分」都归首页那一句——重复的口径并到一处说，别十三屏各说一遍。
   return `<div class="startbox start-entry start-hero" data-start="subj">
     <div class="hero-big">${esc(subj.name)} 练什么？</div>
-    <div class="hero-sub">${flowHtml}，写完就有分</div>
     <div class="actions">${canStart()
       ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
@@ -3262,12 +3262,12 @@ function renderModuleLanding(k){
   }
   const noteRedundant = subs.length > 0 && m.note.split(/[\/、·]/).map(s=>s.trim()).filter(Boolean)
     .every(t=> subs.some(s=> s.indexOf(t) >= 0));
-  // 三个入口页共用同一套骨架：大标题、说明句、主按钮、次级选项。
+  // 三个入口页共用同一套骨架：大标题、说明句（可省）、主按钮、次级选项。
   // 文种有二十来个，摆在主按钮前面会把主行动挤出第一屏——它是「自己挑一个」的次级入口，排在后面。
   const blocked = !canStart();
   let html = `<div class="startbox start-entry start-hero">
     <div class="hero-big">这类题怎么练？</div>
-    <div class="hero-sub">${noteRedundant? "每题都按采分点打分，写完就有分" : esc(m.note) + "，写完就有分"}</div>
+    ${noteRedundant? "" : `<div class="hero-sub">${esc(m.note)}</div>`}
     <div class="actions"><button class="primary big" id="btnLandStart">${blocked? setupActionLabel() : "开始练习"}</button></div>
     <div class="hint" style="margin-top:16px">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过"}</div>
     ${subsHtml}
@@ -3634,7 +3634,7 @@ function renderPaper(){
   }).join("");
   docBody.innerHTML = `<div class="startbox start-entry start-hero">
     <div class="hero-big">申论整卷</div>
-    <div class="hero-sub">一套材料 · ${p.questions.length} 道题 · 逐题作答，批改后回卷面</div>
+    <div class="hero-sub">一套材料 · ${p.questions.length} 道题</div>
     <div class="actions"><button class="primary" id="btnPaperNew">${p.questions.some((q,i)=>!p.answers[i])? "重新拼一套" : "再拼一套"}</button></div>
     <div class="material mat-scroll" style="margin-top:24px"><div class="label">给定材料 · 本卷 ${p.questions.length} 题共用</div>${sourceLine}<div id="materialBox">${materialHtml({ background:p.material, requirements:"" })}</div></div>
     <div class="secrow" style="margin:24px 0 0"><div class="sec-title">本卷题目</div><span class="secright">${p.questions.filter((q,i)=>p.answers[i]).length}/${p.questions.length} 已作答</span></div>

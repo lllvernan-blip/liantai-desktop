@@ -1810,7 +1810,7 @@ state.settings.apiKey = "sk-test";
 renderHome();
 ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
    && el("#docBody").innerHTML.indexOf("今天练什么？") >= 0
-   && el("#docBody").innerHTML.indexOf("按你最近的练习情况出题，写完就有分") >= 0
+   && el("#docBody").innerHTML.indexOf('<div class="hero-sub">写完就有分</div>') >= 0
    && el("#docBody").innerHTML.indexOf("没有账号，数据都在本地") >= 0
    && el("#docBody").innerHTML.indexOf("填好 API Key 就能开始") < 0
    && el("#docBody").innerHTML.indexOf("btnSample") < 0,
@@ -1825,9 +1825,9 @@ ok(subjStart.indexOf('class="primary big" id="btnSetup">先填 API Key') >= 0
    "科目页（没填 Key）: 红按钮改说「先填 API Key」——出题这条路当下走不通，就不说「开始练习」");
 ok(subjStart.indexOf("开始快判") < 0,
    "科目页: 不出现「开始快判」（快判是顶栏最左那颗胶囊的事）");
-const zyFlowOrder = ["综应A 练什么？","学习卡","作答","批改","写完就有分"].map(s=> subjStart.indexOf(s));
-ok(zyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > zyFlowOrder[i-1])),
-   "综应A布局: 主按钮下预览真实流程，顺序为学习卡→作答→批改");
+ok(subjStart.indexOf("综应A 练什么？") >= 0 && subjStart.indexOf('class="hero-sub"') < 0
+   && subjStart.indexOf("→") < 0 && subjStart.indexOf("写完就有分") < 0,
+   "综应A布局: 科目页不摆说明句——流程与「写完就有分」都不是入口屏该说的话");
 ok(subjStart.indexOf("data-big") < 0,
    "科目页: 不放两句大题——点它们和点红按钮是同一个动作（startSmart）");
 ok(el("#subjbar").innerHTML.indexOf("快判") < 0,
@@ -1842,9 +1842,8 @@ state.settings.subject = "sl"; renderStart();
 const slNoKeyStart = el("#docBody").innerHTML;
 ok(slNoKeyStart.indexOf('id="btnSetup">先填 API Key') >= 0,
    "科目页（没填 Key）: 换到申论也是同一个形态，不为某个科目开特例");
-const slNoKeyFlowOrder = ["申论 练什么？","学习卡","读材料找点","一稿","批改"].map(s=> slNoKeyStart.indexOf(s));
-ok(slNoKeyFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > slNoKeyFlowOrder[i-1])),
-   "申论布局（没填 Key）: 仍预览真实的学习卡→读材料找点→一稿→批改流程");
+ok(slNoKeyStart.indexOf("申论 练什么？") >= 0 && slNoKeyStart.indexOf('class="hero-sub"') < 0,
+   "申论布局（没填 Key）: 科目页与综应A 同一形态，不为某个科目开特例");
 
 /* ②c 填了 Key 的科目首页：红按钮回到本科目的主行动 */
 state.settings.apiKey = "sk-test"; state.settings.subject = "zy"; renderStart();
@@ -1856,9 +1855,8 @@ state.settings.subject = "sl"; renderStart();
 const slStart = el("#docBody").innerHTML;
 ok(slStart.indexOf('id="btnSmart">开始申论练习') >= 0,
    "科目页（填了 Key）: 换到申论，红按钮跟着换名（开始申论练习）");
-const slFlowOrder = ["申论 练什么？","学习卡","读材料找点","一稿","批改","写完就有分"].map(s=> slStart.indexOf(s));
-ok(slFlowOrder.every((p,i)=> p >= 0 && (i === 0 || p > slFlowOrder[i-1])),
-   "申论布局（填了 Key）: 流程预览包含读材料找点和一稿");
+ok(slStart.indexOf('class="hero-sub"') < 0 && slStart.indexOf("学习卡") < 0,
+   "申论布局（填了 Key）: 说明行整行不在，链上那几步不回锅到入口屏");
 state.settings.apiKey = ""; state.settings.subject = "zy";
 // 一键出题不能带着空主题走：起始页没有 #pdTheme 输入框，pdThemeValue 得退到随机主题
 const startThemes = Array.from({length: 20}, ()=> pdThemeValue());
@@ -1990,16 +1988,17 @@ renderHome();
 const homePlain = el("#docBody").innerHTML;
 ok(homePlain.indexOf("开始今天的练习") < 0 && homePlain.indexOf('data-start="home"') >= 0,
    "废话精简: 首页也不再写「开始今天的练习」——主行动自己就是标题");
-ok(homePlain.indexOf("按你最近的练习情况出题，写完就有分") >= 0,
-   "废话精简: 首页副题那行留着——它是「这是什么」，不是重复");
+ok(homePlain.indexOf("写完就有分") >= 0 && homePlain.indexOf("按你最近的练习情况") < 0,
+   "废话精简: 首页副题只留那句承诺——题是怎么挑出来的，不在入口屏解释");
 renderModuleLanding("zy.guina");
 const landPlain = el("#docBody").innerHTML;
-ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") < 0,
-   "废话精简: 归纳概括落地页不写模块名标题，也不写与胶囊重复的那句名单");
+ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") < 0
+   && landPlain.indexOf('class="hero-sub"') < 0,
+   "废话精简: 归纳概括落地页不写模块名标题；note 与胶囊重复时整句不写——不拿「按采分点打分」这种机制句填空");
 ok(landPlain.indexOf("近期加权均分") >= 0 || landPlain.indexOf("还没练过") >= 0,
    "废话精简: 但成绩那行留着（是数据，不是废话）");
 renderModuleLanding("zy.duice");
-ok(el("#docBody").innerHTML.indexOf("针对问题提出解决措施") >= 0
+ok(el("#docBody").innerHTML.indexOf('class="hero-sub">针对问题提出解决措施') >= 0
    && el("#docBody").innerHTML.indexOf("<h2>") < 0,
    "废话精简: 真在描述「这是什么」的 note（提出对策）还留着，只去掉重复的标题");
 renderHome();
