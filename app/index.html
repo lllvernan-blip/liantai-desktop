@@ -2702,7 +2702,7 @@ function expSourceLabel(e){
 }
 // 一行一条：类型 · 标题 · 正文摘要（超长截断），点开才是全文、来源与停用/删除
 function experienceListHtml(){
-  if(!(state.experiences||[]).length) return `<div class="hint">还没有沉淀任何经验。练完一轮、批改后自动归档，先去练一轮。</div>`;
+  if(!(state.experiences||[]).length) return `<div class="hint">还没攒下经验。批改完自动归档。</div>`;
   return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 /* 作答前的规则展示位：沉淀下来的经验原先只在画像里躺着，做题时看不见——规则得站在动手那一刻才有用。
@@ -2773,7 +2773,7 @@ function renderHeader(){
   // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
   // 前缀既已跟着抬头推出来，设置里的「文号前缀」就成了死开关，一并撤掉（规矩：界面不许有一个不起作用的控件）。
   const pfx = (_view === "home" && !pdActive)? "练习台"
-            : (pdActive? "快判" : SUBJECTS[curSubject()].name);
+            : (pdActive? "快速判断" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
   // 快判进行中：主题与进度填进红头中段的空位（原先单占一行，左侧「快判」与前后的标识重复）
   const psBox = $("#pdState");
@@ -2950,10 +2950,10 @@ function renderPendingLeave(viewNow, land){
 }
 
 /* 起始页两种形态（2026-10-08 分开，2026-10-12 首页改居中 hero）：
-   · 首页（`_view === "home"`，没选科目）：整屏居中 hero——大标题「今天练什么？」、主按钮「开始快判」、
+   · 首页（`_view === "home"`，没选科目）：整屏居中 hero——大标题「今天练什么？」、主按钮「开始快速判断」、
      两枚点名科目的 chips、一行必备声明；公文红头在首页整块让位（renderHeader 里收）。
    · 科目首页（综应A / 申论）：红按钮是**本科目的主行动**（走 `startSmart`）。快判不在这里抢红：
-     它不是科目内容，是另一种练法，入口只在首页那颗「开始快判」红按钮。
+     它不是科目内容，是另一种练法，入口只在首页那颗「开始快速判断」红按钮。
    两处走不通时红按钮按缺项说话（`setupActionLabel()`）：缺 Key 说填 Key、缺模型说选模型，红按钮就带他去真能走的那一步。 */
 function startBoxHtml(resume){
   const home = (_view === "home");
@@ -2961,7 +2961,7 @@ function startBoxHtml(resume){
   const bigs = SUBJECT_ORDER.map(id=>{
     const name = SUBJECTS[id].name;
     const label = canStart()
-      ? (id==="zy"? esc(name)+" 练一轮" : "写一篇"+esc(name))
+      ? (id==="zy"? esc(name)+" 练一题" : "写一篇"+esc(name))
       : ("去" + esc(name));   // 没 Key 时不承诺出题：点了只进科目页
     return `<button class="chip" data-big="${id}">${label}</button>`;
   }).join("");
@@ -2985,7 +2985,7 @@ function startBoxHtml(resume){
   if(home){
     return `<div class="startbox start-entry start-home" data-start="home">
     <div class="actions">${canStart()
-      ? `<button class="primary big" id="btnQuick">开始快判</button>`
+      ? `<button class="primary big" id="btnQuick">开始快速判断</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="chiprow">${bigs}</div>
     ${resumeHtml}
@@ -3700,7 +3700,7 @@ function renderPaper(){
   docBody.innerHTML = `<div class="startbox start-entry start-hero">
     <div class="hero-big">一套申论题</div>
     <div class="actions"><button class="primary" id="btnPaperNew">${p.questions.some((q,i)=>!p.answers[i])? "重新拼一套" : "再拼一套"}</button></div>
-    <div class="material mat-scroll" style="margin-top:24px"><div class="label">给定材料 · 本卷 ${p.questions.length} 题共用</div>${sourceLine}<div id="materialBox">${materialHtml({ background:p.material, requirements:"" })}</div></div>
+    <div class="material mat-scroll" style="margin-top:24px"><div class="label">给定材料</div>${sourceLine}<div id="materialBox">${materialHtml({ background:p.material, requirements:"" })}</div></div>
     <div class="secrow" style="margin:24px 0 0"><div class="sec-title">本卷题目</div><span class="secright">${p.questions.filter((q,i)=>p.answers[i]).length}/${p.questions.length} 已作答</span></div>
     ${rows}
     <div class="actions" style="margin-top:16px"><button id="btnPaperBack">回申论首页</button></div>
@@ -3909,7 +3909,7 @@ const PD_FORMS = {
   /* 综合判别：三种形式混在一轮。练的是“不告诉你这是哪类题”的实战眼力——
      考试里没人先告诉你这道题考的是主体、范围还是因果。 */
   "__mix":{
-    name:"综合快判",
+    name:"综合判断",
     optCount:[2,3],
     desc:"三种形式混合出题，不事先提示类型；拿住材料当场判断。",
     spec:"本轮三种混着出：事实选择（判断哪条说法站得住）、分组概括（哪条概括不漏不重）、表达比较（哪句改写改变了原意）。每题必须带 form 字段标明属于哪种。"
@@ -4094,7 +4094,7 @@ async function genPDRound(form, theme){
   const prevForm = pdForm;
   pdForm = form;
   const t0 = Date.now();
-  showLoading(`AI 正在出「${f.name}」快判题（主题：${theme}）…`);
+  showLoading(`AI 正在出「${f.name}」快速判断题（主题：${theme}）…`);
   const tick = setInterval(()=>{
     const el = $("#elapsed");
     if(!el){ clearInterval(tick); return; }
@@ -4696,7 +4696,7 @@ function stepPanelHtml(step, f, lg){
   if(step === "draft") return (f && f.orgOpen)? organizePanelHtml(f) : draftPanelHtml(f);
   if(step === "review"){
     // 这句提示只留给「没有链」的老路径：有链又取不到结果时，上面已经退回一稿了，不会停在这一屏
-    if(!lg) return `<div class="hint" style="margin-top:12px">还没有批改结果——回到「一稿」提交阅卷。</div>`;
+    if(!lg) return `<div class="hint" style="margin-top:12px">还没有批改结果。</div>`;
     return gradeHtml(lg.g, lg.total);   // 批改是链子的最后一步：出链的去处由批改页自己的按钮交代
   }
   return "";
@@ -4865,7 +4865,7 @@ function draftPanelHtml(f){
       <button class="primary" id="btnSubmit">提交阅卷</button>
       <span class="counter" id="wordCount"><b>0</b> 字</span>
       <span class="hint" id="draftNote" aria-live="polite"></span>
-      <span class="hint">交卷后逐条列出得分与丢分处</span>
+      
       <span class="hint" id="gradeLive" aria-live="polite"></span>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
@@ -5556,7 +5556,7 @@ function renderProfile(){
   const qAll = PD_FORM_ORDER.reduce((s,id)=> s + pds.st[id].q, 0);
   const cAll = PD_FORM_ORDER.reduce((s,id)=> s + pds.st[id].c, 0);
   const pdRate = qAll? Math.round(cAll/qAll*100) : 0;
-  html += `<div class="sec-title">快判</div><div class="mrowbox"><button class="mrow navrow" data-prof="pd">` +
+  html += `<div class="sec-title">快速判断</div><div class="mrowbox"><button class="mrow navrow" data-prof="pd">` +
     (qAll? `<span class="mavg">正确率 ${pdRate}%</span><span class="mbar"><i class="${pdRate<70?"lo":""}" style="width:${pdRate}%"></i></span><span class="mmeta">${cAll}/${qAll} 题</span>`
          : `<span class="mavg">没练过</span><span class="mnone">点选即判，一轮 5 题。</span>`) + `</button></div>`;
   const expAll = state.experiences || [];
@@ -5576,7 +5576,7 @@ function renderProfile(){
   const d0 = h0? new Date(h0.ts) : null;
   const lastTxt = d0? `${d0.getMonth()+1}/${d0.getDate()} ${String(d0.getHours()).padStart(2,"0")}:${String(d0.getMinutes()).padStart(2,"0")}` : "";
   html += `<div class="sec-title">练习记录</div><div class="mrowbox"><button class="mrow navrow" data-prof="hist">` +
-    (histAll? `<span class="mavg">共 ${histAll} 条</span><span class="mnone">最近一次 ${lastTxt} · ${esc(h0.track === "pd"? "快判" : moduleName(h0.module))}</span>`
+    (histAll? `<span class="mavg">共 ${histAll} 条</span><span class="mnone">最近一次 ${lastTxt} · ${esc(h0.track === "pd"? "快速判断" : moduleName(h0.module))}</span>`
             : `<span class="mavg">还没有</span>`) + `</button></div>`;
   for(const sid of SUBJECT_ORDER){
     const subj = SUBJECTS[sid];
@@ -5597,7 +5597,7 @@ function renderProfile(){
     html += `</div>`;
   }
   // 口径说明退到一级页末尾：入口屏先给入口，解释按需展开
-  html += `<details class="notebox" style="margin:0"><summary>口径说明（分数怎么算）</summary><div class="notebody">分数为百分制，按近期表现加权（越近的练习权重越大，约 4 次前权重减半）；“·N次”是加权计入的练习次数。模块「均分」与下方练习记录的「总分」是同一个口径（采分点折百分制）；维度分只用来诊断弱在哪，不参与均分。</div></details>`;
+  html += `<details class="notebox" style="margin:0"><summary>分数怎么算</summary><div class="notebody">百分制，按近期加权（越近的练得越算数，约四次前减半）。「·N 次」是计入的次数；维度分只看弱在哪，不进均分。</div></details>`;
   $("#profileBody").innerHTML = html;
   wireExperiences();
   wireProfileNav();
@@ -5631,7 +5631,7 @@ function profileModuleHtml(k){
   const avg = moduleAvg(k);
   let n = 0; for(const h of state.history) if(h.module === k) n++;
   let html = PROF_BACK + `<div class="sec-title">${esc(MODULES[k].name)}${avg!=null? ` · 均分 ${Math.round(avg)} · ${n} 次` : ""}</div>`;
-  if(avg == null) return html + `<div class="hint">还没练过。评分维度：${esc(MODULES[k].dims.join("、"))}</div>`;
+  if(avg == null) return html + `<div class="hint">还没练过。</div>`;
   const { weak, strong, bars } = dimScan(k);
   html += `<div class="bars">${bars}</div>` + tagHintHtml(k);
   const pills = weak.map(d=>`<span class="pill bad">短板·${esc(d)}</span>`).join("") + strong.map(d=>`<span class="pill good">强项·${esc(d)}</span>`).join("");
@@ -5642,20 +5642,20 @@ function profileModuleHtml(k){
 }
 function profilePdHtml(){
   const pds = pdFormStats(), ts = pdTrapStats();
-  let html = PROF_BACK + `<div class="sec-title">快判（只看正确率，不计入维度画像）</div>`;
+  let html = PROF_BACK + `<div class="sec-title">快速判断</div>`;
   if(!PD_FORM_ORDER.some(id=> pds.st[id].q > 0)){
-    return html + `<div class="hint">还没练过快判。回首页点「开始快判」开一轮。</div>`;
+    return html + `<div class="hint">还没练过快速判断。</div>`;
   }
   html += `<div class="mrowbox">` + PD_FORM_ORDER.map(id=>{
     const t = pds.st[id], rate = t.q? Math.round(t.c/t.q*100) : 0;
     if(!t.q) return `<div class="mrow"><span class="mname">${PD_FORMS[id].name}</span><span class="mmeta">没练过</span><span class="mnone">${esc(PD_FORMS[id].desc)}</span></div>`;
     return `<div class="mrow"><span class="mname">${PD_FORMS[id].name}</span><span class="mavg">正确率 ${rate}%</span><span class="mbar"><i class="${rate<70?"lo":""}" style="width:${rate}%"></i></span><span class="mmeta">${t.rounds} 轮 · ${t.q} 题</span><span class="mweak"></span></div>`;
   }).join("") + `</div>`;
-  // 综合快判不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
+  // 综合判断不单列一行：它只是一个出题方式，每道题都按题归入了上面三类
   const traps = pdWeakTraps(3);
   const stMiss = k => { const x = ts[k]; return x? x.q - x.c : 0; };
   if(traps.length) html += `<div class="hint" style="margin:-8px 0 16px">最该回头考的辨析点：${esc(traps.map(k=>`${k}（错过 ${stMiss(k)} 题）`).join("、"))}</div>`;
-  if(pds.mixRounds) html += `<div class="hint" style="margin:-8px 0 16px">综合快判已出 ${pds.mixRounds} 轮。</div>`;
+  if(pds.mixRounds) html += `<div class="hint" style="margin:-8px 0 16px">已出 ${pds.mixRounds} 轮。</div>`;
   return html;
 }
 function profileExpHtml(){
@@ -5663,13 +5663,13 @@ function profileExpHtml(){
 }
 function profileHistHtml(){
   const histAll = state.history.length;
-  if(!histAll) return PROF_BACK + `<div class="sec-title">练习记录</div><div class="hint">还没有练习记录。回首页或科目页练一道，批改完就记在这里。</div>`;
+  if(!histAll) return PROF_BACK + `<div class="sec-title">练习记录</div><div class="hint">还没有练习记录。</div>`;
   const histShown = state.history.slice(0, histLimit);
-  let html = PROF_BACK + `<div class="sec-title">练习记录</div><div class="hint" style="margin:-4px 0 8px">点一行打开那次批改。</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
+  let html = PROF_BACK + `<div class="sec-title">练习记录</div><div class="hist"><table><thead><tr><th>时间</th><th>科目</th><th>模块</th><th>文种/子类型</th><th class="num">总分</th><th class="num">用时</th><th>待改进</th></tr></thead><tbody>`;
   histShown.forEach((h, idx)=>{
     const d=new Date(h.ts); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
     if(h.track === "pd"){   // 判别轨行：形式当模块、主题当子类型，总分列是「对/总题数」
-      html += `<tr><td>${ds}</td><td>快判</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td class="num">—</td><td>—</td></tr>`;
+      html += `<tr><td>${ds}</td><td>快速判断</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td class="num">—</td><td>—</td></tr>`;
       return;
     }
     // 「待改进」列读解析里的归类标题（新记录）——老记录只有 weaknesses，回退到它

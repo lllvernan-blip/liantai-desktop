@@ -510,8 +510,8 @@ ok((JSON.parse(localStorage.getItem("gw_state") || "{}").settings || {}).model =
   state.settings.apiKey = "sk-test"; state.settings.model = "";
   renderHome();
   const h = el("#docBody").innerHTML;
-  ok(h.indexOf('id="btnSetup">先选模型（设置里挑一个）') >= 0 && h.indexOf("开始快判") < 0,
-     "首次配置: 有 Key 没模型时首页不说「开始快判」，直接说先选模型");
+  ok(h.indexOf('id="btnSetup">先选模型（设置里挑一个）') >= 0 && h.indexOf("开始快速判断") < 0,
+     "首次配置: 有 Key 没模型时首页不说「开始快速判断」，直接说先选模型");
   state.settings.apiKey = _k; state.settings.model = _m;
 }
 globalThis.fetch = realFetch;
@@ -806,9 +806,9 @@ state.history = [];
 /* 8.7 子类型扩展到全部题型 */
 ok(subtypeListOf("zy.gongwen").length === GONGWEN_TYPES.length && subtypeListOf("zy.guina").indexOf("概括原因") >= 0, "子类型: 每个题型都有自己的细分");
 renderHome();
-ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快判') >= 0
+ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快速判断') >= 0
    && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0
-   && el("#docBody").innerHTML.indexOf('data-big="zy">综应A 练一轮') >= 0
+   && el("#docBody").innerHTML.indexOf('data-big="zy">综应A 练一题') >= 0
    && el("#docBody").innerHTML.indexOf('data-big="sl">写一篇申论') >= 0,
    "首页: 居中 hero——大标题下主行动是快判，两枚 chips 各自点名科目");
 /* 红头常显：首页也是一张公文纸（红头在卷首，hero 接在下方），进科目页照旧 */
@@ -1749,27 +1749,27 @@ ok(state.profile.lastModules.length === pdLMBefore, "隔离: 快判不进 lastMo
 ok(distilledPD === false, "隔离: 快判不触发经验提炼");
 profGo("pd");
 const phPD = el("#profileBody").innerHTML;
-ok(phPD.indexOf("快判（只看正确率") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 快判单独一节（点进去才有）");
+ok(phPD.indexOf("快速判断") >= 0 && phPD.indexOf("事实选择") >= 0, "画像: 快判单独一节（点进去才有）");
 
-/* ③ 综合快判：每题自带形式，统计按题归属（一轮里三种都有，按轮算会混成一笔） */
+/* ③ 综合判断：每题自带形式，统计按题归属（一轮里三种都有，按轮算会混成一笔） */
 const pdSan = sanitizePDItems([
   { form:"group-summarize", context:"c", stem:"s", options:["a","b"], answer:0 },
   { form:"乱填的", context:"c2", stem:"s2", options:["a","b"], answer:1 },
   { context:"c3", stem:"s3", options:["a","b"], answer:0 } ], PD_MIX);
 ok(pdSan.length === 3 && pdSan[0].form === "group-summarize" && pdSan[1].form === "fact-select" && pdSan[2].form === "fact-select",
-   "综合快判: 认每题自带的 form；认不出的退回「事实选择」（形状最通用，不误导）");
+   "综合判断: 认每题自带的 form；认不出的退回「事实选择」（形状最通用，不误导）");
 const __pdHistKeep = state.history;
 state.history = [ { ts:Date.now(), track:"pd", form:PD_MIX, theme:"t", correct:2, total:3,
   items:[ { form:"fact-select", ok:true }, { form:"group-summarize", ok:false }, { form:"expression-compare", ok:true } ] } ];
 const __pdSt = pdFormStats();
 ok(__pdSt.st["fact-select"].q === 1 && __pdSt.st["fact-select"].c === 1 && __pdSt.st["group-summarize"].q === 1
    && __pdSt.st["group-summarize"].c === 0 && __pdSt.st["expression-compare"].c === 1 && __pdSt.mixRounds === 1,
-   "综合快判: 统计按每题形式归属（不被按轮算混成一笔）");
+   "综合判断: 统计按每题形式归属（不被按轮算混成一笔）");
 state.history = __pdHistKeep;
-ok(pdFormStats().st["fact-select"].q >= 1, "综合快判: 统计函数可重复调用（不污染 state）");
+ok(pdFormStats().st["fact-select"].q >= 1, "综合判断: 统计函数可重复调用（不污染 state）");
 ok(phPD.indexOf("正确率 50%") >= 0, "画像: 快判正确率 (1/2 = 50%)");
 profGo("hist");
-ok(el("#profileBody").innerHTML.indexOf(">快判</td>") >= 0 && el("#profileBody").innerHTML.indexOf(">1/2<") >= 0,
+ok(el("#profileBody").innerHTML.indexOf(">快速判断</td>") >= 0 && el("#profileBody").innerHTML.indexOf(">1/2<") >= 0,
    "画像: 记录表识别快判行（对/总题数）");
 distillExperience = realDistillPD;
 pdRound = null; pdForm = null;
@@ -1803,15 +1803,15 @@ const sbUp = el("#subjbar").innerHTML;
 ok(sbUp.indexOf("快判") < 0 && sbUp.indexOf("subjdiv") < 0,
    "快判往上提(已收拢): 科目栏无快判入口与分隔线");
 
-/* ② 首页：没填 Key 时红按钮如实说「先填 API Key」，两句大题各自点名科目；填了 Key 红按钮是「开始快判」
-     （这两句曾经连科目首页也照抄一份，结果综应A 里最大的红按钮写着「开始快判」） */
+/* ② 首页：没填 Key 时红按钮如实说「先填 API Key」，两句大题各自点名科目；填了 Key 红按钮是「开始快速判断」
+     （这两句曾经连科目首页也照抄一份，结果综应A 里最大的红按钮写着「开始快速判断」） */
 const apiKeyBeforeUp = state.settings.apiKey;   // 后面几步要改 Key：用完原样还回去（14.11 那条要验「导入不动本机 Key」）
 state.settings.apiKey = "";
 renderHome();
 const startUp = el("#docBody").innerHTML;
 ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
-   && startUp.indexOf("开始快判") < 0 && startUp.indexOf("btnSample") < 0,
-   "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快判」");
+   && startUp.indexOf("开始快速判断") < 0 && startUp.indexOf("btnSample") < 0,
+   "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快速判断」");
 ok(startUp.indexOf("填好 API Key 就能开始") >= 0 && startUp.indexOf("没有账号") < 0,
    "首页（没填 Key）: 脚注只说要先填 Key；「数据只存这台机器」归设置页，不在入口屏再说一遍");
 ok(el(".redhead").style.display === "" && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0,
@@ -1827,7 +1827,7 @@ ok(wireStartBox.toString().indexOf("canStart()") >= 0,
    "首页大题: 没 Key 时 chip 只切科目、不进加载态");
 state.settings.apiKey = "sk-test";
 renderHome();
-ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快判') >= 0
+ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快速判断') >= 0
    && el("#docBody").innerHTML.indexOf('data-start="home"') >= 0
    && el("#docBody").innerHTML.indexOf("hero-big") < 0 && el("#docBody").innerHTML.indexOf("hero-sub") < 0
    && el("#docBody").innerHTML.indexOf("没有账号") < 0 && el("#docBody").innerHTML.indexOf("hero-foot") < 0
@@ -1842,8 +1842,8 @@ const subjStart = el("#docBody").innerHTML;
 ok(subjStart.indexOf('class="primary big" id="btnSetup">先填 API Key') >= 0
    && subjStart.indexOf("data-start=\"subj\"") >= 0,
    "科目页（没填 Key）: 红按钮改说「先填 API Key」——出题这条路当下走不通，就不说「开始练习」");
-ok(subjStart.indexOf("开始快判") < 0,
-   "科目页: 不出现「开始快判」（快判是顶栏最左那颗胶囊的事）");
+ok(subjStart.indexOf("开始快速判断") < 0,
+   "科目页: 不出现「开始快速判断」（快判是顶栏最左那颗胶囊的事）");
 ok(subjStart.indexOf('data-start="subj"') >= 0 && subjStart.indexOf('class="hero-sub"') < 0
    && subjStart.indexOf("→") < 0 && subjStart.indexOf("写完就有分") < 0,
    "综应A布局: 科目页不摆说明句——流程与「写完就有分」都不是入口屏该说的话");
@@ -1897,7 +1897,7 @@ const wtLight = PD_TOPICS.filter(t=> PD_TOPIC_WEIGHT[t] === 1).map(t=> wtHit[t] 
 ok(wtHeavy.length > 0 && wtLight.length > 0 && Math.min(...wtHeavy) > Math.max(...wtLight),
    `快判权重: 超高频主题出现次数多于冷门主题（高频最低 ${Math.min(...wtHeavy)} > 冷门最高 ${Math.max(...wtLight)}）`);
 
-/* ③ 一键到题：填了 Key 点「开始快判」直接进 AI 出题；没 Key 被 entryBlocked 拦在原地（不进加载态、不调 AI） */
+/* ③ 一键到题：填了 Key 点「开始快速判断」直接进 AI 出题；没 Key 被 entryBlocked 拦在原地（不进加载态、不调 AI） */
 const pdStubPrev = callLLM; let pdCalls = 0;
 callLLM = async (...a)=>{ pdCalls++; return pdStubPrev(...a); };
 const realGenPD = genPDRound; const genCalls = [];
@@ -1905,7 +1905,7 @@ genPDRound = async (form, theme)=>{ genCalls.push([form, theme]); };
 state.settings.apiKey = "sk-test";
 startPDRound(PD_MIX);
 ok(genCalls.length === 1 && genCalls[0][0] === PD_MIX && pdCalls === 0,
-   "快判: 填了 Key 点「开始快判」直接进 AI 出题");
+   "快判: 填了 Key 点「开始快速判断」直接进 AI 出题");
 state.settings.apiKey = "";
 startPDRound(PD_MIX);
 ok(genCalls.length === 1 && pdCalls === 0 && pdRound === null,
@@ -3053,13 +3053,13 @@ ok(_eb.indexOf("canStart()") >= 0 && _eb.indexOf("OPEN_SETTINGS_BTN") >= 0 && _e
    && canStart.toString().indexOf("s.apiKey && s.model") >= 0,
    "没 Key 不进加载态: 提示里带「打开设置」的去路，且模型没选也拦");
 ok(renderPDSummary.toString().indexOf("本轮小结 · ") < 0,
-   "快判小结: 纸面不再把形式名写第二遍（抬头已报「快判 · 综合快判」）");
+   "快判小结: 纸面不再把形式名写第二遍（抬头已报「快判 · 综合判断」）");
 
 /* 19.9 画像/快判空态：没练过就照直说（示例轮回声已随示例题下线一起删掉） */
 const _histKeep = state.history.slice();
 state.history = [];
 pdRound = null;
-ok(profilePdHtml().indexOf("还没练过快判") >= 0, "画像/快判: 没练过就写「还没练过快判」");
+ok(profilePdHtml().indexOf("还没练过快速判断") >= 0, "画像/快速判断: 没练过就写「还没练过快速判断」，不教人回首页开一轮");
 state.history = _histKeep;
 
 /* 19.10 顶栏与纸面间距：纸面与真实顶栏始终间隔 24px（第二行已撤，不用任何空白补位）。 */
@@ -3084,14 +3084,14 @@ function noPrefixOf(track){
   return t;
 }
 const noZy = noPrefixOf("zy"), noSl = noPrefixOf("sl"), noPd = noPrefixOf("pd");
-ok(noZy.indexOf("综应A〔") === 0 && noSl.indexOf("申论〔") === 0 && noPd.indexOf("快判〔") === 0,
-   "文号: 综应轨写「综应A」、申论轨写「申论」、快判轨写「快判」，跟抬头第一个词一致（" + [noZy, noSl, noPd].join(" / ") + "）");
+ok(noZy.indexOf("综应A〔") === 0 && noSl.indexOf("申论〔") === 0 && noPd.indexOf("快速判断〔") === 0,
+   "文号: 综应轨写「综应A」、申论轨写「申论」、快速判断轨写「快速判断」，跟抬头第一个词一致（" + [noZy, noSl, noPd].join(" / ") + "）");
 ok(PAGE_HTML.indexOf(">文号前缀</label>") < 0 && PAGE_HTML.indexOf('id="setNo"') < 0
    && !("noPrefix" in state.settings),
    "设置: 「文号前缀」这个死开关已撤掉（文号前缀由抬头推出来，留着就是个不起作用的控件）");
 
 /* 19.11 同一家族的第二轮：还有两处在「先演再报错」（2026-10-08 再复查）
-   ① 有 Key 但没选模型时，点快判（综合或单形式）会先演「AI 正在出「综合快判」快判题…」，
+   ① 有 Key 但没选模型时，点快判（综合或单形式）会先演「AI 正在出「综合判断」快判题…」，
       一秒后才弹「还没选定模型」；提交阅卷也一样先把按钮按成「阅卷中…」。
    ② 出题等待页第二行写死「长文阅卷通常 10-60 秒」——此刻在等出题，屏幕上却在说阅卷。
    ③ 没填 Key 的人看到的第一套引导（科目页）说「不选模块也可以，直接点这里开始」，
@@ -3152,9 +3152,9 @@ ok(el("#bannerSlot").innerHTML.indexOf("出题和阅卷都要用 API Key") >= 0 
 state.settings.apiKey = "sk-demo0demo0demo0demo0demo0demo0"; state.settings.model = "test-model";   // gate-allow: 演示用假 Key，不是真凭据
 renderHome();
 const pdHomeKey = el("#docBody").innerHTML;
-ok(pdHomeKey.indexOf('id="btnQuick">开始快判') >= 0
+ok(pdHomeKey.indexOf('id="btnQuick">开始快速判断') >= 0
    && pdHomeKey.indexOf("先试一轮示例题") < 0 && pdHomeKey.indexOf("也是内置示例题") < 0,
-   "快判入口/有 Key: 首页红按钮「开始快判」是唯一入口；示例题残留为零");
+   "快判入口/有 Key: 首页红按钮「开始快速判断」是唯一入口；示例题残留为零");
 /* 示例题整块下线：池子、取题函数、入口与「不用 Key 也能练」的口径一律不留残留（CHANGELOG 是面向用户的历史记录，不在禁止范围） */
 const _pageNoLog = PAGE_HTML.slice(0, PAGE_HTML.indexOf("const CHANGELOG"));
 ok(PAGE_HTML.indexOf("PD_SAMPLE_ITEMS") < 0 && PAGE_HTML.indexOf("pdSampleItems") < 0
@@ -3179,8 +3179,8 @@ ok(saveSettings.toString().indexOf("saved? \"已保存 ✓\"") >= 0
    "保存: 存储写满时设置页不写「已保存 ✓」（同一屏的 banner 已在报「未能保存」，两边不能打架）");
 /* ---- 空态给去处 + 学习卡页收紧（阶段 5 修包）---- */
 state.experiences = [];
-ok(experienceListHtml().indexOf("先去练一轮") >= 0,
-   "空态: 经验页 0 条时指去处（练完一轮批改后自动归档，先去练一轮）");
+ok(experienceListHtml().indexOf("还没攒下经验") >= 0 && experienceListHtml().indexOf("批改完自动归档") >= 0,
+   "空态: 经验页 0 条时只说事实（还没攒下经验、批改完自动归档），不再教人「先去练一轮」");
 state.history = [];
 const __histEmpty = profileHistHtml();
 ok(__histEmpty.indexOf("还没有练习记录") >= 0 && __histEmpty.indexOf("<table") < 0,
@@ -3203,8 +3203,8 @@ const _v20 = _view, _pd20 = pdActive, _form20 = pdForm;
 _view = "pd"; pdActive = true; pdForm = PD_MIX; renderHeader();
 const pdNo20 = el("#docNo").textContent, pdLabel20 = el("#modLabel").textContent;
 _view = _v20; pdActive = _pd20; pdForm = _form20; renderHeader();
-ok(pdNo20.indexOf("快判") >= 0 && pdLabel20 === PD_FORMS[PD_MIX].name,
-   "快判: 抬头文号与灰字同口径 -> 文号「" + pdNo20 + "」灰字「" + pdLabel20 + "」");
+ok(pdNo20.indexOf("快速判断") >= 0 && pdLabel20 === PD_FORMS[PD_MIX].name,
+   "快速判断: 文号报轨道名、灰字报当前形式 -> 文号「" + pdNo20 + "」灰字「" + pdLabel20 + "」");
 
 /* 20.3 出题失败：上一轮已收尾时必须回到小结——回到那道题的「看本轮小结」上，那颗按钮的翻页守卫会把人钉死 */
 const realCall20 = callLLM;
@@ -3800,7 +3800,7 @@ ok(limitRowHtml().indexOf(">限时<") >= 0 && PAGE_HTML.indexOf(".tlin{width:62p
   const pe = el("#profileBody").innerHTML;
   ok(pe.indexOf("还没练习记录") < 0 && pe.indexOf("还没有练习记录") >= 0 && pe.indexOf("回首页练一道") >= 0,
      "画像: 空态直接给下一步");
-  ok(pe.indexOf("快判") >= 0 && pe.indexOf("快判") < pe.indexOf("综应A ·"), "画像: 汇总入口排在模块之前");
+  ok(pe.indexOf("快速判断") >= 0 && pe.indexOf("快速判断") < pe.indexOf("综应A ·"), "画像: 汇总入口排在模块之前");
   state.history = _h;
   closeModals();
 }
@@ -3810,8 +3810,8 @@ ok(limitRowHtml().indexOf(">限时<") >= 0 && PAGE_HTML.indexOf(".tlin{width:62p
     hits:[{ point:"p", score:20, awarded:18, status:"部分命中", evidence:"答到：「我的答案」" }],
     grade:{ total:90, scores:{}, comment:"解析。", modelAnswer:"范文。" } }];
   openModal("modalProfile"); renderProfile(); profGo("hist");
-  ok(el("#profileBody").innerHTML.indexOf('data-hist="0"') >= 0 && el("#profileBody").innerHTML.indexOf("点一行打开那次批改") >= 0,
-     "记录页: 行可点开那次批改");
+  ok(el("#profileBody").innerHTML.indexOf('data-hist="0"') >= 0 && el("#profileBody").innerHTML.indexOf("点一行打开") < 0,
+     "记录页: 行可点开那次批改（不再挂一句「点一行打开」的说明，悬停底色就是提示）");
   openHistRecord(state.history[0]);
   ok(_view === "q" && el("#modalProfile").hidden === true && el("#docBody").innerHTML.indexOf("/ 20 分") >= 0,
      "记录页: 点行打开那次批改（不重调 AI）");
