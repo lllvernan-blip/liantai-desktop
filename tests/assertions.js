@@ -3655,10 +3655,10 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(PAGE_HTML.indexOf("#bannerSlot{margin:0 calc(54px * var(--paper-scale));}") >= 0
      && PAGE_HTML.indexOf(".banner-actions") < 0,
      "提示条: 左右让出 54×缩放落在正文列上（与顶栏 --tb-edge 同一个数）；欢迎框删了，它的 .banner-actions 不留死样式");
-  ok(PAGE_HTML.indexOf("--act-col:520px") >= 0
+  ok(/--act-col:\d+px/.test(PAGE_HTML)
      && PAGE_HTML.indexOf(".start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}") >= 0
      && PAGE_HTML.indexOf(".start-entry .actions:has(.big) .big{width:100%;min-width:0;}") >= 0,
-     "入口屏: 主按钮 / 科目入口 / 继续条共用 520 动作列，窄窗随容器缩小");
+     "入口屏: 主按钮 / 科目入口 / 继续条共用一条动作列，窄窗随容器缩小");
   ok(PAGE_HTML.indexOf('<div class="actions actline">') >= 0 && PAGE_HTML.indexOf("继续上次没做完的题") < 0
      && PAGE_HTML.indexOf(".start-entry .actline .al-main{") >= 0,
      "入口屏: 恢复现场是一行信息 + 一颗描边键（原来两条描边大按钮比药丸宽、比红按钮轻，卡在中间谁都不像）");

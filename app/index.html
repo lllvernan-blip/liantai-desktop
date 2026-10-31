@@ -38,10 +38,10 @@
        1304 是这张纸最宽的样子——两栏时它 = 材料栏 580 + 中缝 24 + 作答栏 560 + 纸边 140，
        单栏时它就是 1164 的版心里放一列 620 的字（左右各留 272 空白）。
        --text-col 是那一列的宽：纸可以宽，一行不许宽（规范 36：17–40 字/行）。
-       --act-col 是入口屏那条「动作列」的宽：主按钮、科目药丸、继续条同宽同左右缘（原来六行六种宽度，
-       每行自己居中，看着像贴了六张不同大小的纸）。
+       --act-col 是入口屏那条「动作列」的宽：与正文列同宽（620），主按钮、科目药丸、继续条同宽同左右缘
+       （原来六行六种宽度，每行自己居中，看着像贴了六张不同大小的纸）。
        --mat-col-h 是两栏时材料窗的高。这几个都由 applyPaperScale() 写，这里只是启动那一瞬的初值。 */
-    --paper-scale:1; --sheet-w:760px; --text-col:620px; --act-col:520px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
+    --paper-scale:1; --sheet-w:760px; --text-col:620px; --act-col:620px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
     /* 字号阶梯：相邻至少差 1.5px——差半像素等于没分级 */
     --fs-display:30px;   /* 分数这类大数 */
     --fs-hero:26px;      /* 整屏标题（入口页、小结页）*/
@@ -187,24 +187,24 @@ html,body{margin:0;padding:0;}
   .startbox .chip{border-color:var(--chip-line);background:var(--paper);color:var(--chip-ink);font-family:var(--yahei);font-size:var(--fs-body);padding:8px 24px;}
   .startbox .chip:hover{border-color:var(--line-strong);color:var(--ink);background:var(--paper);}
   .startbox .chip.on{border-color:var(--line-strong);color:var(--ink);background:var(--wash-3);font-weight:600;}
-  .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:24px;}
-  /* 入口动作列宽 520；主按钮、科目入口与恢复入口对齐，窄窗随容器收缩。 */
+  .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:32px;}
+  /* 入口动作列宽 = 正文列 620；主按钮、科目入口与恢复入口对齐，窄窗随容器收缩。 */
   .start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}
   .start-entry .actions:has(.big) .big{width:100%;min-width:0;}
   /* 科目入口等分动作列，热区高 48。 */
-  .start-entry .chiprow .chip{flex:1 1 0;white-space:nowrap;justify-content:center;min-height:52px;border-radius:var(--r-ctl);}
+  .start-entry .chiprow .chip{flex:1 1 0;white-space:nowrap;justify-content:center;min-height:96px;font-size:var(--fs-hero);padding:0 24px;border-radius:var(--r-ctl);}
   /* 「继续上次」「做一套卷」两行：一行信息 + 一颗按钮。那颗键必须是看得见的按钮——
      透明灰字看不住能点，整片入口会被读成说明文字（2026-11-01 改回描边）。
      字左对齐、键靠右，装不下就省略号收在中间那句上。 */
-  .start-entry .actline{display:flex;align-items:center;gap:8px;margin-top:24px;text-align:left;}
+  .start-entry .actline{display:flex;align-items:center;gap:12px;margin-top:32px;text-align:left;}
   .start-entry .actline + .actline{margin-top:12px;}
   .start-entry .actline .al-main{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-size:var(--fs-note);color:var(--muted);}
-  .start-entry .actline button.ghost{flex:0 0 auto;min-height:var(--h-ctl-sm);padding:0 12px;
+    font-size:var(--fs-title);color:var(--muted);}
+  .start-entry .actline button.ghost{flex:0 0 auto;min-height:56px;padding:0 16px;
     border-color:var(--chip-line);color:var(--chip-ink);}   /* 跟药丸同一套描边：纸面上的边要比全局 --line 重一点才咬得住 */
   /* 整卷那一行没有左侧信息，就整条做成按钮，右缘给一枚 › 指路 */
-  .start-entry .actline button.ghost.wide{flex:1 1 auto;min-height:var(--h-ctl);display:flex;align-items:center;
-    justify-content:space-between;gap:12px;padding:0 16px;text-align:left;color:var(--ink);}
+  .start-entry .actline button.ghost.wide{flex:1 1 auto;min-height:56px;display:flex;align-items:center;
+    justify-content:space-between;gap:12px;padding:0 16px;text-align:left;color:var(--ink);font-size:var(--fs-title);border-radius:var(--r-ctl);}
   .start-entry .actline .algo{color:var(--muted-2);}
 
   .wrap{max-width:calc(var(--sheet-w) * var(--paper-scale));margin:calc(24px * var(--paper-scale)) auto;padding:0 16px;}
@@ -218,8 +218,6 @@ html,body{margin:0;padding:0;}
   #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
   body.wide-cols #docBody>*,body.wide-review #docBody>*{max-width:none;}
   /* 入口屏在版心中线上居中（纸的左缘不是这屏的基准）：整块 620 列居中，三条动作共用 520 宽、左右缘对齐。 */
-  /* 纸张够高时这一列在版心里竖向居中：入口只有三条动作，靠上排会让下半张纸空成一片。 */
-  #docBody>.startbox.start-entry{min-height:max(320px, calc(100vh / var(--paper-scale) - 250px));justify-content:center;}
   .redhead{text-align:center;}
   .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 12px;}
   .redline{display:flex;align-items:center;}
@@ -238,10 +236,10 @@ html,body{margin:0;padding:0;}
   .startbox p{color:var(--muted);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
   .startbox .big{min-width:320px;}
   /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
-  .startbox button.primary.big{font-family:var(--yahei);font-size:var(--fs-title);letter-spacing:1px;padding:16px 58px;min-height:64px;border-radius:var(--r-ctl);box-shadow:none;}
+  .startbox button.primary.big{font-family:var(--yahei);font-size:var(--fs-display);letter-spacing:2px;padding:8px 58px;min-height:96px;border-radius:var(--r-ctl);box-shadow:none;}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:none;}
   .startbox .actions{justify-content:center;margin-top:24px;}
-  .startbox.start-home .actions:has(.big),.startbox.start-hero .actions:has(.big){margin-top:0;}   /* 只豁免装主按钮的那一行；下面「接着上次」仍吃 24px，否则贴着科目块 */
+  .startbox.start-home .actions:has(.big),.startbox.start-hero .actions:has(.big){margin-top:0;}   /* 只豁免装主按钮的那一行；下面「接着上次」仍吃 32px，否则贴着科目块 */
   /* 入口屏没有说明句时（科目页 / 说明与胶囊重复的落地页），24px 由标题与主按钮自己出：
      flex 行不并 margin，标题自带的 4px 在这种形态下要去掉，否则 28px 不落在五档上。 */
   .startbox .hero-big:has(+ .actions){margin-bottom:0;}
