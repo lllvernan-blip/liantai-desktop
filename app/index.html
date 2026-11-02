@@ -24,7 +24,6 @@
     --bar:#a9a49a;       /* 中性细条填充：6px 实心深灰曾是整行最重的东西，压到 4px 并调浅 */
     --scroll-thumb:#cfcac0; --scroll-thumb-hover:#b3ada1;   /* 滚动条滑块（悬停加深一档） */
     --mat:var(--wash);  /* 材料与批改内容共用中性浅底 */
-    --pick-bg:#e9e1cc; --pick-line:#cdbe97;   /* 材料区已点选：暖沙，不是淡蓝（淡蓝 + 蓝下划线看着像超链接） */
     --write:var(--ctl);  /* 作答与笔记共用控件纸色 */
     --ctl:#fffefb;       /* 控件外表：不用纯白——纯白比纸面更冷更亮，贴上去像另一个应用 */
     --on-dark:#fff;      /* 墨底 / 红底上的字：主按钮、浮动菜单、步骤条当前格 */
@@ -40,29 +39,43 @@
        --text-col 是那一列的宽：纸可以宽，一行不许宽（规范 36：17–40 字/行）。
        --act-col 是入口屏那条「动作列」的宽：与正文列同宽（620），主按钮、科目药丸、继续条同宽同左右缘
        （原来六行六种宽度，每行自己居中，看着像贴了六张不同大小的纸）。
-       --mat-col-h 是两栏时材料窗的高。这几个都由 applyPaperScale() 写，这里只是启动那一瞬的初值。 */
-    --paper-scale:1; --sheet-w:760px; --text-col:620px; --act-col:620px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px;
+       --sheet-gap-b 是纸的下边距：两栏铺满一屏时，纸的下沿不能就是窗口的下沿。 */
+  /* --mat-col-h 是两栏时材料窗的高。这几个都由 applyPaperScale() 写，这里只是启动那一瞬的初值。 */
+    --paper-scale:1; --sheet-w:760px; --text-col:620px; --act-col:620px; --mat-col-w:580px; --mat-col-h:480px; --mat-gap:24px; --sheet-gap-b:16px;
     /* 字号阶梯：相邻至少差 1.5px——差半像素等于没分级 */
-    --fs-display:30px;   /* 分数这类大数 */
-    --fs-hero:26px;      /* 整屏标题（入口页、小结页）*/
-    --fs-title:16px;     /* 区块标题 */
-    --fs-body:14px;      /* UI 正文：按钮、胶囊、说明 */
-    --fs-note:12.5px;    /* 辅助小字：提示、标签、脚注 */
+    /* 五档整体上移一档（2026-11-01）：字大了，胶囊与按钮才是"字撑着壳"而不是"字缩在壳里" */
+    --fs-display:32px;   /* 分数这类大数 */
+    --fs-hero:28px;      /* 整屏标题（入口页、小结页）*/
+    --fs-title:17px;     /* 区块标题 */
+    --fs-body:15px;      /* UI 正文：按钮、胶囊、说明 */
+    --fs-note:13px;      /* 辅助小字：提示、标签、脚注 */
     /* 间距只有五档，直接写数值：紧贴 4 / 组内 8 / 组间 12 / 分段 16 / 区块 24 */
-    /* 控件内边距：普通与矮一档各一种，不再一个控件一套 */
-    --pad-ctl:8px 12px; --pad-ctl-sm:6px 12px;
+    /* 控件不靠内边距定高：高度走 --h-ctl / --h-ctl-sm，横向内边距按字的多少给（按钮 20、胶囊 16） */
+  /* 动效三档时长 + 两条曲线，数字与曲线取自 Material 3 motion tokens（全档 ≤240ms，不破动效预算）。
+     原来散落 .12 / .15 / .16 / .18 / .2 / .22 六个野值，同一件事（按钮换底色）在两处各写一个数。 */
+    --t-state:150ms;   /* 状态切换：底色 / 描边 / 文字色 */
+    --t-press:100ms;   /* 按下的位移 */
+    --t-enter:200ms;   /* 入场：淡入与位移；也用作悬停提示的出场延迟 */
+    --ease-std:cubic-bezier(.2,0,0,1);        /* Material standard：状态互切，去与回同一条曲线 */
+    --ease-decel:cubic-bezier(.05,.7,.1,1);   /* Material emphasized-decelerate：只给入场，起步快、落定不弹 */
+    /* 行高四档：控件 1.35 / UI正文 1.7 / 纸面正文 1.85 / 阅读材料 2.05。
+       原来散落十几个野值（1.6 / 1.65 / 1.7 / 1.75 / 1.8 / 1.85 / 1.9 / 1.95），归位到最近的一档。
+       1.25 给大字号标题（红头机关名），不进四档——它跟控件和正文都不在一套节奏里。 */
+    --lh-ctl:1.35;    /* 控件：按钮、输入框——控件高度靠它定，不许继承正文 */
+    --lh-body:1.7;    /* UI 正文：说明字、折叠内容、选项 */
+    --lh-doc:1.85;    /* 纸面正文：解析、笔记、评语、引导气泡 */
+    --lh-loose:2.05;  /* 阅读材料：材料、作答、范文——给划线留落笔空间 */
     /* 语义别名：同一个 hex 只在 :root 出现一次，改一处即全站生效 */
     --line-strong:#8f8b81;   /* 3.3:1 —— 只给「靠边才能认出是输入框」的那几个（select / input / 作答区 / 笔记框）。
                                 WCAG 1.4.11 只管「识别控件所必需的视觉信息」：文案自明的按钮不受约束，
                                 空框输入框靠边指示可输入、边就必须 ≥ 3:1（Understanding 的 Boundaries 节与 Fig 31/32/34） */
-    --line-hover:#b9b2a2;    /* 悬停时的描边加深一档（浮标） */
     --chip-line:#d8d2c6; --chip-ink:#55504a;   /* 纸面上的胶囊：比全局 --line / --muted 略重，白底上才咬得住 */
     --text-disabled:#9a968d; /* 2.9:1 —— placeholder 与禁用文字（门槛 2:1） */
     --focus-ring:rgba(192,21,26,.9);   /* 5.4:1；原来的 .45 合成后只有 2.3:1，低于焦点环 3:1 门槛 */
     --success:#2f7d32; --success-bg:#f2f8f2;
     --danger:#b3261e;  --danger-bg:#fdf1f1;  --danger-line:#f3cccc;
     /* 阴影三级：平面 / 下拉浮标 / 弹层。纸材质要轻，卡片不加重量级投影 */
-    --sh-1:0 1px 3px rgba(31,31,31,.06);
+    /* 阴影只剩两级：下拉浮标与弹层。纸上的按钮不再浮起，--sh-1 随之撤掉（2026-11-01） */
     --sh-2:0 2px 10px rgba(31,31,31,.10);
     --sh-3:0 12px 40px rgba(0,0,0,.18);
     --scrim:rgba(25,22,16,.45);   /* 引导挖孔外的暗遮罩（暖调，与纸面同族） */
@@ -73,12 +86,20 @@
        原来散成 7 档、其中 3 档是裸数字（这档到底为什么会是 6px/12px/1px，没人说得出来），2026-10-15 收敛 */
     --r-flat:0; --r-icon:6px; --r-ctl:8px; --r-hero:12px; --r-card:16px; --r-pill:999px;
     --fangsong:"FangSong","仿宋","STFangsong","FangSong_GB2312","KaiTi","serif";
-    --yahei:"Microsoft YaHei","Microsoft YaHei UI","PingFang SC","sans-serif";
+    /* 控件字族：按「本机真命中」排——mac 上 PingFang SC 直接命中，汉字与拉丁数字同一张脸；
+       Win 落到微软雅黑，Linux 落到思源黑。原来以 -apple-system 打头时，拉丁数字走 SF、汉字走苹方，
+       一屏两种气质——那不是回退失败，是两套字拼在一行。实测（Chrome CSS.getPlatformFontsForNode，
+       同一串「开始快速 继续上次 ABC 123 ·」）：-apple-system → .SF NS×11 + PingFang SC×8；
+       PingFang SC → 19 个字形全苹方 */
+    --yahei:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Microsoft YaHei UI","Noto Sans CJK SC",sans-serif;
     --song:"SimSun","宋体","STSong","serif";
-    --hei:"SimHei","黑体","Microsoft YaHei","sans-serif";
+    /* 黑体档原本是 SimHei/黑体 打头，这两族在 mac 与多数 Win 上都不存在，整条落到 sans-serif——
+       等于「没指定字体」，而且和 --yahei 的观感对不上（品牌、科目栏、区块标题一套，按钮另一套）。
+       黑体与雅黑在屏幕上本就是同一种无衬线，合成一套，层级只靠字重与字号分 */
+    --hei:var(--yahei);
   }
   *{box-sizing:border-box;}
-  html{overflow-y:scroll;scrollbar-gutter:stable;} /* 滚动条一出现不再把整页往左挤（快判落地页比别的页高，进页瞬间会有位移） */
+  html{overflow-y:scroll;scrollbar-gutter:stable;scroll-padding-bottom:56px;} /* 滚动条一出现不再把整页往左挤（快判落地页比别的页高，进页瞬间会有位移）；scroll-padding 让「滚到某个元素」不会被底部吸底的交卷条盖住 */
   /* 滚动条：系统默认的灰色宽条压在暖白纸面上很扎眼，改成细的暖灰拇指、透明轨道 */
   ::-webkit-scrollbar{width:10px;height:10px;}
   ::-webkit-scrollbar-track{background:transparent;}
@@ -86,25 +107,47 @@
   ::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover);background-clip:content-box;}
   ::-webkit-scrollbar-corner{background:transparent;}
 html,body{margin:0;padding:0;}
-  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:var(--fs-body);line-height:1.7;-webkit-font-smoothing:antialiased;
+  body{background:var(--canvas);color:var(--ink);font-family:var(--yahei);font-size:var(--fs-body);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;
        background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:22px 22px;}   /* 极细点阵：底板的纸感 */
 
   /* 控件行里只有两个尺寸：按钮/输入框同高，胶囊矮一档；行高定死 1.35，不再跟 body 的 1.7 走 */
   /* 控件是产品（雅黑），文档是公文（仿宋）：红头、材料、作答、范文用仿宋，
      按钮 / chips / 输入框不再穿仿宋——仿宋笔画细，小字号的按钮看起来像没渲染完 */
-  button{font-family:var(--yahei);font-size:var(--fs-body);line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line);background:var(--ctl);color:var(--ink);padding:var(--pad-ctl);cursor:pointer;border-radius:var(--r-ctl);transition:background .15s,border-color .15s;}
-  button:hover{background:var(--wash-3);}
-  button:disabled{opacity:.5;cursor:not-allowed;}
-  /* 主行动比次级控件高一大档（40 vs 36）、重一号（15 vs 14）：一屏里只允许一个这种重量的东西 */
-  button.primary{background:var(--gov-red);border-color:var(--gov-red);color:var(--on-dark);font-weight:600;font-size:var(--fs-body);letter-spacing:1px;min-height:40px;padding:8px 24px;}
-  button.primary:hover{background:var(--gov-red-dark);box-shadow:var(--sh-1);transform:translateY(-1px);}
-  button.primary:active:not(:disabled){transform:translateY(1px);box-shadow:none;}
+  /* 控件行每一档只有一个高度，圆角只有一种：按钮一律胶囊（与入口屏同一形状），
+     容器（输入框 / 选项行 / 卡片）才用 --r-ctl 小圆角。四档高度共用一个意思，不按屏另起一档：
+     40 纸面主行动（.primary）/ 36 常规控件 / 30 胶囊与文字键 / 64 入口主行动（.primary.big）。 */
+  button{font-family:var(--yahei);font-size:var(--fs-body);line-height:var(--lh-ctl);letter-spacing:0;min-height:var(--h-ctl);border:1px solid var(--line);background:var(--ctl);color:var(--ink);padding:0 16px;cursor:pointer;border-radius:var(--r-pill);}
+  /* 悬停只给真能点的键：不能点的东西不该有「能点」的反馈 */
+  button:not(:disabled):hover{background:var(--wash-3);}
+  /* 禁用淡的是字与边，不是整颗键：一层 opacity 糊上去，纸面读成「这块没了」而不是「这颗不能按」，
+     红底白字还会被一起压灰（Material 也是内容与容器分开定值：禁用内容 38%、容器另算）。 */
+  button:disabled{color:var(--text-disabled);border-color:var(--line-soft);cursor:not-allowed;}
+  /* 主行动靠颜色分，不靠高度分：一屏里只有它一块红，已经够重；高度与同排按钒同高（36），整行才齐 */
+  button.primary{background:var(--gov-red);border-color:var(--gov-red);color:var(--on-dark);font-weight:600;font-size:var(--fs-body);letter-spacing:0;min-height:var(--h-ctl);padding:0 24px;}
+  /* 悬停只换色不浮起：纸上的按钮浮起来、拖一道投影，是网页 Demo 的手势，不是纸面该有的 */
+  button.primary:hover{background:var(--gov-red-dark);}
+  button.primary:active:not(:disabled){background:var(--gov-red-dark);}
   /* 正在跑（如提交阅卷）：不可点 ≠ 正在跑，两个态分开表达 */
   button[aria-busy="true"],button.primary[aria-busy="true"]{cursor:wait;opacity:.75;transform:none;box-shadow:none;}
-  button.big{font-family:var(--hei);font-size:var(--fs-title);padding:12px 42px;letter-spacing:2px;}
-  button.linkbtn{border:none;background:transparent;color:var(--muted);padding:4px 8px;font-size:var(--fs-body);min-height:28px;}
-  button.linkbtn:hover{background:transparent;color:var(--gov-red);}
-  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:var(--fs-body);line-height:1.35;min-height:var(--h-ctl);border:1px solid var(--line-strong);background:var(--ctl);padding:8px 12px;border-radius:var(--r-ctl);color:var(--ink);}
+  button.big{font-family:var(--hei);font-size:var(--fs-title);padding:12px 42px;}
+  /* 能按的都有壳，壳就是「可按」这个事实的记号。壳只有两种形状，一眼分开「按的」和「填的」：
+     动作键是胶囊（--r-pill），输入是控件（--r-icon 6px）。
+     2026-11-01 曾把学习卡的无框化当成解法，理由写的是「三种壳子并列看不出哪个是按的」——
+     弄错了病因：不是壳的有无，是壳没有语义。无框之后它就彻底认不出能点，只好再套回来。 */
+  button.tool{font-family:var(--yahei);border:1px solid var(--line);background:var(--ctl);color:var(--ink);
+    padding:0 12px;font-size:var(--fs-body);letter-spacing:0;min-height:var(--h-ctl-sm);border-radius:var(--r-pill);}
+  /* 更安静的那一档（引导、跳过、句子中间那种链接）：无框无底、灰字。
+     它不表示「这里能按」，而是「这里可以顺手换个方向」，所以不进到胶囊那一档 */
+  button.linkbtn{font-family:var(--yahei);border:none;background:transparent;color:var(--muted);
+    padding:0 8px;font-size:var(--fs-body);letter-spacing:0;min-height:var(--h-ctl-sm);border-radius:var(--r-pill);}
+  button.linkbtn:hover{background:var(--wash);color:var(--ink);}
+  button.tool:hover{background:var(--wash);border-color:var(--line-strong);color:var(--ink);}
+  button.tool[aria-expanded="true"]{background:var(--wash);color:var(--ink);}
+  /* 二次确认里的那颗「真的换」：字用 --danger，但不给实心红——它不是这一屏的主行动 */
+  button.tool.danger{color:var(--danger);}
+  button.tool.danger:hover{background:var(--danger-bg);color:var(--danger);}
+  .switchconfirm{display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-note);color:var(--muted);}
+  select,input[type=text],input[type=password]{font-family:var(--fangsong);font-size:var(--fs-body);line-height:var(--lh-ctl);min-height:var(--h-ctl);border:1px solid var(--line-strong);background:var(--ctl);padding:0 12px;border-radius:var(--r-ctl);color:var(--ink);}
   ::placeholder{color:var(--text-disabled);opacity:1;}   /* 别用浏览器的淡灰，钉成 2.9:1 */
 
   /* 顶栏 */
@@ -114,29 +157,29 @@ html,body{margin:0;padding:0;}
   .toolbar{--tb-edge:max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px + 54px * var(--paper-scale)));display:flex;align-items:center;gap:8px;padding:8px var(--tb-edge);}
   /* 右上四个入口是工具，比品牌弱，但它们是纯文字、热区只有 13px 高：撑到能稳点中的高度，并给一点悬停反馈 */
   .toolbar button.linkbtn{padding:8px 12px;font-size:var(--fs-body);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
-  .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-ctl);}
+  .toolbar button.linkbtn:hover{background:var(--wash-3);border-radius:var(--r-pill);}
   /* 品牌位是应用图标（SPEC 3.0：禁止单字印章式代标）+ 文字；图标 data URI 内联，不引外部资源 */
-  .toolbar .brand img{width:22px;height:22px;border-radius:var(--r-icon);margin-right:8px;vertical-align:-4px;display:inline-block;}
-  .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);color:var(--gov-red);letter-spacing:1.5px;}
+  .toolbar .brand img{width:22px;height:22px;border-radius:var(--r-icon);margin-right:8px;flex:0 0 auto;}
+  .toolbar .brand{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);color:var(--gov-red);letter-spacing:0;}
   .toolbar .brand small{color:var(--muted);font-weight:400;font-size:var(--fs-note);letter-spacing:0;margin-left:8px;}
   /* 品牌名就是回家的路（2026-10-08）：首页不属于任何科目，得有个不挑科目的落点。
      盒高与科目胶囊同档（30）——原来 26，跟旁边 30 的胶囊并排时两条文字基线看着不齐 */
-  .toolbar button.brand{border:0;background:transparent;padding:0;min-height:var(--h-ctl-sm);font-size:var(--fs-body);line-height:1.2;}
+  .toolbar button.brand{border:0;background:transparent;padding:0;min-height:var(--h-ctl-sm);font-size:var(--fs-body);line-height:var(--lh-display);display:inline-flex;align-items:center;}
   .toolbar button.brand:hover{background:transparent;color:var(--gov-red-dark);}
   .spacer{flex:1 1 auto;}
   /* 科目入口跟品牌同一行（2026-10-08）：它原来独占顶栏第二行，而那一行里它是唯一的住客。
      间距只走 .toolbar 的 gap:8，不再另加 margin-left——原来 8+16=24，是胶囊彼此间距的三倍，品牌被读成一块孤牌 */
   .subjbar{display:flex;align-items:center;gap:8px;}
-  .subjbtn{border:1px solid transparent;background:transparent;color:var(--muted);font-family:var(--hei);font-size:var(--fs-body);padding:0 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:1px;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
+  .subjbtn{border:1px solid transparent;background:transparent;color:var(--muted);font-family:var(--hei);font-size:var(--fs-body);padding:0 12px;cursor:pointer;border-radius:var(--r-pill);letter-spacing:0;min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
   .subjbtn:hover{background:var(--wash-3);color:var(--ink);}
   .subjbtn.active{background:var(--red-wash);color:var(--gov-red);}   /* 实心红只留给主行动：默认无框，激活才现淡红底（与快判图标、工具图标同一套语言） */
   .subjbtn.active:hover{background:var(--red-wash-2);}
     /* 悬浮提示（SPEC 3.2）：图标无框，悬浮才现文字说明；纯 CSS，零依赖 */
   [data-tip]{position:relative;}
-  [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);right:-4px;background:var(--ink);color:var(--paper);font-size:var(--fs-note);line-height:1;padding:8px 8px;border-radius:var(--r-ctl);white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-2px);transition:opacity .12s ease .18s,transform .12s ease .18s;z-index:40;}
+  [data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);right:-4px;background:var(--ink);color:var(--paper);font-size:var(--fs-note);line-height:1;padding:8px 8px;border-radius:var(--r-ctl);white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-2px);transition:opacity var(--t-state) var(--ease-std) var(--t-enter),transform var(--t-state) var(--ease-std) var(--t-enter);z-index:40;}
   [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translateY(0);}
   /* 全局工具区（SPEC 3.2 桌面质感）：图标无框，悬浮才现底色 */
-  .toolbar .iconbtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:30px;border:none;background:transparent;color:var(--muted);border-radius:var(--r-ctl);cursor:pointer;padding:0;min-height:0;}
+  .toolbar .iconbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;background:transparent;color:var(--muted);border-radius:var(--r-pill);cursor:pointer;padding:0;min-height:0;}
   .toolbar .iconbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
   .toolbar .iconbtn:hover{background:var(--wash-3);color:var(--ink);}
   /* 快判的顶栏入口：与工具图标同一套无框语言；激活时红字淡红底 */
@@ -151,14 +194,18 @@ html,body{margin:0;padding:0;}
      Windows 的 SimFang 自带 ClearType 已略重，再描一层就糊 */
   .shell-mac .material,.shell-mac .answerreview,.shell-mac .modelanswer{-webkit-text-stroke:0.3px currentColor;}
   .subtypechips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin:0 auto;}
-  .start-entry .subtypechips{max-width:720px;}   /* 入口页的文种/子类型一行装得下，别剩一颗孤零零居中 */
-  .start-entry .subtypechips .chip{padding:8px 16px;}
+  .start-entry .subtypechips{max-width:none;margin:0;justify-content:flex-start;}   /* 入口屏走卷首目录：列内一律左对齐，模块胶囊与主按钮同一条左缘 */
+  .start-entry .subtypechips .chip{padding:0 16px;}
   /* 公文落地页的 21 个文种按法条口径分两组摆：不分组时最后一行常剩一颗孤零零的胶囊，
      一组一行、左对齐，标签用元信息灰；分组只是排版，选法仍是点一颗出一次题 */
   .start-entry .subtypechips.subtypechips-grouped{display:block;text-align:left;}
   .subtypechips .catgroup + .catgroup{margin-top:12px;}
   .subtypechips .catlabel{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);margin-bottom:8px;}
   .subtypechips .catchips{display:flex;flex-wrap:wrap;gap:8px;}
+  /* details 收起时它的内容该跟着消失，靠的是浏览器默认样式里那条 display:none；
+     上面一句给 .catchips 显式设了 display，特异性高于默认样式，于是一个收起的分组
+     里 11 颗胶囊还在照常参与布局、溢出到外面压住下一组。这里把它按 opening 状态管回去。 */
+  .subtypechips .catgroup:not([open])>.catchips{display:none;}
   /* 类别名同时是折叠头（文种墙默认收起）：折叠三角走全局那一套——flex 行、margin-left:auto、12px + --line-strong */
   .subtypechips .catgroup>summary{display:flex;align-items:baseline;gap:8px;cursor:pointer;list-style:none;}
   .subtypechips .catgroup>summary::-webkit-details-marker{display:none;}
@@ -168,14 +215,18 @@ html,body{margin:0;padding:0;}
   .subtypechips .catgroup[open]>summary::after{content:"▾";}
 /* 快判落地页：主行动 → 顶部形式入口 → 默认收起的主题设置。 */
 .pdforms{margin-top:24px;}
-/* 科目页/模块落地页尾部的模块切换行：这是次级导航，降半档（小一号、淡色），
-   别和上面的文种/形式 chips 平起平坐——同权重会让人读成两级同级的选择（2026-10-12 验收） */
-.start-entry .pdforms .chip[data-mod]{padding:4px 12px;font-size:var(--fs-note);color:var(--muted);border-color:transparent;background:transparent;}
-.start-entry .pdforms .chip[data-mod]:hover{color:var(--ink);border-color:var(--line-strong);background:transparent;}
-.start-entry .pdforms .chip[data-mod].on{border-color:transparent;color:var(--gov-red);background:transparent;}
+  /* 换模块那一行：文字键 + 间隔点，字号与灰比第一排低一档 */
+  .pdnav{display:flex;align-items:center;flex-wrap:wrap;gap:0 4px;margin-top:24px;font-size:var(--fs-note);color:var(--muted-2);}
+  .pdnav .pdlab{margin-right:4px;}
+  .pdnav button.linkbtn{font-size:var(--fs-note);padding:0 4px;}
+  .pdnav .pddot{color:var(--text-disabled);}
+/* 科目页/模块落地页尾部的模块切换行：仍是次级导航（比主按钮与文种 chips 小一号），
+   但必须是看得见的胶囊——透明灰字会被读成说明文字，没人知道能点（2026-11-01 改）。
+   选中态用全站 chip.on：红线 + 淡红底，与科目栏同一套语言。 */
+.start-entry .pdforms .chip[data-mod]{padding:4px 16px;}
 .start-entry .pdforms:has([data-mod]){margin-top:24px;}   /* 模块切换行紧跟主按钮，全站 24 档 */
 .pdthemebody{padding:0 0 4px;text-align:center;}
-  .chip{border:1px solid var(--line);background:var(--ctl);padding:var(--pad-ctl-sm);cursor:pointer;font-size:var(--fs-body);border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
+  .chip{border:1px solid var(--line);background:var(--ctl);padding:0 16px;cursor:pointer;font-size:var(--fs-body);border-radius:var(--r-pill);min-height:var(--h-ctl-sm);display:inline-flex;align-items:center;}
 .model-item{display:block;width:100%;text-align:left;padding:8px 16px;border:none;background:none;cursor:pointer;font-size:var(--fs-body);color:var(--ink);}
 .model-item:hover{background:var(--wash);}   /* 可点行的悬停底全站一律 --wash；--canvas 是桌面底板色，铺在纸上一抹灰 */
   .chip:hover{border-color:var(--gov-red);color:var(--gov-red);}
@@ -183,31 +234,15 @@ html,body{margin:0;padding:0;}
   .chip.on{border-color:var(--gov-red);color:var(--gov-red);background:var(--red-wash);}
   .chip small{font-size:var(--fs-note);color:var(--muted);font-variant-numeric:tabular-nums;}   /* 不写 font-size 就会按浏览器的 smaller 算：13px × 0.833 = 10.8px，六档之外的野字号 */
   /* 入口纸面的 chips（人感 Demo .chip）：胶囊、纸白底、暖灰边——首页 / 模块页 / 快判页同一套，弹层内不动 */
-  .startbox .chip{border-color:var(--chip-line);background:var(--paper);color:var(--chip-ink);font-family:var(--yahei);font-size:var(--fs-body);padding:8px 24px;}
+  .startbox .chip{border-color:var(--chip-line);background:var(--paper);color:var(--chip-ink);font-family:var(--yahei);font-size:var(--fs-body);padding:0 16px;min-height:var(--h-ctl-sm);}
   .startbox .chip:hover{border-color:var(--line-strong);color:var(--ink);background:var(--paper);}
-  .startbox .chip.on{border-color:var(--line-strong);color:var(--ink);background:var(--wash-3);font-weight:600;}
-  .startbox .chiprow{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:32px;}
-  /* 入口动作列宽 = 正文列 620；主按钮、科目入口与恢复入口对齐，窄窗随容器收缩。 */
-  .start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}
-  .start-entry .actions:has(.big) .big{width:100%;min-width:0;}
-  /* 科目入口等分动作列，热区高 48。 */
-  .start-entry .chiprow .chip{flex:1 1 0;white-space:nowrap;justify-content:center;min-height:96px;font-size:var(--fs-hero);padding:0 24px;border-radius:var(--r-ctl);}
-  /* 入口底部那一行进度：一屏三块动作占不满整张纸，剩下的空白用它压住。
+  /* 入口动作列宽 = 正文列 620；主按钮、去处清单与模块胶囊同一条左缘，窄窗随容器收缩。 */
+  .start-entry .actions:has(.big),.start-entry .entrylist{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}
+  .start-entry .actions:has(.big) .big{min-width:0;}
+  /* 入口底部那一行进度：动作组竖向居中后，这行真实数字仍收在动作组尾部。
      数字全来自练习记录里带 grade 的那几条，没有记录就不出现（空态不摆「你还没开始练」这种话）。 */
-  .start-entry .histent{width:min(var(--act-col),100%);margin:32px auto 0;font-size:var(--fs-title);color:var(--muted);letter-spacing:.5px;}
-  /* 「继续上次」「做一套卷」两行：一行信息 + 一颗按钮。那颗键必须是看得见的按钮——
-     透明灰字看不住能点，整片入口会被读成说明文字（2026-11-01 改回描边）。
-     字左对齐、键靠右，装不下就省略号收在中间那句上。 */
-  .start-entry .actline{display:flex;align-items:center;gap:12px;margin-top:32px;text-align:left;}
-  .start-entry .actline + .actline{margin-top:12px;}
-  .start-entry .actline .al-main{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-size:var(--fs-title);color:var(--muted);}
-  .start-entry .actline button.ghost{flex:0 0 auto;min-height:56px;padding:0 16px;
-    border-color:var(--chip-line);color:var(--chip-ink);}   /* 跟药丸同一套描边：纸面上的边要比全局 --line 重一点才咬得住 */
-  /* 整卷那一行没有左侧信息，就整条做成按钮，右缘给一枚 › 指路 */
-  .start-entry .actline button.ghost.wide{flex:1 1 auto;min-height:56px;display:flex;align-items:center;
-    justify-content:space-between;gap:12px;padding:0 16px;text-align:left;color:var(--ink);font-size:var(--fs-title);border-radius:var(--r-ctl);}
-  .start-entry .actline .algo{color:var(--muted-2);}
+  .start-entry .histent{width:min(var(--act-col),100%);margin:24px auto 0;font-size:var(--fs-body);color:var(--muted);text-align:left;}
+  .start-entry .hint{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;text-align:left;}   /* 落地页那行数据同一条左缘：整屏都左对齐了，不许它一个人居中 */
 
   .wrap{max-width:calc(var(--sheet-w) * var(--paper-scale));margin:calc(24px * var(--paper-scale)) auto;padding:0 16px;}
   /* overflow 用 clip 不用 hidden：hidden 会把纸变成一个滚动容器，里面的一切吸顶与 scrollIntoView 都得换基准；clip 只裁不接管滚动 */
@@ -219,64 +254,87 @@ html,body{margin:0;padding:0;}
      两栏那一屏豁免：作答栏由 grid 分，宽度它自己管。 */
   #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
   body.wide-cols #docBody>*,body.wide-review #docBody>*{max-width:none;}
-  /* 入口屏在版心中线上居中（纸的左缘不是这屏的基准）：整块 620 列居中，三条动作共用 520 宽、左右缘对齐。 */
+  /* 入口屏在版心中线上居中（纸的左缘不是这屏的基准）：整块 620 列居中，主按钮、科目入口与恢复入口同宽对齐。 */
   .redhead{text-align:center;}
-  .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:1.25;margin:4px 0 12px;}
+  .redhead .org{color:var(--gov-red);font-family:var(--song);font-weight:700;font-size:30px;letter-spacing:4px;line-height:var(--lh-display);margin:4px 0 12px;}
   .redline{display:flex;align-items:center;}
   .redline .bar{flex:1;height:2px;background:var(--gov-red);}
   /* 抬头下的最后一行：左边报「在哪」，右边报文号，同一行收掉——原先各自占一行，中间空出一大截 */
   .docmeta{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:8px 0 8px;}
   .docno{font-family:var(--fangsong);font-size:var(--fs-body);text-align:right;color:var(--muted);}
-  .modlabel,.pdstate{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);letter-spacing:1px;}
+  .modlabel,.pdstate{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);letter-spacing:0;}
+  /* 卷首两档（2026-11-01）：入口 / 小结 / 批改用完整版；作答类工作屏用页眉版。
+     完整版在这里、页眉版在下面：工作屏每屏重复一次机关名要占掉近 185px，作答页最吃亏——
+     900×600 下作答框只露一条边、交卷要滚。页眉版保留红线（公文感就立在这根线上），
+     只把机关名压到 17px 与「模块 · 题型」并成一行，竖向省出约 100px。 */
+  .doc.compact{padding-top:16px;}
+  .doc.compact .redhead{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;}
+  /* 页眉版的机关名还是宋体、还是 4px 字距，只缩字号：换字族会让人以为进了另一个抬头。
+     规范「公文感立在红线上，不立在大字号上」允许的是缩字，不是换脸。 */
+  .doc.compact .redhead .org{order:1;flex:0 0 auto;margin:0;font-family:var(--song);font-size:var(--fs-title);letter-spacing:4px;line-height:var(--lh-ctl);}
+  .doc.compact .redhead .docmeta{order:2;flex:1 1 auto;min-width:0;display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0;}
+  .doc.compact .modlabel{font-size:var(--fs-body);letter-spacing:0;color:var(--muted);}
+  /* 下距不能省：红线独占一行之后它就是抬头最后一样东西，下面紧接正文。
+     原来只有 margin-top，红线底边就是正文顶边，量出来 0px，红线压在正文第一行上。
+     上距 12：基线对齐会再差出 2px，实际净距落 14，与完整版那一段（13.4）基本一致。 */
+  /* 步骤条独占半行、贴红线上沿：右对齐（读起来像页码，不像正文），没有它就整行不占位 */
+  .doc.compact .redhead .redline{order:3;flex:1 0 100%;margin-top:12px;margin-bottom:16px;}
 
   /* 起始区 —— 入口纸面。垂直节奏只用四档（8 / 16 / 24 / 40px），同屏同类间距一致（人感 Demo 的排版纪律） */
-  .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 内容顶齐红头：留白留在纸面底部（公文纸的自然留白），不再在抬头下悬一大截 */
+  .startbox{text-align:center;padding:32px 0 48px;min-height:440px;display:flex;flex-direction:column;/* 小结页内容顶齐红头：留白留在纸面底部（公文纸的自然留白）；入口屏例外，动作组竖向居中（见下） */
   /* 左右不再各留 20px：快判小结的逐题框因此比纸面正文列窄 20px、比红线短一截，一屏里又成了一处错位 */}
   .startbox.start-entry{padding:24px 0 32px;min-height:320px;}   /* 入口屏（首页 / 科目页 / 模块页 / 快判页）才吃左右留白；小结页要与正文列对齐 */
+  /* 动作组在红头下的剩余纸面里竖向居中、整体上提：主行动回顶、次级入口跟下（ADR 0002），
+     底部垫高 100px 让重心比几何中心高一点——下半张纸留给公文纸的自然留白。
+     只挂 .start-entry 屏；红头行是 docBody 的兄弟节点，保持通栏不跟着缩。
+     内容比纸高（矮窗）时纸自然长高滚动，不存在裁切。 */
+  .doc:has(.start-entry){display:flex;flex-direction:column;}
+  .doc:has(.start-entry) #docBody{display:contents;}
+  .startbox.start-entry{flex:1 0 auto;justify-content:center;align-self:center;width:min(var(--act-col),100%);padding-bottom:100px;}
     .startbox.start-home{padding:24px 0 32px;}   /* 首页 hero：红头在上方，hero 接着往下走；大标题首行、主按钮、次级行与科目页共用同一套锚位 */
-  .startbox h2{font-family:var(--hei);font-size:var(--fs-hero);margin:0 0 8px;letter-spacing:1px;}
-  .startbox p{color:var(--muted);font-size:var(--fs-body);line-height:1.8;margin:0 0 24px;}
-  .startbox .big{min-width:320px;}
-  /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有） */
-  .startbox button.primary.big{font-family:var(--yahei);font-size:var(--fs-display);letter-spacing:2px;padding:8px 58px;min-height:96px;border-radius:var(--r-ctl);box-shadow:none;}
+  .startbox h2{font-family:var(--hei);font-size:var(--fs-hero);margin:0 0 8px;}
+  .startbox p{color:var(--muted);font-size:var(--fs-body);line-height:var(--lh-doc);margin:0 0 24px;}
+  .startbox .big{min-width:0;}
+  /* 主行动照 Demo .primary：600 字重 / 字距 2px（字号跟区块标题同一档），红底白字带同源投影；hover 微上浮、active 归位（全局已有）。
+     高度走清单行那一档（48）：主次本来就该只靠红分，再高出一截只是把一颗按钮拉成横幅。 */
+  .startbox button.primary.big{font-family:var(--yahei);font-size:var(--fs-title);font-weight:600;letter-spacing:0;padding:0 24px;width:100%;min-height:48px;border-radius:var(--r-pill);box-shadow:none;}
   .startbox button.primary.big:hover{background:var(--gov-red-dark);box-shadow:none;}
-  .startbox .actions{justify-content:center;margin-top:24px;}
-  .startbox.start-home .actions:has(.big),.startbox.start-hero .actions:has(.big){margin-top:0;}   /* 只豁免装主按钮的那一行；下面「接着上次」仍吃 32px，否则贴着科目块 */
+  .startbox .actions{justify-content:flex-start;margin-top:24px;}
+  /* 入口屏是「卷首目录」：列仍居中在 620 版心里，列内一律左对齐、一行一条。
+     原来三行各自居中、间距一律 24px——等距等于宣布这几件事一样重要，而它们是主行动、去处、数据三档。
+     去处那一组复用画像一级入口的 .navrow（整行可点 + 尾部 › + 行间细线），不另造一种按钮。 */
+  .start-entry .entrylist{margin:24px auto 0;border-top:1px solid var(--line);}
+  .start-entry .entrylist + .entrylist{margin-top:12px;border-top:none;}
+  .start-entry .entrylist .navrow{font-size:var(--fs-title);min-height:48px;border-radius:var(--r-flat);}   /* 清单语言：一条顶线 + 行间细线，不套框。直角档就是给清单行的；留着 8px 圆角会让每行读成一颗独立圆角框 */
+  .startbox.start-home .actions:has(.big),.startbox.start-hero .actions:has(.big){margin-top:0;}   /* 主按钮行不吃上距：与上方次级入口之间由次级入口的 24px 下距隔开；下面「接着上次」仍吃 24px */
   /* 入口屏没有说明句时（科目页 / 说明与胶囊重复的落地页），24px 由标题与主按钮自己出：
      flex 行不并 margin，标题自带的 4px 在这种形态下要去掉，否则 28px 不落在五档上。 */
   .startbox .hero-big:has(+ .actions){margin-bottom:0;}
   .startbox .hero-big + .actions{margin-top:24px;}
   /* 首页 hero 三件（Demo ①）：大标题 / 副题 / 底部脚注 */
-  .startbox .hero-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
-  .startbox .hero-sub{font-size:var(--fs-body);color:var(--muted);line-height:1.7;margin:0 0 24px;}
+  .startbox .hero-big{font-size:var(--fs-hero);font-weight:600;margin:0 0 4px;}
+  .startbox .hero-sub{font-size:var(--fs-body);color:var(--muted);line-height:var(--lh-body);margin:0 0 24px;}
   .startbox .hero-foot{font-size:var(--fs-note);color:var(--muted-2);margin:24px 0 0;}
 
   .qtop{display:flex;justify-content:flex-end;margin-top:8px;}
-  /* 「换一题」是页面里唯一的次要操作，别让它像一行孤悬的灰字：给个轻边掐住它 */
-  .qtop button.linkbtn,.ghead button.linkbtn{border:1px solid var(--line);background:var(--ctl);color:var(--muted);padding:4px 12px;font-size:var(--fs-body);min-height:var(--h-ctl-sm);}
-  .qtop button.linkbtn:hover{background:var(--ctl);border-color:var(--gov-red);}
-  .sec-title{font-family:var(--hei);font-weight:700;font-size:var(--fs-title);margin:24px 0 12px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:.5px;}
+  /* 「换一题」这类行内文字键：款式只有 .tool 一种，不再按屏补边（2026-11-01） */
+  .ghead button.tool{padding:0 12px;}
+  .sec-title{font-family:var(--hei);font-weight:700;font-size:var(--fs-title);margin:24px 0 12px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:0;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
   .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 12px;}
   .secrow .sec-title{margin:0;}   /* 标题自带的上 24 下 12 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
   /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
-  .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
+  .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:0;}
   /* 批改内容按空间分区，解析标题不附彩色竖线。 */
   .sec-title.why{border-left:none;padding-left:0;}
   /* 解析正文与原则句都走「纸上的字」那一档（与 .comment 同档），用变量不新增字面字号 */
-  .cause{margin:0 0 12px;}
-  .cause .ctitle{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);margin-bottom:4px;}
-  .cause .cwhy{font-family:var(--fangsong);font-size:var(--fs-title);line-height:1.9;}
   .principle{margin-top:16px;padding:0;background:none;border-left:none;
-    font-family:var(--fangsong);font-size:var(--fs-title);line-height:1.8;}
+    font-family:var(--fangsong);font-size:var(--fs-title);line-height:var(--lh-doc);}
   .secright{display:flex;align-items:center;gap:12px;}
   .secright button.linkbtn{min-height:var(--h-ctl-sm);}   /* 限时那一行：输入框与按钮同高 */
-  .tlcap{font-size:var(--fs-note);color:var(--muted);}   /* 行右侧摆两样（换一题 + 限时）时的容器：不然 space-between 会把中间那个顶到行中间 */
-  /* 选中文本的底色：系统默认的蓝与红/纸这套色板格不相入，换成极淡的红 */
-  ::selection{background:rgba(192,21,26,.16);}
   /* 材料是每屏的主角：不描边（色块本身就是边界），字号行距向真正的试卷看齐——
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
-  .material{background:var(--mat);border-radius:var(--r-ctl);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;word-break:break-word;}
+  .material{background:var(--mat);border-radius:var(--r-ctl);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);white-space:pre-wrap;word-break:break-word;}
   .material .label{display:flex;align-items:center;gap:8px;font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
   /* 分值与难度：标签紧贴值、两个一组。摆哪儿由调用点定——作答页把它们并进「题目」那一行的右侧，
      其余屏仍单独占一行（.metarow：左边报事实，右边说怎么用）。 */
@@ -284,13 +342,13 @@ html,body{margin:0;padding:0;}
   .meta{display:flex;gap:24px;font-size:var(--fs-body);}
   .meta b{font-family:var(--hei);font-weight:700;margin-right:4px;}
   /* 划线说明：现在只在材料块头右侧说一遍（读之前就看得见）；划过之后材料下面换成「我划的重点」清单 */
-  .mathint{flex:0 0 auto;margin-left:auto;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);text-align:right;letter-spacing:.5px;}
+  .mathint{flex:0 0 auto;margin-left:auto;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);text-align:right;}
   /* 「据材料」：材料由真实报道的事实骨架改写而来。只在没有来源明细的老记录上出现——
      有来源时「素材：…」已经说清，再挂一个标就是同一件事说两遍。 */
-  .material .from-mat{font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:8px;letter-spacing:.5px;}
+  .material .from-mat{font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin-left:8px;}
   /* 材料来源：取自池子时写「素材：哪家媒体 · 哪天 · 主题」；没人给它出处就明说是编的。
     只用文字、不挂链接——材料是虚化改写的，挂真链接等于让人以为能点开看原文。 */
-  .material .from-src{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);letter-spacing:.5px;}
+  .material .from-src{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);}
   /* 抬头与来源之间一道细线：两件事，不连成一句 */
   .material .label .from-mat,.material .label .from-src{margin-left:8px;padding-left:8px;border-left:1px solid var(--line-strong);}
   /* 作答页的材料：长材料不再把作答区一路推到屏外——材料在窗内自己滚，作答区跟着上移。
@@ -313,21 +371,46 @@ html,body{margin:0;padding:0;}
   .paper-cols{display:block;}
   /* 材料栏占左侧两行：题面只压在右栏上方，不给它整幅宽度（行宽不随窗口拉长——两栏时正文列 560，
      比单栏的 620 窄 60px，那 60px 就是让给材料的） */
-  body.wide-cols .paper-cols{display:grid;grid-template-columns:var(--mat-col-w) 1fr;grid-template-rows:auto 1fr;
-    grid-template-areas:"mat head" "mat work";gap:var(--mat-gap);align-items:start;}
-  body.wide-cols .c-head{grid-area:head;}
-  body.wide-cols .col-work{grid-area:work;}
+  /* 两栏：左材料，右一整摞（题面 → 经验行 → 限时 → 作答框）。题面和作答框是一件事，不拆开搬。
+     右栏给死一屏高（--work-col-h，按它离视口顶多远现量）：上面那几行按自然高度走，
+     作答框吃剩下的高、自己在框里滚——整页因此不滚，材料窗和作答框各自滚各自的。 */
+  body.wide-cols .paper-cols{display:grid;grid-template-columns:var(--mat-col-w) 1fr;gap:var(--mat-gap);align-items:start;}
+  body.wide-cols .col-work{height:var(--work-col-h);min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding-top:12px;}   /* 12：让「作答要求」那一行的字，与左栏「背景材料」标签站在同一条线上 */
+  body.wide-cols .col-work>.qhead>.require:first-child{margin-top:0;}
+  /* 申论一稿页的作答区不在 #flowPanel 底下当家：它外面还套着一层 #flowPanel。
+     选择器原来只认直接子元素，于是那一屏的作答框一直只有 195px 高、右边空出三百像素——
+     跟综应页修过的「左边长右边短」是同一个病。壳也跟着做成竖直 flex，高度才传得下去。 */
+  body.wide-cols .col-work>#flowPanel{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+  /* 上面那一摞（工具行 / 作答要求 / 参考行）与作答框之间留 16：这是两块东西的交界，
+     比组内的 12 大一档。11:15 那轮为了给作答框省高度把它压成 0，结果参考行的胶囊底边直接
+     压在作答框的顶线上，像连体。 */
+  body.wide-cols .col-work #answerArea{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;margin-top:24px;}
+  /* 单栏时右栏不存在：display:contents 把它拆开，题面靠 order 回到材料前面（DOM 里它必须待在右栏内） */
+  body:not(.wide-cols) .paper-cols{display:flex;flex-direction:column;}
+  body:not(.wide-cols) .col-work{display:contents;}
+  body:not(.wide-cols) .qhead{order:-2;}
+  body:not(.wide-cols) .col-mat{order:-1;}
+  body.wide-cols .col-work #answer{flex:1 1 0;min-height:120px;resize:none;}   /* 两栏时高度由版面定，不给拖：拖高了整栏就得滚，下面那颗「提交阅卷」会被顶走 */   /* 基准给 0：题目那几行占多少，它就让多少，剩下的全归作答框。矮窗里压到 120 为止，再矮才整栏滚 */
+  body.wide-cols .col-work .actbar{margin-top:auto;flex:0 0 auto;}   /* 动作条一口高度都不许被压：题面再长，它也只往上让，不缩、不跟作答框叠 */
+  /* 作答页整页不滚：纸底那年那 24px 外距与 32px 内距合起来让整页多出 40px 可滚空间，
+     一旦能滚，动作条的原位就还在视口内，sticky bottom:0 永远不会被触发，滚一下它就跟上去了。 */
+  body.wide-cols .wrap{margin-bottom:0;}
+  body.wide-cols .doc,
+  body.wide-review .doc{padding-bottom:calc(var(--sheet-gap-b) / var(--paper-scale));}   /* 除以纸面缩放：留在屏上是实打实的 16 */
   /* 两栏时材料不再靠「只露几行」给作答区让位（作答区在右边，不在它下面）：整窗按「这一栏离视口顶还有多远」
      现算高度（--mat-col-h 由 applyPaperScale() 量），铺到视口底、自己滚。红头与横幅多高不固定，
      写死一个数迟早对不上，所以量而不猜。不用 position:sticky——实测它在这张纸里滑不动：
      材料窗比它所在的那一格还高，吸顶没有余量；窗高铺满后整页几乎不必滚动，也就不需要吸。 */
-  body.wide-cols .col-mat{grid-area:mat;}
   /* 这一条不挑 .mat-scroll：左栏那块就是材料，两栏时它一律按 --mat-col-h 铺到视口底自己滚。
      带不带 mat-scroll 只管收回单栏那一档——带着的（综应作答页、申论一稿）收几行给下面的作答区让位，
      不带的（申论读材料）铺满，因为那一屏材料就是工作台，砍成三行等于让人对着滚动条读完整则材料。 */
   body.wide-cols .col-mat .material{max-height:var(--mat-col-h);}
+  /* 材料短的时候也让这块铺满这一栏：两栏一样高，读上去才是一张纸的两半；
+     否则左栏到一半就断了，右边一直接到底，像个没排完的表格。材料长了照样窗内滚。 */
+  body.wide-cols .col-mat .material.mat-scroll{height:var(--mat-col-h);}
   /* 材料窗下面那一块：没划过线时是「怎么划」，划过之后是「我划的重点」（见 marksRecapHtml） */
   #marksSlot{margin-top:12px;}
+  #marksSlot:empty{display:none;}   /* 没划重点时这一块连着它的 12px 上距一起消失，不然整页被顶出 12px */
   .ms{cursor:pointer;border-radius:var(--r-ctl);}
   /* 材料上的两种标记长成同一套：一块底色 + 一道 2px 底边线。划线用的是设置里选的颜色，
      底边线由它加深一档（color-mix 让它跟着换色，不为每个颜色再维护一张线色表）。 */
@@ -357,9 +440,9 @@ html,body{margin:0;padding:0;}
      ③ 框架与示例收成引文块（左缘细线），不再和清单长一个样。 */
   /* 学习卡在纸面上是一张卡：浅底 + 大圆角，和内容页的圆角分组同一套语言 */
   .card{background:var(--wash);border-radius:var(--r-card);margin-top:8px;}
-  .card-body{padding:16px 16px 16px;font-size:var(--fs-body);line-height:1.75;}
+  .card-body{padding:16px 16px 16px;font-size:var(--fs-body);line-height:var(--lh-doc);}
   /* 节标题带记号：左缘 3px 短竖条——「有哪几节」先跳出来，不用读完标题才知道换节了 */
-  .card-body h4{font-family:var(--hei);font-size:var(--fs-note);letter-spacing:.3px;margin:24px 0 8px;color:var(--ink);}
+  .card-body h4{font-family:var(--hei);font-size:var(--fs-note);margin:24px 0 8px;color:var(--ink);}
   .csec>h4{display:flex;align-items:center;gap:8px;}
   .csec>h4::before{content:"";width:3px;height:13px;background:var(--bar);border-radius:var(--r-pill);flex:0 0 auto;}
   /* 两节靠「记号颜色」分义：要点是中性灰 + 序号，失分点是焦橙 + 序号（同一个清单语言，一眼分得清） */
@@ -367,7 +450,7 @@ html,body{margin:0;padding:0;}
   .card-body .clist li{display:grid;grid-template-columns:18px 1fr;gap:8px;padding:8px 0;border-top:1px solid var(--line-soft);}
   .card-body .clist li:first-child{border-top:0;padding-top:0;}
   .card-body .clist li:first-child::before{padding-top:0;}
-  .clist>li::before{counter-increment:ci;content:counter(ci);font-family:var(--hei);font-size:var(--fs-note);line-height:1.9;color:var(--muted-2);text-align:right;font-variant-numeric:tabular-nums;}
+  .clist>li::before{counter-increment:ci;content:counter(ci);font-family:var(--hei);font-size:var(--fs-note);line-height:var(--lh-doc);color:var(--muted-2);text-align:right;font-variant-numeric:tabular-nums;}
   .csec.pit>h4::before{background:var(--warn);}
   .clist-pit>li::before{color:var(--warn);}
   /* 「我的笔记」是卡的脚：与上面内容隔开（顶线 + 更大间距），不参与卡的正文节奏 */
@@ -375,42 +458,74 @@ html,body{margin:0;padding:0;}
   /* 样例 / 框架 / 提纲一类文本块：只留一道左缘细线，不再自成一框——框留给它所在的学习卡，
      否则卡里套盒（2026-09-23）。白底也去掉：卡里的洗底色上再铺一层近白块，等于又画一遍边界 */
   .tpl{background:transparent;border:0;border-left:2px solid var(--bar);padding:4px 0 4px 12px;font-size:var(--fs-body);white-space:pre-wrap;color:var(--ink);}
-  .card-body .tpl{border-left-width:3px;padding:1px 0 1px 12px;line-height:1.75;}   /* 卡内引文块：线粗一档、与正文对齐，一眼认得出不是清单 */
+  .card-body .tpl{border-left-width:3px;padding:1px 0 1px 12px;line-height:var(--lh-doc);}   /* 卡内引文块：线粗一档、与正文对齐，一眼认得出不是清单 */
   .card-body .tpl b{font-family:var(--hei);}
-  /* 卡片整块分两栏，两栏各自累加内容——内容总量守恒，两栏高度就接近，不会出现一边空一大片。
-     分法是按意思分的：左栏「怎么答」（解题要点 + 答题框架），右栏「注意什么」（常见失分点 + 示例）。
-     条目在 342px 宽的栏里占宽约八成，比单栏全宽下一行只占四成看着满。 */
-  .cardcols{display:grid;grid-template-columns:1fr 1fr;gap:24px 24px;align-items:start;}
-  .cardcol>.csec+.csec{margin-top:24px;}
-  .cardcols .csec:first-child>h4{margin-top:0;}   /* 每栏第一节紧贴卡头，不再多让 20px */
-  .drawer .cardcols{grid-template-columns:1fr;}   /* 抽屉只有 430px，两栏会挤 */
+  /* 学习卡单栏垂直流（2026-11-02 重做）：原来两栏 grid 的根因是要点与失分点条数永远不一样，
+     怎么配都不平。改成从上到下依次排，每节占自己自然高度。节与节之间 24px 一档。 */
+  .card-body .csec{margin-bottom:24px;}
+  .card-body .csec:last-child{margin-bottom:0;}
+  .card-body .csec>h4{margin-top:0;}
 
-  .answer-wrap{margin-top:16px;}
-  .markrun{border-left:2px solid var(--mark,#a7f3d0);padding-left:8px;margin:0 0 8px;font-size:var(--fs-note);line-height:1.7;}   /* 划线色是用户在设置里选的，不能写死成默认那张绿 */
-  textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:16px;line-height:2.05;border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  .answer-wrap{margin-top:24px;}
+  /* 作答框与它的字数徽标同处一层：徽标绝对定位在框内右下角，不参与排版，也不随窗口变宽变窄挪位置 */
+  /* 作答区是一个整框：正文、字数、底下的动作条都在这个框里，框的下沿与材料框齐平。
+     框线挂在 .answer-box 上，textarea 自己那圈线去掉——否则一屏里会有三道并排的边。 */
+  .answer-box{position:relative;display:flex;flex-direction:column;flex:1 1 auto;min-height:0;
+    border:1px solid var(--line-strong);border-radius:var(--r-ctl);background:var(--write);overflow:hidden;}
+  .answer-scroll{position:relative;display:flex;flex:1 1 auto;min-height:0;}
+  .answer-scroll>#answer{flex:1 1 auto;border:none;border-radius:var(--r-flat);background:transparent;padding-bottom:32px;}   /* 底下多留一行：最后一行不会从徽标底下穿过去 */
+  .answer-box .actbar{position:static;margin:0;padding:8px 12px;border-top:1px solid var(--line-soft);background:var(--write);}
+  .boxmeta{position:absolute;right:16px;bottom:12px;display:flex;align-items:center;gap:8px;
+    padding:0 4px;border-radius:var(--r-icon);background:var(--write);color:var(--muted);pointer-events:none;user-select:none;}
+  .boxmeta:empty{display:none;}
+  .wordb{color:var(--muted);}
+  .wordb b{color:var(--muted);font-weight:600;}
+  .markrun{border-left:2px solid var(--mark,#a7f3d0);padding-left:8px;margin:0 0 8px;font-size:var(--fs-note);line-height:var(--lh-body);}   /* 划线色是用户在设置里选的，不能写死成默认那张绿 */
+  textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
-  /* 同一行里的块状按钮同高（--h-ctl）：主按钮默认 40、普通 36，混在一行里上下各差 2px，
-     整行看着像没对齐。红与不红已经够分了，不必再靠高度强调。 */
+  /* 交卷吸底（2026-11-01）：作答再长，交卷也在视口里。粘住时自己带纸色底与一根细线，
+     压在作答框上仍读得出是「一条动作」而不是正文；内容短的时候它就在原位，看不出差别。
+     用 sticky 不用 fixed：纸面（.doc）是 overflow:clip 的，fixed 会飘到纸外去。 */
+  .actbar{position:sticky;bottom:0;z-index:4;background:var(--paper);
+    margin:16px 0 0;padding:8px 0;border-top:1px solid var(--line-soft);justify-content:flex-end;}
+  /* 字数靠左、动作靠右：两头都贴在这个栏的边线上（与上面的「换一题」「限时」同一根右缘）。
+     原先一整套动作挤在左边，右边空出 270px，那一行看着像没排完。 */
+  /* 动作条左侧不再放字数（它进了框内），这一格留给链上的「上一步」：字号收一档、高度收一档，
+     它是回退不是主行动，不该跟「提交阅卷」一样大。 */
+  .actbar .ghost.sm{margin-right:auto;min-height:32px;padding:0 12px;font-size:var(--fs-note);}
+  .actbar .hint:empty{display:none;}   /* 空着的提示不占位：flex 的 gap 照算，会把「提交阅卷」从右缘推开 24px */
+  /* 同一行里的块状按钮同高（--h-ctl）：高度不再是区分主次的手段，主次只靠红与不红（已经够分了） */
   .actions button.primary,.nextrow button.primary{min-height:var(--h-ctl);}
   .hint{font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
   .counter{font-size:var(--fs-note);color:var(--muted);}
   /* 作答限时：控件与剩余时间贴在作答区标题行右侧；超时用焦橙（与「部分命中」同一支） */
   .tlrow{display:flex;align-items:center;gap:8px;}
-  /* 时长不分档：一个数字框，多少分钟都行；留空就是「不限时」，单位只在填了数字时才露出来 */
-  .tlset{display:inline-flex;align-items:center;gap:4px;}
-  .tlin{width:62px;height:var(--h-ctl-sm);font-family:var(--yahei);font-size:var(--fs-body);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);padding:0 8px;text-align:right;font-variant-numeric:tabular-nums;}
-  .tlin::-webkit-outer-spin-button,.tlin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}   /* 系统上下箭头在 36px 的框里太原生 */
+  /* 时长不分档：一个数字框，多少分钟都行；留空就是「不限时」，单位只在填了数字时才露出来。
+     框、单位、▶ 共用一圈框和一道分隔线——三样是一件东西，不该并排放三个各自带框的控件。 */
+  .tlset{display:inline-flex;align-items:center;height:var(--h-ctl-sm);border:1px solid var(--line);border-radius:var(--r-icon);background:var(--ctl);overflow:hidden;}
+  /* 宽度跟着字走（field-sizing:content）：空着时就是「不限时」那么宽，填 600 也不缩字。
+     旧写法死锁 64px——空着时一半是空框，填一位数时又是另一半空框，整行都被它撑长。 */
+  .tlin{width:auto;min-width:32px;max-width:80px;field-sizing:content;height:100%;font-family:var(--yahei);font-size:var(--fs-note);color:var(--ink);border:none;border-radius:var(--r-flat);background:transparent;padding:0 4px 0 8px;text-align:right;font-variant-numeric:tabular-nums;}
+  .tlin:focus{outline:none;}
+  /* 空着的时候要装得下占位字「不限时」：content 只按已输入的值算宽，占位字它不认 */
+  .tlin:placeholder-shown{width:56px;}
+  /* 焦点环画在整颗胶囊上：框自己已经无边框，光焦点落进去看不出来 */
+  .tlset:focus-within{border-color:var(--gov-red);box-shadow:var(--focus-halo);}
+  .tlin::-webkit-outer-spin-button,.tlin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}   /* 系统上下箭头在 30px 的框里太原生 */
   .tlin:placeholder-shown + .tlunit{display:none;}
-  .tlunit{font-size:var(--fs-note);color:var(--muted);}
+  /* 数值与单位之间留 1/4 汉字空（GB 3101-1993）：「25 分」不写成「25分」 */
+  .tlunit{padding:0 4px;font-size:var(--fs-note);color:var(--muted);}
   .tlleft{font-size:var(--fs-note);color:var(--muted);font-variant-numeric:tabular-nums;}
+  .tlleft:empty{display:none;}   /* 没在计时的时候它连那 8px 的间隔都不该占 */
   .tlleft.warn{color:var(--warn);font-weight:600;}
+  .tlleft.over{color:var(--danger);font-weight:700;}
   .counter b{font-family:var(--hei);color:var(--ink);font-variant-numeric:tabular-nums;}
   .counter b.over{color:var(--on-dark);background:var(--danger);padding:0 4px;}
   /* 快判小结：逐题回顾（辨析点一行、解释一行），跟批改页的采分点对照不是一回事，各用各的 */
   .pdreview{text-align:left;margin-top:4px;}
   /* 逐题回顾一行一条：对错标记 + 题号 + 辨析点，解析点开才看（原来那条解析把每行撑成三行） */
-  .pditem{display:flex;gap:8px;align-items:baseline;padding:8px 12px;border-bottom:1px solid var(--line);font-size:var(--fs-body);line-height:1.6;}
+  .pditem{display:flex;gap:8px;align-items:baseline;padding:8px 12px;border-bottom:1px solid var(--line);font-size:var(--fs-body);line-height:var(--lh-body);}
   .pditem .pdmk{font-family:var(--hei);flex:0 0 18px;text-align:center;}
   .pditem.ok .pdmk{color:var(--success);}
   .pditem.miss .pdmk{color:var(--danger);}
@@ -422,26 +537,58 @@ html,body{margin:0;padding:0;}
   details.pditem>summary:hover{background:var(--wash);}
   details.pditem>summary::after{content:"▸";flex:0 0 auto;margin-left:auto;font-size:var(--fs-note);color:var(--line-strong);}
   details.pditem[open]>summary::after{content:"▾";}
-  .pditem .pdexp{color:var(--muted);font-size:var(--fs-note);line-height:1.75;white-space:pre-wrap;}
+  .pditem .pdexp{color:var(--muted);font-size:var(--fs-note);line-height:var(--lh-doc);white-space:pre-wrap;}
   details.pditem .pdexp{padding:0 12px 8px 38px;}
-  /* 批改页：结论在上（分数 + 丢分最狠的几条），明细折在下面——不再把维度卡/优点/待改进/对照表挨个铺满整屏 */
-  .grade{margin-top:16px;}
-  .grade-columns{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start;}
-  .grade-answer,.grade-detail{min-width:0;}
-  body.wide-review .grade-columns{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;}
-  body.wide-review .grade-detail{position:relative;}
-  body.wide-review .grade-detail::before{content:"";position:absolute;left:-16px;top:0;bottom:0;width:1px;background:var(--line-soft);}
-  .grade-columns .secrow{min-height:28px;margin:0 0 12px;}
-  .grade-detail>.sec-title{min-height:28px;display:flex;align-items:center;line-height:1.35;margin:0 0 12px;}
-  .grade-detail>.comment{margin-top:0;}
-  .grade-detail .modelanswer{margin-top:24px;}
+  /* 批改页 2026-11-02 重排：一条竖线到底。
+     原来「我的答案（左栅）· 解析（右栅）· 参考答案（通栏居中）」三块并排，谁都不像主角——
+     面积最大的是原答（证据），真正该先看的是「这几分从哪丢的」。而且范文 620 居中，
+     左缘 261，跟左栅 70、右栅 587 三条竖线谁都不挨谁。
+     现在整页 620 正文档居中，从上到下：分数 → 丢分清单 → 解析 → ▸原答 → ▸范文。
+     唯一主角是丢分清单，其余全部退到它下面或收进可展开。 */
+  .grade{margin-top:24px;}
+  body.wide-review #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
+  /* 解析两段（2026-11-02）：一段讲想偏在哪，一段讲怎么改。不分条、不加小标题，
+     连成话读才像有人在跟你讲；拆成「建议一、建议二」就变成待办清单了。 */
+  .reviewbody p{margin:0 0 12px;font-family:var(--fangsong);font-size:var(--fs-title);line-height:var(--lh-doc);color:var(--ink);}
+  .reviewbody p:last-child{margin-bottom:0;}
+
   body.wide-cols .c-head .require:first-child{margin-top:0;}
-  body.wide-cols .col-work>.secrow:first-child{margin-top:0;}
+  .ctrlrow{justify-content:flex-end;margin:0;}
+  /* 作答框上面那一摞（题面 → 建议结构 → 分值/换一题 → 经验与限时）：一行就是一行，
+     行与行之间只留一档 8；作答要求按 1.65 走（纸面正文的 2.05 是给成段的公文用的，不是给界面条目用的） */
+  .prebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0;}
+  .prebar>details{flex:1 1 auto;min-width:0;}
+  .prebar>.ctrlrow{flex:0 0 auto;}
+  .qhead>.require{margin-top:8px;line-height:var(--lh-body);}
+  .qhead>.require:first-child{margin-top:0;}
+  .qrow{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;margin-top:8px;}
+  /* 作答页的头三行：工具 → 要求 → 参考。每一行都只有半句高，按重要性从上往下排，
+     排完把剩下的一整块留给作答框——这一屏的主角。 */
+  .qtools{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:0 0 16px;font-size:var(--fs-note);color:var(--muted);}
+  /* 这一行里四个东西并排：两种裸字（分值·难度）、两颗胶囊、一颗控件。
+     高度与基线对齐靠同一个 min-height，不靠 padding 凑 */
+  .qtools .meta{font-size:var(--fs-note);gap:16px;min-height:var(--h-ctl-sm);align-items:center;}
+  .qtools .tlrow{gap:8px;}
+  /* 学习卡与限时是一组：折行时整组一起走，不会出现「学习卡一行、限时一行」 */
+  .toolsend{display:flex;align-items:center;gap:12px;flex:0 1 auto;min-width:0;}
+  .toolsend>#cardHost,.toolsend>.tlrow{flex:0 0 auto;}
+  .foldrow{justify-content:flex-start;gap:12px;margin-top:12px;}
+  /* 参考行的两颗胶囊与工具行同款：同款就该同字号，不然一行 15、一行 13，看着像两套东西 */
+  .foldbtn{min-height:var(--h-ctl-sm);padding:0 12px;}
+  .foldbtn small{margin-left:8px;font-size:var(--fs-note);color:var(--muted-2);font-weight:400;}
+  .tlicon{width:24px;height:100%;padding:0;border:none;border-left:1px solid var(--line);border-radius:var(--r-flat);background:transparent;color:var(--muted);font-size:var(--fs-note);line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+  .tlicon:hover{background:var(--ctl-2);color:var(--ink);}
+  .qrow>.fmtbox{margin:0;}
+  .qrow>.fmtbox[open]{flex:1 1 100%;}
+  .qrow>.metarow{margin-top:0;flex:0 0 auto;}
   .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 16px;background:none;border-bottom:1px solid var(--line-soft);margin-bottom:24px;}
   /* 分数带右侧：图例解释的就是左边这个数，两样共用一条基线与同一个右缘；「换一题」退到最外，动作与说明分开 */
   .ghead-right{display:flex;align-items:center;gap:16px;}
   .grade .total{font-family:var(--hei);font-size:var(--fs-display);color:var(--gov-red);font-weight:700;font-variant-numeric:tabular-nums;}
   .grade .total small{font-size:var(--fs-note);color:var(--muted);font-weight:400;}
+  /* 错几处挂在分数后面（2026-11-02）：交完卷第一个想知道的是这题错了几处，而 14/20 反推不出来——
+     一个采分点 4-6 分，丢 6 分可能是两处也可能是三处。它跟分数是一句话，不另起一行、不弹提示条。 */
+  .grade .total .lossn{font-family:var(--hei);font-size:var(--fs-note);color:var(--ink);font-weight:400;margin-left:12px;letter-spacing:0;}
   /* 维度分：一行一条的细条，替掉并排卡片（5 张卡 = 5 行，高度约三分之一） */
   .bars{border-top:1px solid var(--line);margin:8px 0 4px;}
   .barline{display:flex;align-items:center;gap:12px;padding:4px 0;border-bottom:1px solid var(--line);font-size:var(--fs-note);}
@@ -455,75 +602,94 @@ html,body{margin:0;padding:0;}
   /* 行内引导词：优点/短板的标签不占一整行 */
   .plabel{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);margin-right:4px;}
   .pills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px;}
-  .pill{padding:4px 12px;font-size:var(--fs-note);border-radius:var(--r-ctl);}
+  .pill{padding:4px 12px;font-size:var(--fs-note);border-radius:var(--r-pill);}
   .pill.good{background:var(--success-bg);color:var(--success);}
   .pill.bad{background:var(--danger-bg);color:var(--danger);}
   /* 批改页题头分两层：只有「我的答案」用重题头（红竖线），参考答案与解析降成细线上方的
      墨灰小标题——一屏三个同重标题，眼睛找不到主次（2026-10-13）。 */
-  .grade .sec-title.lite{margin:24px 0 8px;border-left:none;font-size:var(--fs-body);color:var(--muted);letter-spacing:1px;}
+  .grade .sec-title.lite{margin:24px 0 12px;border-left:none;font-size:var(--fs-body);color:var(--muted);}
   /* 答卷使用仿宋；没拿满的句子标红，满分句保持正文色，实得分记在句末。 */
-  .answerreview{margin-top:0;background:var(--wash);border-radius:var(--r-ctl);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;}
+  .answerreview{margin-top:0;background:var(--wash);border-radius:var(--r-ctl);padding:24px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);}
   .answerreview .asent.got{color:var(--gov-red);}
   .answerreview .asent.got.full{color:var(--ink);}
   .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin:0 8px 0 4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
   .answerreview .asc.full{color:var(--muted);}
-  .comment{margin-top:16px;font-family:var(--fangsong);font-size:16px;line-height:1.9;}
+  .comment{margin-top:24px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-doc);}
   .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
   /* 弹层整体不滚：边框与抬头（含关闭键）固定，只有 .panel-body 的内容滚动 */
   .modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:4vh 12px;background:rgba(31,31,31,.45);overflow:hidden;}
   .modal[hidden]{display:none;}
-  .modal .box{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden;width:100%;max-width:760px;box-shadow:var(--sh-3);display:flex;flex-direction:column;max-height:90vh;}
+  .modal .box{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-card);overflow:hidden;width:100%;max-width:var(--sheet-w);box-shadow:var(--sh-3);display:flex;flex-direction:column;max-height:90vh;}
   .modal .box:focus{outline:none;}   /* 弹层打开时把焦点交给容器：容器不是可操作控件，不要画浏览器默认焦点环 */
-  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--head);font-family:var(--hei);font-weight:700;font-size:var(--fs-body);letter-spacing:1px;flex:0 0 auto;}
-  .mhead .x{border:none;background:transparent;font-size:var(--fs-body);cursor:pointer;color:var(--muted);width:30px;height:30px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-ctl);}
+  .mhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--head);font-family:var(--hei);font-weight:700;font-size:var(--fs-body);flex:0 0 auto;}
+  .mhead .x{border:none;background:transparent;font-size:var(--fs-body);cursor:pointer;color:var(--muted);width:30px;height:30px;min-height:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-pill);}
   .mhead .x:hover{background:var(--wash-3);color:var(--gov-red);}
   .panel-body{padding:24px 24px 24px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}   /* 抬头下 20px、两侧 24px：弹层内边距对齐 24px 档位 */
   /* 学习卡抽屉 + 我的笔记 + 翻卡浮标 */
   .drawer{position:fixed;inset:0;z-index:60;background:rgba(31,31,31,.35);}
   .drawer[hidden]{display:none;}
-  .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(430px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
+  /* 抽屉宽度 430 → 620（2026-11-02）：430 里四节只能竖着摞成一长串，六条要点 + 一块框架 + 六条失分点
+     串下来 1279px 高，得滚两屏才看得完，谁都没有先跳出来。放到 620 才能把「怎么答」和「注意什么」摆成两栏。 */
+  .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(620px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:16px 16px 24px;}
   /* 学习卡入口是纸上的一个按钮：跟「先归类再写」「换一题」同一行、同一套描边与高度。
      原先是一颗贴在窗口右下角的浮标，落在纸面外的灰边上——纸上没它的位置，看着像外挂。 */
-  .fab{display:inline-flex;align-items:center;border-radius:var(--r-ctl);padding:0 12px;min-height:var(--h-ctl-sm);background:var(--ctl);border:1px solid var(--line);color:var(--muted);font-family:var(--hei);font-size:var(--fs-body);cursor:pointer;}
-  @media (max-width:1240px){ .fab .fabcount{display:none;} .fab{padding:8px 12px;} }   /* 窄窗纸两侧没地方：浮标只留动作名，仍挂在纸外 */
-  .fab:hover{background:var(--paper);border-color:var(--line-hover);color:var(--ink);}
+  /* 学习卡是工具行里的动作键：与「换一题」同一款胶囊壳，字用 --ink。
+     它开的是一个抽屉（所以是「按的」），形状跟旁边那颗填分钟的控件分得开——胶囊对方角 */
+  .fab{display:inline-flex;align-items:center;border-radius:var(--r-pill);padding:0 12px;min-height:var(--h-ctl-sm);background:var(--ctl);border:1px solid var(--line);color:var(--ink);font-family:var(--yahei);font-size:var(--fs-body);cursor:pointer;}
+  @media (max-width:1240px){ .fab .fabcount{display:none;} .fab{padding:0 8px;} }   /* 窄窗纸两侧没地方：浮标只留动作名，仍挂在纸外 */
+  .fab:hover{background:var(--wash);border-color:var(--line-strong);color:var(--ink);}
   .fab b{color:var(--ink);}
-  .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:var(--r-ctl);box-shadow:0 0 0 200vmax var(--scrim);outline:2px solid var(--gov-red);display:none;}
+  /* 光斑：只靠暗场指出「就这一块」，不另描一道红边——目标是红按钮时，红边 + 中间那条白缝
+     读起来就是「描了两道边」。圆角由 JS 按目标自己的圆角 + pad 算（原来是固定 8px，
+     套在胶囊上是外方内圆，红边直接从胶囊的弧外侧切过去） */
+  .tour-hole{position:fixed;z-index:180;pointer-events:none;border-radius:var(--r-ctl);box-shadow:0 0 0 200vmax var(--scrim);display:none;}
   /* 引导气泡：墨底白字、控件圆角、暖调柔影；高亮框与气泡同一档圆角，孔和话才是同一套东西 */
-  .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--ink);color:var(--paper);border-radius:var(--r-ctl);box-shadow:var(--sh-tip);padding:12px 16px;font-size:var(--fs-body);line-height:1.75;display:none;}
-  /* 气泡里的按钮跟界面按钮同一档圆角。这里原是 --r-pill，于是引导成了全站唯一的胶囊——
-     同一颗「下一步」在引导里是圆的、在界面上是方的，看着像另一个应用的控件飘了进来。 */
-  .tour-tip button{border-radius:var(--r-ctl);}
+  .tour-tip{position:fixed;z-index:181;max-width:330px;background:var(--ink);color:var(--paper);border-radius:var(--r-ctl);box-shadow:var(--sh-tip);padding:12px 16px;font-size:var(--fs-body);line-height:var(--lh-doc);display:none;}
+  /* 气泡跟着全站走：按钮一律胶囊（2026-11-01 全站统一后，原来的「引导里圆、界面上方」反转了） */
+  .tour-tip button{border-radius:var(--r-pill);}
   .tour-tip .tstep{font-size:var(--fs-note);color:var(--tip-dim);font-variant-numeric:tabular-nums;margin-bottom:4px;}
   .tour-tip .tacts{display:flex;gap:8px;align-items:center;margin-top:12px;}
   .tour-tip .tourskip{margin-left:auto;color:var(--tip-dim-2);}
   .tour-tip .tourskip:hover{color:var(--paper);}
-  .noteedit{width:100%;min-height:84px;resize:vertical;font-family:var(--fangsong);font-size:var(--fs-body);line-height:1.8;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  .noteedit{width:100%;min-height:84px;resize:vertical;font-family:var(--fangsong);font-size:var(--fs-body);line-height:var(--lh-doc);border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   .noteedit:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .notebox{border:none;background:var(--wash);border-radius:var(--r-card);margin-top:16px;padding:4px 12px;}
   .notebox>summary{cursor:pointer;font-family:var(--hei);font-size:var(--fs-note);padding:8px 0;list-style:none;color:var(--muted);font-weight:600;}
   .notebox>summary::-webkit-details-marker{display:none;}
-  .notebody{padding:4px 0 12px;font-size:var(--fs-body);line-height:1.85;white-space:pre-wrap;}
+  .notebody{padding:4px 0 12px;font-size:var(--fs-body);line-height:var(--lh-doc);white-space:pre-wrap;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
-  .modelanswer{margin-top:24px;background:var(--wash);border-radius:var(--r-ctl);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:2.05;white-space:pre-wrap;}
-  /* 作答前的规则展示位：动手那一刻要看见的东西，不折起来；一条一行 */
-  .prepbox{margin:12px 0 16px;padding:12px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--write);}
-  .prephead{font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--muted);}
-  .prepline{font-size:var(--fs-body);line-height:1.7;margin-top:8px;}
-  .prepline .etag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:1px 8px;border-radius:var(--r-ctl);margin-right:8px;}
+  .sec-title + .modelanswer{margin-top:0;}
+  .modelanswer{margin-top:24px;background:var(--wash);border-radius:var(--r-ctl);padding:24px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);white-space:pre-wrap;}
+  /* 一行字就能说完、想起来才看的东西，一律折成一行标题（动笔前的经验、建议结构都是这一套）。
+     收着只占一行、报一句里面有多少，展开才有底色和边框。summary 自己把行高压回 1.5——
+     纸面正文是 2.05，一行灰字跟着正文的行高走，看着就是「微微有点开」。 */
+  .foldbox{margin:0 0 12px;}
+  .foldbox>summary{display:flex;align-items:baseline;gap:8px;cursor:pointer;list-style:none;font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--muted);padding:4px 0;line-height:var(--lh-body);}
+  .foldbox>summary::-webkit-details-marker{display:none;}
+  .foldbox>summary:hover{color:var(--ink);}
+  .foldbox>summary::after{content:"▸";margin-left:auto;flex:0 0 auto;font-size:var(--fs-note);color:var(--line-strong);}
+  .foldbox[open]>summary::after{content:"▾";}
+  .foldbox[open]{padding:12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--write);margin:0 0 16px;}
+  .foldbox[open]>summary{padding-bottom:4px;}
+  .foldbox .prepcount{font-family:var(--yahei);font-weight:400;color:var(--muted-2);}
+  /* summary 里的小注跟着走 13px，不按 <small> 的默认 0.83em 缩成 10.8——那是五档之外的字号 */
+  .foldbox>summary small{font-size:var(--fs-note);font-weight:400;color:var(--muted-2);}
+  .fmtbox{margin:8px 0 12px;}   /* 接在作答要求下面：两行字之间留一档，不然标题挤进上一段里 */
+  .foldbox .foldbody{font-size:var(--fs-body);line-height:var(--lh-body);margin-top:4px;}
+  .prepline{font-size:var(--fs-body);line-height:var(--lh-body);margin-top:8px;}
+  .prepline .etag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:1px 8px;border-radius:var(--r-pill);margin-right:8px;}
   .prepline b{font-weight:600;}
   .prepbody{color:var(--muted-2);}
   /* 思路自述：批改后问一句，可跳过；刻意做得比正文轻 */
   .selfbox{margin:24px 0 0;padding:0;border:none;background:none;}
   .selfask{font-family:var(--hei);font-size:var(--fs-body);color:var(--muted);margin-bottom:8px;}
-  textarea.selfin{width:100%;min-height:56px;resize:vertical;font-family:var(--fangsong);font-size:var(--fs-body);line-height:1.9;border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
+  textarea.selfin{width:100%;min-height:56px;resize:vertical;font-family:var(--fangsong);font-size:var(--fs-body);line-height:var(--lh-doc);border:1px solid var(--line-strong);padding:12px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   textarea.selfin:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .selfrow{display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;}
-  .selfrow button{min-height:var(--h-ctl-sm);font-size:var(--fs-note);padding:4px 12px;}
-  .metarow>.linkbtn{min-height:var(--h-ctl-sm);padding:4px 12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--ctl);}
-  .metarow>.linkbtn:hover{background:var(--wash-3);color:var(--ink);}
+  .selfrow button{min-height:var(--h-ctl-sm);font-size:var(--fs-body);padding:0 16px;}
+  .metarow>.tool{min-height:var(--h-ctl-sm);padding:0 12px;}   /* 题头行里的「换一题」：与限时同在 .secright，款式就是 .tool */
   .grade-answer .hint{letter-spacing:0;}
   .grade-columns .modelanswer,.grade-columns .answerreview{overflow-wrap:anywhere;}
   .grade .nextrow{padding-top:16px;border-top:1px solid var(--line-soft);}
@@ -532,16 +698,16 @@ html,body{margin:0;padding:0;}
   .setgrp:first-of-type{margin-top:0;}
   /* 组标题走「画像」弹层同一套小标题（黑体 14 / 700 / 字距 1 / 下 12）：原来 12.5 灰字还漏了黑体，
      既比兄弟屏小一号，又和下面的字段标签同字号同字重，层级读不出来 */
-  .grpt{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);color:var(--ink);letter-spacing:1px;margin-bottom:12px;}
+  .grpt{font-family:var(--hei);font-weight:700;font-size:var(--fs-body);color:var(--ink);margin-bottom:12px;}
   .field{margin-bottom:16px;}
   .setgrp>:last-child{margin-bottom:0;}
   .field label{display:block;font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--ink);margin-bottom:8px;}
   .field select,.field input[type=text],.field input[type=password]{width:100%;}
-  .field .note,.setgrp>.note{font-size:var(--fs-note);color:var(--muted);line-height:1.6;margin-top:8px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
-  .field .note.long{line-height:1.7;}
-  .setgrp .notebox{background:transparent;border-radius:var(--r-flat);padding:0;margin:0;}
+  .field .note,.setgrp>.note{font-size:var(--fs-note);color:var(--muted);line-height:var(--lh-body);margin-top:8px;}   /* 输入框下的说明字：低一档、不跟控件抢 */
+  .field .note.long{line-height:var(--lh-body);}
+  .setgrp .notebox{background:transparent;border-radius:var(--r-flat);padding:0;margin:0 0 16px;}
   .setgrp .notebox>summary{padding:4px 0;}
-  .setgrp .notebox .notebody{padding:4px 0 0;font-size:var(--fs-note);line-height:1.7;}
+  .setgrp .notebox .notebody{padding:4px 0 0;font-size:var(--fs-note);line-height:var(--lh-body);}
   #updateField .note{margin:0 0 8px;}
   /* 次级按钮（ghost）：透明底细边、与 primary 同高——「测试连接」不该和「保存」一个重量。
      原来写 40，比主按钮的 36 还高 4px，同一行里次级压过主行动，也破了「控件只有两档高度」 */
@@ -549,7 +715,7 @@ html,body{margin:0;padding:0;}
   button.ghost:hover{background:var(--wash-3);color:var(--ink);}
   /* 地址与 Key 是技术串：仿宋里 l / 1 / I 长得一样，这几格单独换雅黑（字号跟全局 14，不再自降一档） */
   #setBase,#setKey,#setModel{font-family:var(--yahei);}
-  .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;width:fit-content;}
+  .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-pill);overflow:hidden;width:fit-content;}
   .seg button{border:none;border-right:1px solid var(--line);border-radius:var(--r-flat);padding:8px 24px;background:var(--ctl);color:var(--muted);}   /* 与「保存」同高，一行里不再一高一矮；容器 8px 圆角 + overflow:hidden 把首尾裁圆 */
   .seg button:last-child{border-right:none;}
   /* 选中态用淡红底红字（同 chips 当前项），不再整块实红——分段控件是选择，不是主行动 */
@@ -580,13 +746,13 @@ html,body{margin:0;padding:0;}
 .mrow .mweak.good{color:var(--success);}
   .mrow .mnone{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   /* 画像弹层：标题降一档（纸面的红边大标题不进弹层），统计数字与说明字分层 */
-  #modalProfile .sec-title{border-left:none;padding-left:0;font-size:var(--fs-body);letter-spacing:1px;margin:24px 0 12px;}
-  #modalProfile .notebody{font-size:var(--fs-note);line-height:1.7;color:var(--muted);}
+  #modalProfile .sec-title{border-left:none;padding-left:0;font-size:var(--fs-body);margin:24px 0 12px;}
+  #modalProfile .notebody{font-size:var(--fs-note);line-height:var(--lh-body);color:var(--muted);}
   #profileBody>details.notebox:first-child{border-top:none;}
   .mrow{font-size:var(--fs-body);}
   .mrow .mmeta,.mrow .mnone,.mrow .mweak{font-size:var(--fs-note);}
   /* 画像一级的行是入口（点进去看明细），不是折叠件：尾部用 › 而不是三角，方形、无底色、整行可点 */
-  .navrow{display:flex;align-items:center;gap:12px;width:100%;padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-radius:var(--r-flat);background:none;text-align:left;cursor:pointer;}
+  .navrow{display:flex;align-items:center;gap:12px;width:100%;padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-radius:var(--r-ctl);background:none;text-align:left;cursor:pointer;}
   .navrow:hover{background:var(--wash);}
   .navrow::after{content:"›";margin-left:auto;flex:0 0 auto;font-size:var(--fs-body);color:var(--line-strong);}
   .profback{margin:0 0 8px;}
@@ -596,13 +762,13 @@ html,body{margin:0;padding:0;}
   .expline>summary{display:flex;align-items:baseline;gap:8px;padding:8px 4px;cursor:pointer;list-style:none;font-size:var(--fs-body);}
   .expline>summary::-webkit-details-marker{display:none;}
   .expline>summary:hover{background:var(--wash);}
-  .expline .etag{flex:0 0 auto;min-width:32px;text-align:center;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-ctl);}
+  .expline .etag{flex:0 0 auto;min-width:32px;text-align:center;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-pill);}
   /* 标题固定成一列：不定宽的话每行正文起点都不一样，扫起来是斜的 */
   .expline>summary .hint{flex:0 0 auto;white-space:nowrap;}   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */   /* 「（已停用）」这类小标注不许自己折行把整行撞高 */
   .expline .etitle{flex:0 0 236px;font-family:var(--hei);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .expline .ebody{flex:1 1 auto;min-width:0;color:var(--muted-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
   .expline[open] .ebody{display:none;}
-  .expbody{padding:4px 4px 12px;font-size:var(--fs-body);line-height:1.85;}
+  .expbody{padding:4px 4px 12px;font-size:var(--fs-body);line-height:var(--lh-doc);}
   .expacts{display:flex;gap:8px;align-items:center;margin-top:4px;}
   /* 折叠入口要有看得见的标记：折叠是这套界面收纳信息的主要手段，缺了三角就不知道能点开 */
   .mrow>summary::after,.expline>summary::after{content:"▸";margin-left:auto;font-size:var(--fs-note);color:var(--line-strong);flex:0 0 auto;} 
@@ -610,7 +776,7 @@ html,body{margin:0;padding:0;}
   .notebox>summary::after{content:"▸";float:right;font-size:var(--fs-note);color:var(--line-strong);}
   .notebox[open]>summary::after{content:"▾";}
   .typestat{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
-  .typestat .t{padding:4px 8px;font-size:var(--fs-note);background:var(--wash-2);font-variant-numeric:tabular-nums;}
+  .typestat .t{padding:4px 8px;font-size:var(--fs-note);background:var(--wash-2);border-radius:var(--r-pill);font-variant-numeric:tabular-nums;}
   .typestat .t b{font-family:var(--hei);}
   .typestat .t .lo{color:var(--danger);}
   .typestat .t .hi{color:var(--success);}
@@ -637,73 +803,32 @@ html,body{margin:0;padding:0;}
   .loading{font-size:var(--fs-body);color:var(--ink);padding:40px 0;text-align:center;}
   .loading .hint{display:inline-block;margin-top:4px;}
   #elapsed{font-variant-numeric:tabular-nums;}   /* 等待秒数一每秒跳一次，不锁定等宽会左右抖 */
-  .peek{display:none;max-height:130px;overflow:hidden;margin:12px auto 0;padding:8px 12px;text-align:left;background:var(--wash);border:1px dashed var(--line);border-radius:var(--r-ctl);font-size:var(--fs-note);line-height:1.8;white-space:pre-wrap;color:var(--ink);}
+  .peek{display:none;max-height:130px;overflow:hidden;margin:12px auto 0;padding:8px 12px;text-align:left;background:var(--wash);border:1px dashed var(--line);border-radius:var(--r-ctl);font-size:var(--fs-note);line-height:var(--lh-doc);white-space:pre-wrap;color:var(--ink);}
   /* 申论训练链：步骤条要轻，一行小步骤条，当前步高亮 */
   /* 申论训练链：这是一条进度，不是五个按钮——带序号、段间细线分隔、已过打勾、当前步最重。
      步骤条不可点（没有点击处理），所以不给 cursor/hover：看着能点却点不动，比不给反馈更糙 */
   /* 外面套一层是因为链子只有 fit-content 宽：横贯纸面的上下边框得有个全宽的盒子来撑。
      它不吸顶，跟纸一起滚（2026-10-13） */
-  .railwrap{margin:0 0 16px;}
-  .railwrap .flowrail{margin:0;}
+  /* 步骤条说的是「我现在在哪」，不是题面。2026-11-02 从纸面第一行收进红头、压在红线上沿：
+     原来它自带一圈胶囊和上下 16px 的间距，一屏里白吃掉 50px，把题面、作答框一起往下推。
+     收成小字之后只有 18px，而且落在红线上方——那本来就是抬头的位置。 */
+  /* 步骤条落在红头那一行中间的空里（模块名与文号之间），不另占一行：
+     那一行本来两头齐、中间空着一大片，三步小字正好填进去，纸面一寸都不多长。 */
+  .railrow{display:flex;align-items:baseline;justify-content:center;flex:0 1 auto;min-width:0;}
+  .railrow:empty{display:none;}
   /* 状况条满宽：上下两道细线横贯纸面，它才像一条状况栏，而不是漂在正文里的一个胶囊（2026-10-09） */
   /* 状况条做成三枚等宽胶囊：不再用上下两道通栏细线，跟全站的按钮/胶囊同一套圆角语言 */
-  .flowrail{display:flex;flex-wrap:wrap;gap:8px;width:auto;align-items:center;counter-reset:fs;}
-  .flowrail .fstep{counter-increment:fs;display:inline-flex;flex:1 1 0;justify-content:center;align-items:center;gap:8px;font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);padding:4px 12px;background:var(--ctl);border:1px solid var(--line);border-radius:var(--r-pill);}
-  .flowrail .fstep::before{content:counter(fs);display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;font-size:var(--fs-note);font-variant-numeric:tabular-nums;border-radius:var(--r-pill);background:var(--wash-3);color:var(--muted);}
-  .flowrail .fstep.done::before{content:"✓";background:var(--success-bg);color:var(--success);}
-  .flowrail .fstep.active{color:var(--gov-red);background:var(--red-wash);border-color:var(--gov-red);}
-  .flowrail .fstep.active::before{background:var(--gov-red);color:var(--on-dark);}
-  /* 找点高亮：与 gw_marks 的划线层（.ms.on）同一套语言——底色 + 2px 底边线，只是底色换成暖沙 */
-  .pt-seg{cursor:pointer;border-radius:var(--r-ctl);}
-  .pt-seg:hover{background:var(--wash);}
-  /* 已点选：淡蓝是整屏唯一的冷色，还带一道蓝下划线，看着像超链接——换成「铅笔涂过一遍」的暖沙 */
-  .pt-seg.picked{background:var(--pick-bg);box-shadow:inset 0 -2px 0 var(--pick-line);}
-  /* 同一句上两种状态叠在一起：底色让给划线（它是更重的那一层）、底边线留给找点。
-     两条规则特异度不够，这里必须点名到三个类，否则底边线会被 mark.ms.on 那条吃掉。 */
-  mark.ms.on.pt-seg.picked{box-shadow:inset 0 -2px 0 var(--pick-line);}
-  .pickline{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);padding:4px 4px;border-bottom:1px solid var(--line);}
-  /* 卡片里的清单不再画行线：卡本身就是一个分组，横线会把圆角块切成表格 */
-  .notebox .pickline,.ogname .ognpts .pickline{border-bottom:none;padding:4px 0;}
-  .pickline button.linkbtn{white-space:nowrap;}   /* 长要点折行时「移除」会被挤成两行竖排 */
-  .pickline .ptag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
-  /* 归类：一次只摆一个点（原文在上，已建好的类在下面点选），不再 N 组 × M 点铺满整屏。
-     点多的时候一屏变成一张表、很少的时候又空一半，都难扫；一屏一个点，视线不用在几组之间来回找。
-     已找的点收进下面的折叠清单，谁归了谁没归一眼看完。 */
-  .ognow{margin-top:16px;}
-  .ogprog{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}
-  .ogcard{background:var(--wash);border-radius:var(--r-card);padding:16px;}
-  .ogcur{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-body);line-height:1.8;padding:12px 0 0;}
-  .ogcur .atext{flex:1 1 auto;}
-  .ogcats{display:flex;flex-wrap:wrap;gap:8px;}
-  .ogcat{font-family:var(--hei);font-size:var(--fs-note);padding:4px 12px;min-height:28px;border:1px solid var(--line);background:var(--ctl);border-radius:var(--r-pill);cursor:pointer;}
-  .ogcat:hover{border-color:var(--gov-red);}
-  .ogcat.on{border-color:var(--gov-red);background:var(--red-wash);color:var(--gov-red);}   /* 已归入本类：再点一次就取消 */
-  .ogcat i{font-style:normal;font-size:var(--fs-note);color:var(--muted);margin-left:8px;font-variant-numeric:tabular-nums;}
-  .ogcat.on i{color:var(--gov-red);}
-  /* 新建一组与已有的组同排：同一排才读成「归到这里，或者新建一个」 */
-  .ogcat.ognew{border-style:dashed;color:var(--muted);background:transparent;}
-  /* 命名那一段（第二段）：每组一张卡，组名就是这一组的标题——输入框占整行、字大一号，
-     句子在下面当证据。空组靠 placeholder 报「第 N 组」，不另起一行标签。*/
-  .ognames{margin-top:12px;display:flex;flex-direction:column;gap:16px;}
-  .ogname{background:var(--wash);border-radius:var(--r-card);padding:16px;}
-  .ogname .ogh{display:flex;gap:12px;align-items:center;}
-  .ogname .ogh .ogin{flex:1 1 auto;min-width:0;width:auto;font-family:var(--hei);font-size:var(--fs-title);font-weight:600;}
-  .ogname .ogh .ogprog{flex:0 0 auto;white-space:nowrap;}
-  .ogname .ognpts{margin:12px 0 0;font-size:var(--fs-note);color:var(--muted-2);}
-  .ogname .ognpts .pickline{margin:0;}
-  .ogname .ogin:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
-  .ogline.cur{background:var(--wash);}
-  .ogline.cur .ptag{background:var(--red-wash);color:var(--gov-red);}
-  /* 组名是这一组的小标题，不是表单字段：去掉框，做成标题 + 悬停才显的下划线 */
-  .pickline .ptag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:4px 8px;border-radius:var(--r-ctl);flex:0 0 auto;}
-  /* 卡片是浅灰底：标签再用浅灰就糊在一起，看着像跟后面的句子连成一句；
-     卡里给它换成纸色，才看得出是一个标签。 */
-  .ogcard .ptag,.ogname .ptag{background:var(--paper);color:var(--muted-2);}
+  .flowrail{display:flex;flex-wrap:wrap;width:auto;align-items:baseline;}
+  .flowrail .fstep{display:inline-flex;align-items:baseline;gap:4px;font-family:var(--hei);font-size:var(--fs-note);line-height:var(--lh-ctl);color:var(--muted-2);}
+  .flowrail .fstep.done{color:var(--muted);}
+  .flowrail .fstep.done::before{content:"✓";color:var(--success);font-weight:400;}
+  .flowrail .fstep.active{color:var(--gov-red);font-weight:700;}
+  .flowrail .fstep:not(:last-child)::after{content:"›";margin:0 8px;color:var(--line-strong);font-weight:400;}
   .fnav{display:flex;gap:12px;margin-top:16px;align-items:center;flex-wrap:wrap;}
   /* 判别轨：可点的行块选项，判完对的绿、错的红、正解标出（沿用克制的红绿，不加新色） */
   .pdopts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
   /* 快判选项：原生 button（键盘可达），所以要把 button 的字体/居中复位成段落式左对齐 */
-  .pdopt{display:block;width:100%;text-align:left;font-family:var(--yahei);border:1px solid var(--line);background:var(--ctl);padding:12px 16px;font-size:var(--fs-body);line-height:1.7;cursor:pointer;border-radius:var(--r-ctl);}
+  .pdopt{display:block;width:100%;text-align:left;font-family:var(--yahei);border:1px solid var(--line);background:var(--ctl);padding:12px 16px;font-size:var(--fs-body);line-height:var(--lh-body);cursor:pointer;border-radius:var(--r-ctl);}
   .pdopt:hover{border-color:var(--gov-red);background:var(--wash);}
   .pdopt.good{border-color:var(--success);background:var(--success-bg);color:var(--success);cursor:default;}
   .pdopt.good:hover{border-color:var(--success);background:var(--success-bg);}
@@ -714,13 +839,14 @@ html,body{margin:0;padding:0;}
   /* 判完即 disabled（不再可点），但外观不能跟着变淡——结果色得看得很清楚 */
   .pdopt:disabled{opacity:1;}
   .pdopt:disabled:hover{border-color:inherit;}
-  .pdexplain{font-size:var(--fs-body);background:var(--mat);border:1px dashed var(--line);padding:8px 12px;line-height:1.8;}
+  .pdexplain{font-size:var(--fs-body);background:var(--mat);border:1px dashed var(--line);padding:8px 12px;line-height:var(--lh-doc);}
 
   code{font-family:Consolas,Menlo,monospace;background:var(--line-soft);padding:4px 4px;border-radius:var(--r-ctl);font-size:var(--fs-note);}
 
   /* ============ 精致度：过渡与微动效（克制的） ============
-     三条自律：① 每个动效只播一次、不超 240ms，绝不做循环/自动轮播（界面不自走）；
-     ② 只动 opacity / transform / 颜色，不触发布局重排；③ prefers-reduced-motion 下全关。 */
+     四条自律：① 每个动效只播一次、不超 240ms，绝不做循环/自动轮播（界面不自走）；
+     ② 只动 opacity / transform / 颜色，不触发布局重排；③ prefers-reduced-motion 下全关；
+     ④ 时长与曲线只走 :root 的 --t-* 三档与 --ease-* 两条，这里不写字面秒数（断言盯着数量）。 */
   html{scroll-behavior:smooth;}
   /* 点纸面模块 chips 会 scrollIntoView('#doc')：顶栏是 sticky，不抬这一手的话红头会被盖在顶栏下面 */
   #doc{scroll-margin-top:100px;}
@@ -730,21 +856,21 @@ html,body{margin:0;padding:0;}
   button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,
   .subjbtn:focus-visible,.chip:focus-visible,.pdopt:focus-visible,mark.ms.on:focus-visible,summary:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
   button:active:not(:disabled){transform:translateY(1px);}
-  button,.subjbtn,.chip,.pdopt,mark.ms.on,summary{transition:background .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .2s ease;}
+  button,.subjbtn,.chip,.pdopt,mark.ms.on,summary{transition:background var(--t-state) var(--ease-std),border-color var(--t-state) var(--ease-std),color var(--t-state) var(--ease-std),transform var(--t-press) var(--ease-std),box-shadow var(--t-state) var(--ease-std);}
   input[type=text]:focus,input[type=password]:focus,select:focus{border-color:var(--gov-red);box-shadow:var(--focus-halo);outline:none;}
   /* 换页 / 换题：新内容轻微上浮淡入。挂在 docBody 的直接子元素上，重渲染就天然生效 */
   @keyframes riseIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
-  #docBody>*{animation:riseIn .18s cubic-bezier(.22,.61,.36,1) both;}
+  #docBody>*{animation:riseIn var(--t-enter) var(--ease-decel) both;}
 
   /* 弹层 / 抽屉：轻微位移淡入（关掉时不做动画，别让人看着它飞走） */
   @keyframes modalIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
   @keyframes sheetIn{from{opacity:0;transform:translateX(14px);}to{opacity:1;transform:none;}}
-  .modal:not([hidden]) .box{animation:modalIn .2s cubic-bezier(.22,.61,.36,1) both;}
-  .drawer:not([hidden]) .sheet{animation:sheetIn .22s cubic-bezier(.22,.61,.36,1) both;}
+  .modal:not([hidden]) .box{animation:modalIn var(--t-enter) var(--ease-decel) both;}
+  .drawer:not([hidden]) .sheet{animation:sheetIn var(--t-enter) var(--ease-decel) both;}
 
   /* 判完那一瞬：选项轻微“落定”（只动透明度，不缩放、不弹跳） */
   @keyframes pdMarked{from{opacity:.55;}to{opacity:1;}}
-  .pdopt.good,.pdopt.bad{animation:pdMarked .22s ease-out both;}
+  .pdopt.good,.pdopt.bad{animation:pdMarked var(--t-enter) var(--ease-decel) both;}
 
   /* 等 AI 时：只留一行安静的状态文字；全应用没有循环主动效 */
 
@@ -752,7 +878,7 @@ html,body{margin:0;padding:0;}
   .chip:active,.subjbtn:active{background:var(--wash-3);}
   /* 阅读动效：hover 只给真能点的东西（这里原先还挂了 details.card，那条已下线）*/
   /* 采分点对照行不是可点元素，不给 hover——加上去会让人以为能点（hover 只给交互元素） */
-  .flowrail .fstep{transition:background .16s ease,border-color .16s ease,color .16s ease;}
+  .flowrail .fstep{transition:background var(--t-state) var(--ease-std),border-color var(--t-state) var(--ease-std),color var(--t-state) var(--ease-std);}
 
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto;}
@@ -787,6 +913,7 @@ html,body{margin:0;padding:0;}
       <div class="redline"><span class="bar"></span></div>
       <div class="docmeta">
         <div class="modlabel" id="modLabel">综应A · 公文写作</div>
+        <div class="railrow" id="railSlot"></div>
         <div class="pdstate" id="pdState" style="display:none"></div>
         <div class="docno" id="docNo">练习台〔2026〕第 001 号</div>
       </div>
@@ -876,6 +1003,13 @@ html,body{margin:0;padding:0;}
         <button class="ghost" id="btnTest">测试连接</button>
         <span class="hint" id="setMsg" aria-live="polite"></span>
       </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modalFold" hidden role="dialog" aria-modal="true" aria-label="作答参考">
+    <div class="box">
+      <div class="mhead"><span id="foldTitle">作答参考</span><button class="x" title="关闭">✕</button></div>
+      <div class="panel-body" id="foldPanel"></div>
     </div>
   </div>
 
@@ -1034,7 +1168,8 @@ function migrateKeyedObject(src){
   return { map:out, changed };
 }
 /* 思路自述（跨题归纳的语料）：两种时刻各记一句——how = 这道答对了，凭什么确定；
-   stuck = 这道丢分了，卡在哪一步。上限 200 字：它是给人看的一句话，不是第二篇答卷。
+   stuck = 这道丢分了，他自己觉得错在哪（2026-11-02 才定成这个问法：
+   问卡在哪个环节要的是过程自述，问错在哪要的是结论，后者才是批改格式的第四部分）。上限 200 字：它是给人看的一句话，不是第二篇答卷。
    这两个常量必须声明在 migrateHistory 之前：load() 在模块顶层就会把它跑一遍，挪到后面要撞 TDZ。 */
 const SELF_KINDS = ["how","stuck"];
 const SELF_NOTE_MAX = 200;
@@ -1135,8 +1270,11 @@ const DEFAULT_STATE = {
 // 只有申论走全链（usesFlowChain）；综应A 走「学习卡 → 作答 → 批改」两阶段（renderZyPage）——
 // 两科共用的只有开头那张学习卡：先记知识点再动手，是一致的。
 // 归类降级成一稿页上的入口、沉淀并进批改页（2026-10-09）：链子只剩三步。
-const FLOW_STEPS  = ["read","draft","review"];
-const FLOW_LABELS = { read:"读材料", draft:"一稿", review:"批改" };
+/* 申论训练链两步（2026-11-02）：作答 → 批改。
+   原来的「读材料」是单独一屏，读完点「读完了，动笔写」才进作答——那一步只干了一件事：把材料读一遍。
+   现在材料直接落在作答页左栏，边读边划边写，划过的句子不用回上一步去对。 */
+const FLOW_STEPS  = ["draft","review"];
+const FLOW_LABELS = { draft:"作答", review:"批改" };
 
 /* 申论学习卡资料库（源：中公申论课程笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
    AI 据此生成学习卡（照综应口径缓存、可「换一张」、对弱维度定向）；AI 未返回卡时也作兜底。
@@ -1276,14 +1414,15 @@ function sanitizeFlows(list){
   if(!Array.isArray(list)) return [];
   return list.filter(f=>{
     if(!f || typeof f !== "object" || typeof f.id !== "string" || !f.question || typeof f.question !== "object") return false;
+    if(f.step === "read") f.step = "draft";   // 「读材料」步 2026-11-02 并进作答：老链降级到作答，不丢这条链
     if(FLOW_STEPS.indexOf(f.step) < 0 && f.step !== "done" && f.step !== "revise" && f.step !== "organize" && f.step !== "distill") return false;   // 非法 step：丢弃该项，不整包失败（已下线的步另处理：降级不丢）
     return true;
   }).map(f=>{
     const o = Object.assign({ subject:null, subtype:null, sig:"", keyPoints:[], createdAt:0, closedAt:null,
-                              step:"read", cardSeen:true, attempts:[], selections:[], groups:[] }, f);
+                              step:"draft", cardSeen:true, attempts:[] }, f);
     if(o.step === "revise" || o.step === "organize") o.step = "draft";   // 回改与归类都已下线：这些链回到「一稿」继续，不整条消失
     if(o.step === "distill") o.step = "review";   // 沉淀并进批改页：停在这一步的老链回到「批改」
-    for(const k of ["keyPoints","attempts","selections","groups"]) if(!Array.isArray(o[k])) o[k] = [];
+    for(const k of ["keyPoints","attempts"]) if(!Array.isArray(o[k])) o[k] = [];
     if(o.closedAt == null) o.closedAt = null;
     /* 限时与起点只收 0–LIMIT_MAX 的整数：脏值最后会进输入框属性。没带的保持 undefined——
        curLimitMin 靠它回落到全局设置，夹成 0 会把「下一题沿用上次时长」弄丢。 */
@@ -1412,6 +1551,7 @@ function sanitizePaper(p){
       const ag = (a.g && typeof a.g === "object" && !Array.isArray(a.g))? a.g : null;
       const g = ag? Object.assign({}, ag, {
         hits:Array.isArray(ag.hits)? ag.hits : [],
+        review:Array.isArray(ag.review)? ag.review.filter(x=> typeof x === "string") : [],
         causes:Array.isArray(ag.causes)? ag.causes : [],
         weaknesses:Array.isArray(ag.weaknesses)? ag.weaknesses : []
       }) : null;
@@ -2400,34 +2540,31 @@ const GRADE_TEMP = 0;
    （约 4k~7k token）——想得越久，留给正文的越少，撞上限时正文被截成半截 JSON，重发只是把同一个赌局再摇一次。
    而阅卷这道题是「对照 need 逐条核」，不需要长链推理（要创造力的是出题）。
    降到 quick 实测每次批改 36~56 秒 → 20~39 秒，分数不变。 */
-async function grade(k, subtype, question, keyPoints, answer, onDelta, organizeOutline){
+async function grade(k, subtype, question, keyPoints, answer, onDelta){
   const m = MODULES[k];
-  // organizeOutline：考生作答前的归类提纲，只进 prompt 供诊断，绝不参与 hits / 总分
   const exps = expBlock(k);   // 经验闭环：请阅卷特别核对用户是否又犯这些错，两科都注入
   // 错因回执：请阅卷顺手判定「带进去的这几条错因这次犯没犯」。只用于经验状态跟进，不进分数
   const expCheck = exps? `\n另请在 experienceChecks 里逐条回报 experiences：title 原样照抄，status 取 again（这次又犯了同一处）/ fixed（这次没再犯）/ na（本题考不到这条）。**每条必须带 evidence 字段**：again 引考生原句；fixed 引考生答案里体现这条规则已用上的原句；na 写一句本题为什么考不到。evidence 必须是答卷里连续的一段原句，用「」括起来，不得用省略号拼接多处，也不得转述；找不到原句就填 na。没有 evidence 或引文不在答卷里的回执视为无效，不许改状态。这一项只用于考生自己的错因跟进，**不参与计分**，不得因此改动 hits、scores 与总分。` : "";
   const expNote = exps? "用户在 experiences 里这些点上栽过跟头：请特别核对考生是否又犯了这些错。" : "";
   const user = JSON.stringify(Object.assign(
-    { module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[], organizeOutline: organizeOutline || "" },
+    { module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[] },
     exps? { experiences:exps, expNote } : {}));
   const schema = `{
     "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"答到的：逐字照抄考生原句，用「」括起来，一个字都不许改（标点也别改，抄整句不截断）；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
-    "causes":[{"title":"4—8 字归类标题","why":"这类写法为什么拿不到分：讲清这题采分点在认什么（具体对象、具体做法、与材料的对应关系）"}],${exps? `
+    "review":["第一段：考生大概在哪想偏了","第二段：对应应该怎么改"],${exps? `
     "experienceChecks":[{"title":"原样照抄 experiences 里那一条的 title","status":"again / fixed / na","evidence":"again/fixed 必填：答卷里连续的一段原句，用「」括起来；na 写本题为什么考不到"}],`: ""}
-    "principle":"一句话收尾：换别的题也成立的原则"
   }`;
   const sys = sysGrader(k) + "\n" + modInstruction(k) +
     `\n阅卷顺序：先逐条对照 keyPoints 判定——带 need 的子项按 need 逐条核，没带的按子项文字核（考生用自己的话表达即可，不要求原文；但 need 与子项里写的具体事实、数据、做法要真答到才算答到，光笼统点到话题不算），再由命中情况推导各维度分数。` +
     `\n总分口径：总分 = 各子项实得分之和（题目满分 question.score），不要另给印象分；逐条给 awarded 时严格照分值给，不要四舍五入成整数。` +
-    `\n归类提纲（organizeOutline，可能为空）是考生作答前对材料的归类草稿：只用于诊断其归类与结构意识，不参与计分，也不要求答案与其一致；总分仍只看子项覆盖。` +
     expCheck +
     "\n" + SCORING_RULES +
     `\n错因归类：每条子项都要给 kind——${GRADE_TAG_LINE}；拿不准选最接近的一类，拿满分的填 -。kind 只用于考生自己的错因统计，不参与计分，不得因此改动 awarded 与总分。` +
     `\n维度分（0-20）档位锚定：18-20=要点齐全且表述规范；14-17=命中大半，个别遗漏；10-13=命中约半，结构松散；6-9=零散提及；0-5=基本未覆盖。维度分只用于画像诊断，不参与总分。` +
     `\n同一份答卷重复阅卷时必须给同一结论：判「半分」的先在 evidence 里逐条列出答到的具体点，列不出来就说明没到半分这一档，不要凭整体印象给半档。` +
     `\n评分校准：真实阅卷里多数答卷落在中间档，满分与极低分都少见；子项拿不准时按**低一档**判（宁可少给，不凭整体印象抬分），并在 evidence 里写清差在哪。另：答得长不等于答得全，堆篇幅、重复材料原句的表述不加分。` +
-    `\n解析（causes + principle）只回答一件事：为什么这么写拿不到分。写 3—4 类，每类一个 4—8 字标题加一句归因——讲清这题的采分点在认什么（具体对象、具体做法、与材料的对应关系），让考生明白分数是怎么给出去的。不复述 hits 里已经逐句标过的原话，不复述参考答案里的做法，也不写「下次该怎么做」：下一步怎么办是考生自己的事，不替他做决定。principle 一句话收尾，写成换别的题也成立的原则，句子里不得出现「本题／这道题／这则材料／这次」这类指代本题的词；这次答卷没有失分（全部子项满分）时 causes 留空，principle 照给一句。` +
+    `\n解析（review）写成两段话，每段不超过 150 字，像老师在卷子边上顺口讲下来：第一段说考生大概在哪想偏了——把这一题最要紧的那几处归到一起讲，不要按采分点逐条复述（原话 hits 里已经逐句标过），也不要写「第一、第二」「建议一、建议二」这种分条；第二段说对应应该怎么改——给能照着做的动作，说清改哪一句、补什么、怎么落。别讲大道理、别写「下次要注意」这种收尾话：换别的题也成立的道理不进解析。这次答卷没有失分（全部子项满分）时 review 给空数组。` +
     `\nJSON 写法：字符串内部一律用中文标点，引用用「」；不得出现英文双引号，也不得出现反斜杠——冒出一个就让整份 JSON 解析失败，这次批改白做。` +
     `\n返回 JSON：\n` + schema;
   const g = await callLLM(sys, user, true, onDelta, { temp: GRADE_TEMP, level: GRADE_LEVEL });   // 阅卷的思考强度见 GRADE_LEVEL（额度被思考吃光就交不出分数）
@@ -2448,7 +2585,8 @@ async function fetchModelAnswer(k, subtype, question, keyPoints, answer){
   const m = MODULES[k];
   const sys = sysGrader(k) + "\n" + modInstruction(k)
     + `\n任务：只写一篇本题的完整参考答案（成文范文）——按题目分值定长短，结构规范、语言正式，把采分点全部盖到，供考生整篇对照学习。`
-    + `\n直接输出范文正文：纯文本，不要 JSON、不要代码块、不要 markdown 标题，开头不要写「参考答案」这类字样，也不要分点列举。`;
+    + `\n直接输出范文正文：纯文本，不要 JSON、不要代码块、不要 markdown 标题，开头不要写「参考答案」这类字样，也不要分点列举。`
+    + `\n排版：一行就是一行，行与行之间不要空行（不要连打两个换行）。`;
   const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, keyPoints:keyPoints||[], answer: answer||"" });
   for(let i=0; i<2; i++){
     try{
@@ -2503,7 +2641,7 @@ async function distillExperience(mod, subtype, g, q){
   const existTitles = (state.experiences||[]).filter(e=> e && !e.disabled && e.module === mod).map(e=>e.title).slice(0,10);
   const user = JSON.stringify({ module:(MODULES[mod]||{}).name||mod, subtype:subtype||"",
     requirements:(q && q.requirements)||"",
-    hits:(g && g.hits)||[], causes:(g && g.causes)||[], principle:(g && g.principle)||"",
+    hits:(g && g.hits)||[], review:(g && g.review)||[], causes:(g && g.causes)||[],
     existingTitles: existTitles.length? existTitles : undefined });
   const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）；type 为错因时还要给 kind，从这几类里选一个——" + GRADE_TAG_LINE + "（其余 type 填 -）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。**这次批改里有未满分的采分点时，至少提炼 1 条 type=错因**（kind 取对应采分点的 kind），不要只给规则或表达。只输出 JSON。"
     + (existTitles.length? " 考生已有这些经验：" + existTitles.join("；") + "。若本次要提炼的经验与已有经验本质相同，必须原样返回已有经验的 title 原文（不要换措辞、不要新造条目），只给出更新后的 body；确有新经验才新增。" : "");
@@ -2723,7 +2861,7 @@ function experienceListHtml(){
   return expStatusSummaryHtml() + state.experiences.map(e=>`<details class="expline"><summary title="${esc(e.title)}　${esc(e.body)}"><span class="etag">${esc(e.type)}</span><span class="etitle">${esc(e.title)}</span>${e.disabled? ` <span class="hint">（已停用）</span>`:""}<span class="ebody">${esc(e.body)}</span></summary><div class="expbody">${esc(e.body)}<div class="hint" style="margin-top:4px">${esc(expSourceLabel(e))} · ${esc(subjectName(e.module)||e.subject||"")} · ${e.kind? `错因类型：${esc(e.kind)} · ` : ""}错因状态：${esc(expStatusText(e))}</div><div class="expacts"><button class="linkbtn" data-exp-toggle="${esc(e.id)}">${e.disabled? "启用" : "停用"}</button><button class="linkbtn" data-exp-del="${esc(e.id)}">删除</button></div></div></details>`).join("");
 }
 /* 作答前的规则展示位：沉淀下来的经验原先只在画像里躺着，做题时看不见——规则得站在动手那一刻才有用。
-   一条一行、最多 3 条、不折叠：动笔前扫一眼就是它全部的用处。这个模块没有经验时整块不出现。 */
+   一条一行、最多 3 条，默认收起（2026-11-01 改）：标题行报条数，点开才摊。这个模块没有经验时整块不出现。 */
 function prepRules(k){
   return (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k)
     .sort((a,b)=> prepRank(a.type) - prepRank(b.type) || Number(b.ts||0) - Number(a.ts||0))
@@ -2733,10 +2871,10 @@ function prepRulesHtml(k){
   const all = (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k);
   const list = prepRules(k);
   if(!list.length) return "";
-  return `<div class="prepbox"><div class="prephead">动笔前 · 你在这类题上攒下的经验</div>`
+  return `<details class="foldbox prepbox"><summary>动笔前 · 你在这类题上攒下的经验<small class="prepcount">${all.length} 条</small></summary>`
     + list.map(e=>`<div class="prepline"><span class="etag">${esc(e.type)}</span><b>${esc(e.title)}</b> <span class="prepbody">${esc(e.body)}</span></div>`).join("")
     + (all.length > list.length? `<div class="hint" style="margin-top:8px">另有 ${all.length - list.length} 条，在画像的「我的经验」里</div>` : "")
-    + `</div>`;
+    + `</details>`;
 }
 function wireExperiences(){
   document.querySelectorAll("[data-exp-toggle]").forEach(b=> b.onclick = ()=>{
@@ -2780,11 +2918,28 @@ function networkFailHint(){
   return " 多为网络不通或服务商不可达（确认能正常访问该域名）；也可能是浏览器/插件拦截了跨域请求。";
 }
 
+/* 卷首用哪一档（2026-11-01）：作答类工作屏用页眉版，入口 / 小结 / 批改用完整版。
+   分界不在「哪个函数画的」，而在「这一屏在干什么」：批改的头是分数，它就成完整版；
+   快判进行中要能一眼看见题、材料与选项，它就成页眉版（小结回了完整版）。 */
+function compactHead(){
+  if(_view === "q"){
+    if(current && current.phase === "grade") return false;   // 综应A 批改 / 从记录打开的批改
+    const f = activeFlow();
+    if(f && f.step === "review") return false;                 // 申论链的批改步
+    return true;
+  }
+  return !!(pdActive && pdRound && !pdRound.done);              // 快判作答（小结回完整卷首）
+}
 function renderHeader(){
+  tourReplace();   // 任何一屏重绘之后，引导的光斑都要重新对位（见 tourReplace）
   $("#orgName").textContent = state.settings.orgName || "模拟练习专用";
   // 红头常显：首页也是一张公文纸（红头 + hero 落在卷首下方）——曾经让位过，公文模板的样子不能丢（2026-10-12 定稿）
   const rh = document.querySelector(".redhead");
   if(rh && typeof rh.style === "object" && rh.style) rh.style.display = "";
+  /* 页眉版只改纸面的抬头排版，不改文案：机关名、模块 · 题型、文号都还在，只是并成一行。
+     classList 在 DOM 桩里是空壳，所以先判方法在不在（与上面 rh.style 同一个口径）。 */
+  const dc = $("#doc");
+  if(dc && dc.classList && typeof dc.classList.toggle === "function") dc.classList.toggle("compact", compactHead());
   const n = state.history.length + 1, y = new Date().getFullYear();
   // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字（申论轨写「申论」、快判轨写「快判」、综应轨写「综应A」）。
   // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
@@ -2792,6 +2947,14 @@ function renderHeader(){
   const pfx = (_view === "home" && !pdActive)? "练习台"
             : (pdActive? "快速判断" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
+  /* 步骤条挂在红头里（纸面之外），所以由这里统一画、统一清：
+     只要「当前屏就是这条链的作答屏」才画，别的屏一律清空——不然从链上退回首页，它还会挂在红头里。 */
+  const rs = $("#railSlot");
+  if(rs){
+    const f = activeFlow();
+    const onChain = !!f && !!current && f.sig === qSig(current.question) && !f.closedAt && !!f.cardSeen && _view === "q";
+    rs.innerHTML = onChain? railHtml(f) : "";
+  }
   // 快判进行中：主题与进度填进红头中段的空位（原先单占一行，左侧「快判」与前后的标识重复）
   const psBox = $("#pdState");
   if(psBox){
@@ -2870,7 +3033,7 @@ let _focusBack = null;   // 弹层打开前的焦点落点（声明在 openModal
 function openModal(id){
   _focusBack = document.activeElement;   // 关掉弹层把焦点还给原来那个按钮，键盘用户不会掉到页首
   if(id === "modalProfile") profPage = null;   // 每次打开都从一级进来，不留上次翻到的那一页
-  ["modalSettings","modalProfile"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
+  ["modalSettings","modalProfile","modalFold"].forEach(m=>{ $("#"+m).hidden = (m!==id); });
   document.body.style.overflow = "hidden";
   const m = $("#"+id);
   const box = (m && typeof m.querySelector === "function")? m.querySelector(".box") : null;
@@ -2882,7 +3045,7 @@ function openModal(id){
 }
 function closeModals(){
   const settingsOpen = !$("#modalSettings").hidden;
-  $("#modalSettings").hidden = true; $("#modalProfile").hidden = true;
+  $("#modalSettings").hidden = true; $("#modalProfile").hidden = true; $("#modalFold").hidden = true;
   document.body.style.overflow = "";
   if(settingsOpen){
     // 关闭设置把用户真填了的几项落盘；空字段不覆盖已有设置（避免把自动选好的模型清掉）
@@ -2899,7 +3062,7 @@ function closeModals(){
 }
 /* 弹层开着时把 Tab 圈在弹层里：否则焦点会跑到遮罩后面的页面上，看着焦点环消失、回车却改了背后那页 */
 function openModalEl(){
-  for(const id of ["modalSettings","modalProfile"]){
+  for(const id of ["modalSettings","modalProfile","modalFold"]){
     const m = $("#"+id);
     if(m && !m.hidden) return m;
   }
@@ -2938,7 +3101,7 @@ function banner(html, kind, src){
 function showLoading(t, tail, opts){
   // 第二行原来写死「长文阅卷通常 10-60 秒」——但这里是**出题**在等，屏幕上却在说阅卷（2026-10-08 复查）
   let html = `<p class="loading">${esc(t)||"AI 正在生成…"}<br><span class="hint" id="elapsed">已等待 0 秒</span> <span class="hint" id="streamChars"></span><br><span class="hint">${esc(tail||"AI 出题通常 10-60 秒。")}</span><div class="peek" id="streamPeek"></div></p>`;
-  if(opts && opts.cancel) html += `<div class="actions" style="margin-top:16px;justify-content:center"><button class="linkbtn" id="btnCancelGen">取消这次出题</button></div>`;
+  if(opts && opts.cancel) html += `<div class="actions" style="margin-top:16px;justify-content:center"><button class="ghost" id="btnCancelGen">取消这次出题</button></div>`;
   docBody.innerHTML = html;
   paintFab();
 }
@@ -2966,25 +3129,27 @@ function renderPendingLeave(viewNow, land){
   renderStart();
 }
 
-/* 起始页两种形态（2026-10-08 分开，2026-10-12 首页改居中 hero）：
-   · 首页（`_view === "home"`，没选科目）：整屏居中 hero——大标题「今天练什么？」、主按钮「开始快速判断」、
-     两枚点名科目的 chips、一行必备声明；公文红头在首页整块让位（renderHeader 里收）。
+/* 起始页两种形态（2026-11-01 起都是「卷首目录」：620 列居中，列内左对齐、一行一条）：
+   · 首页（`_view === "home"`，没选科目）：红按钮 + 去处清单（快判与两科大题），进度行收在清单末尾。
+     公文红头在首页常显（renderHeader），hero 接在卷首下方。
    · 科目首页（综应A / 申论）：红按钮是**本科目的主行动**（走 `startSmart`）。快判不在这里抢红：
-     它不是科目内容，是另一种练法，入口只在首页那颗「开始快速判断」红按钮。
+     它不是科目内容，是另一种练法，入口只在首页那颗「开始快速判断」。
    两处走不通时红按钮按缺项说话（`setupActionLabel()`）：缺 Key 说填 Key、缺模型说选模型，红按钮就带他去真能走的那一步。 */
 function startBoxHtml(resume){
   const home = (_view === "home");
   const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
+  /* 首页的科目入口是「通往不同去处」的那一组，走卷首目录的整行可点（.navrow），不再是胶囊：
+     胶囊并排读起来像同一维度的多个选项，而它们和快判是三种不同的练法。名字必须点名科目。 */
   const bigs = SUBJECT_ORDER.map(id=>{
     const name = SUBJECTS[id].name;
     const label = canStart()
       ? (id==="zy"? esc(name)+" 练一题" : "写一篇"+esc(name))
       : ("去" + esc(name));   // 没 Key 时不承诺出题：点了只进科目页
-    return `<button class="chip" data-big="${id}">${label}</button>`;
+    return `<button class="navrow" data-big="${id}">${label}</button>`;
   }).join("");
-  /* 「继续上次」与「做一套卷」是两行信息 + 一颗按钮，不是两条描边大按钮：这一屏只有一个主行动
-     （那颗红的），恢复现场的路径比它轻一档才不抢。文案落在左、键落在右，同一条动作列宽。 */
-  const resumeHtml = resume? `<div class="actions actline"><span class="al-main">${esc(moduleName(resume.module))}${resume.subtype? " · "+esc(resume.subtype):""} · 停在${esc(resume.label)}</span><button class="ghost" id="btnResume">继续上次</button></div>` : "";
+  /* 恢复现场那行（科目页用）：目录里的一行，比红按钮轻一档才不抢。
+     首页不用它——首页的恢复入口就是主行动本身（见下，2026-11-01）。 */
+  const resumeHtml = resume? `<div class="entrylist"><button class="navrow" id="btnResume">继续上次</button></div>` : "";
   /* 脚注只在走不通时说话（缺 Key / 缺模型）。走得通时这一屏不摆声明：
      「数据只存这台机器」在设置页的「数据与备份」里已经说过一次，入口屏再写一遍只是凑数。 */
   const foot = canStart()
@@ -2996,34 +3161,43 @@ function startBoxHtml(resume){
   const done = (Array.isArray(state.history)? state.history : []).filter(h=> h && h.grade && h.grade.total > 0);
   const avgRate = done.length? Math.round(done.reduce((a,h)=> a + (Number(h.grade.scored)||0) / h.grade.total, 0) / done.length * 100) : 0;
   const statHtml = done.length? `<div class="histent">已练 ${done.length} 题 · 平均 ${avgRate}%</div>` : "";
-  /* 整卷那颗：没有卷时它只是一个入口（一句话把「整卷」说清），有卷时才拆成「进度 + 动作」两半。
-     两行都留在 .actions 这个容器里：文案账（tools/entry-audit.mjs）按容器认区域，
-     `.actions` 记主行动、不认得的记成正文——换个类名就等于凭空给这一屏多写 11 个字。 */
-  const paperEntry = (!home && curSubject() === "sl")
-    ? (state.paper
-      ? `<div class="actions actline"><button class="ghost wide" id="btnPaper">接着做这套题</button></div>`
-      : `<div class="actions actline"><button class="ghost wide" id="btnPaper">做一套题</button></div>`)
+  /* 整卷是申论特有的第二种练法，但它也是「点了就去的去处」——长成与模块同一形状的一颗胶囊，
+     不再另起一行描边按钮（2026-11-01 改：原来上下两处都在说「开始」，一句话写两遍）。 */
+  const paperPill = (curSubject() === "sl")
+    ? `<button class="chip" id="btnPaper" data-paper="1">整套卷子</button>`
     : "";
   if(home){
+    /* 主行动跟状态走，不跟屏走（2026-11-01）：手上有没做完的题时，红按钮是「继续上次」——
+       回到桌边的人最想做的事是接着写，一屏只该推这一件；快判这时退成目录里第一行，
+       仍然是一次点击可达，只是不再抢第一眼。没有恢复现场时才按老口径：
+       能开始就是快判，缺 Key / 模型就先说缺哪样。 */
+    const qkRow = (resume && canStart())? `<button class="navrow" id="btnQuick">开始快速判断</button>` : "";
+    /* 缺 Key / 缺模型时不把恢复提到主行动：题能打开、能写，但交卷那一步还是得回头填——
+       “先答应再反悔”的那一类骗人。这一屏只推一件真能推进的事（填 Key），
+       恢复退回那行描边键，不在、也没消失。 */
+    const primary = (resume && canStart())
+      ? `<button class="primary big" id="btnResume">继续上次</button>`
+      : canStart()
+        ? `<button class="primary big" id="btnQuick">开始快速判断</button>`
+        : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`;
     return `<div class="startbox start-entry start-home" data-start="home">
-    <div class="actions">${canStart()
-      ? `<button class="primary big" id="btnQuick">开始快速判断</button>`
-      : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
-    <div class="chiprow">${bigs}</div>
-    ${resumeHtml}
+    <div class="actions">${primary}</div>
+    <div class="entrylist">${qkRow}${bigs}</div>
+    ${(resume && !canStart())? resumeHtml : ""}
     ${statHtml}
     ${foot? `<div class="hero-foot">${foot}</div>` : ""}
   </div>`;
   }
   // 科目页与首页同一套排布：入口屏不摆问句标题（「今天练什么？」「综应A 练什么？」），
   // 抬头已经说了这是什么，主行动自己就是这一屏要办的事。
+  // 红按钮只说动词：「开始」——科目名顶栏与文号都报过了，写第三遍是凑字（2026-11-01 改）。
   return `<div class="startbox start-entry start-hero" data-start="subj">
     <div class="actions">${canStart()
-      ? `<button class="primary big" id="btnSmart">开始${esc(subj.short)}练习</button>`
+      ? `<button class="primary big" id="btnSmart">开始</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
-    <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}</div></div>
-    ${paperEntry}
+    <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}${paperPill}</div></div>
     ${resumeHtml}
+    ${statHtml}
     ${foot? `<div class="hero-foot">${foot}</div>` : ""}
   </div>`;
 }
@@ -3131,6 +3305,9 @@ function renderCurrentView(){
 const TUT_SEQ = [
   // home 是打开软件落的屏，所以第一组是它；快判不进顶栏，唯一入口就是首页这颗红按钮。
   { scr:"home", sel:"#btnQuick", text:"点这里开始。",
+    /* 首页的主行动跟状态走：有未完成练习时红按钮是「继续上次」、快判降成胶囊（ADR 0005）。
+       引导的落点必须跟着走——指着一颗已经降级的胶囊说「点这里开始」，比不指更糟 */
+    alt:{ sel:"#btnResume", text:"点这里接着上次那道题。" },
     nk:{ sel:"#btnSetup", text:"点这里填 API Key。" } },
   // 科目页的红按钮是本科目的主行动。话得跟「他此刻真能做到什么」一致（2026-10-08 复查）：
   // 没填 Key 的人照这句话点下去会被拦下来，引导就在承诺做不到的事——所以没 Key 时改指
@@ -3153,8 +3330,9 @@ function visibleSteps(){
   const hasKey = !!state.settings.apiKey;
   const out = [];
   TUT_SEQ.forEach((s, idx)=>{
+    // 有 Key 时把 alt 带上：首页有未完成练习时主行动是「继续上次」，落点要跟着换（tourPick 决定用哪个）
     if(!hasKey){ out.push({ raw:idx, scr:s.scr, sel:(s.nk && s.nk.sel) || s.sel, text:(s.nk && s.nk.text) || s.text }); }
-    else out.push({ raw:idx, scr:s.scr, sel:s.sel, text:s.text });
+    else out.push({ raw:idx, scr:s.scr, sel:s.sel, text:s.text, alt:s.alt || null });
   });
   return out;
 }
@@ -3212,14 +3390,16 @@ function startTour(steps, idx){
 }
 function tourShow(){
   if(!tour) return;
-  const el = document.querySelector(tour.steps[tour.i].sel);
+  const step = tourPick(tour.steps[tour.i]);
+  const el = document.querySelector(step.sel);
   if(!el){ tourEnd(false); return; }   // 页面被切走：不算看过也不推进游标，下次进入同屏再弹
+  tour.shown = step.sel + "|" + step.text;
   el.scrollIntoView({ block:"center", behavior:"auto" });
   const tip = $("#tourTip");
   if(!tip){ tourEnd(); return; }
   const gStart = tourGroupStartAt(tour.steps, tour.i), gEnd = tourGroupEndAt(tour.steps, tour.i);
   tip.style.display = "block";
-  tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(tour.steps[tour.i].text)}</div><div class="tacts">${tour.i > gStart? `<button id="tourPrev">上一步</button>`:""}<button class="primary" id="tourNext">${tour.i===gEnd? "知道了":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
+  tip.innerHTML = `<div class="tstep">${tour.i+1} / ${tour.steps.length}</div><div>${esc(step.text)}</div><div class="tacts">${tour.i > gStart? `<button id="tourPrev">上一步</button>`:""}<button class="primary" id="tourNext">${tour.i===gEnd? "知道了":"下一步"}</button><button class="linkbtn tourskip" id="tourSkip">跳过引导</button></div>`;
   const prev = $("#tourPrev");
   if(prev) prev.onclick = ()=>{
     if(!tour) return;
@@ -3254,15 +3434,46 @@ function overlapArea(a, b){
   const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
   return (w > 0 && h > 0)? w * h : 0;
 }
+/* 一步的落点可能随状态换：首页有未完成练习时红按钮是「继续上次」，alt 命中就用 alt */
+function tourPick(step){
+  return (step && step.alt && document.querySelector(step.alt.sel))? step.alt : step;
+}
+/* 重绘后重摆光斑。原来只在开播和滚轮 / 缩放时摆一次：首页从「没填 Key」重绘成「继续上次」，
+   光斑还停在旧落点——框里那颗按钮已经换成尺寸不同的另一颗，留白一边 19、一边 5，
+   圆角还是方角的 8px 套着胶囊，看起来像描歪了的框（2026-11-01） */
+function tourReplace(){
+  if(!tour) return;
+  setTimeout(()=>{
+    if(!tour) return;
+    const step = tourPick(tour.steps[tour.i]);
+    // 落点或文案换了（这一屏换了形态）：整块重挂，不能只挪框不改话
+    if(tour.shown !== step.sel + "|" + step.text && document.querySelector(step.sel)) return tourShow();
+    tourPlace();
+    // 纸面缩放（applyPaperScale）与滚动会在下一两帧里再挪一次版：补一次对位，免得光斑差几像素
+    setTimeout(()=>{ if(tour) tourPlace(); }, 220);
+  }, 0);
+}
 function tourPlace(){
   if(!tour) return;
-  const el = document.querySelector(tour.steps[tour.i].sel);
+  const step = tourPick(tour.steps[tour.i]);
+  const el = document.querySelector(step.sel);
   const hole = $("#tourHole"), tip = $("#tourTip");
-  if(!el || !hole || !tip){ tourEnd(false); return; }
+  if(!el || !hole || !tip){
+    /* 落点没了：这一屏重绘换了形态（没填 Key → 继续上次）。按当前状态重取这一步的落点，
+       取不到才算这一步没播成（不推进游标，下次进这屏再弹） */
+    const scr = tour.steps[tour.i].scr, fresh = visibleSteps();
+    const k = fresh.findIndex(st => st.scr === scr && document.querySelector(tourPick(st).sel));
+    if(k >= 0 && document.querySelector(tourPick(fresh[k]).sel)){ tour.steps = fresh; tour.i = k; return tourShow(); }
+    tourEnd(false); return;
+  }
   const r = el.getBoundingClientRect(), pad = 6;
   hole.style.display = "block";
   hole.style.left = (r.left-pad)+"px"; hole.style.top = (r.top-pad)+"px";
   hole.style.width = (r.width+pad*2)+"px"; hole.style.height = (r.height+pad*2)+"px";
+  /* 圆角跟着目标走：目标是一颗胶囊（r ≥ 半高）时光斑也做胶囊，不然外层方角与内层圆弧互相切；
+     其它元素取「自己的圆角 + pad」，两层边才是同心的 */
+  const tr = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+  hole.style.borderRadius = (tr >= Math.min(r.width, r.height)/2? r.height/2 + pad : tr + pad) + "px";
   const gap = 12, edge = 12;
   const w = tip.offsetWidth, h = tip.offsetHeight;
   const vw = window.innerWidth, vh = window.innerHeight;
@@ -3356,15 +3567,27 @@ function renderModuleLanding(k){
   const blocked = !canStart();
   let html = `<div class="startbox start-entry start-hero" data-start="landing">
     <div class="actions"><button class="primary big" id="btnLandStart">${blocked? setupActionLabel() : "开始练习"}</button></div>
-    <div class="hint" style="margin-top:16px">${avg!=null? `近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次` : "还没练过"}</div>
+    ${avg!=null? `<div class="hint" style="margin-top:16px">近期加权均分 ${Math.round(avg)} 分 · 练过 ${n} 次</div>` : ""}
     ${subsHtml}
-    <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k2=>`<button class="chip${k2===k?" on":""}" data-mod="${k2}">${esc(MODULES[k2].name)}</button>`).join("")}</div></div>
+    ${modNavHtml(k)}
   </div>`;
   docBody.innerHTML = html;
   paintFab();
   $("#btnLandStart").onclick = ()=> blocked? openModal("modalSettings") : loadQuestion(k, pickSubtypeFor(k));
   docBody.querySelectorAll(".chip[data-t]").forEach(b=> b.onclick = ()=>{ if(blocked) openModal("modalSettings"); else loadQuestion(k, b.dataset.t); });
   docBody.querySelectorAll("[data-mod]").forEach(b=> b.onclick = ()=> tabClick(b.dataset.mod));
+}
+
+/* 换模块：一行页脚导航，不是第二排胶囊。
+   两排长得一样的胶囊摆在一起，读者分不出「点这个是按这个文种出题」和「点那个是走到别的模块去」——
+   这一排与上面那排的分别只在内容，形状没说话。挪到纸的下方 + 文字键 + 「其他模块」起头，
+   位置本身就说明它是导航（页脚导航是这套排版里已有的写法），也不跟第一排抢重量 */
+function modNavHtml(k){
+  const others = moduleKeysOf(curSubject()).filter(k2=> k2 !== k);
+  if(!others.length) return "";
+  return `<div class="pdnav"><span class="pdlab">其他模块</span>`
+    + others.map(k2=>`<button class="linkbtn" data-mod="${k2}">${esc(MODULES[k2].name)}</button>`).join('<span class="pddot">·</span>')
+    + `</div>`;
 }
 
 /* 出题前的入口闸（2026-10-08 复查发现的会说谎）：没填 Key 时点「练一道综应大题」，界面会先演一遍
@@ -3387,7 +3610,7 @@ function entryBlocked(){
 }
 function setupActionLabel(){
   // 主行动按缺项说话（首页 / 科目页 / 模块落地页共用这一句）：出题这条路当下走不通，按钮就只说他真该做的那一步
-  return state.settings.apiKey? "先选模型（设置里挑一个）" : "先填 API Key（出题和阅卷都要）";
+  return state.settings.apiKey? "先选模型" : "先填 API Key";
 }
 async function startSmart(){
   if(entryBlocked()) return;   // 先判再切科目：没 Key 的人不该被挪到另一个屏
@@ -3562,33 +3785,14 @@ function cardHtml(studyCard){
   const pts=(studyCard.points||[]).map(p=>`<li>${esc(p)}</li>`).join("");
   const pits=(studyCard.pitfalls||[]).map(p=>`<li>${esc(p)}</li>`).join("");
   const ex = studyCard.example;
-  // 每一节都是「节标题 + 内容」：卡上先看清有哪几节，再看每节有哪几条
   const hasEx = !!(ex && (ex.scene||ex.ask));
-  const exText = hasEx ? (ex.scene||"") + (ex.ask||"") : "";
-  const secs = [
-    { html: `<section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>`,
-      h: 44 + (studyCard.points||[]).reduce((a,t)=>a + Math.ceil((t.length+2)/22)*24.5 + 17, 0) },
-    { html: `<section class="csec pit"><h4>常见失分点</h4><ul class="clist clist-pit">${pits}</ul></section>`,
-      h: 44 + (studyCard.pitfalls||[]).reduce((a,t)=>a + Math.ceil((t.length+2)/22)*24.5 + 17, 0) },
-    { html: `<section class="csec"><h4>答题框架 / 常用句式</h4><div class="tpl">${esc(studyCard.templates||"")}</div></section>`,
-      h: 44 + Math.ceil(String(studyCard.templates||"").length/22)*24.5 },
-  ];
-  if(hasEx) secs.push({
-    html: `<section class="csec"><h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div></section>`,
-    h: 44 + Math.ceil(exText.length/22)*24.5 });
-  /* 四节分成两栏。默认按意思分：左栏「怎么答」（要点 + 框架），右栏「注意什么」（失分点 + 示例）。
-     要点比失分点多好几条时，这么分右栏底下会空出一大片——那就改成按前后切一刀，
-     两种分法的底部落差谁小用谁。（栏宽 341px，一行约 22 字，下面只是估算，用来选分法） */
-  const byMeaning = Math.abs((secs[0].h + secs[2].h) - (secs[1].h + (secs[3]? secs[3].h : 0)));
-  let cut = 1, byOrder = Infinity;
-  for(let k=1; k<secs.length; k++){
-    const left = secs.slice(0,k).reduce((a,s)=>a+s.h,0), right = secs.slice(k).reduce((a,s)=>a+s.h,0);
-    if(Math.abs(left-right) < byOrder){ byOrder = Math.abs(left-right); cut = k; }
-  }
-  const idx = secs.map((s,i)=>i);
-  const cols = (byMeaning <= byOrder) ? [[0,2],[1,3]] : [idx.slice(0,cut), idx.slice(cut)];
-  const colsHtml = cols.map(c => `<div class="cardcol">${c.filter(i=>secs[i]).map(i=>secs[i].html).join("")}</div>`).join("");
-  return `<div class="cardcols">${colsHtml}</div>`;
+  /* 单栏垂直流（2026-11-02 重做）：原来两栏 grid 的根因是要点与失分点条数永远不一样，
+     怎么配都不平（3 条对 7 条是常态）。改成从上到下依次排，每节占自己自然高度，不存在谁长谁短。 */
+  let html = `<section class="csec"><h4>解题要点</h4><ul class="clist">${pts}</ul></section>`;
+  html += `<section class="csec pit"><h4>常见失分点</h4><ul class="clist clist-pit">${pits}</ul></section>`;
+  if(String(studyCard.templates||"").trim()) html += `<section class="csec"><h4>答题框架 / 常用句式</h4><div class="tpl">${esc(tightLines(studyCard.templates||""))}</div></section>`;
+  if(hasEx) html += `<section class="csec"><h4>这类题长什么样（示例，不是本题）</h4><div class="tpl">${ex.scene? esc(ex.scene)+"<br>":""}${ex.ask? "<b>典型问法：</b>"+esc(ex.ask):""}</div></section>`;
+  return html;
 }
 /* 题目渲染入口：申论建链/复链走训练链面板；综应A 走「学习卡 → 作答 → 批改」两阶段页面 */
 /* ============ 申论整卷：入口、卷面、逐题作答 ============ */
@@ -3817,17 +4021,31 @@ function metaLineHtml(q, right){
   if(!inline && !right) return "";
   return `<div class="metarow">${inline}${right || ""}</div>`;
 }
+/* 建议结构一行、分值/难度/换一题一行，都是一行高的东西：分开摆就是两条半空的带子，
+   左边空一半、右边空一半，还白吃掉一屏里的四十像素。并成一行——结构在左，账在右。
+   展开时结构拿到整行宽，账被挤到下一行，这也是它该有的样子。 */
+function qMetaRowHtml(fmt, metaHtml){
+  const fmtHtml = fmt? fmtFoldHtml(fmt) : "";
+  if(!fmtHtml && !metaHtml) return "";
+  return `<div class="qrow">${fmtHtml}${metaHtml}</div>`;
+}
+/* 建议结构：标题→称谓→开头→主体→结尾→落款这一串，写的时候看一两眼就够了，
+   常驻在题面上等于替作答框挖掉三行高的坑。折成一行，展开才铺开。 */
+function fmtFoldHtml(fmt){
+  const steps = String(fmt).split(/[→>]/).map(x=>x.trim()).filter(Boolean);
+  const n = steps.length > 1? `<small class="prepcount">${steps.length} 步</small>` : "";
+  return `<details class="foldbox fmtbox"><summary>建议结构${n}</summary><div class="foldbody">${esc(fmt)}</div></details>`;
+}
 function qHeadHtml(showQuestion){
   const {question} = current;
   // 整卷题干里已带分值，题头不再重复报一次；难度仍保留
   // 题面不挂「题目」这个标签——题干自己会说是题；分值与「换一题」落在题干末尾那一行
   const metaQ = current && current.paperId? Object.assign({}, question, { score:0 }) : question;
-  const switchBtn = `<button class="linkbtn" id="btnSwitch">换一题</button>`;
+  const switchBtn = `<button class="tool" id="btnSwitch">换一题</button>`;
   // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）；这行只剩一颗按钮
   if(showQuestion === false) return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright">${switchBtn}</span></div>`;
   let html = `<div class="require" style="margin-top:8px"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-  if(question.suggestedFormat) html += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-  html += metaLineHtml(metaQ, switchBtn);
+  html += qMetaRowHtml(question.suggestedFormat, metaLineHtml(metaQ, switchBtn));
   return html;
 }
 /* 学习卡整页：综应A 的学习阶段与申论链的开头共用这一屏（先记知识点再动手，做的时候忘了还能随时翻）。
@@ -3840,13 +4058,13 @@ function cardPageHtml(btn){
     html += `<div class="card"><div class="card-body">${cardHtml(current.studyCard)}
       <h4 class="noteh">我的笔记</h4>
       <textarea class="noteedit" id="cardNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(module,subtype))}</textarea>
-      <div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>
       ${lp != null? `<div class="hint" style="margin-top:8px">上次作答中你翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : ""}
     </div></div>`;
   } else {
     html += `<div class="hint" style="margin-top:12px">本题没有学习卡，直接开始即可。</div>`;
   }
-  html += `<div class="actions" style="margin-top:16px"><button class="primary" id="${btn.id}">${btn.label}</button></div>`;
+  const newCardBtn = current.studyCard? `<button class="tool" id="btnNewCard">换一张学习卡</button>` : "";
+  html += `<div class="actions" style="margin-top:16px">${newCardBtn}<button class="primary" id="${btn.id}">${btn.label}</button></div>`;
   return html;
 }
 function wireCardPage(btnId, onGo){
@@ -3865,10 +4083,10 @@ function renderZyPage(){
   } else if(phase === "answer"){
     // 带材料的屏走两栏：材料与「我划的重点」进左栏，题面与作答区进右栏。DOM 顺序仍是题面→材料→作答区，
     // 窗口窄到放不下两栏时这层壳等于不存在，落回原来的上下排（划的重点照旧回到作答区上方）。
-    html = `<div class="paper-cols"><div class="c-head">${head}</div>`
+    html = `<div class="paper-cols">`
       + `<aside class="col-mat"><div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(current.question)}${matSrcTag(current.question)}<span class="mathint">选中文字划线</span></div><div id="materialBox">${materialHtml(current.question)}</div></div>`
       + `<div id="marksSlot">${marksRecapHtml(current.question)}</div></aside>`
-      + `<div class="col-work">${draftPanelHtml(null)}</div></div>`;
+      + `<div class="col-work"><div class="qhead">${draftHeadHtml()}</div>${draftAnswerHtml()}</div></div>`;
   } else {
     html += cardPageHtml({ id:"btnZyAnswer", label:"我已学习，开始作答" });
   }
@@ -3877,11 +4095,33 @@ function renderZyPage(){
   renderHeader();
   wireZyPage(phase);
 }
+/* 换一题 = 丢掉这一稿从头出题。作答框里已经有字的时候，这一下是不可逆的，
+   所以先原地拦一道：键自己变成一句问话，再点一次才真换，4 秒不动自动收回。
+   不开弹窗——写题写到一半被一层遮罩罩住，比误点更烦人。 */
+function wireSwitchBtn(onGo){
+  const b = $("#btnSwitch"); if(!b) return;
+  const label = b.textContent;
+  let armTimer = null;
+  const disarm = ()=>{
+    if(armTimer){ clearTimeout(armTimer); armTimer = null; }
+    const cur = $("#btnSwitch");
+    if(cur){ cur.textContent = label; cur.className = "tool"; cur.dataset.armed = ""; }
+  };
+  b.onclick = ()=>{
+    const ta = $("#answer");
+    const hasText = !!(ta && String(ta.value || "").trim());
+    if(!hasText || b.dataset.armed){ disarm(); onGo(); return; }   // 空着就直接换；已确认过就放行
+    b.dataset.armed = "1";
+    b.textContent = "清掉这次作答，换一题？";
+    b.className = "tool danger";
+    armTimer = setTimeout(disarm, 4000);
+  };
+}
 function wireZyPage(phase){
   const sw = $("#btnSwitch");
   if(sw){
-    if(current.paperId){ sw.textContent = "回整卷"; sw.onclick = ()=> renderPaper(); }
-    else sw.onclick = ()=> loadQuestion(current.module, current.subtype);
+    if(current.paperId){ sw.textContent = "回整卷"; sw.onclick = ()=> renderPaper(); }   // 回整卷是把卷面翻回来，不动这一题的草稿
+    else wireSwitchBtn(()=> loadQuestion(current.module, current.subtype));
   }
   if(phase === "answer"){
     wireMarks();
@@ -4238,7 +4478,7 @@ function renderPDRound(){
     return `<button type="button" class="${cls}"${it.done? " disabled" : ` data-pdopt="${i}"`}>${mark} ${esc(o)}</button>`;
   }).join("") + `</div>`;
   if(!it.done){
-    html += `<div class="actions"><button class="linkbtn" id="pdSkip">直接看答案（算未答）</button></div>`;
+    html += `<div class="actions"><button class="tool" id="pdSkip">直接看答案（算未答）</button></div>`;
   } else {
     const verdict = it.ok? `<span class="pill good">答对了</span>` : (it.picked==null? `<span class="pill bad">未作答</span>` : `<span class="pill bad">答错了${it.trap? " · "+esc(it.trap) : ""}</span>`);
     html += `<div class="actions">${verdict}</div><div class="pdexplain">${esc(it.explain || "（这题没给出解析）")}</div>`;
@@ -4271,7 +4511,7 @@ function renderPDSummary(){
     ? "答错的集中在：" + esc(trapStr) + "——下次出题会在这些辨析点上再考你。"
     : (r.form === PD_MIX? "全对——三种形式的辨析点你都站得住。" : "全对——这个形式的辨析点你站得稳。");
   html += `<p class="hint" style="margin:16px 0 0">${trapLine}</p>`;
-  html += `<div class="actions" style="justify-content:center;margin-top:16px"><button class="primary big" id="pdAgain">再来一轮</button><button class="big" id="pdHome">回首页</button></div></div>`;
+  html += `<div class="actions" style="justify-content:center;margin-top:16px"><button class="primary big" id="pdAgain">再来一轮</button><button class="ghost" id="pdHome">回首页</button></div></div>`;
   docBody.innerHTML = html; renderHeader();
   paintFab();
   $("#pdAgain").onclick = ()=> genPDRound(r.form, r.theme);
@@ -4293,7 +4533,7 @@ function ensureFlow(module, subtype, question, keyPoints){
   if(f) closeFlow(f);                // 换题：收口旧链，草稿与选区不动
   f = { id: genFlowId(), subject: subjectOf(module), module, subtype: subtype||null, sig,
         question, keyPoints: keyPoints||[], createdAt: Date.now(), closedAt: null,
-        step: "read", cardSeen: false, attempts: [], selections: [], groups: [] };   // 新链先从学习卡开头：先记知识点再动手
+        step: "draft", cardSeen: false, attempts: [] };   // 新链先从学习卡开头：先记知识点再动手，看完直接作答
   state.flows.push(f);
   _flowId = f.id;
   pruneFlows();
@@ -4391,6 +4631,14 @@ function scrollToDocTop(){
   if(!isFinite(y) || y <= 0) return;   // 已经在上头，别把页面往上推
   window.scrollTo(0, y);
 }
+/* 渲染完成后再滚：批改页是先调渲染函数、DOM 随后才更新，当场调量到的是上一屏的几何。
+   同一步内的重渲染（打字、勾选）不走这里，否则一次输入就跳一下。 */
+function scrollSheetTopSoon(){
+  if(typeof window === "undefined") return;
+  const run = ()=> scrollToDocTop();
+  if(typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(run);
+  else run();
+}
 function flowGoStep(step){
   const f = activeFlow(); if(!f) return false;
   if(FLOW_STEPS.indexOf(step) < 0) return false;
@@ -4398,242 +4646,46 @@ function flowGoStep(step){
     banner("还没有批改结果——先在「一稿」提交阅卷，才能进入「批改」步。");
     return false;   // 不允许空批改
   }
-  if(step === "draft" && f.orgOpen) f.orgOpen = false;   // 换步进来看到的是一稿页；归类面板只在点那个入口的时候打开
   f.step = step; save();
   renderFlowStep();
   scrollToDocTop();   // 切步＝整屏换内容，把人带回纸面顶部（上面那段说明）
   return true;
 }
 
-/* ============ 找点：句子表 + 选区记录 ============ */
-/* 按句切分材料，保留字符偏移（slice(start,end) 可还原原句）；换行与空白不成句 */
-function sentenceTable(q){
-  const text = String((q && q.background) || "");
-  const out = [];
-  const re = /[^。！？；!?;\n]+[。！？；!?;]?/g;
-  let m;
-  while((m = re.exec(text))){
-    if(!m[0].trim()) continue;
-    out.push({ id: out.length, text: m[0], start: m.index, end: m.index + m[0].length });
-  }
-  return out;
-}
-/* 划选吸附：有重叠取重叠最大的句子，无重叠取最近的句子 */
-function snapSentence(sents, s, e){
-  let best = -1, bestOv = -1;
-  for(const st of sents){
-    const ov = Math.min(e, st.end) - Math.max(s, st.start);
-    if(ov > bestOv){ bestOv = ov; best = st.id; }
-  }
-  if(bestOv > 0) return best;
-  let bd = Infinity;
-  for(const st of sents){
-    const d = s < st.start? st.start - s : s - st.end;
-    if(d < bd){ bd = d; best = st.id; }
-  }
-  return best;
-}
-/* 选区记录与点选整句同构：{text,start,end,sentenceId,valid,point,free}；找点是建议不是门槛，空选区不阻断提交 */
-function addFreeSelectionRecord(f, s, e){
-  const text = String((f.question && f.question.background) || "").slice(s, e);
-  if(text.replace(/\s+/g, "").length < 4) return false;   // 至少 4 个实字
-  if(f.selections.some(sl => sl.free && sl.start === s && sl.end === e)) return false;
-  f.selections.push({ text, start:s, end:e, sentenceId: snapSentence(sentenceTable(f.question), s, e), valid:null, point:-1, free:true });
-  return true;
-}
-/* 删点必须同步重映射归类组的 facts：facts 存的是 selections 的下标，
-   只从数组里删会让后面的组指向别的句子（删到末尾还会越界成空组）。 */
-function dropSelections(f, drop){
-  if(!f || !Array.isArray(f.selections)) return false;
-  const oi = Number(f.orgIdx);
-  const keep = [], map = new Map();
-  let removedBefore = 0;
-  f.selections.forEach((sl, i)=>{
-    if(drop(sl, i)){ if(Number.isFinite(oi) && i < oi) removedBefore++; return; }
-    map.set(i, keep.length); keep.push(sl);
-  });
-  if(keep.length === f.selections.length) return false;
-  f.selections = keep;
-  for(const g of (f.groups || [])){
-    if(!Array.isArray(g.facts)) continue;
-    g.facts = g.facts.filter(si => map.has(si)).map(si => map.get(si));
-  }
-  // 当前点跟着前移：删掉它前面的点后仍停在同一个点上，删到末尾夹回最后一个
-  if(Number.isFinite(oi)) f.orgIdx = Math.max(0, Math.min(oi - removedBefore, keep.length - 1));
-  return true;
-}
-function toggleSentenceSelection(f, sid, ridStr){
-  const rids = String(ridStr || "").split(",").filter(Boolean);
-  if(rids.length){
-    // 点在已高亮的段上：移除覆盖它的所有选区记录
-    const freeIdx = new Set(), sentIds = new Set();
-    for(const r of rids){ if(/^s\d+$/.test(r)) sentIds.add(Number(r.slice(1))); else freeIdx.add(Number(r)); }
-    dropSelections(f, (sl,i)=> sl.free? freeIdx.has(i) : sentIds.has(sl.sentenceId));
-    return true;
-  }
-  const s = sentenceTable(f.question).find(x=>x.id === sid);
-  if(!s) return false;
-  f.selections.push({ text:s.text, start:s.start, end:s.end, sentenceId:sid, valid:null, point:-1, free:false });
-  return true;
-}
-/* 读材料·找点 合并渲染：点选找点（句子/自由选区）与综应式划线叠加在同一段材料上，
-   分段边界取「句子 / 选区覆盖 / 划线开合」三者的并集，保证每段状态单一。 */
-/* 分段算法只有这一处：整块渲染 = 渲染全段；划线变更后的局部重铺（materialRangeHtml）也走它——
-   另写一套就会丢掉句子点选要的 pt-seg/data-sid，表现为「这一段里点句子没反应」。
-   from/to 只截渲染范围，状态数组仍按全文算，所以片段边界与整块渲染逐字一致。 */
+/* ============ 材料渲染 ============ */
+/* 只按划线切段。找点（句子表 + 选区记录）与归类面板一起下线了（2026-11-01）：
+   那套数据结构唯一的出口是归类提纲，归类没了它就没有第二个用途；留着等于一个不起作用的控件。
+   划线仍走 loadMarks 那一份，与综应共用同一套。 */
 function mergedMaterialRange(q, f, rs, re){
   const text = String((q && q.background) || "");
   const n = text.length;
   const from = Math.max(0, Math.min(Number(rs) || 0, n));
   const to = Math.max(from, Math.min(Number(re) || 0, n));
-  const sents = sentenceTable(q);
   const marks = loadMarks(qSig(q));
-  const sidOf = new Array(n).fill(-1);
-  for(const s of sents) for(let c=s.start; c<s.end && c<n; c++) sidOf[c] = s.id;
-  const recOf = new Array(n).fill("");
-  ((f && f.selections) || []).forEach((sl,i)=>{
-    const st = sents[sl.sentenceId];
-    const s0 = sl.free? sl.start : (st? st.start : 0);
-    const e0 = sl.free? sl.end : (st? st.end : 0);
-    const tag = sl.free? String(i) : ("s" + sl.sentenceId);
-    for(let c=s0; c<e0 && c<n; c++) if(sidOf[c] >= 0) recOf[c] = recOf[c]? recOf[c] + "," + tag : tag;
-  });
   let html = "", pos = from;
   while(pos < to){
-    if(sidOf[pos] < 0){   // 句子之外（换行与空白）：只呈现划线，不可点选
-      let j = pos;
-      while(j < to && sidOf[j] < 0 && marks.has(j) === marks.has(pos)) j++;
-      html += marks.has(pos)
-        ? `<mark class="ms on" data-s="${pos}" data-e="${j}">${esc(text.slice(pos,j))}</mark>`
-        : esc(text.slice(pos,j));
-      pos = j; continue;
-    }
-    const sid = sidOf[pos], on = marks.has(pos), key = recOf[pos];
-    let k = pos;
-    while(k < to && sidOf[k] === sid && marks.has(k) === on && recOf[k] === key) k++;
-    const tagName = on? "mark" : "span";
-    html += `<${tagName} class="ms pt-seg${on? " on":""}${key? " picked":""}" data-sid="${sid}" data-s="${pos}" data-e="${k}"${key? ` data-rid="${key}"`:""}>${esc(text.slice(pos,k))}</${tagName}>`;
-    pos = k;
+    const on = marks.has(pos);
+    let j = pos;
+    while(j < to && marks.has(j) === on) j++;
+    html += on
+      ? `<mark class="ms on" data-s="${pos}" data-e="${j}">${esc(text.slice(pos,j))}</mark>`
+      : esc(text.slice(pos,j));
+    pos = j;
   }
   return html;
 }
 function mergedMaterialHtml(q, f){ return mergedMaterialRange(q, f, 0, String((q && q.background) || "").length); }
-function pickListHtml(f){
-  if(!f.selections.length) return "";
-  return f.selections.map((sl,i)=>
-    `<div class="pickline"><span class="ptag">${sl.free? "划选" : "整句"}</span><span style="flex:1 1 auto">${esc(sl.text)}</span><button class="linkbtn" data-pick="${i}">移除</button></div>`
-  ).join("");
-}
-
-/* ============ 归类：逐点走 + 提纲 ============ */
-/* 一行一组的纯文本提纲：只供批改诊断，绝不参与计分 */
-function buildOrganizeOutline(groups, selections){
-  const lines = [];
-  (groups||[]).forEach((g,i)=>{
-    const name = String((g && g.name) || "").trim();
-    const facts = ((g && g.facts) || []).map(fi=>{
-      const sl = (selections||[])[fi];
-      return sl? String(sl.text).replace(/\s+/g, " ").trim() : "";
-    }).filter(Boolean);
-    if(!facts.length && !name) return;   // 空名空点的组不成行
-    lines.push((name || ("要点" + (i+1))) + "：" + facts.join("；"));
-  });
-  return lines.join("\n");
-}
-/* 归类面板：分两段走——第一段把点归成组（组先不用起名），第二段给每一组写上位概括词。
-   为什么是这个次序：归类这个动作本身就是「先把抓手拢到一起，再给这一堆想一个上位词」。
-   命名摆在第一段里（一个点配一个输入框）会让人读成「先填词、再点材料」（2026-10-16）。
-   它是从一稿页上打开的工具，不是链上的一步（点也可以跳过不归——提纲只供批改诊断）。
-   为什么不给点编号：找点那边的清单本来就没有序号，这里冒出「第 3 个点」会让人去找那个不存在的第 3 个。 */
-function organizePanelHtml(f){
-  const sels = f.selections || [];
-  if(!sels.length) return `<div class="hint" style="margin-top:12px">还没有找到点——回读材料时点几个句子就行；直接写也可以。</div>`
-    + `<div class="actions"><button class="primary" id="btnToDraft">回到一稿</button></div>`;
-  const groups = Array.isArray(f.groups)? f.groups : [];
-  return orgPhaseOf(f) === "name"? orgNamePanelHtml(groups, sels) : orgGroupPanelHtml(f, groups, sels);
-}
-/* 面板顶上一行：左边一句操作提示，右边限时 + 回到一稿。
-   不起「归类」大标题——步骤条已经报「一稿 · 归类」，纸面再报一遍就是同一句话写两次。
-   限时摆这一行：归类这几分钟算在作答用时里，不能因为撤了题面就看不见。 */
-function orgHeadHtml(left){
-  return `<div class="secrow"><span class="hint">${left}</span><span class="secright">${limitRowHtml()}<button class="linkbtn" id="btnCloseOrg">回到一稿</button></span></div>`;
-}
-/* 面板在哪一段：显式记在链上；老链没这个字段时按「点还没走完」算第一段 */
-function orgPhaseOf(f){ return f && f.orgPhase === "name"? "name" : "group"; }
-/* 第一段：一屏一个点，点一下归入某一组（可以多归）；组名先空着，空名的组叫「要点N」。
-   主次：当前点与它要归的组是这一屏唯一的主角（点卡），进度退成一行灰字；
-   「新建一组」与已有的组同排——同一排才读成「归到这里，或者新建一个」。 */
-function orgGroupPanelHtml(f, groups, sels){
-  const idx = Math.min(Math.max(Number(f.orgIdx) || 0, 0), sels.length - 1);
-  const holder = holderOf(groups, sels);
-  const inGroups = si => (holder[si] || []);
-  const cur = sels[idx] || {};
-  const doneCnt = sels.filter((sl,si)=> inGroups(si).length).length;
-  const last = idx >= sels.length - 1;
-  // 这个点归到哪几组：可以多选——同一个点既能算「制度建设」也能算「服务效能」，再点一次就取消
-  const cats = groups.map((g,i)=>{
-    const on = inGroups(idx).indexOf(i) >= 0;
-    return `<button class="ogcat${on? " on":""}" data-og="${i}" aria-pressed="${on? "true":"false"}">${esc(groupLabel(groups, i))}<i>${(g.facts||[]).length}</i></button>`;
-  }).join("");
-  return `${orgHeadHtml("把这个点归进某一组 · 已归 " + doneCnt + " / " + sels.length + " 个点")}
-    <div class="ognow">
-      <div class="ogcard">
-        <div class="ogcats" id="ogCats">${cats}<button class="ogcat ognew" id="btnNewCat">+ 新建一组</button></div>
-        <div class="ogcur"><span class="ptag">${cur.free? "划选":"整句"}</span><span class="atext">${esc(cur.text||"")}</span></div>
-      </div>
-      <div class="actions">
-        <button id="btnOrgPrev"${idx? "":" disabled"}>上一个点</button>
-        <button class="primary" id="btnOrgNext">${last? "分组完毕，去命名" : "下一个点"}</button>
-      </div>
-    </div>
-    <details class="notebox" style="margin-top:16px"><summary>已找的点（${sels.length} 个 · 已归 ${doneCnt} 个）</summary><div class="notebody">${
-      sels.map((sl,si)=>{
-        const gs = inGroups(si);
-        const where = gs.length? gs.map(gi=> esc(groupLabel(groups, gi))).join("、") : "还没归";
-        return `<div class="pickline ogline${si===idx? " cur":""}"><span class="ptag">${sl.free? "划选":"整句"}</span><span style="flex:1 1 auto">${esc(sl.text)}</span><button class="linkbtn" data-jump="${si}">${gs.length? esc(where) : "去归它"}</button></div>`;
-      }).join("")
-    }</div></details>`;
-}
-/* 第二段：一屏给每一组写上位概括词——这时候整组的内容都摆在眼前，概括才有的放矢。
-   提纲不在这里显示：它是这一段的产物，摆在一稿页（写完抬眼就能核对），这一屏只管把组起好名。 */
-function orgNamePanelHtml(groups, sels){
-  const rows = groups.map((g,i)=>{
-    const pts = (g.facts||[]).filter(si=> sels[si]);
-    /* 组名是这一组的标题：输入框占整行、字大一号；句子在下面当证据。
-       空组靠 placeholder 报「第 N 组」，不另起一行标签。 */
-    return `<div class="ogname"><div class="ogh">`
-      + `<input type="text" class="ogin" data-ogname="${i}" placeholder="给第 ${i+1} 组起个名" value="${esc(String(g.name||""))}">`
-      + `<span class="ogprog">${pts.length} 个点</span></div>`
-      + `<div class="ognpts">${pts.map(si=> `<div class="pickline"><span class="ptag">${sels[si].free? "划选":"整句"}</span><span style="flex:1 1 auto">${esc(sels[si].text)}</span></div>`).join("") || '<div class="hint">这一组还是空的。</div>'}</div>`
-      + `</div>`;
-  }).join("");
-  return `${orgHeadHtml("给每一组起个名（可跳过，不计分）")}
-    ${rows ? `<div class="ognames">${rows}</div>` : '<p class="hint">还没有分组，先回去把点归一下。</p>'}
-    <div class="actions">
-      <button id="btnBackToGroup">回去改分组</button>
-      <button class="primary" id="btnOrgDone">写完了，回到一稿</button>
-    </div>`;
-}
-/* 每个点被哪几组收着（组序号数组）——用来在已归清单上标「也在「X」」 */
-function holderOf(groups, sels){
-  const h = {};
-  (groups||[]).forEach((g,i)=> (g.facts||[]).forEach(si=>{ if(sels[si]) (h[si] = h[si] || []).push(i); }));
-  return h;
-}
-function groupLabel(groups, gi){
-  const g = (groups||[])[gi] || {};
-  const nm = String(g.name||"").trim();
-  return nm || ("要点" + (gi+1));
-}
 /* ============ 申论训练链：面板渲染 ============ */
 let lastGrade = null;   // 最近一次批改 { g, total }：批改步的重渲染只读它，不重调 AI
 
 function railHtml(f){
-  /* 归类是一稿的子工具：步骤条当前步报「一稿 · 归类」，纸面就不再另起一个「归类」标题。
-     抬头已经报了「你在哪」，纸上再写一遍就是同一句话写两次。 */
-  const suffix = (f && f.orgOpen)? " · 归类" : "";
   return `<div class="railwrap"><div class="flowrail" id="flowRail">` +
-    syncRail(f).map(s=>`<span class="fstep ${s.state}" data-step="${s.step}">${s.label}${s.step === "draft"? suffix : ""}</span>`).join("") + `</div></div>`;
+    syncRail(f).map(s=>`<span class="fstep ${s.state}" data-step="${s.step}">${s.label}</span>`).join("") + `</div></div>`;
+}
+function prevNavBtnHtml(step){
+  const i = FLOW_STEPS.indexOf(step);
+  const prev = i > 0? FLOW_STEPS[i-1] : null;
+  return prev? `<button class="ghost sm" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>` : "";
 }
 function navHtml(step){
   const i = FLOW_STEPS.indexOf(step);
@@ -4641,19 +4693,19 @@ function navHtml(step){
   // 链上每一步都自带主行动（找点完毕动笔写 / 提交阅卷）；末步「批改」之后没有下一步，
   // 去哪由批改页自己的按钮交代（同模块再来一道 / 看我的画像）。所以这里只留「上一步」。
   let html = `<div class="fnav">`;
-  if(prev) html += `<button class="linkbtn" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
+  if(prev) html += `<button class="ghost" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
   return html + `</div>`;
 }
 function renderChainCard(f){
-  docBody.innerHTML = qHeadHtml(false) + cardPageHtml({ id:"btnChainStart", label:"我已学习，开始读材料" });
+  docBody.innerHTML = qHeadHtml(false) + cardPageHtml({ id:"btnChainStart", label:"我已学习，开始作答" });
   paintFab();
   renderHeader();
-  $("#btnSwitch").onclick = ()=> loadQuestion(current.module, current.subtype);
+  wireSwitchBtn(()=> loadQuestion(current.module, current.subtype));
   wireCardPage("btnChainStart", ()=>{ f.cardSeen = true; save(); renderFlowStep(); });
 }
-/* 哪几步带学习卡浮标：读材料时看卡不计次，一稿阶段翻卡计次（计次只属作答阶段）。
-   表里只列真能取到的 step——FLOW_STEPS 是 read/draft/review，别的都到不了这里。 */
-const FAB_BY_STEP = { read:{ act:"看学习卡", count:false }, draft:{ act:"翻学习卡", count:true } };
+/* 哪几步带学习卡浮标：只剩作答一步，翻卡计次（计次只属作答阶段）。
+   表里只列真能取到的 step——FLOW_STEPS 是 draft/review，别的都到不了这里。 */
+const FAB_BY_STEP = { draft:{ act:"翻学习卡", count:true } };
 function renderFlowStep(){
   if(!current || !current.question){ renderStart(); return; }
   const f = activeFlow();
@@ -4669,55 +4721,35 @@ function renderFlowStep(){
     else if(f){ f.step = "draft"; save(); step = "draft"; }
   }
   const {question} = current;
-  const showTl = step === "read";   // 读材料步也把限时摆出来：时钟从「开始作答」就起算，一稿页自己有这一行
-  // 步骤条摆在纸面第一行：它说的是「我现在在哪」，不是这道题的题干，不该夹在要求与当前步面板之间
-  let html = f? railHtml(f) : "";
-  /* 归类面板开着时不摆题面：这一屏的任务是「把已找的点归组、起名」，不是作答。
-     题目行（含「换一题」）与「作答要求」都撤掉——「换一题」在这里既打断归类，又和「回到一稿」抢路。
-     限时不能跟着走：归类这几分钟算在作答用时里，它挪进归类标题行右侧（见 organizePanelHtml）。 */
-  const orgOpen = !!(f && step === "draft" && f.orgOpen);
-  let head = "";
+  let html = "";
   // 批改步不重复题面：这一页的头是分数（换一题在分数那一行右侧，见 gradeHtml 的 .ghead）
-  if(!orgOpen && step !== "review"){
-    head += `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-    if(question.suggestedFormat) head += `<div class="require"><b>建议结构：</b>${esc(question.suggestedFormat)}</div>`;
-    head += metaLineHtml(question, `<button class="linkbtn" id="btnSwitch">换一题</button>${showTl? limitRowHtml() : ""}`);
-  }
-  const work = `<div id="flowPanel">${stepPanelHtml(step, f, lg)}</div>` + (f? navHtml(step) : "");
-  /* 带材料的两步（读材料 / 一稿，归类面板算一稿的另一张脸）在窗口够宽时改两栏：材料进左栏、
-     当前步的面板进右栏。读的时候右栏是「你挑下来的点」，写的时候是作答区——材料上挑过的点两栏都还
-     亮着，不必回上一步去对。批改步与学习卡不带材料，仍是单栏。窄到放不下两栏时这层壳等于不存在，
+  let head = "";
+  if(step === "draft") head = draftHeadHtml();    // 作答步的头与综应作答页一字不差：工具行 / 要求 / 参考行
+  const work = `<div id="flowPanel">${stepPanelHtml(step, f, lg)}</div>` + (f && step !== "draft"? navHtml(step) : "");
+  const pre = "";   // 经验与限时都进了 draftHeadHtml 的那三行，右栏顶上不再单起一条
+  /* 作答步在窗口够宽时两栏：材料进左栏（可划线），题面与作答区进右栏。
+     批改步与学习卡不带材料，仍是单栏。窄到放不下两栏时这层壳等于不存在，
      DOM 顺序（题面 → 材料 → 面板）就是原来的上下排。 */
-  const mat = (step === "read" || step === "draft")? chainMatHtml(step, f) : "";
-  html += mat? `<div class="paper-cols"><div class="c-head">${head}</div><aside class="col-mat">${mat}</aside><div class="col-work">${work}</div></div>`
-             : head + work;
+  const mat = (step === "draft")? chainMatHtml(f) : "";
+  html += mat? `<div class="paper-cols"><aside class="col-mat">${mat}</aside>`
+                 + `<div class="col-work"><div class="qhead">${head}</div>${pre}${work}</div></div>`
+             : `<div class="qhead">${head}</div>` + pre + work;
   docBody.innerHTML = html;
   const fb = FAB_BY_STEP[step];   // 浮标挂在纸面之外：写与读材料时随时能翻卡
   paintFab(fb && fb.act, fb && fb.count);
   renderHeader();
   wireStep(step, f);
 }
-/* 链上左栏那块材料。读材料步不带 mat-scroll（那一屏它就是工作台，单栏时铺满别砍），
-   一稿步带着（单栏时收几行，别让作答区掉出首屏）；两栏时两条都由 --mat-col-h 接管。
-   两栏共用 mergedMaterialHtml：挑过的点在写的时候仍然亮着，不用回上一步去对。 */
-function chainMatHtml(step, f){
+/* 链上左栏那块材料。带 mat-scroll：单栏时收几行、行内自己滚，别让作答区掉出首屏；
+   两栏时高度由 --mat-col-h 接管。渲染走 mergedMaterialHtml（按划线切段），
+   划线就在这块材料上划，划过的话写的时候还亮着。 */
+function chainMatHtml(f){
   const question = current.question;
-  const label = step === "read"? "背景材料 · 读材料与找点" : "背景材料";
-  return `<div class="material${step === "read"? "" : " mat-scroll"}"><div class="label">${label} ${fromMatTag(question)}${matSrcTag(question)}</div>`
+  return `<div class="material mat-scroll"><div class="label">背景材料 ${fromMatTag(question)}${matSrcTag(question)}<span class="mathint">选中文字划线</span></div>`
     + `<div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
 }
 function stepPanelHtml(step, f, lg){
-  if(step === "read"){
-    let html = "";
-    // 说明只写一遍：之前块头括号里又把同一件事重说了一遍（点句子=选为要点、选中文字=划线/选要点）
-    html += `<div class="hint" style="margin-top:12px">点句子即可选为要点；也可以拖选几个字划线。找点是作答建议——不选也不影响交卷。</div>`;
-    html += `<div class="hint" id="pickCount" aria-live="polite">已选 ${f? f.selections.length : 0} 处</div>`;
-    html += `<div id="pickList">${f? pickListHtml(f) : ""}</div>`;
-    html += `<div class="actions" style="margin-top:16px"><span id="cardHost"></span><button class="primary" id="btnToDraft">找点完毕，动笔写</button></div>`;
-    return html;
-  }
-  // 归类降级成一稿页上的入口：f.orgOpen 打开时，一稿那一屏就换成归类面板
-  if(step === "draft") return (f && f.orgOpen)? organizePanelHtml(f) : draftPanelHtml(f);
+  if(step === "draft") return draftAnswerHtml(prevNavBtnHtml(step));
   if(step === "review"){
     // 这句提示只留给「没有链」的老路径：有链又取不到结果时，上面已经退回一稿了，不会停在这一屏
     if(!lg) return `<div class="hint" style="margin-top:12px">还没有批改结果。</div>`;
@@ -4730,7 +4762,7 @@ function stepPanelHtml(step, f, lg){
    读了多久、归了多久、写了多久都算在里，切步与刷新不重置；交卷停表（再进一稿是下一次尝试）。
    剩余时间在题目行与作答区标题行右侧，剩最后 5 分钟转焦橙，第一次超时时报一声
    （不自动交卷：写到一半被截断是不可逆的）。 */
-let _timeUpSaid = false, _timeTick = null;
+let _timeTick = null;
 function curLimitMin(){
   const f = activeFlow();
   if(f && current && f.sig === qSig(current.question)) return (f.limitMin != null)? f.limitMin : (state.settings.timeLimit || 0);
@@ -4753,15 +4785,16 @@ function setLimitState(min, from){   // 申论跨步要持久（挂在链上）�
 }
 function ensureLimitStart(){   // 开始作答就起算：整一道题只起算一次，切步与刷新都不重置
   if(!curLimitMin() || curLimitFrom()) return;
-  _timeUpSaid = false;
   setLimitState(curLimitMin(), Date.now());
 }
 function limitRowHtml(){
   const cur = curLimitMin();
-  return `<span class="tlrow"><span class="tlcap">限时</span><span class="tlleft" id="timeLeft"></span><span class="tlset">` +
+  return `<span class="tlrow"><span class="tlset">` +
     `<input class="tlin" id="inpLimit" type="number" min="1" max="${LIMIT_MAX}" step="1" inputmode="numeric"` +
-    ` placeholder="不限时" value="${cur? esc(String(cur)) : ""}" title="作答限时（分钟，留空为不限时）" aria-label="作答限时（分钟）">` +
-    `<span class="tlunit">分钟</span></span></span>`;
+    ` placeholder="不限时" value="${cur? esc(String(cur)) : ""}" title="限时：填分钟数，留空为不限时" aria-label="限时（分钟）">` +
+    `<span class="tlunit">分</span>` +
+    `<button class="tlicon" id="btnLimitStart" title="开始计时：从现在算到结束" aria-label="开始计时">▶</button>` +
+    `</span></span>`;
 }
 function fmtClock(sec){   // mm:ss：剩余时间、用时、超时都用这一种写法
   const s = Math.max(0, Math.round(sec));
@@ -4783,12 +4816,10 @@ function paintTimeLeft(el){
   const m = curLimitMin(), from = curLimitFrom();
   if(!m || !from){ el.textContent = ""; el.className = "tlleft"; return; }
   const left = m*60 - Math.round((Date.now() - from)/1000);
-  el.className = "tlleft" + (left <= 300? " warn" : "");
+  // 时限自己就是那行读数：还剩五分钟转焦橙，走到负数直接标红。不弹提示条——
+  // 提示条要占一条纸面、还要人点掉，而这件事实时就写在眼前这个数字上。
+  el.className = "tlleft" + (left < 0? " over" : left <= 300? " warn" : "");
   el.textContent = left >= 0? `剩余 ${fmtClock(left)}` : `已超时 ${fmtClock(-left)}`;
-  if(left < 0 && !_timeUpSaid){
-    _timeUpSaid = true;
-    banner("时间到。可以停笔交卷，也可以写完再交——记录里会记下超时。");
-  }
 }
 function wireTimeControls(){   // 限时控件的接线只有一份：起算 + 换时长 + 剩余时间的表
   ensureLimitStart();
@@ -4818,7 +4849,6 @@ function setTimeLimit(m){
   const started = curLimitFrom();
   setLimitState(m, m? (started || Date.now()) : 0);
   state.settings.timeLimit = m; save();   // 记住这个选择：下一题按同样时长起
-  _timeUpSaid = false;
   const inp = $("#inpLimit");
   if(inp){ const want = m? String(m) : ""; if(inp.value !== want) inp.value = want; }   // 取整 / 超上限的实际值回写进框里
   const el = $("#timeLeft");
@@ -4839,7 +4869,7 @@ function paintFab(act, count){
   if(host) host.innerHTML = act? cardFabHtml(act, count) : "";
 }
 function cardFabHtml(act, count){
-  return `<button class="fab" id="btnCard">${act}${count? `<span class="fabcount"> · 已翻 <b>${current.cardPeeks||0}</b> 次</span>` : ""}</button>`;
+  return `<button class="fab" id="btnCard">${act}${count? `<span class="fabcount"> · <b>${current.cardPeeks||0}</b> 次</span>` : ""}</button>`;
 }
 function cardDrawerHtml(){
   return `<div class="drawer" id="cardDrawer" hidden><div class="sheet">
@@ -4860,7 +4890,7 @@ function openCardDrawer(count){
   const lp = lastPeeks(mod, sub);
   $("#drawerBody").innerHTML = (current.studyCard? cardHtml(current.studyCard) : '<span class="hint">本题没有学习卡。</span>')
     + `<h4 class="noteh">我的笔记</h4><textarea class="noteedit" id="drawerNote" placeholder="用自己的话记要点——自己写的，印象才深。">${esc(getNote(mod,sub))}</textarea>`
-    + `<div class="actions"><button class="linkbtn" id="btnNewCard">换一张学习卡</button></div>`
+    + `<div class="actions"><button class="tool" id="btnNewCard">换一张学习卡</button></div>`
     + (lp != null? `<div class="hint" style="margin-top:8px">这张卡：上次练习翻了 ${lp} 次卡。翻得越少越熟——这次试试比上次少。</div>` : "");
   $("#btnDrawerClose").onclick = ()=>{ $("#cardDrawer").hidden = true; };
   const dn = $("#drawerNote");
@@ -4871,31 +4901,98 @@ function openCardDrawer(count){
   $("#cardDrawer").hidden = false;
 }
 function wireCardDrawer(count){ const b = $("#btnCard"); if(b) b.onclick = ()=> openCardDrawer(!!count); }
-function draftPanelHtml(f){
+/* 作答区为什么拆成三块（经验 / 控制行 / 作答框）：两栏时材料与作答框必须从同一根横线起，
+   而经验那一行与控制行原本都堆在右栏顶上，正好把作答框压下去一截。它们改成 .paper-cols 的直接子元素，
+   两栏时坐在材料与作答框上面那一格里（左一右一），单栏时按 DOM 顺序仍落在材料与作答框之间。 */
+function draftCtrlHtml(){
+  return `<div class="secrow ctrlrow"><span class="secright"><span id="cardHost"></span>${limitRowHtml()}</span></div>`;
+}
+/* 经验一行、限时一行，两行都只有半句高，分开摆就是上下两条细缝，白吃掉一屏里的三四十像素。
+   合成一行：左边「动笔前 · 经验 N 条」，右边学习卡与限时，各占各的半边。 */
+function draftPrebarHtml(){
+  return `<div class="prebar">${prepRulesHtml(current.module)}${draftCtrlHtml()}</div>`;
+}
+/* 工具行：分值 · 难度 · 换一题 ·（学习卡 + 限时）。
+   学习卡与限时并成一组，宽窗排在同一行末端，窄窗一起折到下一行——不会被拆成两行。 */
+function toolsRowHtml(q){
+  return `<div class="qtools">${metaInlineHtml(q)}`
+    + `<button class="tool" id="btnSwitch">换一题</button>`
+    + `<span class="toolsend"><span id="cardHost"></span>${limitRowHtml()}</span></div>`;
+}
+/* 作答页的头，三行：
+   工具行（分值 · 难度 · 换一题 · 学习卡 · 限时），作答要求，参考行（建议结构 · 经验）。
+   以前这些东一样西一样分了五行，每行只有半句高，白吃掉一屏里作答框三行的高度。 */
+function draftHeadHtml(){
+  const {question} = current;
+  const metaQ = current && current.paperId? Object.assign({}, question, { score:0 }) : question;
+  const tools = toolsRowHtml(metaQ);
+  const req = `<div class="require"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
+  const folds = (question.suggestedFormat || expCount(current.module))
+    ? `<div class="qrow foldrow">${fmtBtnHtml(question.suggestedFormat)}${expBtnHtml(current.module)}</div>` : "";
+  return tools + req + folds;
+}
+/* 建议结构与经验：都折成一颗小按钮，点开是弹层。
+   内联展开会把下面的作答框往下推一截，而这两样是「想起来才看一眼」的东西，不该常驻占位。 */
+function fmtBtnHtml(fmt){
+  const steps = String(fmt||"").split(/[→>]/).map(x=>x.trim()).filter(Boolean);
+  if(!steps.length) return "";
+  return `<button class="tool foldbtn" id="btnFmtFold">建议结构<small>${steps.length} 步</small></button>`;
+}
+function expCount(k){
+  return (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k).length;
+}
+function expBtnHtml(k){
+  const n = expCount(k);
+  if(!n) return "";
+  return `<button class="tool foldbtn" id="btnExpFold">经验<small>${n} 条</small></button>`;
+}
+function openFoldModal(title, html){
+  const t = $("#foldTitle"), p = $("#foldPanel");
+  if(!t || !p) return;
+  t.textContent = title;
+  p.innerHTML = html;
+  openModal("modalFold");
+}
+function wireDraftHead(){
+  const bf = $("#btnFmtFold");
+  if(bf) bf.onclick = ()=>{
+    const steps = String(current.question.suggestedFormat||"").split(/[→>]/).map(x=>x.trim()).filter(Boolean);
+    openFoldModal("建议结构", `<ol class="foldsteps">${steps.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`);
+  };
+  const be = $("#btnExpFold");
+  if(be) be.onclick = ()=>{
+    const list = prepRules(current.module);
+    openFoldModal("动笔前 · 你在这类题上攒下的经验",
+      list.map(e=>`<div class="prepline"><span class="etag">${esc(e.type)}</span><b>${esc(e.title)}</b> <span class="prepbody">${esc(e.body)}</span></div>`).join("")
+      || `<div class="hint">这一块还没有攒下的经验。</div>`);
+  };
+  const bi = $("#btnLimitStart");
+  if(bi) bi.onclick = ()=>{
+    const m = normLimitMin($("#inpLimit") && $("#inpLimit").value);
+    if(!m){ banner("先填一个分钟数，再点开始。"); return; }
+    setLimitState(m, Date.now());
+    const el = $("#timeLeft"); if(el) paintTimeLeft(el);
+    if($("#timeLeft") && !_timeTick) startTimeLeft();
+  };
+}
+/* 字数徽标在框内右下角（浅灰，压在纸面上），不占动作条的位置——那一格留给「上一步」。
+   prevNav 是链上回退按钮的 HTML，只有申论一稿步传得进来；综应A 两阶段没有上一步，这里就是空。 */
+function draftAnswerHtml(prevNav){
   const {module} = current;
-  // 归类不再占一步：它是作答区那一行右侧的一个入口，想先理一遍要点再写就点它，归完回到这里
-  const gN = f? (f.groups || []).length : 0;
-  const orgBtn = f? `<button id="btnOpenOrg">${gN? `看我归的类（${gN} 类）` : "先归类再写"}</button>` : "";
-  let html = prepRulesHtml(module);   // 作答前的规则展示位：动笔之前先看见自己攒下的经验
-  // 提纲的产地是归类、摆的地方是这里：写完抬眼就能核对「我准备按几组写」，默认收起不占首屏
-  const outline = f? buildOrganizeOutline(f.groups, f.selections) : "";
-  const outlineBlock = outline
-    ? `<details class="notebox" id="outlineBox" style="margin:0 0 12px"><summary>我归的提纲（${outline.split("\n").length} 组 · 点开看）</summary><div class="notebody"><div class="tpl">${esc(outline)}</div></div></details>`
-    : "";
-  html += `<div class="answer-wrap" id="answerArea">
-    <div class="secrow" style="justify-content:flex-end"><span class="secright"><span id="cardHost"></span>${orgBtn}${limitRowHtml()}</span></div>
-    ${outlineBlock}
-    <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
-    <div class="actions">
+  return `<div class="answer-wrap" id="answerArea">
+    <div class="answer-box">
+      <div class="answer-scroll">
+        <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
+        <span class="boxmeta"><span class="tlleft" id="timeLeft"></span><span class="counter wordb" id="wordCount"><b>0</b> 字</span></span>
+      </div>
+    <div class="actions actbar">
+      ${prevNav || ''}
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
       <button class="primary" id="btnSubmit">提交阅卷</button>
-      <span class="counter" id="wordCount"><b>0</b> 字</span>
-      <span class="hint" id="draftNote" aria-live="polite"></span>
-      
       <span class="hint" id="gradeLive" aria-live="polite"></span>
     </div>
+    </div>
     <div class="peek" id="gradePeek"></div></div>`;
-  return html;
 }
 
 /* ============ 申论训练链：交互接线 ============ */
@@ -4904,13 +5001,11 @@ let _markOutsideHandler = null;   // 每次重渲染都要换一个新的（闭�
    动画填到最后那帧的 transform 算出来是单位矩阵而不是 none——那个盒子因此成了 absolute 子元素的
    定位基准。小窗的 left/top 本来是按文档坐标算的（选区的 rect + 滚动量），于是又被叠上那个容器的
    偏移，弹到右下角去（实测偏出 206 / 355 像素）。学习卡浮标早就为同一个坑挂到了纸面外，小窗照它办。 */
-function ensureMarkPop(withPick){
+function ensureMarkPop(){
   const slot = $("#popSlot"); if(!slot) return null;
-  const mode = withPick? "pick" : "mark";
   let p = $("#markPop");
-  if(!p || p.dataset.mode !== mode){   // 两种页面的按钮数不同（读材料步多一个「选为要点」），换了页就重建
-    slot.innerHTML = `<div class="markpop" id="markPop" data-mode="${mode}">`
-      + `<button id="popMark">划线</button>` + (withPick? `<button id="popPick">选为要点</button>` : "") + `</div>`;
+  if(!p){
+    slot.innerHTML = `<div class="markpop" id="markPop"><button id="popMark">划线</button></div>`;
     p = $("#markPop");
   }
   p.style.display = "none";   // 切页时上一次选中留下的那个不能还亮着
@@ -4918,7 +5013,7 @@ function ensureMarkPop(withPick){
 }
 function wireMarks(unmarkOnClick){
   const sig = qSig(current.question);
-  const mbox = $("#materialBox"), pop = ensureMarkPop(unmarkOnClick === false);
+  const mbox = $("#materialBox"), pop = ensureMarkPop();
   const hidePop = ()=>{ if(pop) pop.style.display = "none"; };
   const charOffset = (node, off) => {
     const sp = node.parentElement && node.parentElement.closest(".ms");
@@ -4995,122 +5090,33 @@ function wireDraft(f){
   if(module===GONGWEN_KEY && $("#btnTpl")) $("#btnTpl").onclick = insertSkeleton;
   $("#btnSubmit").onclick = submitAnswer;
   // 归类是这一页上的入口（链上不再占一步）：点开就是逐点走那一屏，归完回到这里
-  const bo = $("#btnOpenOrg"); if(bo && f) bo.onclick = ()=>{ f.orgOpen = true; save(); renderFlowStep(); };
   wireCardDrawer(true);   // 作答步：翻卡计次（越少越熟）
   // 草稿保护：边写边存；签名不同（换了题）就不会串味；字数上限以本地表为准
   const sig = qSig(question);
   const limit = ansLimitFor(module, question);
   const ta = $("#answer");
   const draft = loadDraft(sig);
-  if(draft){ ta.value = draft; $("#draftNote").textContent = "已恢复上次未提交的草稿"; }
+  if(draft) ta.value = draft;   // 静默恢复：框里有字本身就是恢复的证据，不必再贴一句「已恢复」
   setWordCount(ta.value, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
+  wireDraftHead();   // 建议结构 / 经验两颗按钮进弹层，限时旁边那颗 ▶ 起表
   // 作答限时：进作答区就把这次的时钟接上；下拉只改时长，不重渲
   wireTimeControls();
-}
-function wireOrganize(f){
-  const sels = f.selections || [];
-  const backToDraft = ()=>{ f.orgOpen = false; save(); renderFlowStep(); };   // 归类面板收起 = 回到一稿
-  // 换点、跳点、重画都走这一手：重渲染后 DOM 是新的，选中态与清单自然跟上
-  const goTo = i => { f.orgIdx = Math.max(0, Math.min(i, sels.length - 1)); save(); renderFlowStep(); };
-  const at = ()=> Math.max(0, Math.min(Number(f.orgIdx) || 0, sels.length - 1));
-  const prev = $("#btnOrgPrev"); if(prev) prev.onclick = ()=> goTo(at() - 1);
-  const next = $("#btnOrgNext"); if(next) next.onclick = ()=>{
-    if(at() >= sels.length - 1){ f.orgPhase = "name"; save(); return renderFlowStep(); }   // 点走完 = 进命名那一段
-    goTo(at() + 1);
-  };
-  const cats = $("#ogCats");
-  if(cats) cats.onclick = ev=>{
-    const b = (ev.target && ev.target.closest)? ev.target.closest("[data-og]") : null;
-    if(!b) return;
-    const g = (f.groups || [])[Number(b.dataset.og)]; if(!g) return;
-    if(!Array.isArray(g.facts)) g.facts = [];
-    const si = at(), at2 = g.facts.indexOf(si);
-    if(at2 >= 0) g.facts.splice(at2, 1); else g.facts.push(si);   // 再点一次 = 这个点不算这一类
-    save(); renderFlowStep();
-  };
-  // 建组不再当场问名字：第一段只管把点归拢，起名留到第二段（2026-10-16）
-  const bc = $("#btnNewCat");
-  if(bc) bc.onclick = ()=>{
-    if(!Array.isArray(f.groups)) f.groups = [];
-    f.groups.push({ name:"", facts:[at()] });
-    save(); renderFlowStep();
-  };
-  const box = $("#flowPanel");   // 「已找的点」里点类名 = 跳到那个点
-  if(box) box.onclick = ev=>{
-    const b = (ev.target && ev.target.closest)? ev.target.closest("[data-jump]") : null;
-    if(b) goTo(Number(b.dataset.jump));
-  };
-  const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> backToDraft();
-  const bk = $("#btnCloseOrg"); if(bk) bk.onclick = ()=> backToDraft();
-  // 第二段（命名）：组名边写边存。失焦不重画——change 先于 click 触发，重画会把紧随其后的按钮换掉，
-  // 第一次点击就落在已分离的节点上。提纲在一稿页按现值渲染，不需要在这里跟着重画。
-  if(box) box.oninput = ev=>{
-    const inp = (ev.target && ev.target.closest)? ev.target.closest("[data-ogname]") : null;
-    if(!inp) return;
-    const g = (f.groups || [])[Number(inp.dataset.ogname)]; if(!g) return;
-    g.name = String(inp.value || ""); save();
-  };
-  const bg = $("#btnBackToGroup"); if(bg) bg.onclick = ()=>{ f.orgPhase = "group"; save(); renderFlowStep(); };
-  const dn = $("#btnOrgDone"); if(dn) dn.onclick = ()=> backToDraft();
-  wireTimeControls();   // 归类这一屏也在计时：题面那行的剩余时间照常走
 }
 function wireStep(step, f){
   // 「批改」这一屏整块不渲题面，「换一题」只由 gradeHtml 出；取不到就跳过——
   // 一个不存在的按钮不该掀翻这一屏剩下的接线（上一步、再来一道、自述框全靠后面几行）
-  const sw = $("#btnSwitch"); if(sw) sw.onclick = ()=> loadQuestion(current.module, current.subtype);
-  if(step === "read") wireTimeControls();
+  if($("#btnSwitch") && !(current && current.paperId)) wireSwitchBtn(()=> loadQuestion(current.module, current.subtype));
   const prevBtn = $("#btnFlowPrev"); if(prevBtn) prevBtn.onclick = ()=> flowGoStep(FLOW_STEPS[Math.max(0, FLOW_STEPS.indexOf(step)-1)]);
-  if(step === "read"){
-    wireMarks(false);
-    const bd = $("#btnToDraft"); if(bd) bd.onclick = ()=> flowGoStep("draft");
-    const pp = $("#popPick");
-    if(pp) pp.onclick = ()=>{
-      const pop = $("#markPop"); if(!pop) return;
-      const fl = activeFlow(); if(!fl) return;
-      const s = Number(pop.dataset.s), e2 = Number(pop.dataset.e);
-      if(!addFreeSelectionRecord(fl, s, e2)){
-        const idx = fl.selections.findIndex(sl => sl.free && sl.start === s && sl.end === e2);
-        if(idx < 0) return;
-        dropSelections(fl, (_sl,i)=> i === idx);   // 同一选区再点一次=取消要点（组里的下标同步前移）
-      }
-      save(); renderFlowStep();
-    };
-      wireCardDrawer(false);   // 读材料步：看卡不计次（计次只属作答阶段）
-  }
-  if(step === "draft"){
-    if(f && f.orgOpen) wireOrganize(f);   // 归类面板打开时，这一屏就是它（没有作答区可接）
-    else wireDraft(f);
-  }
+  /* 作答步一次接三样：材料划线、学习卡抽屉（计次）、作答框与限时（wireDraft 里连时钟一起接）。
+     原来划线归「读材料」那一步，现在材料就在作答页左栏，划完接着写，不用切步。 */
+  if(step === "draft"){ wireMarks(false); wireCardDrawer(true); wireDraft(f); }
   if(step === "review"){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
     const bd = $("#btnDone"); if(bd) bd.onclick = finishCurrent;
     wireSelfNote();
   }
-}
-/* 找点已并入读材料步：这里的监听只服务合并后的 read 步（点句子=找点开关，选区弹窗=划线/选要点） */
-let _flowListeners = false;
-function installFlowListeners(){
-  if(_flowListeners) return;
-  _flowListeners = true;
-  docBody.addEventListener("click", e=>{
-    if(!e.target || !e.target.closest) return;
-    const pick = e.target.closest("[data-pick]");
-    if(pick){
-      const f = activeFlow();
-      if(f && f.step === "read"){ dropSelections(f, (_sl,i)=> i === Number(pick.dataset.pick)); save(); renderFlowStep(); }
-      return;
-    }
-    const sp = e.target.closest(".pt-seg");
-    if(sp){
-      const f = activeFlow();
-      if(!f || f.step !== "read" || !current || !current.question) return;
-      const sel = window.getSelection();
-      if(sel && !sel.isCollapsed) return;   // 划选交给选区弹窗，不当成整句点击
-      if(toggleSentenceSelection(f, Number(sp.dataset.sid), sp.dataset.rid || "")){ save(); renderFlowStep(); }
-    }
-  });
 }
 
 let _tplArm = 0;   // 两步确认的落点：不用 window.confirm —— Electron 里弹过原生对话框后窗口焦点会坏（打不了字、光标消失）
@@ -5148,7 +5154,6 @@ async function submitAnswer(){
   const mod = current.module, sub = current.subtype, q = current.question;
   const f = activeFlow();
   const inFlow = !!(f && f.sig === qSig(q));
-  const outline = inFlow? buildOrganizeOutline(f.groups, f.selections) : "";   // 归类提纲：只进 prompt 供诊断
   const kps = current.keyPoints || [], peeks = current.cardPeeks || 0;
   // 限时：交卷即停表。这两个数先取下来，记录与批改页都用它
   const limMin = curLimitMin(), limFrom = curLimitFrom();
@@ -5168,7 +5173,7 @@ async function submitAnswer(){
     const gp = $("#gradePeek"); if(gp && pk){ gp.style.display="block"; gp.textContent = pk.slice(-160); }
   };
   try{
-    const g = await grade(mod, sub, q, kps, ans, onDelta, outline);
+    const g = await grade(mod, sub, q, kps, ans, onDelta);
     if(mySeq !== reqSeq){ clearInterval(tick); return; }  // 阅卷期间换了题，结果作废
     if(g && typeof g === "object" && !Array.isArray(g.hits)) g.hits = [];   // 采分点不是数组：先夹平，免得下面的遍历/渲染整页抛错
     updateProfile(mod);
@@ -5188,10 +5193,11 @@ async function submitAnswer(){
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
       expCheck: Object.keys(expLog).length? expLog : undefined,
       grade:{ total, scored:pts, scores:g.scores,
-              causes:(Array.isArray(g.causes)? g.causes : undefined), principle:g.principle || undefined,
+              review:(Array.isArray(g.review)? g.review : undefined),
+              causes:(Array.isArray(g.causes)? g.causes : undefined),
               modelAnswer:g.modelAnswer || "" } });   // 范文进记录：批改页从记录派生时才不丢「参考答案」
     if(state.history.length>200) state.history.length=200;
-    if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans, outline });   // 批改门槛的事实源
+    if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans });   // 批改门槛的事实源
     clearInterval(tick);
     // 草稿只在记录确实落盘后才清，而且只清「还是我刚才交的那份」：阅卷那 10-60 秒里
     // 又敲进去的字不能跟着一起删掉（那些字不在记录里，删了就再也找不回来）。
@@ -5202,10 +5208,9 @@ async function submitAnswer(){
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
     if(current && current.paperId) rememberPaperAnswer(g, total, ans, expCheck, usedSec == null? null : { min: limMin, usedSec });
     setLimitState(limMin, 0);   // 这一稿停表：交完就算一稿，下次进作答区重新起算
-    _timeUpSaid = false;
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
     // 满分卷（全部子项满分且无待改进）没有错因可提：不发起提炼，省一次调用。
-    const fullMark = pts && pts.got === pts.max && !(g.causes||[]).length;
+    const fullMark = pts && pts.got === pts.max && !(g.review||[]).length && !(g.causes||[]).length;
     setTimeout(()=>{
       _lastDistilled = [];   // 派发前置空：提炼结果绝不能把上一题的旧经验标成「本次新提炼」
       if(fullMark) return;
@@ -5395,11 +5400,11 @@ function paintExpLine(){
 }
 /* 思路自述：批改之后趁印象还在问一句，两问都可跳过。
    只从错题归纳只能得出「你哪里不行」——做对的题才是有效打法的语料来源，
-   所以得高分的题问「凭什么确定」，丢分的题问「卡在哪一步」。
+   所以得高分的题问「凭什么确定」，丢分的题问「他大概错在哪」。
    落在 state.history[0].selfNote / selfKind（步骤 1 的地基）；跳过的题不写字段，归纳时不硬凑。 */
 const SELF_ASK = {
   how:   ["这道你凭什么确定了？", "是一眼看出的，还是排除了别的？哪一步让你确定——一句话，可跳过"],
-  stuck: ["这道题卡在哪一步？",   "读材料、找点、还是落笔时卡的——一句话，可跳过"]
+  stuck: ["这题你大概错在哪？",   "自己的话写一句就行，跟上面的解析对不上也没关系——可跳过"]
 };
 function selfAskKind(g, total){
   const pts = pointsOf(g && g.hits);
@@ -5456,9 +5461,36 @@ function wireSelfNote(){
 }
 /* 解析按句切行（。！？；后断行）：长句拆开读不费劲，没有动画。
    旧记录里留着的是更短的一句话点评，切行同样适用。 */
+/* 范文的换行只用来分行，不用来空行（2026-11-02）：模型常在每条后面多吐一个换行，
+   pre-wrap 照单全收，结果每行之间空一行，一篇公文读起来像散架的清单。 */
+function tightLines(t){
+  return String(t || "").replace(/\r/g, "").replace(/\n{2,}/g, "\n").trim();
+}
 function gradeCommentHtml(comment){
   const lines = String(comment).match(/[^。！？；]+[。！？；]?/g) || [];
   return lines.map(s=>s.trim()).filter(Boolean).map(s=>`<div>${esc(s)}</div>`).join("");
+}
+/* 一面只报一次「错几处」：由 hits 现数，不让阅卷另外报一个数（2026-11-02）。
+   14 / 20 反推不出处数——一个采分点 4-6 分，丢 6 分可能是两处，也可能是三处。 */
+function countLost(g){
+  return (Array.isArray(g && g.hits)? g.hits : []).filter(h=> h && Number(h.score) - Number(h.awarded) > 0.001).length;
+}
+/* 解析：两段连着的话（2026-11-02）。第一段讲他想偏在哪，第二段讲该怎么改。
+   不写「建议一、建议二」，也不按采分点逐条摆——逐条摆就是待办清单，读不出「这题我在想什么」。
+   老记录（0.0.23 及以前）存的是 causes 一类的归类归因，连成一段读；更早的只有一段文字解析。 */
+function reviewHtml(g){
+  const seg = (Array.isArray(g && g.review)? g.review : []).map(x=> String(x || "").trim()).filter(Boolean);
+  if(seg.length){
+    return `<div class="sec-title">解析</div><div class="reviewbody">`
+      + seg.map(t=> `<p>${esc(t)}</p>`).join("") + `</div>`;
+  }
+  const cs = (Array.isArray(g && g.causes)? g.causes : []).filter(c=> c && (c.title || c.why));
+  if(cs.length){
+    const one = cs.map(c=> [c.title, c.why].filter(Boolean).join("，") + "。").join("");
+    return `<div class="sec-title">解析</div><div class="reviewbody"><p>${esc(one)}</p></div>`;
+  }
+  if(g && g.comment) return `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
+  return "";
 }
 function gradeHtml(g, total){
   // 批改页自己收尾（沉淀已并进这一页）：去哪由 nextrow 三颗按钮交代——
@@ -5475,44 +5507,31 @@ function gradeHtml(g, total){
   const am = answerMarks(g.hits, ansText);
   const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
   const legend = (ansReview && am.usable)? `红＝没拿满 · <i class="asc">+N</i> ` + (allLocated? "相加＝总分" : "是本句得分") : "";
-  let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分` : "/ 100 分"}</small></div>`
-    + `<div class="ghead-right">${legend? `<span class="hint">${legend}</span>` : ""}<button class="linkbtn" id="btnSwitch">换一题</button></div></div>`;
-  // 打了分就不再另报「丢 N 分」：两个数说的是同一件事，写两遍只是噪音
+  /* 限时与分数同处一条信息带（2026-11-02）：它是一行高的一句话，本来就该并进这一行。
+     单独占一行 22px，下面的两栏就往下挪 30——一屏里为半句话付一整行，正是「一行高的信息不许各占一行」要治的。
+     「本题限时」的「本题」也删了：这一页只有这一道题，位置自己会说是哪一题的限时。 */
+  const tm = lastGrade && lastGrade.time;
+  const overTm = tm? overtimeSec(tm.min, tm.usedSec) : 0;
+  const timeHint = tm? `<span class="hint">限时 ${tm.min} 分钟 · 用时 ${fmtDur(tm.usedSec)}${overTm > 0? `（超时 ${fmtDur(overTm)}）` : ""}</span>` : "";
   const hits = g.hits || [];
+  const lostN = countLost(g);
+  let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分` : "/ 100 分"}</small>${lostN? `<span class="lossn">错 ${lostN} 处</span>` : ""}</div>`
+    /* 页头只留「回整卷」这一个出口：普通题的「换一题」与底部「同模块再来一道」说的是同一件事，
+       摆两处只会让人站在分数前面犹豫点哪个（2026-11-01）。
+       图例搬进「我的答案」那一折：它解释的是逐句标注，标注收起来了，图例就不该还在纸面上占位。 */
+    + `<div class="ghead-right">${timeHint}${(current && current.paperId)? `<button class="tool" id="btnSwitch">回整卷</button>` : ""}</div></div>`;
   html += `</div>`;
   const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
   if(sumNote) html += `<div class="hint" style="margin:4px 0 4px">${sumNote}</div>`;
-  // 限时：只在这次真的计了时才报——用时多少、超没超，都说清
-  const tm = lastGrade && lastGrade.time;
-  if(tm){
-    const over = overtimeSec(tm.min, tm.usedSec);
-    html += `<div class="hint" style="margin-top:8px">本题限时 ${tm.min} 分钟 · 用时 ${fmtDur(tm.usedSec)}${over > 0? `（超时 ${fmtDur(over)}）` : ""}。</div>`;
-  }
-  // —— 正文三段 ——：我的答案（逐句标注）· 参考答案 · 解析。
-  // 一页把「你写了什么、本该写成什么样、为什么」摆全，不另造清单，也不把两篇文章折起来（2026-10-13）。
-  // 左区展示带逐句分数的答卷，不附可见标题：两栏的顶边由此齐平，图例已在分数带上。
-  html += `<div class="grade-columns"><section class="grade-answer" aria-label="我的答案">`;
-  if(ansReview) html += ansReview;
-  // 解析：只讲「为什么拿不到分」——3—4 类归因 + 末句一句原则。逐句标注已经在上面标过「缺什么」，
-  // 参考答案在下面给「写成什么样」；这一段再复述任何一边都是噪音（2026-10-19 定的三段口径）。
-  html += selfNoteHtml(g, total);
-  html += `</section><section class="grade-detail" aria-label="解析与参考答案">`;
-  const causes = (Array.isArray(g.causes)? g.causes : []).filter(c=> c && (c.title || c.why));
-  if(causes.length || g.principle){
-    html += `<div class="sec-title why">解析</div><div class="causes">`
-      + causes.map(c=> `<div class="cause">${c.title? `<div class="ctitle">${esc(c.title)}</div>` : ""}`
-        + `${c.why? `<div class="cwhy">${esc(c.why)}</div>` : ""}</div>`).join("")
-      + `</div>`;
-    if(g.principle) html += `<div class="principle">${esc(g.principle)}</div>`;
-  } else if(g.comment){
-    // 老记录（0.0.23 及以前）只有一段文字解析：原样显示，不硬塞进新结构
-    html += `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
-  }
-  // 参考答案跟随解析，使用中性浅底，不附可见标题。
-  if(g.modelAnswer) html += `<div class="modelanswer">${esc(g.modelAnswer)}</div>`;
-  html += `</section></div>`;
+  // —— 正文按批改的格式顺序排（2026-11-02）：一、我的答案与标注 → 二、解析两段 → 三、参考答案。
+  // 从「他写了什么」开始，读到解析时手里还攥着自己那句原话；范文放最后，先看范文解析就白写了。
+  // 四、（在最后）自己写一下大概错在哪儿，见 selfNoteHtml。
+  if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
+    + (legend? `<div class="hint">${legend}</div>` : "") + `</div>` + ansReview;
+  html += reviewHtml(g);
+  if(g.modelAnswer) html += `<div class="sec-title">参考答案</div><div class="modelanswer">${esc(tightLines(g.modelAnswer))}</div>`;
   // 老记录（无采分点、也没解析）退回「待改进」的原话
-  if(!hits.length && !causes.length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
+  if(!hits.length && !(g.review||[]).length && !(g.causes||[]).length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）
   const ec = (lastGrade && lastGrade.expCheck) || null;
   const ecLegacy = !(ec && ec.v >= 2);
@@ -5526,12 +5545,14 @@ function gradeHtml(g, total){
     if(ecPending.length) bits.push(`「${ecPending.join("」「")}」同题答对，换题再验`);
     html += `<div class="hint" style="margin-top:12px">记过的错因：${esc(bits.join("；"))}。</div>`;
   }
+  // 思路自述：两折都收起之后才轮到它——它是收尾动作，不是参考答案
+  html += selfNoteHtml(g, total);
   // 提炼是批改之后异步跑的：跑完就地补一行（见 paintExpLine），不让用户为了看「这次提炼了什么」再走一屏
   html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div>`;
   html += `<div class="nextrow">
-      <button class="primary" id="btnDone">完成</button>
-      <button id="btnRetry">同模块再来一道</button>
-      <button class="linkbtn" id="btnSeeProfile">看我的画像</button>
+      <button class="primary" id="btnRetry">同模块再来一道</button>
+      <button class="ghost" id="btnDone">完成</button>
+      <button class="tool" id="btnSeeProfile">看我的画像</button>
     </div></div>`;
   return html;
 }
@@ -5551,6 +5572,9 @@ function renderGrade(g, total, expCheck, time, answer){
     current.phase = "grade";
     renderZyPage();
   }
+  /* 交卷之后直接回到纸面顶部：不补这一手，页面停在作答区原来的滚动位置，
+     批改页出来以后还要自己往上划。 */
+  scrollSheetTopSoon();
 }
 /* 批改页的「完成」：把这条链收口，回首页。
    收口只影响首页那个「继续」入口；记录、答案、批改结果一律不动——state.history 里那份照样在「记录」页。
@@ -5591,6 +5615,9 @@ function renderProfile(){
   html += `<div class="sec-title">快速判断</div><div class="mrowbox"><button class="mrow navrow" data-prof="pd">` +
     (qAll? `<span class="mavg">正确率 ${pdRate}%</span><span class="mbar"><i class="${pdRate<70?"lo":""}" style="width:${pdRate}%"></i></span><span class="mmeta">${cAll}/${qAll} 题</span>`
          : `<span class="mavg">没练过</span><span class="mnone">点选即判，一轮 5 题。</span>`) + `</button></div>`;
+  /* 空态只说一次：顶部那句已经在说「一条记录都没有」，下面三节再各报一遍
+     「没练过 / 还没有 / 还没有」，同一件事说了四遍，还把可点的东西压到了第二屏。
+     没有记录时唯一的去处就是去练一道——「练习记录」「我的经验」两节整节不摆 */
   const expAll = state.experiences || [];
   const expCnt = expStatusCounts();
   const expBits = [];
@@ -5600,19 +5627,20 @@ function renderProfile(){
   if(expCnt.pending) expBits.push(`待换题验证 ${expCnt.pending}`);
   expBits.push(`待验证 ${expCnt.fresh}`);
   const expSummary = expBits.join(" · ");
-  html += `<div class="sec-title">我的经验</div><div class="mrowbox"><button class="mrow navrow" data-prof="exp">` +
+  if(!empty) html += `<div class="sec-title">我的经验</div><div class="mrowbox"><button class="mrow navrow" data-prof="exp">` +
     (expAll.length? `<span class="mavg">${expAll.length} 条</span><span class="mnone">${expSummary}</span>`
                    : `<span class="mavg">还没有</span>`) + `</button></div>`;
   const histAll = state.history.length;
   const h0 = histAll? state.history[0] : null;
   const d0 = h0? new Date(h0.ts) : null;
   const lastTxt = d0? `${d0.getMonth()+1}/${d0.getDate()} ${String(d0.getHours()).padStart(2,"0")}:${String(d0.getMinutes()).padStart(2,"0")}` : "";
-  html += `<div class="sec-title">练习记录</div><div class="mrowbox"><button class="mrow navrow" data-prof="hist">` +
+  if(!empty) html += `<div class="sec-title">练习记录</div><div class="mrowbox"><button class="mrow navrow" data-prof="hist">` +
     (histAll? `<span class="mavg">共 ${histAll} 条</span><span class="mnone">最近一次 ${lastTxt} · ${esc(h0.track === "pd"? "快速判断" : moduleName(h0.module))}</span>`
             : `<span class="mavg">还没有</span>`) + `</button></div>`;
   for(const sid of SUBJECT_ORDER){
     const subj = SUBJECTS[sid];
-    html += `<div class="sec-title">${esc(subj.name)} · ${esc(subj.note)}</div><div class="mrowbox">`;
+    /* 区块标题只留名字：名字后面那句是说明，标题行不是它的位置（要查就悬停看） */
+    html += `<div class="sec-title" title="${esc(subj.note)}">${esc(subj.name)}</div><div class="mrowbox">`;
     for(const k of subj.modules){
       const avg=moduleAvg(k);
       let n = 0; for(const h of state.history) if(h.module === k) n++;
@@ -5704,9 +5732,12 @@ function profileHistHtml(){
       html += `<tr><td>${ds}</td><td>快速判断</td><td>${esc((PD_FORMS[h.form]||{}).name || h.form || "—")}</td><td>${esc(h.theme||"—")}</td><td class="num">${esc((Number(h.correct)||0)+"/"+(Number(h.total)||0))}</td><td class="num">—</td><td>—</td></tr>`;
       return;
     }
-    // 「待改进」列读解析里的归类标题（新记录）——老记录只有 weaknesses，回退到它
+    // 「待改进」列读解析第一段截一段摘要（2026-11-02 解析改成两段话之后）——
+    // 老记录里是 causes 的归类标题，再早的只有 weaknesses，逐级回退
     const gh = h.grade || {};
-    const weak=(Array.isArray(gh.causes)? gh.causes.map(c=> (c && c.title) || "").filter(Boolean) : (gh.weaknesses||[])).slice(0,2).join("；");
+    const rev = (Array.isArray(gh.review)? gh.review : []).map(x=> String(x || "").trim()).filter(Boolean);
+    const weak = rev.length? (rev[0].length > 22? rev[0].slice(0, 22) + "…" : rev[0])
+      : (Array.isArray(gh.causes)? gh.causes.map(c=> (c && c.title) || "").filter(Boolean) : (gh.weaknesses||[])).slice(0,2).join("；");
     const openable = !!(h.question && h.grade);
     html += `<tr${openable? ` class="histrow" data-hist="${idx}" title="点开看这次批改"`:""}><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
   });
@@ -5737,6 +5768,7 @@ function openHistRecord(h){
   renderTabs(); renderHeader();
   if(usesFlowChain(h.module)) renderFlowStep();
   else { current.phase = "grade"; current.grade = { g, total }; renderZyPage(); }
+  scrollSheetTopSoon();
 }
 function wireProfileNav(){   // 一级行与「返回」的接线只有一份；二级页里的展开全部也在这里接
   document.querySelectorAll("[data-prof]").forEach(b=> b.onclick = ()=>{ const v = String(b.dataset.prof).split(":"); profGo(v[0], v[1] || ""); });
@@ -6229,12 +6261,10 @@ function setWordCount(s, limit){
     el.innerHTML = `<b>${n}</b> 字`;
   }
 }
-// 输入与「插入公文骨架」共用同一条同步路径：字数、草稿、恢复提示，永远一致
+// 输入与「插入公文骨架」共用同一条同步路径：字数与草稿永远一致
 function syncAnswer(sig, ta, limit){
   saveDraft(sig, ta.value);
   setWordCount(ta.value, limit);
-  const n = $("#draftNote");
-  if(n && n.textContent) n.textContent = "";
 }
 
 /* 划线：自由选中文字弹窗确认；标记存到字符级，多细都能划；按题目签名保存，超量淘汰最旧 */
@@ -6300,10 +6330,8 @@ function materialHtml(q){
 }
 
 /* 局部重建 [rs,re) 的片段（边界对齐到现有片段边界），替代整块材料重铺。
-   读材料步的材料是 mergedMaterial 渲的，这里必须走同一套分段，否则重铺出的那段会丢 pt-seg/data-sid。 */
+   读材料步的材料是 mergedMaterial 渲的，这里必须走同一套分段，否则重铺出的那段会丢划线层的 data-s / data-e。 */
 function materialRangeHtml(q, rs, re){
-  const f = activeFlow();
-  if(f && f.step === "read" && f.sig === qSig(q)) return mergedMaterialRange(q, f, rs, re);
   const text = String((q&&q.background)||"");
   const marks = loadMarks(qSig(q));
   let html = "", i = rs;
@@ -6615,7 +6643,6 @@ function init(){
 renderChangelog();
   initUpdateUi();
   ensureActive();
-  installFlowListeners();   // 找点步的全局监听只装一次
   fillSettings(); applyMarkColor(); renderTabs(); renderHeader(); renderHome();
   $("#btnHome").onclick = ()=> renderHome();   // 左上角品牌名 = 回首页（首页不属于任何科目，得有回来的路）
   // 模型候选只有一个来源：这次启动就从接口实拉一遍（拉到什么就是什么）
@@ -6710,7 +6737,13 @@ renderChangelog();
 const PAPER_MIN = 760, MAT_EDGE = 140, WORK_W = 560, MAT_GAP = 24, MAT_W = 580, MAT_W_MIN = 400, SCROLL_GUTTER = 10;
 const MAT_SIDE = WORK_W + MAT_EDGE + MAT_GAP;   // 724：材料栏以外的一切
 const FULL_SHEET = MAT_SIDE + MAT_W;             // 1304：这张纸最宽能到多宽（CSS  px，缩放前）
-const MIN_SHEET = MAT_SIDE + MAT_W_MIN;          // 1124：材料栏收到 400 以下就没法读，收回单栏
+/* 作答页两栏的下限（2026-11-01）：原来按「材料栏至少 400」反推出 1124，代价是窗口 1300 缩到 1124
+   这一路全散成上下排——材料在上、作答框在下，写一句往上滚一句。改成跟批改页统一到 950：
+   材料栏仍卡在 400（MAT_W_MIN），收的是作答栏，两侧都还站得住。 */
+const MIN_SHEET_WORK = 950;                      // 950：材料栏 400 + 纸边 140 + 中缝 24，作答栏余 386
+/* 批改页两栏的下限单独算：那两栏是「我的答卷 ｜ 解析」，没有材料栏，各到 460 就是一行 28 字，
+   借用作答页那条下限等于替材料栏交税——窗口差 4px 就退回单栏（2026-11-01 实测 1130 卡在门槛下）。 */
+const MIN_SHEET_REVIEW = 950;                    // 950：两栏各 (950-140-32)/2 = 389，窗口 960 起就是左右对照
 function paperScaleFor(w, h){
   const avail = (Number(w) || 1024) - SCROLL_GUTTER;
   let s = Math.min(1.5, Math.max(1, avail / FULL_SHEET));
@@ -6719,11 +6752,14 @@ function paperScaleFor(w, h){
   else if(h && h < 820) s = Math.min(s, 1.2);
   return s;
 }
+const GAP_BOTTOM = 16;   // 纸的下边：两栏铺到一屏时，纸的下沿距窗口下沿留这么多（--sheet-gap-b 的那个 16）
 function applyPaperScale(){
   if(typeof window === "undefined" || typeof document === "undefined" || !document.documentElement) return;
   const colMat = document.querySelector && document.querySelector("#docBody .paper-cols .col-mat");
   const review = document.querySelector && document.querySelector("#docBody .grade-columns .answerreview");
   const L = layoutFor(window.innerWidth, window.innerHeight, !!colMat || !!review);
+  const availNow = (Number(window.innerWidth) || 0) - SCROLL_GUTTER;
+  const wideReview = !!review && availNow >= MIN_SHEET_REVIEW;
   const num = (n)=> String(Math.round(n * 1000) / 1000);
   const st = document.documentElement.style;
   st.setProperty("--paper-scale", num(L.scale));
@@ -6731,16 +6767,27 @@ function applyPaperScale(){
   st.setProperty("--mat-col-w", num(L.matW) + "px");
   if(document.body){
     document.body.classList.toggle("wide-cols", L.wide && !!colMat);
-    document.body.classList.toggle("wide-review", L.wide && !!review);
+    document.body.classList.toggle("wide-review", wideReview);
   }
   /* 材料窗的高按「这一栏离文档顶多远」现算（顶栏 + 红头 + 横幅占的多高并不固定），
      剩下的视口高减 24、再减掉窗下那一块（划线说明 / 我划的重点）就是它该占的高。
      两样的顶都不受自己的高影响，量一次就够，不会来回摆。 */
   if(colMat){
+    // 两栏时整页不滚，scrollY 恒为 0，加它是为了单栏那一档（页面能滚，量到的是文档坐标）
     const top = colMat.getBoundingClientRect().top + (window.scrollY || 0);
     const under = colMat.querySelector("#marksSlot");
     const uh = under? under.getBoundingClientRect().height : 0;
-    st.setProperty("--mat-col-h", num(Math.max(160, (window.innerHeight - top - 24 - uh) / L.scale)) + "px");
+    // 没划重点时下面那块是空的（高 0，但 margin 还在 12）：这时候不要再扣 24，让材料底边跟右栏齐平
+    const tail = (uh > 0? 24 + uh : 0) + GAP_BOTTOM;
+    st.setProperty("--mat-col-h", num(Math.max(160, (window.innerHeight - top - tail) / L.scale)) + "px");
+  }
+  /* 右栏同样铺到视口底：只有它够高，「提交阅卷」那一行才有底可贴。
+     原先只量了材料栏，右栏高度由内容决定，动作条的位置也就是内容高度——
+     它在视口里悬浮着、不在底部，sticky bottom:0 没有触发条件，页面一滚它就跟着走。 */
+  const colWork = document.querySelector && document.querySelector("#docBody .paper-cols .col-work");
+  if(colWork){
+    const top = colWork.getBoundingClientRect().top + (window.scrollY || 0);
+    st.setProperty("--work-col-h", num(Math.max(360, (window.innerHeight - top - GAP_BOTTOM) / L.scale)) + "px");
   }
 }
 
@@ -6751,7 +6798,7 @@ function applyPaperScale(){
 function layoutFor(w, h, hasCols){
   const avail = (Number(w) || 0) - SCROLL_GUTTER;   // 纸面居中可用的宽度：滚动条那一槽先扣掉
   const sheet = Math.min(FULL_SHEET, Math.max(PAPER_MIN, avail));
-  const wide = !!hasCols && avail >= MIN_SHEET;
+  const wide = !!hasCols && avail >= MIN_SHEET_WORK;
   return { wide: wide, sheet: sheet, matW: wide? Math.min(MAT_W, Math.max(MAT_W_MIN, sheet - MAT_SIDE)) : MAT_W,
            scale: paperScaleFor(w, h) };
 }
@@ -6761,6 +6808,15 @@ init();
 if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", applyPaperScale);
 /* 换一屏就是换一次「这一屏带不带材料」，几何跟着重算。挂在这里而不是每个渲染函数各点一次：
    渲染都从 #docBody 的子节点变化走出去，判定只留一处。 */
+/* 折叠块展开/收起会改掉它自己占的高度，而两栏的高度是按「离视口顶多远」现量的：
+   不跟着重算就一直在用展开前那个数，展开后整页多出可滚空间、动作条被推出屏幕。
+   toggle 事件不冒泡，只能挂捕获阶段。 */
+if(typeof document !== "undefined" && document.addEventListener){
+  document.addEventListener("toggle", e=>{
+    const t = e.target;
+    if(t && t.closest && t.closest("#docBody")) applyPaperScale();
+  }, true);
+}
 if(typeof window !== "undefined" && typeof MutationObserver === "function"){
   const _docBody = document.querySelector("#docBody");
   if(_docBody) new MutationObserver(applyPaperScale).observe(_docBody, { childList: true });

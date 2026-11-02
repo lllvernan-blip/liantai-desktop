@@ -176,7 +176,6 @@ state.history = [];
 current = { module:"zy.gongwen", subtype:"通知", question:q1, cardPeeks:0 };
 saveDraft(qSig(q1), "恢复我");
 el("#answer").value = "";
-el("#draftNote").textContent = "";
 renderQuestion();
 ok(activeFlow() === null && el("#docBody").innerHTML.indexOf("flowRail") < 0, "综应A 两阶段: 渲染不建链、不渲染步骤条");
 ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "综应A 两阶段: 学习卡阶段有「开始作答」入口");
@@ -207,8 +206,8 @@ renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送�
                      {point:"落款单位与日期",score:2,awarded:1,status:"半分",evidence:"答到：「遵照执行」只写了要求，【缺：成文日期】"} ],
               comment:"继续加油", modelAnswer:"关于调整作息的通知。各科室请遵照执行。" },
             60, null, null, "关于调整作息的通知。各科室请注意作息调整，请遵照执行。特此通知。");
-ok(el("#docBody").innerHTML.indexOf("asent got") >= 0 && el("#docBody").innerHTML.indexOf(">我的答案<") < 0,
-   "批改页: 首屏就是带标注的答案本身（不再另挂「我的答案」这个题头）");
+ok(el("#docBody").innerHTML.indexOf("asent got") >= 0 && el("#docBody").innerHTML.indexOf(">我的答案<") >= 0,
+   "批改页: 逐句标注收进「我的答案」一折（2026-11-02 重排：主角是丢分清单，原答退成证据）");
 ok(el("#docBody").innerHTML.indexOf("asent got") >= 0, "批改页: 有分的句子保留逐句分数标记");
 ok(el("#docBody").innerHTML.indexOf('class="asent got full"') >= 0 && el("#docBody").innerHTML.indexOf('class="asc full">+4<') >= 0,
    "批改页: 满分句保留 full 状态与句末实得分");
@@ -296,8 +295,8 @@ renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", hits:[ {point
                    {point:"落款单位与日期",score:5,awarded:0,status:"零分",evidence:"【缺：落款】"} ] }, 50);
 ok(el("#docBody").innerHTML.indexOf("/ 10 分") >= 0 && el("#docBody").innerHTML.indexOf("折合") < 0,
    "阅卷页: 只报卷面分（5 / 10 分），折百分制不再显示（2026-10-16）");
-ok(el("#docBody").innerHTML.indexOf("作答要求：") < 0 && el("#docBody").innerHTML.indexOf('id="btnSwitch"') >= 0,
-   "批改页: 不重复题面（作答要求不出现），「换一题」落在分数那一行");
+ok(el("#docBody").innerHTML.indexOf("作答要求：") < 0 && el("#docBody").innerHTML.indexOf('id="btnSwitch"') < 0,
+   "批改页: 不重复题面，也不在页头再放一颗「换一题」（与底部「再来一道」是同一件事，2026-11-01）");
 ok(el("#docBody").innerHTML.indexOf("丢 5 分") < 0 && el("#docBody").innerHTML.indexOf("gtag") < 0,
    "阅卷页: 打了分就不再另报「丢 N 分」（同一个数字不写两遍）");
 ok(el("#docBody").innerHTML.indexOf("维度分") < 0,
@@ -325,9 +324,10 @@ ok(marksRecapHtml(qMk).indexOf("我划的重点（2 处）") >= 0 && marksRecapH
 renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x", modelAnswer:"第一，迅速核实情况。第二，按预案上报。", hits:[] }, 50);
 ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody").innerHTML.indexOf("按预案上报") >= 0,
    "阅卷页: 完整范文仍在页面上");
-ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0 && el("#docBody").innerHTML.indexOf(">参考答案<") < 0
-   && el("#docBody").innerHTML.indexOf("<details") < 0,
-   "阅卷页: 范文平铺在中性浅底里（不折叠，也不挂「参考答案」题头）");
+ok(el("#docBody").innerHTML.indexOf('class="modelanswer"') >= 0
+   && el("#docBody").innerHTML.indexOf(">参考答案<") >= 0
+   && el("#docBody").innerHTML.indexOf("stackbox") < 0,
+   "阅卷页: 范文平铺在「参考答案」标题下，中性浅底照旧（2026-11-02 撤销折叠：它是批改的第三部分，不是附录）");
 
 /* 5. 失败路径 */
 el("#docBody").innerHTML = "正在作答的题";
@@ -511,7 +511,7 @@ ok((JSON.parse(localStorage.getItem("gw_state") || "{}").settings || {}).model =
   state.settings.apiKey = "sk-test"; state.settings.model = "";
   renderHome();
   const h = el("#docBody").innerHTML;
-  ok(h.indexOf('id="btnSetup">先选模型（设置里挑一个）') >= 0 && h.indexOf("开始快速判断") < 0,
+  ok(h.indexOf('id="btnSetup">先选模型</button>') >= 0 && h.indexOf("开始快速判断") < 0,
      "首次配置: 有 Key 没模型时首页不说「开始快速判断」，直接说先选模型");
   state.settings.apiKey = _k; state.settings.model = _m;
 }
@@ -626,7 +626,7 @@ current = { module:"sl.guina", subtype:"概括原因", question:{ background:"�
             studyCard:{ title:"概括原因·学习卡", points:["要点"], pitfalls:["坑"], templates:"框架文本" } };
 renderQuestion();
 // 链子从学习卡开头：先记知识点再动手（与综应A 同一形），还没进链
-ok(el("#docBody").innerHTML.indexOf("btnChainStart") >= 0 && el("#docBody").innerHTML.indexOf("我已学习，开始读材料") >= 0,
+ok(el("#docBody").innerHTML.indexOf("btnChainStart") >= 0 && el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0,
    "链前学习卡: 打开这道题先给一整页卡");
 ok(el("#docBody").innerHTML.indexOf("flowRail") < 0, "链前学习卡: 还没进链，不摆步骤条");
 ok(el("#docBody").innerHTML.indexOf("阶段题。") < 0, "链前学习卡: 不亮题面（先看方法再看题）");
@@ -634,12 +634,14 @@ ok(activeFlow() && activeFlow().module === "sl.guina", "训练链: 渲染即建�
 ok(activeFlow().cardSeen === false, "链前学习卡: 新链记着「还没看过卡」");
 el("#btnChainStart").onclick();
 ok(activeFlow().cardSeen === true, "链前学习卡: 点过就记下来，这条链不再重复拦");
-ok(el("#docBody").innerHTML.indexOf("flowRail") >= 0 && el("#docBody").innerHTML.indexOf("读材料") >= 0, "训练链: 步骤条在场，落点是读材料");
-ok(el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0 && el("#docBody").innerHTML.indexOf(">题目<") < 0, "读材料: 题目与材料同屏（找点合并后材料按句分段；题面不挂标签）");
+ok(el("#railSlot").innerHTML.indexOf("flowRail") >= 0 && el("#railSlot").innerHTML.indexOf("作答") >= 0
+   && el("#docBody").innerHTML.indexOf("flowRail") < 0,
+   "训练链: 步骤条在红头上沿（不在纸面第一行），落点是作答（读材料那步 2026-11-02 并进作答）");
+ok(el("#docBody").innerHTML.indexOf("阶段题。") >= 0 && el("#docBody").innerHTML.indexOf("第二句！") >= 0 && el("#docBody").innerHTML.indexOf(">题目<") < 0, "作答页: 题目与材料同屏（材料按划线切段；题面不挂标签）");
 // 学习卡入口是纸上的一颗按钮：跟「先归类再写」「限时」同一行，读材料时就在动作行里
-ok(el("#cardHost").innerHTML.indexOf("看学习卡") >= 0 && el("#fabSlot").innerHTML.indexOf("看学习卡") < 0,
+ok(el("#cardHost").innerHTML.indexOf("翻学习卡") >= 0 && el("#fabSlot").innerHTML.indexOf("翻学习卡") < 0,
    "读材料: 学习卡入口在纸面上（与其它控件同一行，不做浮在灰边上的胶囊）");
-ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "读材料: 笔记不再摊在纸面上（收进抽屉）");
+ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "作答页: 笔记不再摊在纸面上（收进抽屉）");
 /* 链上两栏（读材料 / 一稿）：材料进左栏，右栏摆「这一屏真正要产出的东西」——读的时候是挑下来的点，
    写的时候是作答区。DOM 顺序仍是题面 → 材料 → 面板，窄到放不下两栏时这层壳等于不存在，落回上下排。 */
 ok((function(){ const h = el("#docBody").innerHTML;
@@ -647,61 +649,32 @@ ok((function(){ const h = el("#docBody").innerHTML;
      && h.indexOf('class="col-mat"') < h.indexOf('id="flowPanel"'); })(),
    "链两栏: 读材料步也两栏——题面压右栏上方、材料进左栏、挑下来的点与主按钮进右栏");
 ok((function(){ const h = el("#docBody").innerHTML;
-  return h.indexOf('class="material"') >= 0 && h.indexOf("mat-scroll") < 0; })(),
-   "链两栏: 读材料那一屏的材料不带 mat-scroll——收回单栏时它铺满（那一屏它就是工作台，砍成三行等于让人对着滚动条读材料）");
+  return h.indexOf('class="material mat-scroll"') >= 0; })(),
+   "链两栏: 作答页的材料带 mat-scroll——收回单栏时它收几行、自己滚，作答区才进首屏");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: 不再挂 Next（每一步自带主行动）");
-ok(flowGoStep("organize") === false, "归类: 不再占一步（降级成一稿页上的入口）");
-ok(el("#popSlot").innerHTML.indexOf("popPick") >= 0 && el("#docBody").innerHTML.indexOf("pt-seg") >= 0, "读材料·找点: 同一材料里点选找点与划线弹窗并存（弹窗挂在纸面外）");
+ok(el("#docBody").innerHTML.indexOf("pt-seg") < 0 && el("#popSlot").innerHTML.indexOf("popPick") < 0,
+   "作答页: 找点下线后材料上只剩划线（句子点选与选区记录都没有了）");
 // 与学习卡浮标同一条理由：纸面里的入场动画填充到最后那帧的 transform 是单位矩阵不是 none，
 // 那个盒子就成了 absolute 子元素的定位基准，小窗会被再叠上一次它的偏移
-ok(el("#popSlot").innerHTML.indexOf("markPop") >= 0 && el("#docBody").innerHTML.indexOf("markPop") < 0,
-   "读材料: 划线小窗在纸面之外（纸面里的入场动画会抢走 absolute 的定位基准）");
-ok(/mark\.ms\.on\{[^}]*box-shadow:inset 0 -2px 0/.test(PAGE_HTML) && /\.pt-seg\.picked\{[^}]*box-shadow:inset 0 -2px 0/.test(PAGE_HTML) && PAGE_HTML.indexOf("mark.ms.on.pt-seg.picked{") >= 0,
-   "材料标记: 划线层与找点层是同一套「底色 + 2px 底边线」，叠在一句上时底色归划线、底边线归找点");
+ok(ensureMarkPop.toString().indexOf('$("#popSlot")') >= 0 && PAGE_HTML.indexOf('<div id="popSlot"></div>') >= 0
+   && el("#docBody").innerHTML.indexOf("markPop") < 0,
+   "作答页: 划线小窗挂在纸面之外的 #popSlot（纸面里的入场动画会抢走 absolute 的定位基准）");
+ok(/mark\.ms\.on\{[^}]*box-shadow:inset 0 -2px 0/.test(PAGE_HTML),
+   "材料标记: 划线是「底色 + 2px 底边线」一层（找点那套同构样式随功能下线）");
 ok((PAGE_HTML.match(/不要自造「江城市」这类看着像真的具体名字/g) || []).length >= 2,
    "出题: 主观题与快判两条出题要求都写明地名虚化，不写看着像真的具体地名");
-ok(flowGoStep("extract") === false, "找点: 单独找点步已并入读材料");
 ok(el("#cardHost").innerHTML.indexOf("btnCard") >= 0 && el("#fabSlot").innerHTML.indexOf("cardDrawer") >= 0,
-   "读材料: 学习卡是纸上一个入口 + 纸外的抽屉（不再压在材料上方）");
-flowGoStep("draft");
-ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "一稿: 提交阅卷在场");
-ok(el("#docBody").innerHTML.indexOf("先归类再写") >= 0, "一稿: 归类是这一页上的入口");
-ok(el("#docBody").innerHTML.indexOf('id="btnOpenOrg"') > el("#docBody").innerHTML.indexOf("作答区"),
-   "一稿: 归类入口坐在「作答区」那一行的右侧（不孤零零占一行）");
+   "作答页: 学习卡是纸上一个入口 + 纸外的抽屉（不再压在材料上方）");
+ok(el("#docBody").innerHTML.indexOf("提交阅卷") >= 0, "作答页: 提交阅卷在场");
+ok(el("#docBody").innerHTML.indexOf("btnOpenOrg") < 0, "一稿: 归类入口已下线（面板整块撤）");
 ok((function(){ const h = el("#docBody").innerHTML;
   return h.indexOf('class="paper-cols"') >= 0 && h.indexOf('class="material mat-scroll"') >= 0
      && h.indexOf('class="material mat-scroll"') < h.indexOf('id="answer"'); })(),
    "链两栏: 一稿页也两栏——材料回到左栏（挑过的点在上面仍亮着），作答区在右栏，不必回上一步去对材料");
-el("#btnOpenOrg").onclick();
-ok(el("#docBody").innerHTML.indexOf('class="paper-cols"') >= 0 && el("#docBody").innerHTML.indexOf('class="material mat-scroll"') >= 0,
-   "链两栏: 归类面板算一稿的另一张脸，左栏材料跟着一起在场（归的正是材料上的点）");
-ok(activeFlow().orgOpen === true && el("#docBody").innerHTML.indexOf("回到一稿") >= 0 && el("#docBody").innerHTML.indexOf("提交阅卷") < 0,
-   "归类入口: 点它才展开归类面板（链上不再有这一步）");
-el("#btnFlowPrev").onclick();   // 从归类面板走开去读材料
-el("#btnToDraft").onclick();    // 再回来
-ok(activeFlow().orgOpen === false && el("#docBody").innerHTML.indexOf("提交阅卷") >= 0 && el("#docBody").innerHTML.indexOf("回到一稿") < 0,
-   "归类入口: 走开再回到一稿，面板自动收起（不揣着上一屏的状态回来）");
+ok(el("#docBody").innerHTML.indexOf("btnToDraft") < 0 && el("#docBody").innerHTML.indexOf("btnFlowPrev") < 0
+   && activeFlow().step === "draft",
+   "导航: 作答是第一步，没有「上一步」也没有「读完了动笔写」（2026-11-02 合并后这两个都不该在）");
 ok(el("#docBody").innerHTML.indexOf("btnFlowNext") < 0, "导航: 一稿不摆 Next（靠「提交阅卷」推进）");
-/* 归类两段的接线：点一步走一步（第一段归点、第二段命名） */
-const wf = activeFlow();
-wf.orgOpen = true; wf.selections = [{text:"甲点"},{text:"乙点"}]; wf.groups = []; wf.orgIdx = 0; wf.orgPhase = "group";
-renderFlowStep();
-ok(el("#docBody").innerHTML.indexOf("新建一组") >= 0 && el("#docBody").innerHTML.indexOf("newCatName") < 0,
-   "归类接线: 第一段只给「新建一组」，不摆命名输入框");
-el("#btnNewCat").onclick();
-ok(wf.groups.length === 1 && wf.groups[0].name === "" && wf.groups[0].facts.join(",") === "0",
-   "归类接线: 新建一组就把当前点归进去，组名还是空的");
-el("#btnOrgNext").onclick();
-el("#btnOrgNext").onclick();
-ok(wf.orgPhase === "name" && el("#docBody").innerHTML.indexOf('data-ogname="0"') >= 0,
-   "归类接线: 点走完进命名那一段，每组一行输入框");
-el("#btnBackToGroup").onclick();
-ok(wf.orgPhase === "group" && el("#docBody").innerHTML.indexOf("btnNewCat") >= 0,
-   "归类接线: 能回第一段改分组");
-el("#btnOrgNext").onclick();
-el("#btnOrgDone").onclick();
-ok(wf.orgOpen === false && el("#docBody").innerHTML.indexOf("提交阅卷") >= 0,
-   "归类接线: 「写完了」收起面板回到一稿");
 ok(el("#cardHost").innerHTML.indexOf("翻学习卡") >= 0, "一稿: 翻卡入口在场");
 el("#btnCard").onclick();
 ok(current.cardPeeks === 1 && el("#cardDrawer").hidden === false, "抽屉: 打开即计次");
@@ -726,14 +699,14 @@ callLLM = async (sys, user)=>{ genCallsCard++; capCard = { sys, user }; return {
 await loadQuestion("sl.guina","概括问题");
 ok(genCallsCard === 1 && current && current.studyCard === SL_STUDY_CARDS["sl.guina"], "申论学习卡: AI 未带卡时回退内置资料库卡");
 ok(JSON.parse(capCard.user).library && JSON.parse(capCard.user).library.points.length >= 5, "申论学习卡: 资料库随出题注入（library 字段在场）");
-ok(el("#docBody").innerHTML.indexOf("我已学习，开始读材料") >= 0, "申论学习卡: 开链先摆一整页卡（与综应A 同一形）");
+ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "申论学习卡: 开链先摆一整页卡（与综应A 同一形）");
 el("#btnChainStart").onclick();
-ok(el("#cardHost").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 读材料步给入口（在纸面上，一开始就看得见）");
+ok(el("#cardHost").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 作答页给入口（在纸面上，一开始就看得见）");
 el("#btnCard").onclick();
 ok(el("#cardDrawerTitle").textContent.indexOf("归纳概括") >= 0 && el("#drawerBody").innerHTML.indexOf("btnNewCard") >= 0,
    "申论学习卡: 抽屉里写清是哪张卡，且照综应口径可「换一张」");
 el("#btnDrawerClose").onclick();
-ok(current.cardPeeks === 0, "读材料: 看卡不计次（翻卡计次只属作答阶段）");
+ok(current.cardPeeks === 1, "作答页: 翻卡计次（读材料那步没了，现在只有作答阶段能翻卡，一律计次）");
 const cachedCard = { title:"AI 生成的卡", points:["x"], pitfalls:[], templates:"" };
 state.cache.studyCards["sl.guina::概括问题2"] = cachedCard;
 await loadQuestion("sl.guina","概括问题2");
@@ -764,8 +737,13 @@ ok((cHtml.match(/class="clist/g)||[]).length === 2 && cHtml.indexOf("<ul>") < 0,
 ok(cHtml.indexOf('class="csec pit"') >= 0 && cHtml.indexOf("clist clist-pit") >= 0,
    "学习卡: 失分点那一节带 pit 语义标记（焦橙竖条 + 焦橙序号），和要点一眼分得开");
 const fatHtml = cardHtml({points:["一","二","三","四","五","六"],pitfalls:["只有一条失分点"],templates:"一、优化办事流程。……",example:{scene:"某县推行「一网通办」。",ask:"概括该县的主要做法。"}});
-ok(cHtml.indexOf("答题框架") < cHtml.indexOf("常见失分点") && fatHtml.indexOf("答题框架") > fatHtml.indexOf("常见失分点"),
-   "学习卡: 内容量均衡时按意思分栏（左要点+框架 / 右失分点+示例），要点远多于失分点时改成按前后切一刀，两栏底部落差小");
+/* 并排的必须是同类的东西（2026-11-02）：两份编号清单站左右两栏，框架与示例横跨整张卡。
+   原先按「落差小的那种分法」挑，可两份清单本身就一样高，怎么配都配不平，左栏总比右栏长一截。 */
+ok(cHtml.indexOf("解题要点") < cHtml.indexOf("常见失分点") && cHtml.indexOf("常见失分点") < cHtml.indexOf("答题框架")
+   && fatHtml.indexOf("常见失分点") < fatHtml.indexOf("答题框架"),
+   "学习卡: 单栏垂直流——要点 → 失分点 → 框架 → 示例，从上到下依次排");
+ok((cHtml.match(/<section class="csec"/g)||[]).length >= 2 && cHtml.indexOf("cardcols") < 0,
+   "学习卡: 不再用两栏 grid（cardcols 已删），四节各占自然高度，不存在谁长谁短");
 ok(cardHtml({points:[],pitfalls:[],templates:""}).indexOf("这类题长什么样") < 0,
    "学习卡: 旧卡没有 example 也不渲染空栏目");
 el("#btnZyAnswer").onclick();
@@ -820,13 +798,13 @@ renderHome();
 tabClick("zy.guina");
 ok(el("#docBody").innerHTML.indexOf("概括原因") >= 0 && el("#docBody").innerHTML.indexOf("开始练习") >= 0, "落地页: 子类型芯片 + 显式开始按钮");
 ok(el("#docBody").innerHTML.indexOf("开始练习（智能选") < 0, "落地页: 主按钮只写「开始练习」，不带机制后缀");
-ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据显示未练状态");
+ok(el("#docBody").innerHTML.indexOf("还没练过") < 0, "落地页: 没练过时不摆「还没练过」——空态说明句不占纸面，主按钮下面直接是文种");
 {
   const kk = state.settings.apiKey, mm = state.settings.model;
   state.settings.apiKey = ""; state.settings.model = "";
   renderModuleLanding("zy.guina");
   const landNo = el("#docBody").innerHTML;
-  ok(landNo.indexOf('id="btnLandStart">先填 API Key（出题和阅卷都要）') >= 0 && landNo.indexOf("开始练习") < 0,
+  ok(landNo.indexOf('id="btnLandStart">先填 API Key</button>') >= 0 && landNo.indexOf("开始练习") < 0,
      "落地页（没 Key）: 主按钮改说「先填 API Key」，不承诺开始");
   el("#btnLandStart").onclick();
   ok(el("#modalSettings").hidden === false, "落地页（没 Key）: 主按钮真把人送到设置页");
@@ -834,7 +812,7 @@ ok(el("#docBody").innerHTML.indexOf("还没练过") >= 0, "落地页: 无数据�
   state.settings.apiKey = "sk-test"; state.settings.model = "";
   renderModuleLanding("zy.guina");
   const landNoModel = el("#docBody").innerHTML;
-  ok(landNoModel.indexOf('id="btnLandStart">先选模型（设置里挑一个）') >= 0 && landNoModel.indexOf("先填 API Key") < 0,
+  ok(landNoModel.indexOf('id="btnLandStart">先选模型</button>') >= 0 && landNoModel.indexOf("先填 API Key") < 0,
      "落地页（有 Key 没模型）: 缺的是模型就说选模型，不说填 Key");
   state.settings.apiKey = kk; state.settings.model = mm;
 }
@@ -1003,95 +981,67 @@ ok((MODULES["sl.zuowen"].subtypes||[]).length >= 2, "申发论述: 有细分 -> 
 ok(usesFlowChain("sl.zuowen") && MODULES["sl.zuowen"].dims.indexOf("文种适配") < 0,
    "申发论述: 归申论、走训练链，不套公文那套维度");
 
-/* 11. 训练链：状态机 / 找点 / 归类 / 提纲进批改 / 迁移 / 裁剪 */
+/* 11. 训练链：状态机 / 迁移 / 裁剪 */
 /* ① 同题复用 / 换题关闭且草稿保留 */
 const fqA = { background:"流程题甲", requirements:"要求甲" };
 saveDraft(qSig(fqA), "甲还没交的草稿");
 const fA = ensureFlow("zy.guina", "概括问题", fqA, []);
 const fA2 = ensureFlow("zy.guina", "概括问题", fqA, []);
-ok(fA2 === fA && fA.step === "read", "flow: 同题复用同一条训练链");
+ok(fA2 === fA && fA.step === "draft", "flow: 同题复用同一条训练链");
 const fqB = { background:"流程题乙", requirements:"要求乙" };
 const fB = ensureFlow("zy.guina", "概括原因", fqB, []);
 ok(fA.closedAt && fA.step === "done", "flow: 换题收口旧链（只置标记，不删内容）");
 ok(loadDraft(qSig(fqA)) === "甲还没交的草稿", "flow: 收口后未提交草稿原样保留");
-ok(fB.sig === qSig(fqB) && fB.step === "read" && fB.subject === "zy", "flow: 新链从读材料开始并带科目");
+ok(fB.sig === qSig(fqB) && fB.step === "draft" && fB.subject === "zy", "flow: 新链从作答开始并带科目");
 /* ③ 无 attempts 进 review 被拒 */
-ok(flowGoStep("review") === false && activeFlow().step === "read", "批改门槛: 无批改结果进批改步被拒");
-/* ② 链子只剩三步：归类降级成一稿页上的入口、沉淀并进批改页 */
-ok(FLOW_STEPS.join(",") === "read,draft,review" && flowGoStep("distill") === false && flowGoStep("organize") === false,
-   "训练链: 只剩读材料 / 一稿 / 批改三步（归类和沉淀都不再占一步）");
+ok(flowGoStep("review") === false && activeFlow().step === "draft", "批改门槛: 无批改结果进批改步被拒");
+/* ② 链子只剩三步（找点、归类、沉淀 2026-11-01 下线，都不再占一步） */
+ok(FLOW_STEPS.join(",") === "draft,review" && flowGoStep("distill") === false && flowGoStep("organize") === false,
+   "训练链: 只剩作答 / 批改两步（读材料 2026-11-02 并进作答，归类和沉淀更早就不占步）");
 const migFlows = sanitizeFlows([
   { id:"f1", question:{ background:"x", requirements:"r" }, step:"organize" },
   { id:"f2", question:{ background:"x", requirements:"r" }, step:"distill" },
   { id:"f3", question:{ background:"x", requirements:"r" }, step:"read" },
 ]);
-ok(migFlows[0].step === "draft" && migFlows[1].step === "review" && migFlows[2].step === "read",
-   "迁移: 停在归类 / 沉淀的老链落到一稿 / 批改，不整条消失");
+ok(migFlows[0].step === "draft" && migFlows[1].step === "review" && migFlows[2].step === "draft",
+   "迁移: 停在归类 / 沉淀 / 读材料的老链落到作答与批改，不整条消失");
 ok(migFlows.every(f=> f.cardSeen === true), "迁移: 老链算「看过学习卡」，不让进行中的题被一张卡拦住");
 ok(sanitizeFlows([{ id:"f4", question:{ background:"x", requirements:"r" }, step:"乱写的" }]).length === 0,
    "迁移: 真非法的 step 照样丢弃");
 
 /* ② syncRail 三态 */
 const rail = syncRail({ step:"draft" });
-ok(rail.map(x=>x.state).join(",") === "done,active,pending", "步骤条: i<cur done / = active / > pending（三步）");
-ok(rail[1].label === "一稿" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
+ok(rail.map(x=>x.state).join(",") === "active,pending", "步骤条: i<cur done / = active / > pending（两步）");
+ok(rail[0].label === "作答" && rail[1].label === "批改" && rail.length === FLOW_STEPS.length, "步骤条: 标签来自 FLOW_LABELS");
 
-/* ④ 句子表切分与选区偏移 */
-const sq2 = { background:"第一句。第二句！\n\n第二段只有一句？", requirements:"r" };
-const sents2 = sentenceTable(sq2);
-ok(sents2.length === 3 && sents2.map(s=>s.text).join("|") === "第一句。|第二句！|第二段只有一句？", "句子表: 按句切分、跨段不断句");
-ok(sents2.every(s=> sq2.background.slice(s.start, s.end) === s.text), "句子表: start/end 偏移可还原原句");
-ok(snapSentence(sents2, 0, 3) === 0 && snapSentence(sents2, sents2[2].start, sents2[2].start+2) === 2, "吸附: 有重叠时取重叠最大的句子");
-ok(snapSentence(sents2, 8, 9) === 1, "吸附: 无重叠时取最近句");
-ok(addFreeSelectionRecord(fB, 0, 3) === false, "找点: 不足 4 字的划选不收");
-ok(addFreeSelectionRecord(fB, 0, 8) === true, "找点: ≥4 字的划选收入");
-const frec = fB.selections[0];
-ok(frec.free === true && frec.valid === null && frec.point === -1 && typeof frec.sentenceId === "number" && frec.text === "流程题乙",
-   "找点: 选区记录同构 {text,start,end,sentenceId,valid,point,free}");
-ok(addFreeSelectionRecord(fB, 0, 8) === false, "找点: 同一选区不重复收");
-
-/* ④.1 局部重铺必须与整块渲染同源：划线后按段重铺，重铺出的那段仍要能点句子找点 */
+/* ④ 局部重铺必须与整块渲染同源（找点与句子表 2026-11-01 下线，这里只剩划线切段那一份） */
 const mq2 = { background:"第一句。第二句。第三句", requirements:"r" };
-const mf2 = { step:"read", sig:qSig(mq2), selections:[], groups:[], attempts:[] };
-const full2 = mergedMaterialRange(mq2, mf2, 0, mq2.background.length);
-ok(full2.indexOf("pt-seg") >= 0 && full2.indexOf('data-sid="2"') >= 0, "读材料: 整块渲染的每句都是可点片段");
-const part2 = mergedMaterialRange(mq2, mf2, 4, 7);
-ok(part2.indexOf("pt-seg") >= 0 && part2.indexOf("data-sid") >= 0, "读材料: 局部重铺仍带句子点选标记");
-ok(materialRangeHtml.toString().indexOf("mergedMaterialRange") >= 0, "读材料: 局部重铺走同一套分段（不另写一套）");
-ok(toggleSentenceSelection(fB, 0, "") === true && fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 点选整句收入");
-ok(toggleSentenceSelection(fB, 0, "s0") === true && !fB.selections.some(sl=> !sl.free && sl.sentenceId === 0), "找点: 再点取消整句，划选记录不受影响");
+const mf2 = { step:"draft", sig:qSig(mq2), selections:[], groups:[], attempts:[] };
+ok(mergedMaterialRange(mq2, mf2, 0, mq2.background.length) === "第一句。第二句。第三句",
+   "作答页: 整块渲染按划线切段");
+ok(mergedMaterialHtml.toString().indexOf("mergedMaterialRange") >= 0, "作答页: 材料整块与局部走同一套分段（不另写一套）");
 
-/* 归类：提纲按类聚合（类从哪来已改成「逐个点建」，面板那边的断言在 12.8） */
-fB.groups = [];
-const outlineDemo = buildOrganizeOutline(
-  [{ name:"格式要求", facts:[0] }, { name:"", facts:[1] }],
-  [{ text:"有抬头有落款" }, { text:"语言要得体" }]);
-ok(outlineDemo === "格式要求：有抬头有落款\n要点2：语言要得体", "归类: 一行一组的纯文本提纲 -> " + JSON.stringify(outlineDemo));
-
-/* ⑤ 归类提纲进批改请求体（拦 callLLM 检查） */
+/* ⑤ 批改请求体（拦 callLLM 检查） */
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"提纲题材料。", requirements:"不超过250字。" }, cardPeeks:0 };
 renderQuestion();   // 让 flow 与 current 对齐
 const fCur = activeFlow();
-fCur.selections = [{ text:"要点甲", start:0, end:3, sentenceId:0, valid:null, point:-1, free:false }];
-fCur.groups = [{ name:"甲类", facts:[0] }];
 flowGoStep("draft");
 el("#answer").value = "这是一段超过二十个字的作答内容，用于验证批改请求体。";
 const realCall3 = callLLM;
 let cap3 = null;
 callLLM = async (sys, user)=>{ cap3 = { sys, user }; return { hits:[{point:"p",score:10,awarded:8,status:"满分",evidence:"e"}], scores:{},
-  causes:[{title:"要点缺失",why:"采分点按材料逐个摆，跳过一处就少一处。"}], principle:"先按材料列点，再落笔。" }; };
+  review:["要点整块漏了一处，材料里明写的对象没在答卷里出现。", "落笔前先按材料把要点横着列一遍，再往格子外扩成句。"] }; };
 await submitAnswer();
 callLLM = realCall3;
 const sent3 = JSON.parse(cap3.user);
-ok(sent3.organizeOutline === "甲类：要点甲", "批改请求体: 归类提纲随卷上报");
-ok(cap3.sys.indexOf("organizeOutline") >= 0 && cap3.sys.indexOf("不参与计分") >= 0, "批改 prompt: 提纲只供诊断的口径写明");
 ok(cap3.sys.indexOf(SCORING_RULES) >= 0, "批改 prompt: SCORING_RULES 一字未动");
 ok(fCur.attempts.length === 1 && fCur.step === "review", "批改: 提交后进入批改步并留痕 attempt");
 ok(state.history[0].answer.indexOf("二十个字") >= 0 && state.history[0].grade.total === 80, "批改: 练习记录已写入且计分口径不变");
-/* 解析三段口径（2026-10-19）：记录里存 causes + principle；旧字段（优缺点清单 / 文字解析）不再进新记录 */
-ok(Array.isArray(state.history[0].grade.causes) && state.history[0].grade.causes[0].title === "要点缺失"
-   && state.history[0].grade.principle === "先按材料列点，再落笔。",
-   "批改: 解析按 causes + principle 存进练习记录");
+/* 解析口径（2026-11-02）：记录里存 review 两段话；10-19 那套 causes + principle 不再产出 */
+ok(Array.isArray(state.history[0].grade.review) && state.history[0].grade.review.length === 2
+   && state.history[0].grade.review[0].indexOf("要点整块漏了一处") === 0
+   && state.history[0].grade.principle === undefined,
+   "批改: 解析按 review 两段话存进练习记录");
 ok(state.history[0].grade.weaknesses === undefined && state.history[0].grade.comment === undefined
    && state.history[0].grade.strengths === undefined,
    "批改: 旧的三块（优缺点清单 / 文字解析）不再进新记录——同件事不存两份");
@@ -1135,7 +1085,7 @@ localStorage.setItem("gw_state", JSON.stringify({ settings:{}, profile:{}, histo
           { id:"flow_done", step:"done", closedAt:5, question:{background:"c"} } ] }));
 const lf1 = load();
 ok(lf1.flows.length === 2 && lf1.flows[0].id === "flow_1" && lf1.flows[1].step === "done", "flow 迁移: 非法 step 丢弃该项，其余保留（含已关闭）");
-ok(Array.isArray(lf1.flows[1].attempts) && Array.isArray(lf1.flows[1].selections), "flow 迁移: 缺失字段补默认");
+ok(Array.isArray(lf1.flows[1].attempts) && Array.isArray(lf1.flows[1].keyPoints), "flow 迁移: 缺失字段补默认");
 ok(JSON.parse(localStorage.getItem("gw_history"))[0].flowId === "legacy-42", "history 迁移: 旧记录补 flowId=legacy-ts");
 const lf2 = load();
 ok(lf2.flows.length === 2 && lf2.flows[0].id === "flow_1", "flow 迁移: 二次 load 幂等");
@@ -1226,7 +1176,7 @@ callLLM = realCall;
 state.flows = []; _flowId = null; current = null;
 const rq12 = { background:"恢复题材料。", requirements:"r" };
 const rFlow = ensureFlow("sl.guina", "概括问题", rq12, []);
-rFlow.step = "read"; rFlow.cardSeen = true;
+rFlow.step = "draft"; rFlow.cardSeen = true;
 renderStart();
 ok(el("#docBody").innerHTML.indexOf('id="btnResume"') >= 0 && el("#docBody").innerHTML.indexOf("继续上次") >= 0,
    "恢复现场: 有未关闭的链时首页给那一行「继续上次」");
@@ -1395,7 +1345,7 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
   ok(rHtml.indexOf('class="paper-cols"') < 0, "链两栏: 批改步不带材料，仍是单栏（这一页要读的是分数与解析，不是材料）");
   ok(rHtml.indexOf("还没有批改结果") < 0, "恢复: 没有 lastGrade 也不留那句空页提示");
   ok(rHtml.indexOf("18") >= 0 && rHtml.indexOf("/ 20 分") >= 0, "恢复: 分数从记录里捞回来渲染");
-  ok(rHtml.indexOf('id="btnSwitch"') >= 0, "恢复: 批改页照样有「换一题」");
+  ok(rHtml.indexOf('id="btnSwitch"') < 0, "恢复: 批改页页头不再放「换一题」，出口交给底部那颗「同模块再来一道」");
   ok(rHtml.indexOf('id="btnDone"') >= 0, "恢复: 批改页照样有「完成」出口");
 
   /* 入口判据：批改过的链不是「没做完」，不进首页那个入口（点不点「完成」都一样） */
@@ -1527,119 +1477,6 @@ ok(sanitizeResumeZy({ module:"sl.guina", question:{ background:"x", requirements
   clearDraft("sigA");
 }
 state.flows = []; _flowId = null; state.history = []; lastGrade = null; current = null;
-
-/* 12.8 归类：分两段 —— 第一段把点归成组（组名先空着），第二段给每组写上位概括词 */
-const fOrg = { selections:[{text:"甲点"},{text:"乙点"}], groups:[], question:{background:"x"} };
-const orgHtml = organizePanelHtml(fOrg);
-const curBlock = h => (String(h).match(/<div class="ogcur">[\s\S]*?<\/div>/) || [""])[0];
-ok(curBlock(orgHtml).indexOf("甲点") >= 0 && curBlock(orgHtml).indexOf("乙点") < 0,
-   "归类: 当前点区只摆这一个点的原文");
-ok(orgHtml.indexOf("已归 0 / 2 个点") >= 0, "归类: 报出已归进度");
-ok(orgHtml.indexOf("+ 新建一组") >= 0 && orgHtml.indexOf("data-og=") < 0,
-   "归类: 一个组都没建时只给「+ 新建一组」");
-ok(orgHtml.indexOf('id="ogCats"') < orgHtml.indexOf('class="ogcur"'),
-   "归类: 规范词在句子上面（先看归到哪，再看这个点）");
-ok(PAGE_HTML.indexOf(".ogcard .ptag,.ogname .ptag{background:var(--paper)") >= 0,
-   "归类: 卡里的「整句」标签换成纸色（不再跟后面的句子糊在一起）");
-ok(orgHtml.indexOf("上位概括词") < 0,
-   "归类: 第一段不问上位概括词（问它就是「先填词再点材料」那个读反）");
-ok(orgHtml.indexOf('data-jump="1"') >= 0, "归类: 已找的点收在折叠清单里，能跳回去重归");
-ok(organizePanelHtml({ selections:[], groups:[] }).indexOf("回到一稿") >= 0, "归类: 没有找到点时给回到一稿的出口");
-// 选中态跟着当前点走
-const orgHtml1 = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"政务服务效能",facts:[0]}], orgIdx:0 });
-ok(orgHtml1.indexOf('class="ogcat on"') >= 0 && orgHtml1.indexOf("政务服务效能") >= 0, "归类: 已归入的类显示为选中");
-ok(organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"甲类",facts:[0]}], orgIdx:1 }).indexOf('class="ogcat on"') < 0,
-   "归类: 换到下一个点时选中态跟着换");
-// 一个点能同时归进两类：两颗胶囊同时选中
-const orgHtml2 = organizePanelHtml({ selections:[{text:"甲点",free:true}], groups:[{name:"甲类",facts:[0]},{name:"乙类",facts:[0]}], orgIdx:0 });
-ok((orgHtml2.match(/class="ogcat on"/g) || []).length === 2 && orgHtml2.indexOf("划选") >= 0,
-   "归类: 一个点能同时归进两类，且保留划选/整句标记");
-ok(orgHtml2.indexOf("已归 1 / 1 个点") >= 0, "归类: 归好后进度跟上");
-// 走完最后一个点：主动作是去命名，不是回一稿（回一稿永远在角落那个链接上）
-const orgEnd = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[], orgIdx:1 });
-ok(orgEnd.indexOf("分组完毕，去命名") >= 0, "归类: 点走完的主动作是「去命名」");
-ok(orgEnd.indexOf("btnCloseOrg") >= 0 && (orgEnd.match(/回到一稿/g) || []).length === 1,
-   "归类: 哪一段都能收起来（角落的「回到一稿」只写一遍）");
-const orgMid = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[], orgIdx:0 });
-ok(orgMid.indexOf("btnCloseOrg") >= 0, "归类: 没走到末点也能随时收起来");
-ok(orgHtml.indexOf("下一个点") >= 0, "归类: 没走完时给「下一个点」");
-// 第二段：一屏给每一组写上位概括词，组里的点先摆出来
-const orgName = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"",facts:[0,1]}], orgPhase:"name" });
-ok(orgName.indexOf('data-ogname="0"') >= 0 && orgName.indexOf("甲点") >= 0 && orgName.indexOf("乙点") >= 0,
-   "归类: 命名那一段把整组的内容摆出来（概括才有的放矢）");
-ok(orgName.indexOf("btnNewCat") < 0 && orgName.indexOf("btnBackToGroup") >= 0,
-   "归类: 命名那一段不再归点，给「回去改分组」的路");
-ok(orgName.indexOf("提纲预览") < 0 && orgName.indexOf("outlinePrev") < 0 && orgName.indexOf("outlineBox") < 0,
-   "归类: 提纲不在归类页（产地在这里，摆的地方是一稿页）");
-const orgName2 = organizePanelHtml({ selections:[{text:"甲点"},{text:"乙点"}], groups:[{name:"甲",facts:[0]},{name:"乙",facts:[1]}], orgPhase:"name" });
-ok(orgName2.indexOf('class="ognames"') >= 0, "归类: 命名页的组卡共用一个容器（组间留出间距）");
-ok(PAGE_HTML.indexOf('id="newCatName"') < 0, "归类: 「新建一组」不再要求当场写名字");
-ok(orgPhaseOf({}) === "group" && orgPhaseOf({orgPhase:"name"}) === "name" && orgPhaseOf({orgPhase:"乱写"}) === "group",
-   "归类: 老链没有段位字段时按第一段算");
-
-// 主次与形状：点卡是主角、新建与已有的组同排、命名卡走圆角口径
-ok(orgHtml.indexOf('class="ogcard"') >= 0 && orgHtml.indexOf('class="ogcur"') > orgHtml.indexOf('class="ogcard"'),
-   "归类: 当前点装进点卡（点与它要归的组是这一屏的主角）");
-ok(/<div class="ogcats" id="ogCats">[\s\S]*class="ogcat ognew"/.test(orgHtml1),
-   "归类: 「新建一组」与已有的组同排（同一排才读成「归到这里，或新建一个」）");
-ok(PAGE_HTML.indexOf(".ogcat.ognew{border-style:dashed") >= 0, "归类: 新建一组是虚线样（看得出现在是「加一个」）");
-ok(PAGE_HTML.indexOf(".ogname{background:var(--wash);border-radius:var(--r-card)") >= 0
-   && PAGE_HTML.indexOf(".ogname .ogh .ogin{flex:1 1 auto") >= 0
-   && PAGE_HTML.indexOf("font-size:var(--fs-title);font-weight:600;") >= 0,
-   "归类: 命名卡走 --r-card、组名输入做成标题（整行、字大一号）");
-ok(orgName.indexOf("可跳过，不计分") >= 0 && orgHtml.indexOf("可跳过，不计分") < 0,
-   "归类: 「可跳过、不计分」只在命名那一段说一次");
-
-// 提纲落在一稿页：默认收起、摆在作答区标题行下方
-current = { module:"sl.guina", subtype:"概括问题", question:{ background:"x", requirements:"r" }, keyPoints:[], cardPeeks:0 };
-const draftF = { groups:[{name:"甲组",facts:[0]}], selections:[{text:"甲点"}] };
-const dHtml = draftPanelHtml(draftF);
-const iTools = dHtml.indexOf("justify-content:flex-end"), iBox = dHtml.indexOf('id="outlineBox"'), iTa = dHtml.indexOf('id="answer"');
-ok(iTools >= 0 && iBox > iTools && iBox < iTa, "提纲: 摆在作答框那一行下方、文本框之前");
-ok(dHtml.indexOf("我归的提纲") >= 0 && dHtml.indexOf("甲组：甲点") >= 0, "提纲: 一稿页看得到归出来的那一行");
-ok(!/id="outlineBox"[^>]*\bopen\b/.test(dHtml), "提纲: 默认收起（要用时点开）");
-ok(draftPanelHtml({ groups:[], selections:[] }).indexOf("outlineBox") < 0, "提纲: 一组都没有时不摆空框");
-current = null;
-
-// 命名卡：组名就是卡片的标题（在句子上方），一个词只出现一次
-const orgNamed = organizePanelHtml({ selections:[{text:"甲点"}], groups:[{name:"窗口下移",facts:[0]}], orgPhase:"name" });
-ok((orgNamed.match(/窗口下移/g) || []).length === 1, "归类: 组名只在标题输入框里出现一次");
-ok(orgNamed.indexOf("给第 1 组起个名") >= 0, "归类: 空组靠 placeholder 报「第 N 组」");
-const iIn = orgNamed.indexOf('data-ogname="0"'), iPts = orgNamed.indexOf("甲点");
-ok(iIn >= 0 && iIn < iPts, "归类: 组名（标题）在句子上面");
-ok(orgNamed.indexOf("第 1 组</span>") < 0, "归类: 不再另起一行「第 N 组」标签");
-
-// 归类是「一稿」的子工具：步骤条报「一稿 · 归类」，纸面不再起「归类」标题
-ok(railHtml({ step:"draft", orgOpen:true }).indexOf("一稿 · 归类") >= 0,
-   "归类屏: 步骤条当前步报「一稿 · 归类」");
-ok(orgHtml.indexOf('class="sec-title">归类') < 0 && orgName.indexOf('class="sec-title">归类') < 0,
-   "归类屏: 纸面不再重复「归类」标题（步骤条已报）");
-
-// 归类屏不再摆题面：题目行与换一题都撤掉，但限时留在这一行（归类的用时算作答）
-{
-  state.flows = []; _flowId = null; state.history = [];
-  const qO = { background:"归类屏材料。", requirements:"请概括。", score:20 };
-  const fO = ensureFlow("sl.guina", "概括问题", qO, []);
-  fO.cardSeen = true; fO.step = "draft"; fO.orgOpen = true;
-  fO.selections = [{ text:"甲点" }, { text:"乙点" }];
-  fO.groups = []; fO.orgIdx = 0;
-  current = { module:"sl.guina", subtype:"概括问题", question:qO, keyPoints:[], cardPeeks:0 };
-  renderFlowStep();
-  const oHtml = el("#docBody").innerHTML;
-  ok(oHtml.indexOf("btnSwitch") < 0 && oHtml.indexOf("作答要求") < 0, "归类屏: 不再摆题面与「换一题」");
-  ok(oHtml.indexOf('id="inpLimit"') >= 0, "归类屏: 限时照常可见（归类的用时算作答）");
-  state.flows = []; _flowId = null; current = null;
-}
-// 归属反查表：一个点被哪几类收着
-const sel3 = [{text:"甲点",free:true},{text:"乙点"}];
-const grp3 = [{name:"甲组",facts:[0]},{name:"",facts:[0,1]}];
-const h3 = holderOf(grp3, sel3);
-ok(h3[0].length === 2 && h3[1].length === 1, "归类: 归属反查表记录一个点被哪几类收着 -> " + JSON.stringify(h3));
-ok(groupLabel([{name:""}], 0) === "要点1" && groupLabel([{name:"甲组"}], 0) === "甲组", "归类: 没命名时按「要点N」称呼");
-ok(buildOrganizeOutline(grp3, sel3).indexOf("甲组：甲点") >= 0 && buildOrganizeOutline(grp3, sel3).indexOf("要点2：甲点；乙点") >= 0,
-   "归类: 提纲按类聚合，跨类重复的点两类都出现");
-
-current = null;
 
 /* ============ 13. 快判（第三入口）：事实选择 / 分组概括 / 表达比较 ============ */
 
@@ -1810,7 +1647,7 @@ const apiKeyBeforeUp = state.settings.apiKey;   // 后面几步要改 Key：用�
 state.settings.apiKey = "";
 renderHome();
 const startUp = el("#docBody").innerHTML;
-ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
+ok(startUp.indexOf('class="primary big" id="btnSetup">先填 API Key</button>') >= 0
    && startUp.indexOf("开始快速判断") < 0 && startUp.indexOf("btnSample") < 0,
    "快判往上提: 首页没填 Key 时红按钮是「先填 API Key」——出题这条路走不通，就不说「开始快速判断」");
 ok(startUp.indexOf("填好 API Key 就能开始") >= 0 && startUp.indexOf("没有账号") < 0,
@@ -1867,14 +1704,14 @@ ok(slNoKeyStart.indexOf('data-start="subj"') >= 0 && slNoKeyStart.indexOf('class
 
 /* ②c 填了 Key 的科目首页：红按钮回到本科目的主行动 */
 state.settings.apiKey = "sk-test"; state.settings.subject = "zy"; renderStart();
-ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnSmart">开始综应练习') >= 0,
-   "科目页（填了 Key）: 红按钮是「开始综应练习」（本科目的主行动）");
+ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnSmart">开始') >= 0,
+   "科目页（填了 Key）: 红按钮只说动词「开始」（科目名由顶栏与文号报，不重复）");
 ok(el("#btnSmart").onclick === startSmart && el("#btnQuick").onclick !== startSmart,
    "科目页（填了 Key）: 红按钮接的是 startSmart（与「练一道综应大题」同一个动作，不是快判那条）");
 state.settings.subject = "sl"; renderStart();
 const slStart = el("#docBody").innerHTML;
-ok(slStart.indexOf('id="btnSmart">开始申论练习') >= 0,
-   "科目页（填了 Key）: 换到申论，红按钮跟着换名（开始申论练习）");
+ok(slStart.indexOf('id="btnSmart">开始') >= 0 && slStart.indexOf("开始申论练习") < 0,
+   "科目页（填了 Key）: 申论与综应A 共用同一颗「开始」，不在按钮里重报科目名");
 ok(slStart.indexOf('class="hero-sub"') < 0 && slStart.indexOf("学习卡") < 0,
    "申论布局（填了 Key）: 说明行整行不在，链上那几步不回锅到入口屏");
 state.settings.apiKey = ""; state.settings.subject = "zy";
@@ -1939,8 +1776,8 @@ pdResolve(0); pdNext();
 ok(pdRound.done === true && state.history.length === histBeforePd + 1 && localStorage.getItem("gw_history") !== lsBeforePd
    && el("#docBody").innerHTML.indexOf("本轮小结") >= 0,
    "快判小结: 答完照常出小结并计入练习记录");
-ok(el("#docBody").innerHTML.indexOf("再来一轮") >= 0 && el("#docBody").innerHTML.indexOf("回首页") >= 0,
-   "快判小结: 收尾按钮是「再来一轮 / 回首页」");
+ok(PAGE_HTML.indexOf('<div class="actions" style="justify-content:center;margin-top:16px"><button class="primary big" id="pdAgain">再来一轮</button><button class="ghost" id="pdHome">回首页</button>') >= 0,
+   "快判小结: 两颗收尾按钮同一行、同一形状，只有主次之分（原来「回首页」挂 .big 但只有半颗大）");
 ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考你") >= 0,
    "快判小结: 答错的承诺「下次再考你」（记录已入账，那条链能兑得现）");
 state.history = state.history.filter(h=> h.track !== "pd"); saveHistory();
@@ -2015,8 +1852,17 @@ const landPlain = el("#docBody").innerHTML;
 ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") < 0
    && landPlain.indexOf('class="hero-sub"') < 0,
    "废话精简: 归纳概括落地页不写模块名标题；note 与胶囊重复时整句不写——不拿「按采分点打分」这种机制句填空");
-ok(landPlain.indexOf("近期加权均分") >= 0 || landPlain.indexOf("还没练过") >= 0,
-   "废话精简: 但成绩那行留着（是数据，不是废话）");
+{
+  const _h = state.history;
+  state.history = [{ ts:Date.now(), module:"zy.guina", subtype:"概括问题",
+    question:{ background:"b", requirements:"r", score:20 }, answer:"我的答案。", keyPoints:[], hits:[],
+    grade:{ total:16, scored:16 } }];
+  renderModuleLanding("zy.guina");
+  const withData = el("#docBody").innerHTML;
+  state.history = _h;
+  ok(withData.indexOf("近期加权均分") >= 0 && withData.indexOf("还没练过") < 0,
+     "废话精简: 有数据才报那一行（均分与次数算得出来才写，空着就空着）");
+}
 renderModuleLanding("zy.duice");
 ok(el("#docBody").innerHTML.indexOf('class="hero-sub"') < 0
    && el("#docBody").innerHTML.indexOf("针对问题提出解决措施") < 0
@@ -2061,15 +1907,15 @@ ok(PAGE_HTML.indexOf('border-radius:var(--r-card)') >= 0,
    "质感: 弹层卡片走统一大圆角 token（SPEC 3.2）");
 ok(/--r-ctl:8px;/.test(PAGE_HTML) && !/border-radius:\s*[0-9]/.test(PAGE_HTML),
    "圆润化: 圆角一律走 token，规则里不落裸数字（2026-10-15 收敛：原来散着 8 处，尖准的 6px/12px/1px 没人说得出来）");
-ok((function(){ const m = PAGE_HTML.match(/\.railwrap\{[^}]*\}/); return m && m[0].indexOf('sticky') < 0; })(),
+ok((function(){ const m = PAGE_HTML.match(/\.railrow\{[^}]*\}/); return m && m[0].indexOf('sticky') < 0; })(),
    "训练链: 步骤条不吸顶，跟纸一起滚");
 ok((function(){ const m = PAGE_HTML.match(/\.doc\{[^}]*\}/); return m && m[0].indexOf('border') < 0 && m[0].indexOf('box-shadow') < 0 && m[0].indexOf('border-radius') < 0 && m[0].indexOf('overflow:clip') >= 0 && m[0].indexOf('zoom:var(--paper-scale)') >= 0 && m[0].indexOf('min-height:calc((100vh - 50px)/var(--paper-scale) - 48px)') >= 0; })(),
    "纸面纪律: .doc 光板——不描边不投影不圆角，靠 --paper 对底板的色差与按窗口等比放大撑满视口（clip 只裁不接管滚动）");
 ok((function(){ const m = PAGE_HTML.match(/\.modal \.box\{[^}]*\}/); return m && m[0].indexOf('overflow:hidden') >= 0; })(),
    "圆润化: 弹层 .box 裁掉内部直角（抬头 / 面板底角不露方角）");
 ok((function(){ const m = PAGE_HTML.match(/\.tour-tip\{[^}]*\}/); return m && m[0].indexOf('background:var(--ink)') >= 0 && m[0].indexOf('border-radius:var(--r-ctl)') >= 0; })()
-   && PAGE_HTML.indexOf('.tour-tip button{border-radius:var(--r-ctl);}') >= 0,
-   "圆润化: 引导气泡与高亮框同档圆角，气泡内按钮跟界面按钮同档（不是胶囊）");
+   && PAGE_HTML.indexOf('.tour-tip button{border-radius:var(--r-pill);}') >= 0,
+   "圆润化: 气泡本体小圆角、里面的按钮跟着全站走胶囊（同一颗「下一步」换个位置不长出第二种形状）");
 /* 引导浮层是整屏唯一的深色面，它的遮罩 / 柔影 / 灰字以前散成四条 rgba，
    而且不在「:root 外的 hex」那条断言的射程里——那条只认 #hex，rgba 直接漏过。 */
 ok(!/\.tour-tip\{[^}]*rgba\(|\.tour-tip \.tstep\{[^}]*rgba\(|\.tour-tip \.tourskip\{[^}]*rgba\(/.test(PAGE_HTML),
@@ -2082,8 +1928,29 @@ ok(/function renderCurrentView\(\)\{[\s\S]{0,420}?_view === "q"\) return false/.
    "设置: 重渲染跳过正在作答的题页（不能清掉他刚写的东西）");
 ok((function(){ const m = PAGE_HTML.match(/\.seg button\.active\{[^}]*\}/); return m && m[0].indexOf('var(--red-wash)') >= 0; })(),
    "圆润化: 分段控件（推理程度）选中态是淡红底红字，不是整块实红");
-ok((function(){ const m = PAGE_HTML.match(/\.fab\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-ctl)') >= 0 && m[0].indexOf('min-height:var(--h-ctl-sm)') >= 0 && m[0].indexOf('position:fixed') < 0; })(),
-   "学习卡入口: 与纸上其它控件同一套（小圆角、30px 高、不吸在窗口上）");
+ok((function(){ const m = PAGE_HTML.match(/\.fab\{[^}]*\}/); return m && m[0].indexOf('border-radius:var(--r-pill)') >= 0 && m[0].indexOf('min-height:var(--h-ctl-sm)') >= 0 && m[0].indexOf('position:fixed') < 0; })(),
+   "学习卡入口: 与纸上其它控件同一套（胶囊、30px 高、不吸在窗口上）");
+
+/* 3.4 全站控件形状只有一套（2026-11-01 统一）：按钮一律胶囊（入口、纸内、弹层、顶栏同一形状），
+   容器（输入框 / 选项行 / 卡片）才走 8px；高度只有 30 / 36 / 48 三档 + 多行选项自适应。 */
+const _ctlRules = [];
+const _isCtlSel = s => s.split(",").some(one => /(^|[\s>,+~])(button|\.iconbtn|\.fab|\.chip|\.subjbtn|\.linkbtn|\.primary|\.ghost|\.mhead \.x)(\b|\[|:|\.)/.test(one.trim()));
+const _cssOnly = PAGE_HTML.replace(/\/\*[\s\S]*?\*\//g, "");
+for(const m of _cssOnly.matchAll(/([^{}]+)\{([^{}]*)\}/g)){
+  const sel = m[1].trim();
+  if(!_isCtlSel(sel)) continue;
+  const r = (m[2].match(/border-radius:([^;}]+)/) || [0,""])[1].trim();
+  if(r) _ctlRules.push([sel, r]);
+}
+const _badRadius = _ctlRules.filter(([s,r])=> r !== "var(--r-pill)" && r !== "var(--r-flat)");
+ok(_ctlRules.length > 10 && _badRadius.length === 0,
+   "控件形状: 按钮类选择器全站只许胶囊圆角（内层分段由 pill 外壳裁剪）-> " + (_badRadius.map(x=>x.join(" = ")).join(" | ") || "一致 " + _ctlRules.length + " 条"));
+ok(/\.navrow\{[^}]*border-radius:var\(--r-ctl\)/.test(PAGE_HTML)
+   && PAGE_HTML.indexOf("border-radius:var(--r-flat);background:none;text-align:left") < 0,
+   "控件形状: 画像里的可点行不再是直角（行与按钮同一套圆角语言）");
+ok(/button\.primary\{[^}]*min-height:var\(--h-ctl\)/.test(PAGE_HTML)
+   && PAGE_HTML.indexOf("min-height:40px;padding:8px 24px;") < 0,
+   "控件尺寸: 纸面主行动与同排控件同高（36），主次只靠红与不红分");
 
 /* 13 节用完 PD 出题桩就把真身装回去：
    以前漏了这一步，从 13 节往后 callLLM 一直是这个桩，
@@ -2437,6 +2304,20 @@ ok(maybeTour.toString().indexOf("steps[i0].raw > state.tut.seq") >= 0,
    "使用引导: 跳屏落下的步骤不再回头补弹（游标只进不退）");
 ok(renderStart.toString().indexOf("maybeTour(curSubject())") >= 0, "使用引导: 进入综应或申论科目时在综合起始页触发");
 ok(renderModuleLanding.toString().indexOf("maybeTour") < 0, "使用引导: 不必先点进具体模块才触发");
+/* 2026-11-01 从一张放大截图抓出来的三条：光斑红边叠在红按钮上像描了两道边；
+   圆角固定 8px 套在胶囊上是外方内圆；首页重绘成「继续上次」后光斑还停在旧落点，
+   框里那颗按钮已经换成尺寸不同的另一颗，留白一边 19 一边 5 */
+ok(PAGE_HTML.indexOf(".tour-hole{") >= 0 && PAGE_HTML.indexOf("outline:2px solid var(--gov-red);display:none;") < 0
+   && PAGE_HTML.indexOf("box-shadow:0 0 0 200vmax var(--scrim)") >= 0,
+   "使用引导: 聚光层只靠暗场指出目标，不再另描一道红边");
+ok(tourPlace.toString().indexOf("getComputedStyle(el).borderTopLeftRadius") >= 0
+   && tourPlace.toString().indexOf("r.height/2 + pad") >= 0,
+   "使用引导: 光斑圆角跟着目标走（目标是胶囊就做胶囊），两层边才是同心的");
+ok(PAGE_HTML.indexOf("function tourPick(step)") >= 0 && PAGE_HTML.indexOf("tourReplace();") >= 0
+   && tourReplace.toString().indexOf("tour.shown") >= 0,
+   "使用引导: 每次重绘后光斑重新对位（首页从「没填 Key」换成「继续上次」时不会框歪）");
+ok(JSON.stringify(visibleSteps().map(x=>x.alt || null)).indexOf("#btnResume") >= 0,
+   "使用引导: 首页的落点跟着主行动走——有未完成练习时指「继续上次」，不指已降级的快判");
 
 /* ---- 陌生用户看得见的那些事：形式的说明不藏着、强项不穿红、备份有出处、提示能直接点到设置 ---- */
 ok(PD_FORM_ORDER.every(id=> PD_FORMS[id].desc) && PD_FORMS[PD_MIX].spec.indexOf("form 字段") >= 0,
@@ -2927,9 +2808,9 @@ localStorage.clear();
 current = { module:"sl.guina", subtype:"概括问题", question:{ background:"材".repeat(120), requirements:"不超过250字。" }, keyPoints:[], cardPeeks:0 };
 renderQuestion();
 activeFlow().cardSeen = true;   // 这一段量的是限时，不重复走链前的学习卡
-flowGoStep("read");
+renderFlowStep();
 ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('placeholder="不限时"') >= 0 && dtHtml().indexOf('value=""') >= 0,
-   "限时: 读材料步就有控件（时钟从开始作答起算），默认留空 = 不限时");
+   "限时: 作答页就有控件（时钟从进作答起算），默认留空 = 不限时");
 ok(el("#timeLeft").textContent === "", "限时: 不限时不显示任何时间");
 
 /* 19.2 填了就起算：锚点落在链上，切步不重置（读材料那几行也算在里面） */
@@ -2967,8 +2848,9 @@ el("#answer").value = "写到一半的内容，超时也不该被动。";
 el("#bannerSlot").innerHTML = "";
 setLimitState(30, Date.now() - 31*60*1000);
 paintTimeLeft(el("#timeLeft"));
-ok(el("#timeLeft").textContent.indexOf("已超时 1:0") === 0 && el("#bannerSlot").innerHTML.indexOf("时间到") >= 0,
-   "限时: 超时后报「已超时」并提示一声（不自动交卷）");
+ok(el("#timeLeft").textContent.indexOf("已超时 1:0") === 0 && el("#timeLeft").className.indexOf("over") >= 0
+   && el("#bannerSlot").innerHTML.indexOf("时间到") < 0,
+   "限时: 超时后那个读数自己标红（不弹提示条，不自动交卷）");
 ok(el("#answer").value.indexOf("写到一半") >= 0, "限时: 超时不打断作答（已写的内容不动）");
 
 /* 19.4 交卷：用时进记录，批改页报用时与超时；交卷即停表 */
@@ -2982,25 +2864,29 @@ const recTL = state.history[0];
 ok(recTL.timeLimit === 30 && recTL.usedSec >= 31*60 && recTL.usedSec <= 31*60 + 5,
    "限时: 记录存下限时与用时 -> " + JSON.stringify({ limit: recTL.timeLimit, used: recTL.usedSec }));
 ok(curLimitFrom() === 0, "限时: 交卷即停表（再进一稿是下一次尝试，重新起算）");
-ok(dtHtml().indexOf("本题限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().indexOf("（超时 1 分") >= 0,
-   "限时: 批改页报出用时与超时");
+/* 2026-11-02：这行并进了分数带，「本题」二字删掉（这一页只有这一道题，位置自己会说是哪一题的） */
+ok(dtHtml().indexOf("限时 30 分钟 · 用时 31 分") >= 0 && dtHtml().indexOf("（超时 1 分") >= 0
+   && dtHtml().indexOf("本题限时") < 0,
+   "限时: 批改页把用时与超时报在分数那一行里（不独占一行）");
 
 /* 19.5 不限时：记录不带字段，批改页不报用时；综应A 与申论共用同一处控件 */
 state.settings.timeLimit = 0;
 current = { module:"zy.guina", subtype:"概括做法", question:{ background:"材".repeat(120), requirements:"不超过300字。" }, keyPoints:[], cardPeeks:0, phase:"answer" };
 renderZyPage();
-ok(dtHtml().indexOf("作答要求：") >= 0 && dtHtml().indexOf("作答要求：") < dtHtml().indexOf('id="btnSwitch"')
-   && dtHtml().indexOf(">题目<") < 0,
-   "作答页: 题面不挂标签，「换一题」落在作答要求之后那一行（不独占一行）");
-ok(dtHtml().indexOf("作答要求：") < 0 || dtHtml().indexOf("作答要求：") < dtHtml().indexOf("背景材料"),
-   "作答页: 题面在材料之前（先看要求再看材料）");
+ok(dtHtml().indexOf("作答要求：") >= 0 && dtHtml().indexOf('class="qtools"') < dtHtml().indexOf("作答要求：")
+   && dtHtml().indexOf('id="btnSwitch"') < dtHtml().indexOf("作答要求：") && dtHtml().indexOf(">题目<") < 0,
+   "作答页: 题面不挂标签，换一题/分值/难度/限时都在作答要求上面那一行（2026-11-02 由阿楠定的头三行）");
+ok(PAGE_HTML.indexOf("body:not(.wide-cols) .qhead{order:-2;}") >= 0
+   && PAGE_HTML.indexOf("body:not(.wide-cols) .col-mat{order:-1;}") >= 0
+   && PAGE_HTML.indexOf("body:not(.wide-cols) .col-work{display:contents;}") >= 0,
+   "作答页: 单栏时靠 order 把题面顶回材料前面（DOM 里题面待在右栏内，为的是两栏时它跟作答框在一块）");
 ok(dtHtml().indexOf('class="paper-cols"') >= 0
-   && dtHtml().indexOf('class="c-head"') < dtHtml().indexOf('class="col-mat"')
    && dtHtml().indexOf('class="col-mat"') < dtHtml().indexOf('id="marksSlot"')
    && dtHtml().indexOf('id="marksSlot"') < dtHtml().indexOf('class="col-work"')
-   && dtHtml().indexOf('id="answer"') > dtHtml().indexOf('class="col-work"')
+   && dtHtml().indexOf('class="col-work"') < dtHtml().indexOf('class="qhead"')
+   && dtHtml().indexOf('class="qhead"') < dtHtml().indexOf('id="answer"')
    && dtHtml().indexOf("我划的重点") < 0,
-   "作答页: 题面 / 材料 / 作答区三块装进 .paper-cols，划的重点跟在材料窗下面（没划过时只留一句说明）");
+   "作答页: 左栏材料 + 右栏一摞（题面 → … → 作答框），划的重点跟在材料窗下面（没划过时只留一句说明）");
 ok(dtHtml().indexOf('id="inpLimit"') >= 0 && dtHtml().indexOf('value=""') >= 0,
    "限时: 综应A 作答页也有控件（与申论共用同一处渲染）");
 el("#answer").value = "综应A 的一段作答内容，用来验证不限时的时候什么也不报。";
@@ -3140,7 +3026,7 @@ ok(tutKeySteps.length === TUT_SEQ.length && tutKeySteps.every((s,i)=> s.raw === 
 state.settings.apiKey = "";
 renderHome();
 const pdHomeNoKey = el("#docBody").innerHTML;
-ok(pdHomeNoKey.indexOf('id="btnSetup">先填 API Key（出题和阅卷都要）') >= 0
+ok(pdHomeNoKey.indexOf('id="btnSetup">先填 API Key</button>') >= 0
    && pdHomeNoKey.indexOf('id="btnQuick"') < 0,
    "快判入口/没 Key: 首页主按钮如实写成「先填 API Key」，不出现出题按钮");
 el("#btnSetup").onclick();
@@ -3190,8 +3076,8 @@ ok(__histEmpty.indexOf("还没有练习记录") >= 0 && __histEmpty.indexOf("<ta
 state.history = [{ ts: Date.now(), module:"zy.gongwen", subtype:"通知", grade:{ total:70, scores:{} } }];
 ok(profileHistHtml().indexOf("<table") >= 0, "空态: 有记录时记录页照常摆表格");
 ok(PAGE_HTML.indexOf(".noteedit{width:100%;min-height:84px") >= 0 && PAGE_HTML.indexOf(".card-body h4.noteh{margin-top:16px") >= 0
-   && PAGE_HTML.indexOf(".cardcol>.csec+.csec{margin-top:24px") >= 0,
-   "学习卡页: 笔记框/标题/分节间距收紧（整卡目标 ≤900 可视高）");
+   && PAGE_HTML.indexOf(".card-body .csec{margin-bottom:24px") >= 0,
+   "学习卡页: 笔记框/标题/分节间距（单栏垂直流，节间 24px）");
 /* ---- 20. 全项目 review 后修下的四条：按钮接线、判别轨抬头、出题失败落点、超时与静默失败 ---- */
 /* 20.1 画像二级页的经验行：停用/删除两颗按钮只长在二级页上，一级页那条路接了线不算数。
    DOM 桩子的 querySelectorAll 恒空，「点不动按钮」自身测不出来，只能钉住「二级页也接了线」这一句。 */
@@ -3332,31 +3218,32 @@ ok((PAGE_HTML.match(/,"theme":"材料主题/g) || []).length === 3,
 /* ============ 22. 批改页结构：我的答案（逐句标注）· 解析（为什么没拿到分）· 参考答案 ============ */
 current = { module:"zy.gongwen", subtype:"通知", question:{ background:"x", requirements:"y", score:20 } };
 renderGrade({ scores:{},
-  causes:[ { title:"格式缺项", why:"采分点认的是成文日期这类落款要素，写了做法没写日期，这一项就落不到。" },
-           { title:"要点整块缺失", why:"材料明写的对象没在答卷里出现，采分点按材料逐个摆，跳过一个就少一个。" } ],
-  principle:"公文题先把格式要素摆齐，再谈内容。",
+  review:[ "漏掉了主送机关和成文日期这两处，材料里写明了受文对象和落款要求，答卷从标题直接跳到正文，格式这一块整段没落地。",
+           "补的时候按标题、主送、正文、落款四段走一遍：受文对象照材料抄，落款单位与日期另起一行写在最后。" ],
   modelAnswer:"第一段内容。\n第二段内容。",
   hits:[ {point:"标题含事由",score:4,awarded:4,status:"满分",kind:"-",evidence:"答到：「关于调整作息的通知」"},
          {point:"写明主送机关",score:4,awarded:0,status:"零分",kind:"漏点",evidence:"【缺：写明主送机关】"},
          {point:"落款单位与日期",score:2,awarded:1,status:"半分",kind:"格式",evidence:"答到：「遵照执行」，【缺：成文日期】"} ] },
   78, null, null, "关于调整作息的通知。各科室请遵照执行。特此通知。");
 const H22 = el("#docBody").innerHTML;
-ok(H22.indexOf('class="grade-columns"') >= 0
-   && H22.indexOf('class="grade-answer"') < H22.indexOf('class="answerreview"')
-   && H22.indexOf('class="grade-detail"') < H22.indexOf('class="causes"'),
-   "横版批改: 答卷与解析分别进入左右区域，正文不再缩在一条居中列");
-ok(H22.indexOf('class="modelanswer"') > H22.indexOf('class="grade-detail"')
+ok(H22.indexOf('>我的答案<') > 0 && H22.indexOf('>我的答案<') < H22.indexOf('>解析<')
+   && H22.indexOf('>解析<') < H22.indexOf('>参考答案<'),
+   "批改页: 次序是我的答案 → 解析 → 参考答案（从自己写的开始，读到解析时手里还攥着那句原话）");
+ok(H22.indexOf('class="modelanswer"') > H22.indexOf('>解析<')
    && H22.indexOf('class="nextrow"') > H22.indexOf('class="modelanswer"'),
-   "横版批改: 范文跟解析同区，完成等动作在对照区域之后");
+   "批改页: 范文仍在解析之后、动作行之前");
+ok(H22.indexOf('<span class="lossn">错 2 处</span>') > 0,
+   "批改页: 「错 N 处」跟分数同一句（14/20 反推不出处数，一个采分点 4-6 分，丢 6 分可能两处也可能三处）");
 ok(PAGE_HTML.indexOf('.answerreview .asent.got.full{color:var(--ink);}') >= 0
    && PAGE_HTML.indexOf('.answerreview .asc.full{color:var(--muted);}') >= 0,
    "批改配色: 满分句用正文色与灰分数，红色只标没拿满的句子");
-ok(PAGE_HTML.indexOf('body.wide-review .grade-columns{grid-template-columns:minmax(0,1fr) minmax(0,1fr)') >= 0
-   && PAGE_HTML.indexOf('.grade-columns{display:grid;grid-template-columns:minmax(0,1fr)') >= 0,
-   "横版批改: 宽窗对照两栏，窄窗回单栏，区域可收缩不撑破纸面");
+ok(PAGE_HTML.indexOf("body.wide-review #docBody>*{max-width:var(--text-col)") >= 0
+   && PAGE_HTML.indexOf("body.wide-review .grade-columns{grid-template-columns") < 0
+   && PAGE_HTML.indexOf('class="grade-columns"') < 0,
+   "批改页: 恒单栏 620 正文列居中（不再按窗口宽度切两栏，范文与正文同踩一条左缘）");
 ok(PAGE_HTML.indexOf('--mat:var(--wash)') >= 0 && PAGE_HTML.indexOf('--write:var(--ctl)') >= 0,
    "纸面配色: 材料使用中性浅底，作答使用控件纸色，不叠彩色纸面");
-ok(PAGE_HTML.indexOf('html{overflow-y:scroll;scrollbar-gutter:stable;}') >= 0,
+ok(PAGE_HTML.indexOf('html{overflow-y:scroll;scrollbar-gutter:stable;scroll-padding-bottom:56px;}') >= 0,
    "视觉对齐: 长短页面都保留滚动条槽，换页纸面不横移");
 const polishSelf = (PAGE_HTML.match(/\.selfbox\{[^}]+\}/) || [""])[0];
 ok(polishSelf.indexOf('padding:0;border:none;background:none') >= 0,
@@ -3365,32 +3252,24 @@ const polishHead = (PAGE_HTML.match(/\.ghead\{[^}]+\}/) || [""])[0];
 ok(polishHead.indexOf('padding:0 0 16px;background:none') >= 0
    && polishHead.indexOf('border-bottom:1px solid var(--line-soft)') >= 0,
    "视觉精修: 分数按正文边缘对齐，用轻底线分隔而非大底色卡片");
-ok(PAGE_HTML.indexOf('.grade-columns .secrow{min-height:28px;') >= 0
-   && PAGE_HTML.indexOf('.grade-detail>.sec-title{min-height:28px;') >= 0,
-   "视觉对齐: 答卷图例与解析标题共享行高，左右内容同高起排");
-ok(H22.indexOf(">解析<") >= 0 && H22.indexOf(">我的答案<") < 0 && H22.indexOf(">参考答案<") < 0,
-   "批改页: 只留「解析」标题，答卷与解析分区，范文平铺");
-ok(H22.indexOf('class="answerreview"') < H22.indexOf(">解析<")
-   && H22.indexOf(">解析<") < H22.indexOf('class="modelanswer"'),
-   "批改页: 次序是答案 → 解析 → 范文（先看自己写了什么，再看为什么，最后看成什么样）");
-ok(H22.indexOf('class="sec-title why">解析</div>') >= 0
-   && H22.indexOf('class="sec-title answer"') < 0 && H22.indexOf("sec-title\">我的答案") < 0,
-   "批改页: 只留解析标题，不恢复我的答案与参考答案题头");
-ok(H22.indexOf('<div class="ctitle">格式缺项</div>') >= 0
-   && H22.indexOf("采分点认的是成文日期这类落款要素") >= 0
-   && H22.indexOf('<div class="ctitle">要点整块缺失</div>') >= 0,
-   "批改页: 解析按「归类标题 + 为什么」成对渲染");
-ok(H22.indexOf('class="principle">公文题先把格式要素摆齐，再谈内容。</div>') >= 0,
-   "批改页: 原则句单独一块（一句话收尾）");
-ok(H22.indexOf("下一步怎么改") < 0 && H22.indexOf("nextSteps") < 0 && PAGE_HTML.indexOf("nextSteps") < 0,
-   "批改页: 没有「下一步怎么改」（下一步由考生自己定，不替他做决定）");
+ok(H22.indexOf('<div class="secrow"><div class="sec-title">我的答案</div><div class="hint">') >= 0,
+   "视觉对齐: 标注图例跟「我的答案」同处一行（它解释的是紧挨着的逐句标注，不另占一行）");
+ok(H22.indexOf(">我的答案<") >= 0 && H22.indexOf(">解析<") >= 0 && H22.indexOf(">参考答案<") >= 0,
+   "批改页: 三块各有自己的名字（我的答案 / 解析 / 参考答案），不再让人猜哪块是哪块");
+ok(H22.indexOf('<div class="reviewbody"><p>漏掉了主送机关') >= 0
+   && (H22.match(/<div class="reviewbody"><p>/g) || []).length === 1
+   && (H22.match(/<\/p>/g) || []).length === 2,
+   "批改页: 解析是连着两段话，不按采分点逐条摆（分条就成了待办清单，读不出这题在想什么）");
+ok(H22.indexOf('class="ctitle"') < 0 && H22.indexOf('class="principle"') < 0
+   && H22.indexOf("前端") < 0,
+   "批改页: 归类标题那一套和「一句话原则」都不渲染了（10-19 的口径，2026-11-02 推翻）");
 /* 老记录（0.0.23 及以前）只有一段文字解析：原样显示，不硬塞进新结构 */
 renderGrade({ scores:{}, comment:"先写主送机关再写正文。",
   hits:[{point:"a",score:5,awarded:5,status:"满分",evidence:"答到：「a」"}] }, 50, null, null, "我答了一句。");
 const H22old = el("#docBody").innerHTML;
 ok(H22old.indexOf('class="sec-title lite">解析</div>') >= 0 && H22old.indexOf("先写主送机关再写正文。") >= 0,
    "批改页: 老记录的文字解析照旧显示（回退不硬套新结构）");
-renderGrade({ scores:{}, causes:[ { title:"格式缺项", why:"w" } ], principle:"p",
+renderGrade({ scores:{}, causes:[ { title:"格式缺项", why:"写了做法没写日期" } ], principle:"应该先摆格式再写内容",
   modelAnswer:"第一段内容。\n第二段内容。",
   hits:[ {point:"标题含事由",score:4,awarded:4,status:"满分",kind:"-",evidence:"答到：「关于调整作息的通知」"},
          {point:"写明主送机关",score:4,awarded:0,status:"零分",kind:"漏点",evidence:"【缺：写明主送机关】"},
@@ -3401,23 +3280,27 @@ ok(H22c.indexOf("asent got") >= 0 && H22c.indexOf('class="asc">+1<') >= 0 && H22
    "批改页: 逐句标注标的是得分处（满分句也报分，加起来＝页头总分）");
 ok(H22c.indexOf("第一段内容。\n第二段内容。") >= 0,
    "批改页: 范文按原文换行渲染（pre-wrap，不再折成一坨）");
-ok(H22c.indexOf("<details") < 0 && H22c.indexOf("丢分清单") < 0 && H22c.indexOf("loseline") < 0,
-   "批改页: 折叠区与丢分清单都不在（2026-10-13 回退到平铺三段）");
+ok(H22c.indexOf('<div class="reviewbody"><p>格式缺项，写了做法没写日期。</p></div>') >= 0,
+   "批改页: 老记录的归类归因连成一段话（回退不硬套两段，也不摆成条）");
+ok(H22c.indexOf('class="modelanswer"') > H22c.indexOf('class="reviewbody"'),
+   "批改页: 范文排在解析之后（先看范文，解析就白写了）");
+ok(H22c.indexOf('class="principle"') < 0,
+   "批改页: 老记录里那句「一句话原则」也不显示了（它属于收尾话，不属于解析）");
 ok((PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].indexOf("sticky") < 0
    && (PAGE_HTML.match(/\.ghead\{[^}]*\}/) || [""])[0].length > 0,
    "批改页: 分数不吸顶（往下看文章时它不该浮在字上面）");
 ok(PAGE_HTML.indexOf("loselist") < 0 && PAGE_HTML.indexOf("loseDetail") < 0 && PAGE_HTML.indexOf("MISS_RE") < 0
    && PAGE_HTML.indexOf("clipTxt") < 0,
-   "批改页: 丢分清单整块删净（含 CSS 与取值函数，不留死代码）");
+   "批改页: 10-13 删掉的那套丢分清单实现不复活（新的按 hits 重建，一份数据一处读法）");
 ok(PAGE_HTML.indexOf(".modelanswer{margin-top:24px;background:var(--wash);") >= 0
-   && PAGE_HTML.indexOf("line-height:2.05;white-space:pre-wrap;") >= 0,
+   && PAGE_HTML.indexOf("line-height:var(--lh-loose);white-space:pre-wrap;") >= 0,
    "批改页: 范文共用中性浅底、自带 pre-wrap（不再靠折叠体兜）");
-ok(PAGE_HTML.indexOf('"causes":[{"title":"4—8 字归类标题"') >= 0 && PAGE_HTML.indexOf('"principle":"一句话收尾') >= 0,
-   "阅卷 prompt: 解析换成归类归因（causes）+ 一句话原则（principle）");
+ok(PAGE_HTML.indexOf('"review":["第一段：考生大概在哪想偏了"') >= 0 && PAGE_HTML.indexOf('"principle"') < 0,
+   "阅卷 prompt: 解析换成两段话（review），不再让模型另写一句话原则");
 ok(PAGE_HTML.indexOf('"weaknesses"') < 0 && PAGE_HTML.indexOf('"strengths"') < 0 && PAGE_HTML.indexOf('"comment":"解析') < 0,
    "阅卷 prompt: 旧的两块（优缺点清单 + 100 字解析）不再要求模型产出——同一件事不能说两遍");
-ok(PAGE_HTML.indexOf("不写「下次该怎么做」") >= 0 && PAGE_HTML.indexOf("不替他做决定") >= 0,
-   "阅卷 prompt: 明说不要写「下一步怎么改」（那是考生自己的事）");
+ok(PAGE_HTML.indexOf("第二段说对应应该怎么改") >= 0 && PAGE_HTML.indexOf("「建议一、建议二」") >= 0,
+   "阅卷 prompt: 第二段就是要给能照着做的动作，而且不许分条写成「建议一、建议二」（10-19「不替他做决定」推翻）");
 ok(PAGE_HTML.indexOf("不得出现英文双引号") >= 0,
    "阅卷 prompt: 字符串里禁英文双引号（冒一个整份 JSON 就废）");
 ok(PAGE_HTML.indexOf("一句话（40 字内）") < 0,
@@ -3460,23 +3343,38 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      "规则展示位: 摆出前 3 条，其余只报个数");
   state.experiences = [];
   ok(prepRulesHtml("zy.gongwen") === "", "规则展示位: 这个模块没经验时整块不出现，不留空框");
+  state.experiences = [ _mk("e2","规则","规则条A",200) ];
+  current = { module:"zy.gongwen", subtype:"通知", cardPeeks:0, phase:"answer",
+    question:{ background:"材".repeat(80), requirements:"不超过500字。", suggestedFormat:"标题→称谓→开头→主体→结尾→落款" }, keyPoints:[] };
+  const _cur0 = current;
+  renderZyPage();
+  ok(dtHtml().indexOf('class="qtools"') < dtHtml().indexOf("作答要求：")
+     && dtHtml().indexOf("作答要求：") < dtHtml().indexOf('class="qrow foldrow"')
+     && dtHtml().indexOf('class="qrow foldrow"') < dtHtml().indexOf('id="answerArea"'),
+     "规则展示位: 右栏那一摞的顺序是工具行 → 作答要求 → 建议结构/经验 → 作答框");
+  ok(dtHtml().indexOf('id="btnFmtFold"') >= 0 && dtHtml().indexOf('id="btnExpFold"') > dtHtml().indexOf('id="btnFmtFold"')
+     && dtHtml().indexOf(">建议结构") > 0 && dtHtml().indexOf("6 步") > 0 && dtHtml().indexOf("prepbox") < 0,
+     "建议结构: 折成一颗按钮与经验并排，步数写在括注里，正文不在纸面上（点了开弹层）");
+  current = _cur0;
   state.experiences = _exp0;
-  ok(PAGE_HTML.indexOf("let html = prepRulesHtml(module);") >= 0,
-     "规则展示位: 作答区上方接上了它（申论一稿页与综应A 作答页共用 draftPanelHtml）");
+  ok(PAGE_HTML.indexOf('if(step === "draft") head = draftHeadHtml();') >= 0
+     && PAGE_HTML.indexOf("function draftHeadHtml") >= 0,
+     "规则展示位: 申论一稿页走同一条路——头就是 draftHeadHtml 的那三行");
 
   /* 自述：先问什么，再落到哪条记录上 */
   ok(selfAskKind({ hits:[{score:10,awarded:9}] }, 90) === "how", "思路自述: 得高分的题问「凭什么确定」");
   ok(selfAskKind({ hits:[{score:10,awarded:8}] }, 80) === "how", "思路自述: 八成分数就算高分");
-  ok(selfAskKind({ hits:[{score:10,awarded:4}] }, 40) === "stuck", "思路自述: 丢分的题问「卡在哪一步」");
+  ok(selfAskKind({ hits:[{score:10,awarded:4}] }, 40) === "stuck", "思路自述: 丢分的题问「这题你大概错在哪」");
   ok(selfAskKind({ hits:[] }, 80) === "how" && selfAskKind({ hits:[] }, 60) === "stuck",
      "思路自述: 没有采分点的老记录退回总分判");
   state.history = [{ ts:Date.now(), module:"zy.gongwen", question:current.question, answer:"x", hits:[], grade:{} }];
   renderGrade({ hits:[{score:10,awarded:9}], comment:"x" }, 90, null, null, "我答了一句。");
   const _H = el("#docBody").innerHTML;
-  ok(_H.indexOf('id="selfBox"') >= 0 && _H.indexOf("凭什么确定") >= 0 && _H.indexOf("卡在哪一步") < 0,
+  ok(_H.indexOf('id="selfBox"') >= 0 && _H.indexOf("凭什么确定") >= 0 && _H.indexOf("大概错在哪") < 0,
      "思路自述: 高分题在批改页上摆出「凭什么确定」（另一问不同时出现）");
   renderGrade({ hits:[{score:10,awarded:3}], comment:"x" }, 30, null, null, "我答了一句。");
-  ok(el("#docBody").innerHTML.indexOf("卡在哪一步") >= 0, "思路自述: 丢分的题换成「卡在哪一步」");
+  ok(el("#docBody").innerHTML.indexOf("这题你大概错在哪") >= 0,
+     "思路自述: 丢分的题换成「这题你大概错在哪」（他自己写一遍错处，与解析说不上同一处也不打紧）");
   ok(_H.indexOf('id="btnSelfSkip"') >= 0, "思路自述: 旁边就是跳过");
   /* 记下 → 写进记录；跳过 → 两个字段都不写 */
   el("#selfNote").value = "  看到主送机关就知道这是通知  ";
@@ -3504,10 +3402,10 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
 /* ============ 24. 排版尺子：字号五档 / 间距无中间值 / 屏级层级 ============ */
 {
   // 字号：全站只剩五档变量，字面值只留给红头与纸上的字
-  ok(PAGE_HTML.indexOf("--fs-display:30px") > 0 && PAGE_HTML.indexOf("--fs-hero:26px") > 0
-     && PAGE_HTML.indexOf("--fs-title:16px") > 0 && PAGE_HTML.indexOf("--fs-body:14px") > 0
-     && PAGE_HTML.indexOf("--fs-note:12.5px") > 0,
-     "尺子: :root 里五档字号都在");
+  ok(PAGE_HTML.indexOf("--fs-display:32px") > 0 && PAGE_HTML.indexOf("--fs-hero:28px") > 0
+     && PAGE_HTML.indexOf("--fs-title:17px") > 0 && PAGE_HTML.indexOf("--fs-body:15px") > 0
+     && PAGE_HTML.indexOf("--fs-note:13px") > 0,
+     "尺子: :root 里五档字号都在（2026-11-01 整体上移一档：13 / 15 / 17 / 28 / 32）");
   const _lit = (PAGE_HTML.match(/font-size:[0-9.]+px/g) || []);
   ok(_lit.length === 6 && _lit.every(x=> x === "font-size:16px" || x === "font-size:30px"),
      "尺子: 字面字号只剩 6 处（红头机关名 30 + 纸上的字 16×5），其余全走变量");
@@ -3524,26 +3422,62 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      "尺子: 间距没有中间值（2/3/5/6/7/9/10/11/13/14/18/20/22/26/28/30 一个不剩）");
   ok(_spVals.has(4) && _spVals.has(8) && _spVals.has(12) && _spVals.has(16) && _spVals.has(24),
      "尺子: 五档间距确实在用（4 / 8 / 12 / 16 / 24）");
+  // 字族与字距（2026-11-01：字体栈按「本机真命中」重排后钉住）。
+  // 原来的 --yahei 以 -apple-system 打头，拉丁数字走 SF、汉字走苹方，一行两种气质；
+  // 原来的 --hei 以 SimHei/黑体 打头，这两族在 mac 上不存在，整条落到 sans-serif——等于没指定字体。
+  const _yaheiLine = PAGE_HTML.slice(PAGE_HTML.indexOf("--yahei:"), PAGE_HTML.indexOf("--song:"));
+  ok(_yaheiLine.indexOf('--yahei:"PingFang SC","Hiragino Sans GB","Microsoft YaHei"') >= 0
+     && _yaheiLine.indexOf("-apple-system") < 0,
+     "字族: 控件栈按真命中排（苹方 → 冬青 → 雅黑），不再拿 -apple-system 顶在前面把拉丁也交给 SF");
+  ok(PAGE_HTML.indexOf("--hei:var(--yahei);") >= 0,
+     "字族: 黑体档并进控件档——品牌、科目栏、区块标题与按钮必须是同一张脸");
+  const _lsVals = PAGE_HTML.match(/letter-spacing:(?!0[;}])([^;}]+)/g) || [];
+  ok(_lsVals.length === 2 && _lsVals.join(",") === "letter-spacing:4px,letter-spacing:4px",
+     "字距: 非零字距只剩红头两处，两档都是 4px（页眉版只缩字号、不缩字距），按钮与标题一律 0 -> " + JSON.stringify(_lsVals));
+  ok(PAGE_HTML.indexOf("button{font-family:var(--yahei);font-size:var(--fs-body);line-height:var(--lh-ctl);letter-spacing:0;") >= 0,
+     "字距: 按钮基类显式写 0，不再继承任何拉距");
+  /* 动效档位（2026-11-01，借 Material 3 motion tokens 的数字与曲线）：
+     原来 .12/.15/.16/.18/.2/.22 六个野时长散在七处，同一件事在两处各写一个数。 */
+  const _tDecls = PAGE_HTML.match(/(?:transition|animation):[^;}]*/g) || [];
+  const _tLits = _tDecls.join(";").match(/[0-9.]+m?s\b/g) || [];
+  ok(_tLits.length === 0 && PAGE_HTML.indexOf("--t-state:150ms") >= 0
+     && PAGE_HTML.indexOf("--t-press:100ms") >= 0 && PAGE_HTML.indexOf("--t-enter:200ms") >= 0,
+     "动效: 时长只有 --t-* 三档（150 状态 / 100 按下 / 200 入场），声明里不许写字面秒数 -> " + JSON.stringify(_tLits));
+  const _easeLits = _tDecls.join(";").match(/(^|[ ,;:])(ease-in-out|ease-out|ease-in|linear|ease)(?![\w-])/g) || [];
+  ok(_easeLits.length === 0 && PAGE_HTML.indexOf("--ease-std:cubic-bezier(.2,0,0,1)") >= 0
+     && PAGE_HTML.indexOf("--ease-decel:cubic-bezier(.05,.7,.1,1)") >= 0,
+     "动效: 曲线只有 --ease-std 与 --ease-decel 两条，不拿浏览器默认的 ease 凑 -> " + JSON.stringify(_easeLits));
+  /* 行高四档 token（2026-11-02 consolidation）：
+     原来散落 15 个字面值（1.6/1.65/1.7/1.75/1.8/1.85/1.9/1.95/2.05 等），归位到 --lh-ctl/body/doc/loose 四档。
+     只许 --lh-* token、line-height:1（图标/tooltip）、line-height:var(--lh-display)（大字号标题）三种写法。 */
+  const _lhDecls = PAGE_HTML.match(/line-height:(?![\s]*var\(--lh-)[^;}]*/g) || [];
+  const _lhLits = _lhDecls.filter(d => !/line-height:\s*1(?!\.)/.test(d) && !/\.\d/.test(d));  /* line-height:1 给图标元素、1.25 给大字号标题，放行 */
+  ok(_lhLits.length === 0
+     && PAGE_HTML.indexOf("--lh-ctl:1.35") >= 0 && PAGE_HTML.indexOf("--lh-body:1.7") >= 0
+     && PAGE_HTML.indexOf("--lh-doc:1.85") >= 0 && PAGE_HTML.indexOf("--lh-loose:2.05") >= 0,
+     "行高: 只有 --lh-ctl/body/doc/loose 四档 + display(1.25) + 图标(1)，不许写字面数值 -> " + JSON.stringify(_lhLits));
   // 层级：标题只有两档；题头比容器标签重
   ok(PAGE_HTML.indexOf(".sec-title{font-family:var(--hei);font-weight:700;font-size:var(--fs-title)") >= 0,
      "层级: 区块标题只有一档（16px 红竖线）");
   ok(PAGE_HTML.indexOf(".sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body)") >= 0,
      "层级: 次级标题降一档（14px 灰、不缩进）");
-  ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<div class="secrow" style="justify-content:flex-end"><span class="secright"><span id="cardHost"></span>${orgBtn}${limitRowHtml()}') >= 0,
-     "层级: 作答框不再挂「作答区」这个标签——框和占位字已经说了；那一行只留归类、学习卡与限时");
+  ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<div class="secrow ctrlrow"><span class="secright"><span id="cardHost"></span>${limitRowHtml()}') >= 0,
+     "层级: 作答框不再挂「作答区」这个标签——框和占位字已经说了；那一行只留学习卡与限时");
   ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') < 0
      && PAGE_HTML.indexOf("metaLineHtml(metaQ, switchBtn)") >= 0
-     && PAGE_HTML.indexOf('metaLineHtml(question, `<button class="linkbtn" id="btnSwitch"') >= 0,
-     "层级: 两科都不挂「题目」标签，分值与「换一题」都落在作答要求之后那一行");
+     && PAGE_HTML.indexOf("function toolsRowHtml") >= 0
+     && PAGE_HTML.indexOf("if(step === \"draft\") head = draftHeadHtml();") >= 0
+     && PAGE_HTML.indexOf("readHeadHtml") < 0,
+     "层级: 两科都不挂「题目」标签；申论作答页与综应共用一个工具行（分值 · 难度 · 换一题 · 学习卡 · 限时），都在作答要求之前");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') < 0
      && PAGE_HTML.indexOf('<div class="pdstate" id="pdState"') >= 0,
      "层级: 快判一轮页不另起标题行（「快判」已由红头说），主题与进度落红头中段");
   ok(PAGE_HTML.indexOf("红＝没拿满 · <i") >= 0 && PAGE_HTML.indexOf("橙＝拿满") < 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
      "层级: 批改页的标注图例挪进标题行（不再每题占一行），而且只留最短那一版说法");
-  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') < 0
-     && PAGE_HTML.indexOf('<div class="ghead-right">') >= 0
-     && PAGE_HTML.indexOf('<div class="grade-columns"><section class="grade-answer" aria-label="我的答案">') >= 0,
-     "层级: 标注图例跟分数同处一条信息带（同一个右缘），两栏从那条线下方同高起排；左栏不再自占一行靠右");
+  ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0
+     && PAGE_HTML.indexOf('class="sec-title">参考答案</div>') >= 0
+     && PAGE_HTML.indexOf("stackbox") < 0,
+     "层级: 我的答案与参考答案各自成段、不折叠（2026-11-02 撤销：它们是批改的前后两部分，收起来就无从对照）");
   // 尺子本身不许有“定义了没人用”的死 token
   const _cssVars = Array.from(new Set(Array.from(PAGE_HTML.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)).map(m=>m[1])));
   const _deadVars = _cssVars.filter(v=> PAGE_HTML.indexOf("var(" + v + ")") < 0);
@@ -3569,9 +3503,10 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   /* 两栏几何：带材料的屏在窗口够宽时左材料右作答。这里盯的是三条不变量——
      两栏的正文列仍是 560（让给材料的只有那 60px）、缩放下限仍是 1（字号不往小里探）、
      材料栏收到 400 就不再收。 */
-  ok(layoutFor(1040, 900, true).wide === false && layoutFor(1133, 900, true).wide === false
-     && layoutFor(1134, 900, true).wide === true,
-     "两栏: 窗口窄到 1134 以下收回单栏（材料落回到作答区上方）");
+  ok(layoutFor(940, 900, true).wide === false && layoutFor(959, 900, true).wide === false
+     && layoutFor(960, 900, true).wide === true && layoutFor(960, 900, true).matW === 400
+     && (960 - 10 - 400 - 140 - 24) === 386,
+     "两栏: 窗口窄到 960 以下才收回单栏（960 档：材料 400 + 作答 386）");
   ok(layoutFor(1040, 900, false).wide === false && layoutFor(1920, 1030, false).wide === false
      && layoutFor(1920, 1030, false).scale === paperScaleFor(1920),
      "两栏: 没有材料的屏一律单栏，缩放与带材料的屏同一套（同一个 paperScaleFor）");
@@ -3589,10 +3524,11 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      && PAGE_HTML.indexOf(".toolbar{--tb-edge:max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px + 54px * var(--paper-scale)))") >= 0,
      "纸宽: .wrap 与顶栏共用 --sheet-w × --paper-scale 这一个数（顶栏再让出 54px 纸边，对齐版心左缘）");
   ok(/body\.wide-cols \.paper-cols\{display:grid;grid-template-columns:var\(--mat-col-w\) 1fr/.test(PAGE_HTML)
-     && PAGE_HTML.indexOf('grid-template-areas:"mat head" "mat work"') >= 0
-     && PAGE_HTML.indexOf(".paper-cols{display:block;}") >= 0
+     && PAGE_HTML.indexOf("body.wide-cols .col-work{height:var(--work-col-h);min-height:0;overflow-y:auto;") >= 0
+     && PAGE_HTML.indexOf("body.wide-cols .col-work>#flowPanel{flex:1 1 auto;") >= 0
+     && PAGE_HTML.indexOf("body.wide-cols .col-work #answerArea{flex:1 1 auto;") >= 0
      && PAGE_HTML.indexOf("body.wide-cols .col-mat .material{max-height:var(--mat-col-h);}") >= 0,
-     "两栏: 材料占左两行、题面只压在右栏上方（单栏时这层壳等于不存在）；两栏时左栏材料一律按 --mat-col-h 铺底（不挑 mat-scroll）");
+     "两栏: 右栏给死一屏高、题面与作答框在同一栏里，剩下的高全给作答框（框自己滚；申论一稿那层 #flowPanel 也把高度传下去）；左栏材料按 --mat-col-h 铺底");
   // :root 外不写设计色 hex（用户可选的划线色是运行时变量，另算）
   const _css = PAGE_HTML.slice(PAGE_HTML.indexOf("<style>"), PAGE_HTML.indexOf("</style>"));
   const _rootEnd = _css.indexOf("}", _css.indexOf(":root{"));
@@ -3635,7 +3571,7 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      && _stroke === 1,
      "跨平台: 仿宋描边只挂 mac（华文仿宋细要补，Win 的 SimFang 再描就糊）-> 描边声明 " + _stroke + " 处");
   ok(PAGE_HTML.indexOf(".grpt{font-family:var(--hei);font-weight:700;font-size:var(--fs-body)") >= 0
-     && PAGE_HTML.indexOf("letter-spacing:1px;margin-bottom:12px;}") >= 0
+     && PAGE_HTML.indexOf("margin-bottom:12px;}") >= 0
      && PAGE_HTML.indexOf(".setgrp{margin-top:24px") >= 0,
      "设置页: 组标题走画像弹层同一套（黑体 14 / 700、标题下 12），区块间距回到 24 档");
   ok(PAGE_HTML.indexOf("details.more") < 0 && PAGE_HTML.indexOf('class="more"') < 0,
@@ -3656,24 +3592,134 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      && PAGE_HTML.indexOf(".banner-actions") < 0,
      "提示条: 左右让出 54×缩放落在正文列上（与顶栏 --tb-edge 同一个数）；欢迎框删了，它的 .banner-actions 不留死样式");
   ok(/--act-col:\d+px/.test(PAGE_HTML)
-     && PAGE_HTML.indexOf(".start-entry .actions:has(.big),.start-entry .chiprow,.start-entry .actline{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}") >= 0
-     && PAGE_HTML.indexOf(".start-entry .actions:has(.big) .big{width:100%;min-width:0;}") >= 0,
-     "入口屏: 主按钮 / 科目入口 / 继续条共用一条动作列，窄窗随容器缩小");
-  ok(PAGE_HTML.indexOf('<div class="actions actline">') >= 0 && PAGE_HTML.indexOf("继续上次没做完的题") < 0
-     && PAGE_HTML.indexOf(".start-entry .actline .al-main{") >= 0,
-     "入口屏: 恢复现场是一行信息 + 一颗描边键（原来两条描边大按钮比药丸宽、比红按钮轻，卡在中间谁都不像）");
-  ok(PAGE_HTML.indexOf('<button class="ghost" id="btnResume">') >= 0
+     && PAGE_HTML.indexOf(".start-entry .actions:has(.big),.start-entry .entrylist{width:min(var(--act-col),100%);margin-left:auto;margin-right:auto;}") >= 0
+     && PAGE_HTML.indexOf(".start-entry .actions:has(.big) .big{width:100%") < 0
+     && PAGE_HTML.indexOf(".startbox .actions{justify-content:flex-start;") >= 0,
+     "入口屏: 列仍居中在 620 版心里、列内一律左对齐——主按钮与去处清单共用一条左缘（不拉满列）");
+  ok(PAGE_HTML.indexOf('<div class="entrylist"><button class="navrow" id="btnResume">继续上次</button></div>') >= 0
+     && PAGE_HTML.indexOf("al-main") < 0 && PAGE_HTML.indexOf('class="actions actline"') < 0,
+     "入口屏: 恢复现场是目录里的一行（整行可点），不配信息句、不做居中描边键");
+  ok(PAGE_HTML.indexOf('<button class="navrow" id="btnResume">') >= 0
    && PAGE_HTML.indexOf('<button class="linkbtn" id="btnResume">') < 0
-   && PAGE_HTML.indexOf('<button class="ghost wide" id="btnPaper">做一套题</button>') >= 0
-   && PAGE_HTML.indexOf("整卷练习") < 0 && PAGE_HTML.indexOf("一套材料 5 题") < 0
-   && PAGE_HTML.indexOf(".start-entry .actline button.ghost{") >= 0,
-   "入口可点性: 继续上次 / 做一套题是描边按钮，不再是透明灰字（灰字在入口屏读成说明句）");
+   && PAGE_HTML.indexOf(".navrow:hover{background:var(--wash);}") >= 0
+   && PAGE_HTML.indexOf('.navrow::after{content:"›"') >= 0
+   && PAGE_HTML.indexOf('<button class="chip" id="btnPaper" data-paper="1">整套卷子</button>') >= 0
+   && PAGE_HTML.indexOf("整卷练习") < 0 && PAGE_HTML.indexOf("一套材料 5 题") < 0,
+   "入口可点性: 继续上次是带 › 与悬停淡底的整行清单（不是透明灰字）；整卷仍是模块行里的一颗胶囊");
 ok(PAGE_HTML.indexOf('hero-big">今天练什么？') < 0 && PAGE_HTML.indexOf('hero-big">${esc(subj.name)} 练什么？') < 0
    && PAGE_HTML.indexOf('hero-big">这类题怎么练？') < 0 && PAGE_HTML.indexOf("写完就有分") < 0
    && PAGE_HTML.indexOf('data-start="landing"') >= 0,
    "入口文案: 首页 / 科目页 / 落地页都不摆问句标题与说明小字，落地页另有自己的标记");
-ok(PAGE_HTML.indexOf(".start-entry .actline{") >= 0 && PAGE_HTML.indexOf(".start-entry .actline + .actline{margin-top:12px;}") >= 0,
-     "入口屏: 恢复那两行的间距走 24 / 12 两档（同组 12、跨组 24），不再各写一个 16");
+ok(PAGE_HTML.indexOf(".start-entry .entrylist{margin:24px auto 0;") >= 0 && PAGE_HTML.indexOf(".start-entry .entrylist + .entrylist{margin-top:12px;") >= 0,
+     "入口屏: 清单与上一组走 24、两组清单之间走 12（同组 12、跨组 24），不再各写一个 16");
+}
+
+/* 2026-11-01 P0：一屏只有一件主事——回访的人手上还有没做完的题时，红按钮就是「继续上次」。
+   判据看两件事：主行动的 class（红 + big）与快判的退位。只改文案不换层级的话，
+   红按钮仍然在推另一件事，所以两件都要看。 */
+{
+  const _keepFlows = state.flows, _keepId = _flowId, _keepCur = current, _keepView = _view;
+  const _keepKey = state.settings.apiKey, _keepModel = state.settings.model;
+  state.settings.apiKey = "sk-test"; state.settings.model = "test-model";   // 这一步判的是「能开始时主行动是谁」，别看错项
+  state.flows = []; _flowId = null; current = null;
+  _view = "home";
+  renderHome();
+  ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnQuick">开始快速判断') >= 0,
+     "首页主行动: 手上没题时红按钮是快判（默认练法不被降级）");
+  const _f = ensureFlow("sl.guina", "概括问题", { background:"b", requirements:"r" }, []);
+  _f.step = "draft"; _f.cardSeen = true;
+  renderHome();
+  const _h = el("#docBody").innerHTML;
+  ok(_h.indexOf('class="primary big" id="btnResume">继续上次</button>') >= 0,
+     "首页主行动: 有未完成练习时，红按钮换成「继续上次」——回来续写比新开一轮值钱");
+  ok(_h.indexOf('class="primary big" id="btnQuick"') < 0 && _h.indexOf('class="navrow" id="btnQuick"') >= 0,
+     "首页主行动: 快判退成目录里的一行（一次点击仍能到，只是不再抢第一眼）");
+  ok(_h.indexOf("停在") < 0 && _h.indexOf("resumebig") < 0,
+     "首页主行动: 红按钮只说「继续上次」四个字，不往里塞「哪一科 · 哪一题 · 停在哪」的说明串");
+  ok(_h.indexOf('class="actions actline"') < 0,
+     "首页主行动: 恢复并进主行动了，不再另起一行「继续上次」——同一件事不说两遍");
+  state.flows = _keepFlows; _flowId = _keepId; current = _keepCur; _view = _keepView;
+  state.settings.apiKey = _keepKey; state.settings.model = _keepModel;
+}
+
+/* 2026-11-01 P0：卷首两档。作答类工作屏吃页眉版，入口 / 小结 / 批改仍用完整版。
+   判的是「这一屏在干什么」而不是「哪个函数画的」：批改的头是分数，它就回完整版。 */
+{
+  const _keepView = _view, _keepCur = current, _keepPd = pdActive, _keepRound = pdRound;
+  _view = "home"; current = null; pdActive = false; pdRound = null;
+  ok(compactHead() === false, "卷首两档: 入口屏用完整版（红头是这屏的仪式感）");
+  _view = "q"; current = { module:"zy.guina", question:{ background:"b" }, phase:"answer" };
+  ok(compactHead() === true, "卷首两档: 作答页用页眉版（竖向省出来给材料与作答框）");
+  current.phase = "grade";
+  ok(compactHead() === false, "卷首两档: 批改页回完整版（分数是这一屏的头）");
+  current = null; _view = "pd"; pdActive = true;
+  pdRound = { form:"__mix", theme:"t", items:[], idx:0, correct:0, done:false };
+  ok(compactHead() === true, "卷首两档: 快判作答用页眉版");
+  pdRound.done = true;
+  ok(compactHead() === false, "卷首两档: 快判小结回完整版");
+  ok(PAGE_HTML.indexOf(".doc.compact .redhead{display:flex;") >= 0 && PAGE_HTML.indexOf(".doc.compact .redhead .org{") >= 0,
+     "卷首两档: 页眉版是同一套 DOM 换排法（机关名、模块题型、文号一个字不少，只是并成一行）");
+  _view = _keepView; current = _keepCur; pdActive = _keepPd; pdRound = _keepRound;
+}
+
+/* 2026-11-01 P0：交卷吸底——作答再长，出口也在视口里。sticky 而不是 fixed：
+   纸面是 overflow:clip 的，fixed 会飘到纸外去。 */
+ok(PAGE_HTML.indexOf('<div class="actions actbar">') >= 0
+   && PAGE_HTML.indexOf(".actbar{position:sticky;bottom:0;") >= 0,
+   "交卷吸底: 提交阅卷那一行是 sticky 动作条");
+
+/* 2026-11-02：能按的都有壳，壳的形状分「按」和「填」。
+   动作键 .tool 是胶囊 + 细边 + 控件底，输入是方角（--r-icon）；更安静的一档 .linkbtn 无框灰字，
+   只给「顺手换个方向」（跳过、引导、句子中间的链接）。
+   11/01 曾把 .tool 做成无框无底，理由是「三种壳子并列看不出哪个是按的」——弄错了病因：
+   不是壳的有无，是壳没有语义，无框之后学习卡彻底认不出能点。 */
+{
+  ok(PAGE_HTML.indexOf("button.tool{font-family:var(--yahei);border:1px solid var(--line);background:var(--ctl);") >= 0
+     && PAGE_HTML.indexOf("button.tool:hover{background:var(--wash);border-color:var(--line-strong);color:var(--ink);}") >= 0,
+     "按钮三档: 动作键 .tool 是「胶囊 + 细描边 + 控件底」那一档（壳就是可按的记号）");
+  ok(PAGE_HTML.indexOf("button.linkbtn{font-family:var(--yahei);border:none;background:transparent;color:var(--muted);") >= 0,
+     "按钮三档: 更安静的一档 .linkbtn 无框灰字，只给跳过 / 引导 / 句子中间的链接");
+  ok(PAGE_HTML.indexOf(".qtop button.linkbtn,.ghead button.linkbtn{border:1px solid") < 0
+     && PAGE_HTML.indexOf(".metarow>.linkbtn{border:1px solid") < 0,
+     "按钮三档: 不再给文字键按屏补边（同一颗键换个屏就换长相）");
+  ok(PAGE_HTML.indexOf("button.primary:hover{background:var(--gov-red-dark);}") >= 0
+     && PAGE_HTML.indexOf("button.primary:hover{background:var(--gov-red-dark);box-shadow") < 0,
+     "按钮三档: 主按钮悬停只换色，不在纸面上浮起、不拖投影");
+}
+
+/* 2026-11-01 P1：批改页的主行动是「再来一道」——看完分数最该做的是接着练，「完成」是离开。 */
+{
+  const _keepCur = current, _keepLG = lastGrade;
+  const _gG = { hits:[], causes:[], principle:"" };
+  current = { module:"zy.guina", subtype:"概括问题", question:{ background:"b", requirements:"r", score:20 }, keyPoints:[], phase:"grade", grade:{ g:_gG, total:20 } };
+  lastGrade = { g:_gG, total:20, answer:"我的答案" };
+  renderZyPage();
+  const _g = el("#docBody").innerHTML;
+  ok(_g.indexOf('<button class="primary" id="btnRetry">') >= 0
+     && _g.indexOf('<button class="ghost" id="btnDone">') >= 0
+     && _g.indexOf('<button class="tool" id="btnSeeProfile">') >= 0,
+     "批改页: 红按钮是「同模块再来一道」，完成退成描边、画像退成文字键");
+  ok(_g.indexOf('<button class="primary" id="btnDone">') < 0,
+     "批改页: 「完成」不再是主行动（离开不该是这一屏最想让人做的事）");
+  current = _keepCur; lastGrade = _keepLG;
+}
+
+/* 2026-11-01 P1：换一题会丢稿——框里有字先拦一道，空着就直接换。 */
+{
+  const _keepCur = current, _keepGen = pendingGen;
+  const _kKey = state.settings.apiKey, _kModel = state.settings.model;
+  state.settings.apiKey = "sk-test"; state.settings.model = "test-model";   // 换题要真的能出题，别被门槛挡住
+  const _q = { background:"换一题确认用的材料", requirements:"概括问题", score:20 };
+  current = { module:"zy.guina", subtype:"概括问题", question:_q, keyPoints:[], phase:"answer", limitMin:0, limitFrom:0 };
+  renderQuestion();
+  el("#answer").value = "";                      // 桩按选择器缓存元素，不会随重渲染清空
+  el("#btnSwitch").dataset.armed = ""; el("#btnSwitch").textContent = "换一题";
+  el("#btnSwitch").onclick();
+  ok(pendingGen && pendingGen.module === "zy.guina", "换一题: 框里没字时不拦，点了就换");
+  pendingGen = _keepGen;
+  state.settings.apiKey = _kKey; state.settings.model = _kModel;
+  el("#btnSwitch").dataset.armed = ""; el("#btnSwitch").textContent = "换一题";   // 桩会把这颗键的「已确认」带到后面的用例里去
+  current = _keepCur;
 }
 
 /* 0.1 启动顺序：load() 引用的每个顶层常量都必须声明在它之前。
@@ -3801,7 +3847,8 @@ ok(PAGE_HTML.indexOf(".start-entry .actline{") >= 0 && PAGE_HTML.indexOf(".start
 }
 ok(PAGE_HTML.indexOf(".modal .box:focus{outline:none") >= 0, "弹层: 容器被聚焦时不画浏览器默认焦点环");
 ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*margin:0 8px 0 4px/) || [""])[0].length > 0, "批改页: 句末分数与下一句之间留出间距");
-ok(PAGE_HTML.indexOf("这道题卡在哪一步") >= 0 && PAGE_HTML.indexOf('"这道卡在哪一步') < 0, "批改页: 自述问句是「这道题卡在哪一步？」");
+ok(PAGE_HTML.indexOf('"这题你大概错在哪？"') >= 0 && PAGE_HTML.indexOf("卡在哪一步") < 0,
+   "批改页: 自述问句是「这题你大概错在哪？」（批改格式的第四部分，让他自己写一段）");
 ok(PAGE_HTML.indexOf('${matSrcTag(current.question)}<span class="mathint">选中文字划线</span></div>') >= 0
    && PAGE_HTML.indexOf('return \'<div class="mathint">选中文字划线') < 0,
    "划线说明: 写在材料块头右侧（读材料之前就看得到），材料下面不再单占一行");
@@ -3825,8 +3872,16 @@ ok(PAGE_HTML.indexOf("--ink-soft") < 0 && PAGE_HTML.indexOf("var(--ink-soft)") <
      "窄窗: 浮标只留动作名（仍挂在纸外）");
   current = _c;
 }
-ok(limitRowHtml().indexOf(">限时<") >= 0 && PAGE_HTML.indexOf(".tlin{width:62px;height:var(--h-ctl-sm)") >= 0,
-   "限时: 控件带「限时」标签，与同行按钮同高");
+// 64 不是随手取的：占位字「不限时」在 15px 苹方下量出 45px，加左右内边距 16 是 61，
+// 留 3px 富余；三位数的分钟（上限 600）也放得下。2026-11-02 起框、单位、▶ 共用一圈框：
+// 三个各自带框的控件并排会横向多出两道边和一个 gap，整行因此折到第二行（占掉 76px 的一条线）
+ok(limitRowHtml().indexOf("tlcap") < 0 && limitRowHtml().indexOf(">限时<") < 0
+   && limitRowHtml().indexOf('aria-label="限时（分钟）"') >= 0
+   && PAGE_HTML.indexOf("field-sizing:content") >= 0
+   && PAGE_HTML.indexOf(".tlicon{width:24px;height:100%") >= 0
+   && limitRowHtml().indexOf('class="tlunit"') >= 0 && limitRowHtml().indexOf('class="tlset"') >= 0
+   && PAGE_HTML.indexOf(".tlin:placeholder-shown + .tlunit{display:none;}") >= 0,
+   "限时: 纸面上不写「限时」二字（靠位置与「分」单位自明，名字仍留给读屏），数字框/单位/▶ 共用一圈框、宽度按字自适应；▶ 24px 达 WCAG 2.5.8 下限");
 {
   const _h = state.history.slice();
   state.history = [];
@@ -3834,7 +3889,7 @@ ok(limitRowHtml().indexOf(">限时<") >= 0 && PAGE_HTML.indexOf(".tlin{width:62p
   const pe = el("#profileBody").innerHTML;
   ok(pe.indexOf("还没练习记录") < 0 && pe.indexOf("还没有练习记录") >= 0 && pe.indexOf("回首页练一道") >= 0,
      "画像: 空态直接给下一步");
-  ok(pe.indexOf("快速判断") >= 0 && pe.indexOf("快速判断") < pe.indexOf("综应A ·"), "画像: 汇总入口排在模块之前");
+  ok(pe.indexOf("快速判断") >= 0 && pe.indexOf("快速判断") < pe.indexOf(">综应A<"), "画像: 汇总入口排在模块之前");
   state.history = _h;
   closeModals();
 }
@@ -3859,22 +3914,6 @@ state.flows = []; _flowId = null; current = null;
 pdActive = true; pdRound = null;
 renderStart();
 ok(pdActive === false, "判别轨: renderStart 复位 pdActive（抬头不再挂「快判」）");
-
-/* 删点后归类组的下标同步前移 */
-const fDrop = { selections:[{text:"甲"},{text:"乙"},{text:"丙"}], groups:[{facts:[0]},{facts:[1,2]}], orgIdx:2 };
-dropSelections(fDrop, (_sl,i)=> i === 1);
-ok(fDrop.selections.length === 2 && fDrop.selections[1].text === "丙"
-   && fDrop.groups[0].facts.join(",") === "0" && fDrop.groups[1].facts.join(",") === "1"
-   && fDrop.orgIdx === 1,
-   "归类: 删点后组里的下标同步前移（不再指向别的句子）");
-dropSelections(fDrop, (_sl,i)=> i === 1);
-ok(fDrop.groups[1].facts.length === 0, "归类: 删到末尾时组里不会留下越界下标");
-
-/* 删当前点之前的点：当前点跟着前移，不跳到下一个点 */
-const fDrop2 = { selections:[{text:"甲"},{text:"乙"},{text:"丙"}], groups:[{facts:[2]}], orgIdx:2 };
-dropSelections(fDrop2, (_sl,i)=> i === 0);
-ok(fDrop2.orgIdx === 1 && fDrop2.selections[fDrop2.orgIdx].text === "丙" && fDrop2.groups[0].facts.join(",") === "1",
-   "归类: 删当前点之前的点，当前点不跳格");
 
 /* 老记录的 legacy-* 占位按题目签名回退到批改结果 */
 state.flows = []; _flowId = null; state.history = []; lastGrade = null;
@@ -4132,9 +4171,12 @@ globalThis.window = _savedWinUpd;
   saveDraft(qSig(oldQ), "写了一半");
   renderQuestion();
   ok(_view === "q" && el("#answer").value === "写了一半", "原题页: 换一题前原题与草稿在位（前置）");
+  el("#btnSwitch").onclick();   // 框里有字：第一下只把键变成问话，不出题
+  ok(!pendingGen && el("#btnSwitch").textContent.indexOf("清掉这次作答") >= 0,
+     "换一题: 作答框有字时先拦一道，把后果写在键上，不直接换掉这一稿");
   await fireGen(()=> el("#btnSwitch").onclick());
   ok(pendingGen && pendingGen.originView === "q" && hasWaitPage(),
-     "出题在途: 从原题页换一题进等待页，记住原屏 q");
+     "出题在途: 再点一次才真换，进等待页并记住原屏 q");
   cancelWait();
   ok(_view === "q" && current && current.question === oldQ && el("#answer").value === "写了一半",
      "取消落点: 从原题页换一题的等待页取消，回原题且草稿还在");
@@ -4148,9 +4190,10 @@ globalThis.window = _savedWinUpd;
   const flowId0 = activeFlow() && activeFlow().id;
   ok(_view === "q" && !!flowId0 && el("#docBody").innerHTML.indexOf('id="btnSwitch"') >= 0,
      "原题页: 申论原链有「换一题」出口（前置）");
+  el("#btnSwitch").onclick();   // 上一道题的草稿还在：第一下同样只拦一道
   await fireGen(()=> el("#btnSwitch").onclick());
   ok(pendingGen && pendingGen.originView === "q" && hasWaitPage(),
-     "出题在途: 申论原链页换一题进等待页");
+     "出题在途: 申论原链页换一题进等待页（草稿在时先过那道确认）");
   cancelWait();
   ok(_view === "q" && activeFlow() && activeFlow().id === flowId0 && state.flows.length === 1
      && current && current.question === oldQSl,
@@ -4249,6 +4292,7 @@ globalThis.window = _savedWinUpd;
   current = { module:"zy.guina", subtype:"概括原因", question:oldQF, keyPoints:[], phase:"answer", limitMin:0, limitFrom:0 };
   saveDraft(qSig(oldQF), "失败也写了一半");
   renderQuestion();
+  el("#btnSwitch").onclick();   // 草稿在：先过确认那一道
   await fireGen(()=> el("#btnSwitch").onclick());
   rejectGen({ code:"JSON" });
   await waitUntil(()=> pendingGen === null);
@@ -4313,7 +4357,7 @@ globalThis.window = _savedWinUpd;
   state.paper = sanitizePaper(mkPaper()); _view = "start"; current = null;
   renderStart();
   const startHtml = el("#docBody").innerHTML;
-  ok(startHtml.indexOf('id="btnPaper"') >= 0 && startHtml.indexOf("接着做这套题") >= 0, "整卷: 申论起始页有接着做的入口");
+  ok(startHtml.indexOf('id="btnPaper"') >= 0 && startHtml.indexOf("整套卷子") >= 0, "整卷: 申论起始页把它挂在模块行里那颗胶囊上");
   openPaperQuestion(0);
   const qHtml = el("#docBody").innerHTML;
   ok(current && current.paperId === "paper1" && current.paperQ === 0 && current.phase === "answer"
