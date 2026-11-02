@@ -1,29 +1,37 @@
 /*
- * 发布闸门：发版前必须为真的四件事，落到脚本里。
+ * 发布闸门：发版前必须为真的五件事，落到脚本里。
  *
  *   node tools/gate.mjs                单独跑（退出码 0 = 全绿）
+ *   node tools/gate.mjs --fast         跳过联网那条（离线核对本地状态用）
  *   npm run release [-- --skip-gates]  发布链在开头自动跑它
  *
- * 为什么要有它：这几条原来只写在 AGENTS.md 的人肉清单里——① 工作区干净 ② 远端 sha = 本地 HEAD
- * ③ 源码不含明文 Key。规则写在文档里、没有任何东西执行它，就等于没有：`release.mjs` 当时对脏工作区
- * 只打印一句「注意：有未提交的改动」然后照发，②③两条连打印都没有。
+ * 为什么要有它：这几条原来只写在 AGENTS.md 的人肉清单里。规则写在文档里、没有任何东西执行它，
+ * 就等于没有：`release.mjs` 当时对脏工作区只打印一句「注意：有未提交的改动」然后照发。
  *
- * 四条各治一种翻车：
- *   ① 工作区不干净 → 打出来的包对应不上任何一个提交，用户报的 bug 复现不出来
- *   ② HEAD 没推上去 → `gh release create --target` 指着一条远端不存在的提交，别人拉不到
- *   ③ 明文 Key 进源码 → 一旦推上去就是公开的，撤不回来（2026-10-03 清过 13 处，那次全靠人眼）
- *   ④ lock 与 package.json 不同版 → 版本号写在两个文件里、谁都能忘；而 `npm install` 会顺手把 lock
- *      改成当前版本，工作区一脏就被①拦下，人看到的是「发布过不去」而不是「版本号没同步」
+ * 顺序按「便宜的先、最常错的先」排，不按重要程度排：
+ *   ① lock 与 package.json 不同版（读两个 JSON，1ms；最常犯）
+ *   ② 版本号已经发过（读本地 tag，几 ms；忘了升版本就会把上一个 Release 盖掉）
+ *   ③ 工作区不干净（git status，几十 ms）
+ *   ④ 明文 Key 进源码（git grep 全仓，几百 ms）
+ *   ⑤ HEAD 没推上去（git ls-remote，要联网；最贵，放最后）
+ * 贵的那条放最后，是为了让前三条能拦下的错不用先等一次网络。
+ * 而且**一旦有一条●不过就停**：他接下来要做的是去修那一条，后面几条跑出来的结论暂时没有用。
+ * 只报一条、修一条、重跑，每次 1 秒，比一口气读四段更省注意力。
+ *
+ * 每条各治一种翻车：
+ *   ① 版本号分家 → 包出来的版本与 tag 对不上
+ *   ② 忘了升版本 → 同一个 Release 被覆盖，已装老版本的用户收不到更新
+ *   ③ 包对不上任何提交 → 用户报的 bug 复现不出来
+ *   ④ 凭据进源码 → 推上去就是公开的，撤不回来（2026-10-03 清过 13 处，那次全靠人眼）
+ *   ⑤ tag 指着远端不存在的提交 → 别人拉不到
  *
  * 发完之后的第八件（`npm run release:check` 逐个资产对账）不在这里：它验的是「发出去的东西齐不齐」，
  * 只能在发完之后跑，所以由 release-check.mjs 自己承担。
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
-import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -48,23 +56,9 @@ function git(args) {
   return spawnSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
 }
 
-/* gh 只装在自备位置的可能（这台 mac 上没有 Homebrew）：先看 PATH，再退到 ~/.local/opt/gh/bin/gh。 */
-export function resolveGh() {
-  const onPath = spawnSync("gh", ["--version"], { encoding: "utf8" });
-  if (!onPath.error && onPath.status === 0) return "gh";
-  const local = join(homedir(), ".local", "opt", "gh", "bin", "gh");
-  if (existsSync(local)) {
-    const probe = spawnSync(local, ["--version"], { encoding: "utf8" });
-    if (!probe.error && probe.status === 0) return local;
-  }
-  return "";
-}
-
-/* 仓库位置只有一处真源（app-meta.js）；package.json 的 build.publish 是给 electron-builder 的同一份信息，
-   两边对不上由 tests/shell.mjs 报错 */
-export function repoSlug() {
-  return createRequire(import.meta.url)(join(root, "app-meta.js")).slug;
-}
+/* 核对远端用 git 自己的凭据，不走 gh：发版本来就要 push，push 能通这台机就一定认得远端；
+   gh 走的是另一套 token，过期了会在这里误报成「取不到远端」，把人引到一个跟发版无关的坑里。
+   仓库位置（app-meta.js 的 slug）也不再需要了——ls-remote 直接问 remote origin。 */
 
 function gateCleanTree() {
   const r = git(["status", "--porcelain"]);
@@ -85,14 +79,18 @@ function gateRemoteHead() {
   const head = git(["rev-parse", "HEAD"]);
   if (head.status !== 0) return { ok: false, why: ["读不到本地 HEAD"] };
   const local = head.stdout.trim();
-  const gh = resolveGh();
-  if (!gh) return { ok: false, why: ["找不到 gh（PATH 里没有，~/.local/opt/gh/bin/gh 也没有），没法核对远端 HEAD"] };
-  const r = spawnSync(gh, ["api", "repos/" + repoSlug() + "/commits/main", "--jq", ".sha"], { cwd: root, encoding: "utf8" });
+  const r = git(["ls-remote", "origin", "main"]);
   if (r.status !== 0) {
     const err = (r.stderr || "").trim().split("\n").filter(Boolean)[0] || "";
-    return { ok: false, why: ["取远端 main 的 sha 失败（网络或 gh 登录态）：" + err] };
+    return {
+      ok: false,
+      why: [
+        "git ls-remote 取不到远端 main（网络或推送凭据）：" + err,
+        "      → 离线只想核对本地状态：node tools/gate.mjs --fast",
+      ],
+    };
   }
-  const remote = (r.stdout || "").trim();
+  const remote = ((r.stdout || "").split("\t")[0] || "").trim();
   if (remote && remote === local) return { ok: true, note: "远端 main = 本地 HEAD（" + local.slice(0, 8) + "）" };
   return {
     ok: false,
@@ -104,19 +102,23 @@ function gateRemoteHead() {
 }
 
 function gateNoSecrets() {
+  // 三条规则合成一次 git grep：多个 -e 之间是「或」。三次进程 → 一次，命中后按第一条能对上的规则归名。
+  const args = ["grep", "-n", "-I", "-E"];
+  for (const rule of KEY_RULES) args.push("-e", rule.re.source);
+  args.push("--", ".");
+  const r = git(args);
+  if (r.status > 1) return { ok: false, why: ["git grep 出错：" + (r.stderr || "").trim()] };
   const hits = [];
-  for (const rule of KEY_RULES) {
-    const r = git(["grep", "-n", "-I", "-E", "-e", rule.re.source, "--", "."]);
-    if (r.status > 1) return { ok: false, why: ["git grep 出错：" + (r.stderr || "").trim()] };
-    for (const line of (r.stdout || "").split("\n").filter(Boolean)) {
-      if (line.indexOf(ALLOW_MARK) >= 0) continue;
-      const m = rule.re.exec(line);
-      /* 报告里把命中串自己打码（首 6 位 + 尾 4 位）：闸门不过时那串东西还在屏幕上和日志里，
-         不打码等于又贴了一遍。 */
-      const raw = line.trim();
-      const shown = m ? raw.replace(m[0], m[0].slice(0, 6) + "…" + m[0].slice(-4)) : raw;
-      hits.push(rule.name + " · " + shown);
-    }
+  for (const line of (r.stdout || "").split("\n").filter(Boolean)) {
+    if (line.indexOf(ALLOW_MARK) >= 0) continue;
+    const rule = KEY_RULES.find((x) => x.re.test(line));
+    if (!rule) continue;
+    const m = rule.re.exec(line);
+    /* 报告里把命中串自己打码（首 6 位 + 尾 4 位）：闸门不过时那串东西还在屏幕上和日志里，
+       不打码等于又贴了一遍。 */
+    const raw = line.trim();
+    const shown = m ? raw.replace(m[0], m[0].slice(0, 6) + "…" + m[0].slice(-4)) : raw;
+    hits.push(rule.name + " · " + shown);
   }
   if (!hits.length) return { ok: true, note: "跟踪文件里没有明文密钥（" + KEY_RULES.length + " 条规则）" };
   return {
@@ -154,41 +156,80 @@ export function gateLockVersion() {
   };
 }
 
+/* 这一条治的是最难发现的一种错：忘了升版本号。
+   闸门以前不查它，于是流程能一路跑到最后一步，把新的包盖到上一个 Release 上——
+   而 Electron 自动更新看的是 latest.yml / latest.json 里的版本号，已经装了旧版的人什么也不会收到。
+   本地 tag 就够判：这个仓库一直单人发、tag 不发就不会缺。远端 tag 留给 release-check 去对。 */
+function gateVersionFresh() {
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")); }
+  catch (e) { return { ok: false, why: ["读不到 / 解析不了 package.json：" + (e && e.message ? e.message : e)] }; }
+  const tag = "v" + pkg.version;
+  const r = git(["tag", "-l", tag]);
+  if (r.status !== 0) return { ok: false, why: ["读不到本地 tag 列表：" + (r.stderr || "").trim()] };
+  if (!(r.stdout || "").trim()) return { ok: true, note: tag + " 还没被用过" };
+  return {
+    ok: false,
+    why: [
+      "本地已经有 " + tag + " 这个 tag，说明 " + pkg.version + " 这版发过了。现在直接发会把同一个 Release 盖掉。",
+      "      → 先升版本号：npm version patch --no-git-tag-version（只改 package.json 与 lock，不自动提交、不打 tag）",
+      "      → 再提交，然后 npm run release。",
+    ],
+  };
+}
+
 const GATES = [
-  ["工作区干净", gateCleanTree],
-  ["远端 main = 本地 HEAD", gateRemoteHead],
-  ["源码无明文密钥", gateNoSecrets],
   ["lock 版本 = package.json 版本", gateLockVersion],
+  ["版本号没被发过", gateVersionFresh],
+  ["工作区干净", gateCleanTree],
+  ["源码无明文密钥", gateNoSecrets],
+  ["远端 main = 本地 HEAD", gateRemoteHead],
 ];
 
 /* 返回值：true = 全绿可以发；false = 有红线，调用方停手 */
 export function runReleaseGates(opts) {
   const skipGates = !!(opts && opts.skip);
-  console.log("\n=== 发布闸门（四条，规则见 AGENTS.md「发布」一节）===");
+  const fast = !!(opts && opts.fast);
+  console.log("\n=== 发布闸门（5 条，规则见 AGENTS.md「发布」一节）===");
   if (skipGates) {
-    console.log("  --skip-gates：四条都跳过（只在明知自己为什么这么干的时候用）");
+    console.log("  --skip-gates：全部跳过（只在明知自己为什么这么干的时候用）");
     return true;
   }
+  const ran = [];
   let allOk = true;
   for (const [title, fn] of GATES) {
+    if (fast && fn === gateRemoteHead) {
+      console.log("  -  " + title + "   --fast 跳过（离线核对本地状态）");
+      continue;
+    }
     let r;
     try { r = fn(); }
     catch (e) { r = { ok: false, why: ["闸门自己抛了异常：" + (e && e.message ? e.message : e)] }; }
+    ran.push(title);
     if (r.ok) {
       console.log("  ✔ " + title + (r.note ? "   " + r.note : ""));
     } else {
       allOk = false;
+      /* 全走 stdout：走 stderr 的话，输出接管道（CI、日志、> 文件）时会和 ✔ 那几行乱序。 */
       console.log("  ✘ " + title);
-      for (const w of r.why || []) console.error("      " + w.trim());
+      for (const w of r.why || []) console.log("      " + w.trim());
+      break;   // 拦下了就停：后面几条跑出来的结论现在没用，多报几条只是多读几段
     }
   }
-  if (!allOk) console.error("\n  闸门没过，未开始发布。四条都是「发出去就撤不回来」的那一类。");
+  if (!allOk) {
+    console.log("\n  闸门没过（跑到第 " + ran.length + " 条），未开始发布。");
+    return false;
+  }
+  console.log("\n  " + ran.length + " 条全过，可以发。");
   return allOk;
 }
 
 /* 单独跑：node tools/gate.mjs */
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  const ok = runReleaseGates({ skip: process.argv.includes("--skip-gates") });
+  const ok = runReleaseGates({
+    skip: process.argv.includes("--skip-gates"),
+    fast: process.argv.includes("--fast"),
+  });
   console.log("");
   process.exit(ok ? 0 : 1);
 }

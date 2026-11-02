@@ -30,8 +30,7 @@
     --ctl:#fffefb; --on-dark:#fff; --line-strong:#8f8b81;
     --focus-halo:0 0 0 3px rgba(192,21,26,.07);
     --h-ctl:36px; --h-ctl-sm:30px;
-    --fs-display:30px; --fs-hero:26px; --fs-title:16px; --fs-body:14px; --fs-note:12.5px;
-    --pad-ctl:8px 12px;
+    --fs-display:32px; --fs-hero:28px; --fs-title:17px; --fs-body:15px; --fs-note:13px;
     --sh-1:0 1px 3px rgba(31,31,31,.06);
     --r-flat:0; --r-icon:6px; --r-ctl:8px; --r-hero:12px; --r-card:16px; --r-pill:999px;
     --fangsong:"FangSong","仿宋","STFangsong","FangSong_GB2312","KaiTi",serif;
@@ -52,7 +51,7 @@
   .toolbar .kicker{font-family:var(--fangsong);font-size:var(--fs-note);color:var(--muted-2);}
   .toolbar .spacer{flex:1 1 auto;}
   .toolbar .linkbtn{display:inline-flex;align-items:center;min-height:var(--h-ctl-sm);padding:8px 12px;font-size:var(--fs-body);
-                    color:var(--muted);border-radius:var(--r-ctl);}
+                    color:var(--muted);border-radius:var(--r-pill);}
   .toolbar .linkbtn:hover{background:var(--wash-3);color:var(--ink);text-decoration:none;}
 
   .wrap{max-width:760px;margin:24px auto 24px;padding:0 16px;}
@@ -65,18 +64,18 @@
 
   .dl{margin-top:24px;text-align:center;}
   /* 一屏里只允许一个这种重量级的东西：主行动 */
-  .dl a.primary{display:inline-flex;align-items:center;justify-content:center;min-height:54px;min-width:320px;
-                padding:16px 58px;font-size:var(--fs-title);font-weight:600;letter-spacing:1px;color:var(--on-dark);
-                background:var(--gov-red);border-radius:var(--r-hero);box-shadow:0 6px 18px rgba(190,59,43,.28);}
+  .dl a.primary{display:inline-flex;align-items:center;justify-content:center;min-height:64px;min-width:320px;
+                padding:0 58px;font-size:var(--fs-hero);font-weight:600;letter-spacing:1px;color:var(--on-dark);
+                background:var(--gov-red);border-radius:var(--r-pill);box-shadow:0 6px 18px rgba(190,59,43,.28);}
   .dl a.primary:hover{background:var(--gov-red-dark);text-decoration:none;}
   /* 主按钮右边那个箭头与它的下拉：两个平台的包同级，当前这台电脑的那条直接摆在按钮上，
      另一个收在箭头里——比在按钮底下再挂一行「不是这台电脑？」干净 */
   .dlrow{display:inline-flex;align-items:stretch;}
   .dlrow a.primary{border-top-right-radius:0;border-bottom-right-radius:0;}
-  .caret{display:inline-flex;align-items:center;justify-content:center;width:48px;min-height:54px;padding:0;
+  .caret{display:inline-flex;align-items:center;justify-content:center;width:48px;min-height:64px;padding:0;
          color:var(--on-dark);background:var(--gov-red);border:0;border-left:1px solid rgba(255,255,255,.3);
-         border-radius:0 var(--r-hero) var(--r-hero) 0;box-shadow:0 6px 18px rgba(190,59,43,.28);
-         cursor:pointer;font-size:var(--fs-note);line-height:1;}
+         border-radius:0 var(--r-pill) var(--r-pill) 0;box-shadow:0 6px 18px rgba(190,59,43,.28);
+         cursor:pointer;font-size:var(--fs-hero);line-height:1;}
   .caret:hover{background:var(--gov-red-dark);}
   .menu{display:inline-block;min-width:320px;margin-top:8px;padding:4px 0;text-align:left;
         background:var(--ctl);border:1px solid var(--line);border-radius:var(--r-ctl);box-shadow:var(--sh-1);}

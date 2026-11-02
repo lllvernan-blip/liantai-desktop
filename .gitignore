@@ -23,3 +23,6 @@ build/shots/
 dist-test/
 dist-materials/
 app/build-test.json
+
+# 设计对比稿：给他看方向用的过程稿，不是产品的一部分，不进仓库
+docs/学习卡重设计对比.html

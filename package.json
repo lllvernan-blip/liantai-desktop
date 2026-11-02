@@ -1,6 +1,6 @@
 {
   "name": "liantai-desktop",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "private": true,
   "description": "综应、申论的练习与批改",
   "main": "main.js",
@@ -11,6 +11,7 @@
     "check": "node tools/loop.mjs",
     "check:staged": "node tools/loop.mjs --staged --quiet",
     "audit:entry": "node tools/entry-audit.mjs",
+    "audit:layout": "electron tools/layout-audit.mjs",
     "hooks:install": "node tools/install-hooks.mjs",
     "dist": "node tools/stamp-build.mjs && electron-builder --win nsis --publish never",
     "test:build": "node tools/build-test.mjs",

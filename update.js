@@ -1057,17 +1057,19 @@ function macPromoteBase() {
       return;
     }
     fs.mkdirSync(dir, { recursive: true });
-    for (const n of fs.readdirSync(dir)) {
-      if (n === path.basename(zip) || n === path.basename(map)) continue;
-      try { fs.unlinkSync(path.join(dir, n)); } catch (err) { /* 删不动就下次再说 */ }
-    }
     const keepZip = path.join(dir, path.basename(zip));
     const keepMap = path.join(dir, path.basename(map));
+    /* 先把新基准放好，再删旧的。反过来的话，「删完还没链接上」之间任一步失败（磁盘满、权限），
+       基准就没了，下次差量退化成整包。先放后删，最坏是两份并存，下一轮再清。 */
     if (!fs.existsSync(keepZip)) {
       try { fs.linkSync(zip, keepZip); }               // 同一卷：硬链接，换包脚本删掉原件也不影响这份
       catch (err) { fs.copyFileSync(zip, keepZip); }   // 少数文件系统不支持链接，那就复制一份
     }
     if (!fs.existsSync(keepMap)) fs.copyFileSync(map, keepMap);
+    for (const n of fs.readdirSync(dir)) {
+      if (n === path.basename(zip) || n === path.basename(map)) continue;
+      try { fs.unlinkSync(path.join(dir, n)); } catch (err) { /* 删不动就下次再说 */ }
+    }
     log('update-base', '基准包已留下：' + path.basename(zip));
   } catch (err) {
     log('update-base-error', (err && err.message) || String(err));

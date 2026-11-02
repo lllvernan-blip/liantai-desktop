@@ -1,0 +1,7 @@
+{
+  "note": "已知且故意的软项（间距 / 圆角越档）。不是问题，是这一版认定的取舍。改布局后认定新的取舍，跑 --update-baseline 重登记。",
+  "软项": [
+    "间距越档|div.box|div.panel-body|div.actions.savebar|40",
+    "间距越档|div.redhead|div#orgName.org|div.redline|14"
+  ]
+}

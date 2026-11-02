@@ -247,6 +247,26 @@ const ENTRY_TOTAL_BUDGET = 0;
     r.status === 0 ? [] : [...flags, "单独跑一次看完整输出：npm run audit:entry"]);
 }
 
+/* ================= 10. 布局：代表屏摆出来量几何 =================
+   挂的是 --quick（22 屏、约 10 秒），不是全量。提交前要回答的是「这一刀有没有把谁挤坏」，
+   全量 187 屏 × 3 宽度留给 `npm run audit:layout` 单独跑。
+   为什么必须起真 Electron：tests/assertions.js 跑在 jsdom 里，没有布局引擎，
+   getBoundingClientRect 一律返回 0——“没有重叠”在那里是永真句，不是检查。
+   软项（间距 / 圆角越档）不计入退出码，它们跟 tools/layout-baseline.json 比，只说变化。 */
+{
+  const electronBin = process.platform === "win32"
+    ? join(root, "node_modules", ".bin", "electron.cmd")
+    : join(root, "node_modules", ".bin", "electron");
+  const r = spawnSync(electronBin, [join(root, "tools", "layout-audit.mjs"), "--quick"],
+    { cwd: root, encoding: "utf8", timeout: 180000, maxBuffer: 128 * 1024 * 1024 });
+  const out = (r.stdout || "") + (r.stderr || "");
+  const m = out.match(/✔ 布局 (\d+) 屏 (\d+) 问题 · (.+)/);
+  const lines = out.split("\n").filter((l) => /^\s*(✘|【|测量失败|\+|新增的)/.test(l)).slice(0, 14);
+  add("布局：代表屏无重叠 / 无被裁 / 无渗出", r.status === 0 && !!m,
+    m ? m[1] + " 屏 0 硬问题 · " + m[3] : "没读出结论（窗口没起来或脚本报错）",
+    r.status === 0 ? [] : [...lines, "单独跑一次看完整输出：npm run audit:layout -- --quick"]);
+}
+
 /* ================= 汇报 =================
    安静模式成功时只留一行；失败无论哪种模式都逐条说，并给可执行的下一步。 */
 const failed = results.filter((r) => !r.ok);

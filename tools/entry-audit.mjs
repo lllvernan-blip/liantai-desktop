@@ -119,6 +119,7 @@ const REGION_BY_CLASS = [
   ["hero-foot", "声明"],
   ["hint", "数据行"],
   ["actions", "主行动"],
+  ["entrylist", "主行动"],   // 卷首目录的去处行：整行可点的按钮，与 .actions 同一类，不背说明句的账
   ["chiprow", "胶囊"],
   ["subtypechips", "胶囊"],
   ["pdforms", "胶囊"],
