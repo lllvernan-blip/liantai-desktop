@@ -27,9 +27,25 @@
  * 「间距越档」「圆角越档」两类不计入退出码——它们登记的是「不统一」，不是「坏了」。
  */
 import { createRequire } from 'node:module'
+import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+/* Electron 宿主（WorkBuddy / VS Code 之类）会把 ELECTRON_RUN_AS_NODE=1 传给子进程。
+   electron 二进制收到它就退化成纯 Node：require('electron') 只拿到可执行文件路径，
+   app 为 undefined，下面 whenReady() 直接抛 TypeError。
+   发现这种环境就用干净环境重新拉起一次自己再退出；第二次进来该变量已不在，正常当主进程跑。 */
+if (process.env.ELECTRON_RUN_AS_NODE) {
+  const env = { ...process.env }
+  delete env.ELECTRON_RUN_AS_NODE
+  const script = fileURLToPath(import.meta.url)
+  const r = spawnSync(process.execPath, [script, ...process.argv.slice(2)], {
+    env,
+    stdio: 'inherit',
+  })
+  process.exit(r.error || r.status === null ? 1 : r.status)
+}
 
 const require = createRequire(import.meta.url)
 const { app, BrowserWindow } = require('electron')
