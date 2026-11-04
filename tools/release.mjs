@@ -14,6 +14,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, linkSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { doSign } from "./mac-key.mjs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -167,6 +168,13 @@ function reconcileRelease() {
   const remoteSetupName = m[1].trim();
   const localSetup = join(root, "dist", setupLocalName());
   const localBlockmap = localSetup + ".blockmap";
+  /* 安装包必须有发布侧签名：客户端只认这个，没签过的一律拒收。
+     每次发版都重签——dist/ 可能刚重建，旧签名对不上新字节。 */
+  let localSig = "";
+  if (existsSync(localSetup)) {
+    doSign(localSetup);
+    localSig = localSetup + ".sig";
+  }
 
   /* 清单里的 sha512 必须就是本地产物的 sha512。
      只有名字对不上是 404；哈希对不上是「下载完校验失败」——两种都属于“发布了但没人更新成功”，
@@ -184,6 +192,7 @@ function reconcileRelease() {
   const want = [];
   if (existsSync(localSetup)) want.push({ local: localSetup, name: remoteSetupName });
   if (existsSync(localBlockmap)) want.push({ local: localBlockmap, name: remoteSetupName + ".blockmap" });
+  if (localSig && existsSync(localSig)) want.push({ local: localSig, name: remoteSetupName + ".sig" });
   want.push({ local: ymlPath, name: "latest.yml" });
 
   const listed = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "assets", "--jq", ".assets[].name"], { cwd: root, encoding: "utf8" });

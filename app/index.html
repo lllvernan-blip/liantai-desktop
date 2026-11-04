@@ -943,7 +943,7 @@ html,body{margin:0;padding:0;}
         <div class="field">
           <label>API Key</label>
           <input type="password" id="setKey" placeholder="粘贴你的 API Key">
-          <div class="note">Key 只发往上面这个地址，别用来路不明的地址。</div>
+          <div class="note">Key 只发往上面这个地址；只认 https 或本机 http（127.0.0.1 / localhost），别用来路不明的地址。</div>
         </div>
         <details class="notebox" id="keyHelp">
           <summary>还没有 API Key？四步拿到（推荐 DeepSeek，一道题几分到一两毛）</summary>
@@ -1744,7 +1744,20 @@ const BODY_RETRY_MAX  = 2;      // 输出坏了重发几次。一次不够：202
    只把 fetch 包进计时器是不够的——拿到响应头的那一秒 finally 就把计时器清掉了，
    服务商回了头却把 body 停在那儿的时候，这一路调用会永远挂住（阅卷按钮一直停在「阅卷中…」）。
    所以连 body 一起读回来，调用方拿 {res, text, json}；JSON 解不开给 null，坏 body 的判定留给上层。 */
+/* API Key 只发往 https，或本机的明文 http（ollama 这类本地服务）。
+   地址能由用户手填、从备份或旧配置读回来，所以校验放在真正发请求的那一步，
+   不放在设置页的输入框上——漏一个入口就等于没校验。
+   要绝对 URL：不给相对地址留「被 location 解析成自家源」的空子。 */
+function assertSafeEndpoint(url){
+  let u;
+  try{ u = new URL(String(url)); }catch(e){ throw {code:"UNSAFE_ENDPOINT"}; }
+  const local = u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost");
+  if((u.protocol !== "https:" && !local) || u.username || u.password) throw {code:"UNSAFE_ENDPOINT"};
+  return String(url);
+}
+
 async function fetchWithTimeout(url, opt, ms){
+  assertSafeEndpoint(url);
   const ctrl = new AbortController();
   const timer = setTimeout(()=>ctrl.abort(), ms);
   try{
@@ -1820,6 +1833,7 @@ function streamPeek(text, keys){
 // 流式 POST。成功返回 {content}；HTTP 错误返回 {status, text}（原文已读回来，交降级阶梯报给用户）。
 // 服务商不支持流式（返回的不是 SSE）时按普通 JSON 收尾，照样能用。
 async function postStream(url, body, headers, onDelta){
+  assertSafeEndpoint(url);
   const ctrl = new AbortController();
   const connectTimer = setTimeout(()=>ctrl.abort(), CONNECT_TIMEOUT);
   let res;
@@ -1876,6 +1890,7 @@ async function callLLM(system, user, expectJson, onDelta, opts){
   // 模型名不再兜底成某个写死的名字：与其拿一个可能已下线的名字去撞 400，不如直接说清楚
   if(!s.model) throw {code:"NO_MODEL"};
   const url = (s.baseUrl||"https://api.deepseek.com/v1").replace(/\/+$/,"") + "/chat/completions";
+  assertSafeEndpoint(url);   // 早一步挡：不让它落进下面「网络抖动静默重发」那一层
   const headers = {"Content-Type":"application/json","Authorization":"Bearer "+s.apiKey};
   const messages = [{role:"system",content:system},{role:"user",content:user}];
   const model = s.model;
@@ -5936,6 +5951,9 @@ async function fetchModels(silent){
     } else if(e && e.code==="TIMEOUT"){
       $("#modelNote").textContent = "拉取模型列表超时（30 秒无响应）。" + tail;
       $("#setMsg").textContent = "拉取超时";
+    } else if(e && e.code==="UNSAFE_ENDPOINT"){
+      $("#modelNote").textContent = "接口地址不安全：API Key 只发往 https，或本机的 http（127.0.0.1 / localhost）。请改掉 Base URL。";
+      $("#setMsg").textContent = "接口地址不安全：请用 https，或本机 http";
     } else {
       // 真正的网络/异常：把真实报错透出来，并给针对性提示（区分预览窗 CSP / 真网络）
       const nm = (e && e.name) || "";
@@ -6394,7 +6412,8 @@ function marksRunsHtml(runs){
 
 // keepView=true：出错只提示，不重置界面；只有“本来就没题可看”时才回到起点。
 function handleErr(e, keepView){
-  if(e && e.code==="NO_KEY") banner("未配置 API Key：出题和阅卷都要用它，选服务商、填 Key 即可开始。" + OPEN_SETTINGS_BTN);
+  if(e && e.code==="UNSAFE_ENDPOINT") banner("接口地址不安全：API Key 只发往 https，或本机的 http（127.0.0.1 / localhost）。请到设置页改掉 Base URL。" + OPEN_SETTINGS_BTN, "error");
+  else if(e && e.code==="NO_KEY") banner("未配置 API Key：出题和阅卷都要用它，选服务商、填 Key 即可开始。" + OPEN_SETTINGS_BTN);
   else if(e && e.code==="NO_MODEL") banner("还没选定模型。到设置页点「拉取模型列表」拿一份真实名单（有 Key 时每次启动会自动拉），点下拉里任一名字即可。" + OPEN_SETTINGS_BTN);
   else if(e && e.code==="API") banner(`接口调用失败（${e.status}）。请检查服务商 / 模型 / Key 是否匹配。`
       + (e.status===400? " <b>多半是模型名在这一家不存在</b>：点设置里的「拉取模型列表」挑一个真实存在的模型。" : "")

@@ -46,8 +46,8 @@ function originAllowed(originHeader, port) {
    页面里那个内联 <script> 由服务下发时打上 nonce，别的脚本一律不许加载、不许内联执行；
    没给 'unsafe-eval'，eval 与 new Function 也关着。
    style-src 必须留 'unsafe-inline'：界面大量用 style="…" 属性（进度条宽度这类）现算现写。
-   connect-src 留 http: ：接口地址是用户自由填写的，有人指着本机或局域网的明文代理（如 ollama），
-   而 https 本来就开着，禁掉 http 换不来多少安全。
+   connect-src 的 http 只给本机回环：有人指着本机的明文代理（如 ollama），
+   但任意 http 主机会让 API Key 以明文过公网，渲染层也在发请求前挡这一类地址（见 app 的 assertSafeEndpoint）。
    改这条要先想 default-src 'none'：新增任何一类资源（图标 / 字体 / 媒体）都得在这里开口子。 */
 function cspFor(nonce) {
   return buildCsp("script-src 'nonce-" + nonce + "'");
@@ -65,7 +65,7 @@ function buildCsp(scriptSrc) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",
-    "connect-src 'self' https: http:",
+    "connect-src 'self' https: http://127.0.0.1:* http://localhost:*",
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",

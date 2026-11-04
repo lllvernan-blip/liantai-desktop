@@ -188,6 +188,10 @@ const winRows = [];
 winRows.push({ name: "latest.yml", ok: has("latest.yml") });
 winRows.push({ name: setupExe, ok: has(setupExe) });
 winRows.push({ name: setupExe + ".blockmap", ok: has(setupExe + ".blockmap") });
+/* 签名是客户端的唯一独立信任源：缺了它，客户端会拒收这一版（宁可先不更新）。
+   所以这项不是「最好有」，是发版必须对上的账。 */
+winRows.push({ name: setupExe + ".sig（发布侧签名）", ok: has(setupExe + ".sig") });
+if (!has(setupExe + ".sig")) problems.push("Windows 没有 " + setupExe + ".sig：客户端会拒收这一版");
 const extraExe = bySuffix(".exe").filter((n) => n !== setupExe);
 if (extraExe.length) {
   winRows.push({ name: extraExe.join("、"), ok: true, note: "版本号不是本版的安装包（对账只认本版名）" });

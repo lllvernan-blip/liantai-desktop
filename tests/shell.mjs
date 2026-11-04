@@ -31,7 +31,6 @@ const macKeyTool = (args) => execFileSync(process.execPath, [MAC_KEY_TOOL, ...ar
 /* 失败路径上文件可能根本没被写出来（那本身就是断言要报的事实）：
    读文件的地方一律用这个，别让测试自己 ENOENT 死掉、把后面的断言全噎住。 */
 const readOr = (p, d) => { try { return readFileSync(p, "utf8"); } catch (err) { return d === undefined ? "" : d; } };
-
 const T = [];
 const ok = (c, m) => T.push((c ? "PASS  " : "FAIL  ") + m);
 
@@ -158,22 +157,65 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   const cands = mod.macSourceUrls(gh);
   ok(cands.length === mod.MAC_MIRROR_PREFIXES.length + 1
      && cands[0].indexOf("https://gh-proxy.com/") === 0 && cands[0].indexOf(gh) > 0
-     && cands[1].indexOf("https://ghfast.top/") === 0 && cands[cands.length - 1] === gh,
-     "壳/mac: github.com 地址先经镜像（gh-proxy.com 在前、ghfast.top 次之），官方域兜底在最后");
+     && cands[cands.length - 1] === gh
+     && cands.some(u => u.indexOf("https://cors.isteed.cc/") === 0)
+     && cands.some(u => u.indexOf("https://githubproxy.cc/") === 0),
+     "壳/mac: github.com 地址先进镜像候选池（含实测活着的 cors.isteed.cc / githubproxy.cc），官方域兜底在最后");
   ok(mod.macSourceUrls("http://127.0.0.1:8080/dl/x.zip").join(",") === "http://127.0.0.1:8080/dl/x.zip"
      && mod.macSourceUrls("https://evil.example/payload.zip").join(",") === "https://evil.example/payload.zip",
      "壳/mac: 不是 github.com 的地址不被改写成镜像（本地假源 / 别的域都原样一条）");
   ok(mod.macSourceUrls(gh + ".sig")[0] === "https://gh-proxy.com/" + gh + ".sig",
      "壳/mac: 签名地址也一并改写到镜像前缀上（包与签名按同一条来源成对重试）");
-  ok(mod.macHostAllowed("gh-proxy.com") && mod.macHostAllowed("ghfast.top") && !mod.macHostAllowed("evil.example"),
-     "壳/mac: 白名单认这两台镜像主机，别的域仍不许");
+  ok(["gh-proxy.com", "ghfast.top", "cors.isteed.cc", "githubproxy.cc"].every(h => mod.macHostAllowed(h))
+     && !mod.macHostAllowed("evil.example"),
+     "壳/mac: 四台镜像主机在白名单里，别的域仍不许");
   restore();
+}
+
+/* ---- 1d. 下载前先探源：谁真支持 206 且先吐字节谁排前面，挂掉的排最后但不丢。
+        实测 2026-11-04：直连三次全超时、gh-proxy.com 挂一次，写死顺序必然踩空。 ---- */
+{
+  const { mod, restore } = loadUpdate({});
+  const body = Buffer.alloc(256 * 1024, 7);
+  const srv = createServer((req, res) => {
+    const u = String(req.url || "");
+    const m = /^bytes=(\d+)-(\d+)$/.exec(String(req.headers.range || ""));
+    const send = () => {
+      if (u === "/dead" || !m) { res.writeHead(200, { "Content-Length": body.length }); res.end(body); return; }
+      const a = Number(m[1]), b = Math.min(Number(m[2]), body.length - 1);
+      res.writeHead(206, { "Content-Range": "bytes " + a + "-" + b + "/" + body.length,
+                           "Content-Length": b - a + 1 });
+      res.end(body.subarray(a, b + 1));
+    };
+    if (u === "/slow") setTimeout(send, 250); else send();
+  });
+  await new Promise(r => srv.listen(0, "127.0.0.1", r));
+  const base = "http://127.0.0.1:" + srv.address().port;
+  const ranked = typeof mod.macRankSources === "function"
+    ? await mod.macRankSources([base + "/slow", base + "/dead", base + "/fast"]) : [];
+  ok(ranked.length === 3 && ranked[0] === base + "/fast",
+     "壳/mac: 探源把先回 206 的那条排到第一位（实际 " + JSON.stringify(ranked) + "）");
+  ok(ranked[ranked.length - 1] === base + "/dead",
+     "壳/mac: 不支持分段的源排到最后，仍留在候选里兜底");
+  srv.close(); restore();
 }
 
 /* ---- 2. 安装版全流程：换源 / 发现新版 / 下载 / 安装 ---- */
 {
   const fake = new FakeUpdater();
   const { mod, restore } = loadUpdate({ autoUpdater: fake });
+  /* 这一组量的是状态机，但「下完」现在必须过发布侧签名：给一份真签好的临时包，
+     别让验签失败路径混进来影响状态断言（验签本身在 6c 单独量）。 */
+  const tmp2 = mkdtempSync(join(tmpdir(), "liantai-win2-"));
+  const exe2 = join(tmp2, "liantai-desktop-setup-1.0.1.exe");
+  writeFileSync(exe2, Buffer.from("payload-for-state-machine-".repeat(80)));
+  const keyDir2 = join(tmp2, "keys");
+  mkdirSync(keyDir2, { recursive: true });
+  const keyPath2 = join(keyDir2, "release.pem");
+  macKeyTool(["--init", "--key", keyPath2]);
+  macKeyTool(["--sign", exe2, "--key", keyPath2]);
+  const sig2 = readFileSync(exe2 + ".sig", "utf8").trim();
+  const pub2 = macKeyTool(["--pubkey", "--key", keyPath2]).split("\n\n")[0].trim();
   const seen = [];
   mod.initUpdate({
     log,
@@ -181,6 +223,8 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
     currentVersion: "1.0.0",
     feed: "http://127.0.0.1:9/",
     releasesUrl: "https://example.invalid/releases",
+    winPublicKeys: [pub2],
+    winSig: async () => ({ text: sig2 }),
     onStatusChange: (s) => seen.push(s.phase),
   });
   const st0 = mod.getStatus();
@@ -199,8 +243,9 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
 
   ok(mod.installUpdate() === false, "壳: 没下完就 install 必须拒绝（页面侧收到 409）");
 
-  fake.emit("update-downloaded", { version: "1.0.1" });
-  ok(mod.getStatus().phase === "downloaded", "壳: 下载完成 -> downloaded");
+  fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exe2,
+                                   files: [{ url: "liantai-desktop-setup-1.0.1.exe" }] });
+  ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000), "壳: 下载完成 -> downloaded");
   ok(mod.installUpdate() === true, "壳: downloaded 时 install 放行");
   await wait(20);   // quitAndInstall 排在 setImmediate 上
   ok(fake.calls.quitAndInstall.length === 1 && fake.calls.quitAndInstall[0][1] === true,
@@ -224,6 +269,8 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   await mod.checkUpdate();
   ok(fake.calls.checkForUpdates === afterStop, "壳: 退出流程中不再发更新请求");
   restore();
+  /* 删不掉就留给系统：某些沙箱会拦临时目录的批量删除，清理失败不该把自检结果带崩。 */
+  try { rmSync(tmp2, { recursive: true, force: true }); } catch (err) { /* 下次开机由系统清 */ }
 }
 
 /* ---- 3. 直连 GitHub 不通时退到备用源（国内实况：连接被重置） ---- */
@@ -594,6 +641,7 @@ if (process.platform !== "darwin") {
     const files = { api: null, bodyPath: "/dl/" + zipName, sigPath: "/dl/" + zipName + ".sig",
                     mapPath: "/dl/" + zipName + ".blockmap" };
     let sigHits = 0, mapHits = 0, rangeHits = 0, rangedBytes = 0, zipHits = 0, zipBytesServed = 0;
+    const rangeStarts = [];
     const srv = createServer((req, res) => {
       const u = String(req.url || "").split("?")[0];
       if (u === "/api") {
@@ -609,10 +657,11 @@ if (process.platform !== "darwin") {
       }
       if (u === files.bodyPath) {
         /* 差量靠 Range：真源（GitHub 与镜像）都支持，这里照做；o.noRange 用来演「这条源不支持」 */
-        const m = o.noRange ? null : /^bytes=(\d+)-(\d+)$/.exec(String(req.headers.range || ""));
+        const m = o.noRange ? null : /^bytes=(\d+)-(\d*)$/.exec(String(req.headers.range || ""));
         if (m) {
-          const a = Number(m[1]), b = Math.min(Number(m[2]), served.length - 1);
-          rangeHits++; rangedBytes += b - a + 1;
+          const a = Number(m[1]);
+          const b = m[2] ? Math.min(Number(m[2]), served.length - 1) : served.length - 1;
+          rangeHits++; rangedBytes += b - a + 1; rangeStarts.push(a);
           res.writeHead(206, { "Content-Type": "application/zip", "Content-Range": "bytes " + a + "-" + b + "/" + served.length,
                                "Content-Length": b - a + 1 });
           res.end(served.subarray(a, b + 1));
@@ -706,7 +755,8 @@ if (process.platform !== "darwin") {
              baseZipName, baseBytes, mapBytes,
              versionOf, markerOf, sigHits: () => sigHits, quitCount: () => quitCalled,
              mapHits: () => mapHits, rangeHits: () => rangeHits, rangedBytes: () => rangedBytes,
-             zipHits: () => zipHits, zipBytesServed: () => zipBytesServed };
+             zipHits: () => zipHits, zipBytesServed: () => zipBytesServed,
+             rangeStarts: () => rangeStarts.slice() };
   };
 
   /* 6a-0. 重启后扫到的「已下好」包必须重新验签，本地投放不能绕过 */
@@ -759,6 +809,67 @@ if (process.platform !== "darwin") {
     const ilog = existsSync(logPath) ? readFileSync(logPath, "utf8") : "";
     ok(ilog.indexOf(c.target) >= 0, "壳/mac: 换完会重新打开（用 echo 冒充 open，验的是它真被调了、调的是谁）");
     c.clean();
+  }
+
+  /* 6a-2. 上次下到一半断了的 .part 要能接着下：不从零重来，拼出来还得逐字节对得上 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16" });
+    const dir = join(c.userData, "updates");
+    mkdirSync(dir, { recursive: true });
+    const n = Math.floor(c.zipBytes.length * 0.4);
+    writeFileSync(join(dir, c.zipName + ".part"), c.zipBytes.subarray(0, n));
+    await c.mod.checkUpdate();
+    ok(c.mod.downloadUpdate() === true, "壳/断点: 有半截包时照样能点更新");
+    await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
+    ok(c.rangeStarts().indexOf(n) >= 0,
+       "壳/断点: 请求带 Range 从已有长度接着下（实际起点 " + JSON.stringify(c.rangeStarts()) + "）");
+    const dl = join(dir, c.zipName);
+    ok(existsSync(dl) && readFileSync(dl).equals(c.zipBytes),
+       "壳/断点: 续传拼出来的包与源上逐字节一致");
+    c.clean();
+  }
+
+
+  /* 6c. Windows：electron-updater 自己下自己装，我们插不进下载过程，
+         但必须在「下完」和「装之前」各验一次发布侧签名。
+         这条链的 sha512 期望值与下载地址来自同一份元数据，源被换掉时两者一起改，自证必然通过。 */
+  {
+    const tmp = mkdtempSync(join(tmpdir(), "liantai-win-"));
+    const exeName = "liantai-desktop-setup-1.0.1.exe";
+    const exePath = join(tmp, exeName);
+    writeFileSync(exePath, Buffer.from("fake-nsis-payload-".repeat(400)));
+    const keyDir = join(tmp, "keys");
+    mkdirSync(keyDir, { recursive: true });
+    const keyPath = join(keyDir, "release.pem");
+    macKeyTool(["--init", "--key", keyPath]);
+    macKeyTool(["--sign", exePath, "--key", keyPath]);
+    const sigText = readFileSync(exePath + ".sig", "utf8").trim();
+    const pubPem = macKeyTool(["--pubkey", "--key", keyPath]).split("\n\n")[0].trim();
+
+    const fake = new FakeUpdater();
+    const { mod, restore } = loadUpdate({ autoUpdater: fake });
+    mod.initUpdate({ log, isPackaged: true, currentVersion: "1.0.0", platform: "win32",
+                     userDataDir: join(tmp, "userData"), winPublicKeys: [pubPem],
+                     winSig: async () => ({ text: sigText }) });
+    const info = { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] };
+    fake.emit("update-downloaded", info);
+    ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000),
+       "壳/win: 签名对得上的安装包下完就放行（实际 " + mod.getStatus().phase + "）");
+    ok(fake.autoInstallOnAppQuit === true, "壳/win: 验过之后才恢复「退出时装」");
+    ok(mod.installUpdate() === true, "壳/win: 验过的包才放行安装");
+    await waitFor(() => fake.calls.quitAndInstall.length === 1, 3000);
+    ok(fake.calls.quitAndInstall.length === 1, "壳/win: 验过的包真的交给 quitAndInstall 了");
+
+    /* 同一个包改一个字节：签名必须当场拦下，而且不能留下可装的东西 */
+    writeFileSync(exePath, Buffer.from("tampered-payload"));
+    fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] });
+    ok(await waitFor(() => mod.getStatus().phase === "error", 8000),
+       "壳/win: 包被改过就报错，不当成「下好了」（实际 " + mod.getStatus().phase + "）");
+    ok(fake.autoInstallOnAppQuit === false && !existsSync(exePath),
+       "壳/win: 验不过就删掉安装包并关掉「退出时装」（没有可装的东西）");
+    ok(mod.installUpdate() === false, "壳/win: 验不过时点安装也不放行");
+    restore();
+    try { rmSync(tmp, { recursive: true, force: true }); } catch (err) { /* 删不掉留给系统，别影响断言 */ }
   }
 
   /* 6b. 包内版本与元数据不符：必须掉头，旧版一个字节都不能动 */
@@ -1106,8 +1217,10 @@ if (process.platform !== "darwin") {
      "壳/CSP: 脚本只认 nonce——不给 unsafe-eval，也不给 self（没有外部脚本要加载）");
   ok(csp.indexOf("style-src 'self' 'unsafe-inline'") >= 0,
      "壳/CSP: 样式留 unsafe-inline（界面大量用 style=\"…\" 属性现算现写）");
-  ok(csp.indexOf("connect-src 'self' https: http:") >= 0,
-     "壳/CSP: 外部请求只开 https 与本机明文（接口地址是自由填的，有人指着本地代理）");
+  const conn = (csp.split("; ").find(x => x.indexOf("connect-src ") === 0) || "").split(" ").slice(1);
+  ok(csp.indexOf("connect-src 'self' https: http://127.0.0.1:* http://localhost:*") >= 0
+     && conn.indexOf("http:") < 0,
+     "壳/CSP: 明文只放行本机回环（127.0.0.1 / localhost），任意 http 主机不再放行");
   ok(policy.cspForInlineFallback().indexOf("script-src 'self' 'unsafe-inline'") >= 0,
      "壳/CSP: 内联脚本认不出来时的退路是 unsafe-inline（宁可松一格，不能白屏）");
 

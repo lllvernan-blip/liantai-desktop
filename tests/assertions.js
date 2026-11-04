@@ -616,6 +616,52 @@ ok(await (async()=>{   // 模型为空时不能拿写死的名字去撞接口
   return code;
 })() === "NO_MODEL", "没有模型时: 直接报 NO_MODEL，不兜底成某个写死的名字");
 
+/* 8.7 API Key 只发往 https 或本机明文：坏地址在真发请求前就得挡住。
+   三条出口都要盖到：非流式 chat、流式 chat、设置页拉模型列表。 */
+{
+  const realFetch87 = globalThis.fetch;
+  const sent87 = [];
+  globalThis.fetch = (u)=>{ sent87.push(String(u));
+    return mockRes({ json: async()=>({ choices:[{ message:{ content:"ok" } }] }) }); };
+  const keep87 = { base:state.settings.baseUrl, key:state.settings.apiKey, model:state.settings.model,
+                   domBase:el("#setBase").value, domKey:el("#setKey").value,
+                   caps:state.modelCaps, probe:state.modelProbe };
+  state.settings.apiKey = "sk-secret"; state.settings.model = "m";
+  state.modelCaps = {}; state.modelProbe = {};
+
+  const bad87 = ["http://evil.example.com/v1", "http://192.168.1.9:11434/v1",
+                 "ftp://x.example.com/v1", "not-a-url"];
+  for(const b of bad87){
+    state.settings.baseUrl = b;
+    let code87 = ""; try{ await callLLM("s","u",false,null,{level:"quick"}); }catch(e){ code87 = (e && e.code) || ""; }
+    ok(code87 === "UNSAFE_ENDPOINT", "Key 外发: 非流式挡住 " + b + "（实际 " + (code87 || "放行了") + "）");
+  }
+  state.settings.baseUrl = "http://evil.example.com/v1";
+  let streamCode87 = "";
+  try{ await callLLM("s","u",false, ()=>{}, {level:"quick"}); }catch(e){ streamCode87 = (e && e.code) || ""; }
+  ok(streamCode87 === "UNSAFE_ENDPOINT", "Key 外发: 流式那条路也挡住（实际 " + (streamCode87 || "放行了") + "）");
+
+  el("#setBase").value = "http://evil.example.com/v1"; el("#setKey").value = "sk-secret";
+  await fetchModels(false);
+  ok(sent87.length === 0, "Key 外发: 坏地址一个请求都没发出（实发 " + sent87.length + " 个）");
+  ok(el("#setMsg").textContent.indexOf("https") >= 0, "Key 外发: 设置页说清改法");
+
+  state.settings.baseUrl = "https://api.example.com/v1";
+  await callLLM("s","u",false,null,{level:"quick"});
+  ok(sent87.length === 1 && sent87[0].indexOf("https://api.example.com/v1/chat/completions") === 0,
+     "Key 外发: https 服务商照常可用（没把正常功能改坏）");
+  state.settings.baseUrl = "http://127.0.0.1:11434/v1";
+  await callLLM("s","u",false,null,{level:"quick"});
+  ok(sent87.length === 2 && sent87[1].indexOf("http://127.0.0.1:11434/v1/") === 0,
+     "Key 外发: 本机 ollama 的明文 http 仍可用");
+
+  state.settings.baseUrl = keep87.base; state.settings.apiKey = keep87.key; state.settings.model = keep87.model;
+  state.modelCaps = keep87.caps; state.modelProbe = keep87.probe;
+  el("#setBase").value = keep87.domBase; el("#setKey").value = keep87.domKey;
+  save();
+  globalThis.fetch = realFetch87;
+}
+
 /* 8.5 科目分叉：申论走三步链（学习卡 → 读材料·找点 → 一稿 → 批改），综应A 走两阶段（学习卡 → 作答 → 批改） */
 ok(usesFlowChain("sl.guina") && usesFlowChain("sl.guanche"), "分叉: 申论走训练链");
 ok(!usesFlowChain("zy.gongwen") && !usesFlowChain("zy.guina"), "分叉: 综应A 走两阶段");
@@ -3114,7 +3160,7 @@ globalThis.fetch = (u, opt) => Promise.resolve({ ok:true, status:200, headers:{ 
   text: async()=>{ bodyRead20 = true;
     return await new Promise((_, rej)=>{ opt.signal.addEventListener("abort", ()=>{ const e = new Error("aborted"); e.name = "AbortError"; rej(e); }); Promise.resolve().then(()=>aborter20()); }); } });
 let toCode20 = "";
-try{ await fetchWithTimeout("http://x/v1", {}, 50); }catch(e){ toCode20 = e && e.code; }
+try{ await fetchWithTimeout("https://x.example/v1", {}, 50); }catch(e){ toCode20 = e && e.code; }
 globalThis.setTimeout = realST20; globalThis.fetch = realFetch20;
 ok(bodyRead20 && toCode20 === "TIMEOUT",
    "超时: 计时器盖住读完 body 那一段（body 停住也中止，不会永远挂着）");

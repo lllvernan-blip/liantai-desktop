@@ -78,6 +78,9 @@ const BACKUP_FEEDS = [
 ];
 
 let autoUpdater = null;
+let winVerified = null;      // Windows：下完验过签的那份包（路径 + sha256），装前再复核一次
+let winSigLookup = null;     // 测试注入：给版本与资产名，回签名文本；生产走 GitHub Release 资产
+let winKeys = null;          // Windows 侧验签公钥（与 mac 同一把，来源同上）
 let log = () => {};
 let notify = () => {};
 let timer = null;
@@ -202,6 +205,9 @@ function initUpdate(options) {
     return status;
   }
   autoUpdater = updaterModule.autoUpdater;
+  /* 验签公钥与 mac 那条链共用同一把；注入只在自检里用，生产读钉在包里的 MAC_UPDATE_KEYS。 */
+  winKeys = macParseKeys(options.winPublicKeys || MAC_UPDATE_KEYS);
+  winSigLookup = (typeof options.winSig === 'function') ? options.winSig : null;
 
   autoUpdater.autoDownload = true;          // 后台静默下好，再问用户要不要重启
   autoUpdater.autoInstallOnAppQuit = true;  // 用户直接关窗口也算数：下次启动就是新版
@@ -249,6 +255,9 @@ function initUpdate(options) {
 
   autoUpdater.on('update-available', (info) => {
     status.latestVersion = (info && info.version) || '';
+    /* 先关掉「退出时装」：下载完到验签通过之间有一小段窗口，用户这会儿关窗口的话，
+       NSIS 会直接把还没验过的包装上去。验过了再打开。 */
+    autoUpdater.autoInstallOnAppQuit = false;
     setPhase(PHASE.AVAILABLE, status.latestVersion + ' 可用，开始后台下载');
     armStallWatchdog();
   });
@@ -273,7 +282,23 @@ function initUpdate(options) {
     clearStallWatchdog();
     status.latestVersion = (info && info.version) || status.latestVersion;
     status.progress = { percent: 100, transferred: 0, total: 0, bytesPerSecond: 0 };
-    setPhase(PHASE.DOWNLOADED, status.latestVersion + ' 已下载，重启后生效');
+    /* 下完不等于可以装：先验发布侧签名。验不过就把它下好的文件删掉、退出时装关掉，
+       让它没有可装的东西——这是这条链上唯一不依赖那份可被同源改写的元数据的判断。 */
+    setPhase(PHASE.DOWNLOADING, '正在校验安装包签名');
+    winVerifyDownloaded(info).then((hashHex) => {
+      winVerified = { path: String((info && (info.downloadedFile || info.path)) || ''), sha: hashHex };
+      autoUpdater.autoInstallOnAppQuit = true;
+      setPhase(PHASE.DOWNLOADED, status.latestVersion + ' 已下载并通过签名校验，重启后生效');
+    }).catch((err) => {
+      winVerified = null;
+      try {
+        const f = info && (info.downloadedFile || info.path);
+        if (f) fs.unlinkSync(f);
+      } catch (e) { /* 删不掉也拦住不装 */ }
+      autoUpdater.autoInstallOnAppQuit = false;
+      status.error = (err && err.message) || String(err);
+      setPhase(PHASE.ERROR, status.error);
+    });
   });
 
   autoUpdater.on('error', (err) => {
@@ -556,11 +581,75 @@ async function checkUpdate() {
   return snapshot();
 }
 
+/* ---- Windows：安装包验签 ------------------------------------------------------------
+   electron-updater 把包下到 pending 目录、退出时交给 NSIS。下载过程插不进去，
+   只能在下完与装之前各验一次。这条链原来的 sha512 期望值与下载地址来自同一份元数据，
+   源被换掉时两个值一起改，自证必然通过；签名是唯一不靠那份元数据的东西。 */
+async function winFetchSigText(version, assetName) {
+  if (winSigLookup) {
+    const r = await winSigLookup(version, assetName);
+    if (r && r.text) return String(r.text).trim();
+  }
+  const tag = 'v' + String(version || status.latestVersion || '').replace(/^v/, '');
+  if (!/^v\d/.test(tag)) throw new Error('不知道这一版的版本号，签名无从取起');
+  const rel = await macGetJson(APP.apiReleases + '/tags/' + tag);
+  const assets = (rel && Array.isArray(rel.assets)) ? rel.assets : [];
+  const exe = assets.find((a) => a.name === assetName)
+           || assets.find((a) => /\.exe$/i.test(a.name) && !/\.sig$/i.test(a.name));
+  if (!exe) throw new Error('发布页上没有这一版的安装包');
+  const sig = assets.find((a) => a.name === exe.name + '.sig');
+  if (!sig) throw new Error('发布页上没有安装包签名（这一版没签过，拒收）');
+  return macFetchSig(sig.browser_download_url || sig.url);
+}
+
+/* 签的是「这份包的 sha256 + 资产名」，与 mac 链共用 macSigPayload，两边格式不会漂。 */
+function winVerifySig(hashHex, assetName, sigText) {
+  const text = String(sigText || '').trim();
+  if (!text) throw new Error('签名文件是空的');
+  if (!/^[A-Za-z0-9+/=]+$/.test(text)) throw new Error('签名文件内容不是 base64');
+  const sig = Buffer.from(text, 'base64');
+  if (!sig.length) throw new Error('签名解不出来');
+  const keys = (winKeys && winKeys.length) ? winKeys : macParseKeys(MAC_UPDATE_KEYS);
+  if (!keys.length) throw new Error('本机没有可用的签名公钥，这一版无从校验——拒收');
+  const payload = Buffer.from(macSigPayload(hashHex, assetName), 'utf8');
+  for (const key of keys) {
+    try { if (crypto.verify(null, payload, key, sig)) return true; } catch (err) { /* 换下一把 */ }
+  }
+  throw new Error('安装包签名验不过（发布侧没签过这一版，或者包与签名被换过）——拒收，请手动下载安装');
+}
+
+async function winVerifyDownloaded(info) {
+  const file = String((info && (info.downloadedFile || info.path)) || '');
+  if (!file || !fs.existsSync(file)) throw new Error('拿不到已下载安装包的路径，无从验签');
+  /* 资产名取元数据里给的 url 段，不用本地文件名：electron-updater 落盘时可能改名，
+     而签名覆盖的是发布时的资产名。 */
+  const assetName = String(
+    (info && info.files && info.files[0] && info.files[0].url) || path.basename(file)
+  ).split('?')[0];
+  const sigText = await winFetchSigText((info && info.version) || status.latestVersion, assetName);
+  const hashHex = await macSha256File(file);
+  winVerifySig(hashHex, assetName, sigText);
+  return hashHex;
+}
+
 /* isSilent=false：让用户看见安装进度，别在"什么都没发生"里静默重启 */
 function installUpdate() {
   if (macReady()) return macInstall();
   if (!status.supported || !autoUpdater) return false;
   if (status.phase !== PHASE.DOWNLOADED) return false;
+  /* 装前复核：磁盘上这份还是不是验签时那一份。防的是「验过之后被换」。
+     同步算，因为这里要当场给页面回 true/false。 */
+  if (winVerified) {
+    let now = '';
+    try { now = crypto.createHash('sha256').update(fs.readFileSync(winVerified.path)).digest('hex'); }
+    catch (err) { now = ''; }
+    if (now !== winVerified.sha) {
+      winVerified = null;
+      status.error = '安装前复核没通过：磁盘上这份安装包和验签时不是同一份，已拒绝安装';
+      setPhase(PHASE.ERROR, status.error);
+      return false;
+    }
+  }
   log('update-install', 'quitAndInstall');
   setImmediate(() => {
     try {
@@ -595,8 +684,11 @@ function installUpdate() {
 const MAC_API_DEFAULT = APP.apiReleases + '?per_page=15';   // 扫列表而不是 /releases/latest：mac 常发 prerelease，它不占 latest，查 latest 永远看不到
 const MAC_UA = APP.userAgent;
 const MAC_HOST_OK = /^(github\.com|api\.github\.com|[a-z0-9-]+\.githubusercontent\.com)$/i;   // 官方域（api 与资产）
-const MAC_MIRROR_HOSTS = /^(gh-proxy\.com|ghfast\.top)$/i;   // 加速镜像主机：只认这两台，不放宽成通配
-const MAC_MIRROR_PREFIXES = ['https://gh-proxy.com/', 'https://ghfast.top/'];   // 顺序按 2026-10-18 实测（见文件顶部）
+const MAC_MIRROR_HOSTS = /^(gh-proxy\.com|ghfast\.top|cors\.isteed\.cc|githubproxy\.cc)$/i;   // 加速镜像主机：逐台列，不放宽成通配
+/* 2026-11-04 复测加了后两台：cors.isteed.cc 与 githubproxy.cc 三轮全回 206。
+   这里的顺序只是候选池，不再决定谁先被用——下载前由 macRankSources 并发探一次，当场按快慢排。 */
+const MAC_MIRROR_PREFIXES = ['https://gh-proxy.com/', 'https://ghfast.top/',
+                             'https://cors.isteed.cc/', 'https://githubproxy.cc/'];
 const MAC_LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/i;                    // 自检用的假源
 const MAC_API_TIMEOUT_MS = 30 * 1000;
 const MAC_IDLE_TIMEOUT_MS = 60 * 1000;   // 下载 60 秒没有任何字节就算断（有字节流动会自动重置）
@@ -834,6 +926,33 @@ function macSourceUrls(url) {
   const out = MAC_MIRROR_PREFIXES.map((prefix) => prefix + u.toString());
   out.push(raw);
   return out;
+}
+
+/* 下载前并发探一次源：每条取一小段，要求回 206 且真吐出字节，谁先到谁排前面。
+   挂掉的、不支持分段的排到最后但不剔除（万一当轮全挂，至少还留着原候选顺序去试）。
+   2026-11-04 实测直连连着三次超时、gh-proxy.com 挂过一次，写死顺序必然踩空。 */
+const MAC_PROBE_BYTES = 64 * 1024;
+const MAC_PROBE_TIMEOUT_MS = 4000;
+
+async function macRankSources(urls) {
+  if (!Array.isArray(urls) || urls.length < 2) return Array.isArray(urls) ? urls.slice() : [];
+  const marks = await Promise.all(urls.map(async (url) => {
+    let res = null;
+    const t0 = Date.now();
+    try {
+      res = await macOpen(url, { Range: 'bytes=0-' + (MAC_PROBE_BYTES - 1) }, MAC_PROBE_TIMEOUT_MS);
+      if ((res.statusCode || 0) !== 206) { res.resume(); return { url, ok: false, ms: Infinity }; }
+      let got = 0;
+      for await (const c of res) { got += c.length; if (got >= MAC_PROBE_BYTES) break; }
+      res.destroy();
+      return { url, ok: got > 0, ms: Date.now() - t0 };
+    } catch (err) {
+      if (res) { try { res.destroy(); } catch (e) { /* 已经断了 */ } }
+      return { url, ok: false, ms: Infinity };
+    }
+  }));
+  const good = marks.filter((m) => m.ok).sort((a, b) => a.ms - b.ms);
+  return good.concat(marks.filter((m) => !m.ok)).map((m) => m.url);
 }
 
 function macAssertUrl(raw) {
@@ -1293,15 +1412,35 @@ function downloadUpdate() {
 /* 下载一条来源：下到 .part -> 核 sha256 -> 验签名。任一步不过就抛，由 macPull 换下一条来源。
    进度节流、空闲超时（MAC_IDLE_TIMEOUT_MS）、.part 落盘都保持原有语义。 */
 async function macPullOnce(p, bodyUrl, sigUrl, part) {
-  const res = await macOpen(bodyUrl, {}, MAC_IDLE_TIMEOUT_MS);
-  const code = res.statusCode || 0;
-  if (code !== 200) { res.resume(); throw new Error('下载地址回了 HTTP ' + code); }
-  const total = Number(res.headers['content-length'] || p.size || 0);
+  /* 上次断在半路的 .part 接着下：同名即同版，换过源也没关系（同一份资产，字节一样）。
+     起点只认文件大小，拼完后 sha256 与发布侧签名照旧对整包重算，续传不放松任何一道。 */
+  let offset = 0;
+  try { offset = fs.statSync(part).size; } catch (e) { offset = 0; }
+  if (!Number.isFinite(offset) || offset <= 0 || (p.size && offset >= p.size)) offset = 0;
+  let res = await macOpen(bodyUrl, offset ? { Range: 'bytes=' + offset + '-' } : {}, MAC_IDLE_TIMEOUT_MS);
+  let code = res.statusCode || 0;
+  if (offset && code === 200) {
+    res.resume();                       // 这条源不认 Range：从头下，别把旧字节拼上去
+    offset = 0;
+    try { fs.unlinkSync(part); } catch (e) { /* 删不掉也会被下面的 'w' 覆盖 */ }
+    res = await macOpen(bodyUrl, {}, MAC_IDLE_TIMEOUT_MS);
+    code = res.statusCode || 0;
+  }
+  if (code !== 200 && code !== 206) { res.resume(); throw new Error('下载地址回了 HTTP ' + code); }
+  if (offset) {
+    const cr = /^bytes\s+(\d+)-/.exec(String(res.headers['content-range'] || ''));
+    if (!cr || Number(cr[1]) !== offset) { res.resume(); throw new Error('续传起点对不上，不接着拼'); }
+  }
+  /* 206 的 content-length 只是剩余长度；进度分母要按整包算，不然续传时百分比会从 0 重新跳。 */
+  const total = Number(p.size || res.headers['content-length'] || 0);
   const hash = crypto.createHash('sha256');
-  const out = fs.createWriteStream(part);
+  if (offset) {
+    for await (const c of fs.createReadStream(part)) hash.update(c);
+  }
+  const out = fs.createWriteStream(part, { flags: offset ? 'a' : 'w' });
   const t0 = Date.now();
   status.progress.total = total;
-  let got = 0;
+  let got = offset;
   let lastPercent = -1;
   await new Promise((resolve, reject) => {
     res.on('data', (c) => {
@@ -1314,7 +1453,7 @@ async function macPullOnce(p, bodyUrl, sigUrl, part) {
         percent: percent,
         transferred: got,
         total: total,
-        bytesPerSecond: Math.round(got / Math.max(0.5, (Date.now() - t0) / 1000)),
+        bytesPerSecond: Math.round((got - offset) / Math.max(0.5, (Date.now() - t0) / 1000)),
       };
       setPhase(PHASE.DOWNLOADING, '下载中 ' + percent + '%');
     });
@@ -1326,8 +1465,17 @@ async function macPullOnce(p, bodyUrl, sigUrl, part) {
   if (p.size && got !== p.size) throw new Error('下载不完整（收到 ' + got + ' 字节，应为 ' + p.size + '）');
   const want = macDigestExpected(p);
   const gotHex = hash.digest('hex');
-  if (want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
-  await macCheckSignature(p, gotHex, sigUrl, part + MAC_SIG_SUFFIX);   // 独立一遭：期望值与地址同源，签名不靠它们
+  if (want !== gotHex) {
+    const e = new Error('下载校验没过（sha256 与发布页对不上）');
+    e.dropPart = true;                    // 内容错了，留着半截只会让下次接着错
+    throw e;
+  }
+  try {
+    await macCheckSignature(p, gotHex, sigUrl, part + MAC_SIG_SUFFIX);   // 独立一遭：期望值与地址同源，签名不靠它们
+  } catch (err) {
+    if (err) err.dropPart = true;         // 签名验不过，包可能被换过：半截字节也不留
+    throw err;
+  }
   /* 顺手把块清单留下来：装完它就是下一版的差量基准。取不回来不算失败（下次整包就是了） */
   if (p.blockmapUrl) {
     try { fs.writeFileSync(part + '.blockmap', (await macFetchBlockmap(p.blockmapUrl)).buf); }
@@ -1380,8 +1528,11 @@ async function macPull(p) {
      只有它自己一条。某条来源取回后照旧走 sha256 + Ed25519 验签，校验不过或中途断就换下一条，
      全部试完才报错——任何一步都不跳过、不放宽。差量与整包在这条来源上是同一回事：
      差量拼不成（或省不下）就在同一份来源上回落整包。 */
-  const bodyCands = macSourceUrls(p.url);
-  const sigCands = macSourceUrls(p.sigUrl);
+  const bodyBase = macSourceUrls(p.url);
+  const sigBase = macSourceUrls(p.sigUrl);
+  const bodyCands = await macRankSources(bodyBase);
+  /* 包与签名必须成对取自同一条来源：body 重排后按它在原序列里的位置取对应签名，别错位。 */
+  const sigCands = bodyCands.map((u) => sigBase[bodyBase.indexOf(u)] || sigBase[sigBase.length - 1]);
   let fail = null;
   for (let i = 0; i < bodyCands.length; i++) {
     const body = bodyCands[i];
@@ -1403,7 +1554,11 @@ async function macPull(p) {
       return;
     } catch (err) {
       fail = err;
-      try { fs.unlinkSync(part); fs.unlinkSync(part + MAC_SIG_SUFFIX); } catch (e) { /* 没留下就算了 */ }
+      /* 网络断了就留着 .part：下次启动从断点接着下，96MB 不必每次从头来。
+         只有「内容校验没过」才删——那种半截字节留着只会让下次继续拼错。 */
+      if (err && err.dropPart) {
+        try { fs.unlinkSync(part); fs.unlinkSync(part + MAC_SIG_SUFFIX); } catch (e) { /* 没留下就算了 */ }
+      }
       if (i + 1 < bodyCands.length) {
         log('update-download-retry', '这条来源没走通（' + ((err && err.message) || String(err)) + '），换下一条来源重来：' + body);
       }
@@ -1788,5 +1943,5 @@ function stringify(m) {
   }
 }
 
-module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, macSigPayload, macSourceUrls, macHostAllowed, PHASE, OFFICIAL_FEED, BACKUP_FEEDS, MAC_MIRROR_PREFIXES, MAC_UPDATE_KEYS,
+module.exports = { initUpdate, checkUpdate, downloadUpdate, installUpdate, stopUpdate, macLastFailure, getStatus: snapshot, alignDifferentialCache, macSigPayload, macSourceUrls, macRankSources, winVerifySig, macHostAllowed, PHASE, OFFICIAL_FEED, BACKUP_FEEDS, MAC_MIRROR_PREFIXES, MAC_UPDATE_KEYS,
   initMaterials, materialsStatus, matSyncNow };
