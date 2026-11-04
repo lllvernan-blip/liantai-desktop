@@ -667,6 +667,16 @@ if (process.platform !== "darwin") {
       writeFileSync(join(bdir, baseZipName), hurt);
       writeFileSync(join(bdir, baseZipName + ".blockmap"), macBlockmapOf(baseBytes, o.blockSize || 4096));
     }
+    /* o.preplaced：模拟「上次下好了没装、进程重启过」。
+       badsig = 包加一份假签名，安装前的重验必须拦下；nosig = 只有包，开机就不该认。 */
+    if (o.preplaced) {
+      const ud = join(userData, "updates");
+      mkdirSync(ud, { recursive: true });
+      writeFileSync(join(ud, zipName), zipBytes);
+      if (o.preplaced === "badsig") {
+        writeFileSync(join(ud, zipName + ".sig"), Buffer.from("not-an-ed25519-signature").toString("base64"));
+      }
+    }
     const { mod, restore } = loadUpdate({});
     mod.initUpdate({ log, isPackaged: true, currentVersion: o.currentVersion, platform: "darwin",
                      releasesUrl: "https://example.invalid/releases",
@@ -699,6 +709,19 @@ if (process.platform !== "darwin") {
              zipHits: () => zipHits, zipBytesServed: () => zipBytesServed };
   };
 
+  /* 6a-0. 重启后扫到的「已下好」包必须重新验签，本地投放不能绕过 */
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", preplaced: "badsig" });
+    ok(c.mod.getStatus().phase === "downloaded", "壳/mac: 带签名的已下好包开机被摆出来");
+    ok(c.mod.installUpdate() === false, "壳/mac: 重启后签名对不上不敢换（本地投放绕不过验签）");
+    c.clean();
+  }
+  {
+    const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16", preplaced: "nosig" });
+    ok(c.mod.getStatus().phase !== "downloaded", "壳/mac: 没有配套签名的包开机不认");
+    c.clean();
+  }
+
   /* 6a. 查 -> 下 -> 换 -> 重启，一路正常 */
   {
     const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.16" });
@@ -724,6 +747,12 @@ if (process.platform !== "darwin") {
        + (readOr(logPath) ? "" : "（日志都没有：换包脚本可能没起来 —— " + JSON.stringify(c.mod.getStatus()) + "）"));
     ok(c.versionOf() === "0.0.16" && c.markerOf() === "new",
        "壳/mac: 换包真的换成了（真解压、真两次 mv，不是「看起来像」）");
+    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
+       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
+    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
+    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
+       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
+    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
     ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 目录里没留下 old.app / 临时目录");
     ok(!existsSync(dlPath), "壳/mac: 换成功就把下好的包删掉（不留垃圾）");
     ok(c.quitCount() === 1, "壳/mac: 脚本交出去之后才请应用退出（顺序反了就是把应用白关一次）");
@@ -746,6 +775,12 @@ if (process.platform !== "darwin") {
        + (readOr(logPath) ? "" : "（日志都没有：换包脚本可能没起来 —— " + JSON.stringify(c.mod.getStatus()) + "）"));
     ok(c.versionOf() === "0.0.15" && c.markerOf() === "old",
        "壳/mac: 包内版本不符 -> 放弃并保留旧版（不拿一个来路不明的包装上去）");
+    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
+       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
+    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
+    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
+       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
+    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
     ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 放弃时也不留残骸");
     ok(!existsSync(join(c.userData, "updates", c.zipName)) && existsSync(join(c.userData, "updates", c.zipName + ".bad")),
        "壳/mac: 放弃时把坏包改名成 .bad（留着看，但下次启动不能再被当成「已下好」端给他）");
@@ -850,6 +885,12 @@ if (process.platform !== "darwin") {
        + (readOr(logPath) ? "" : "（日志都没有：换包脚本可能没起来 —— " + JSON.stringify(c.mod.getStatus()) + "）"));
     ok(c.versionOf() === "0.0.15" && c.markerOf() === "old",
        "壳/mac: 包内标识不是练习台（光版本号对不算）-> 放弃，旧版一个字节不动");
+    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
+       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
+    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
+    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
+       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
+    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
     ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 放弃时也不留残骸（暂存名/旧包名都清掉）");
     c.clean();
   }

@@ -797,6 +797,8 @@ function macScanDownloaded() {
     if (!m) continue;
     if (m[2] !== process.arch) continue;
     if (cmpVersion(m[1], status.currentVersion) <= 0) continue;
+    /* 没有配套签名就不认：下载那次验过签，不等于重启后磁盘上这份还可信 */
+    if (!fs.existsSync(path.join(macDir(), n + MAC_SIG_SUFFIX))) continue;
     if (best && cmpVersion(m[1], best.version) <= 0) continue;
     best = { version: m[1], path: path.join(macDir(), n) };
   }
@@ -993,19 +995,41 @@ async function macFetchSig(url) {
 /* 验签：签的是「刚下下来的这份包的 sha256 + 资产名」，用钉在包里的公钥验。
    这一步与 sha256 校验的区别在信任源：sha256 期望值跟下载地址来自同一份元数据，
    一起被改也看不出来；签名只有本机那把私钥做得出。验不过就拒收，不给「下次再说」。 */
-async function macCheckSignature(p, hashHex, sigUrl) {
+async function macCheckSignature(p, hashHex, sigUrl, saveTo) {
   const text = await macFetchSig(sigUrl || p.sigUrl);
   if (!text) throw new Error('签名文件是空的');
   if (!/^[A-Za-z0-9+/=]+$/.test(text)) throw new Error('签名文件内容不是 base64');
   const sig = Buffer.from(text, 'base64');
   if (!sig.length) throw new Error('签名解不出来');
   const payload = Buffer.from(macSigPayload(hashHex, p.assetName), 'utf8');
+  let verified = false;
   for (const key of mac.keys) {
     try {
-      if (crypto.verify(null, payload, key, sig)) return true;
+      if (crypto.verify(null, payload, key, sig)) { verified = true; break; }
     } catch (err) { /* 这把验不了就看下一把 */ }
   }
-  throw new Error('包签名验不过（发布侧没签过这个包，或者包与签名被换过）——拒收，请手动下载安装');
+  if (!verified) throw new Error('包签名验不过（发布侧没签过这个包，或者包与签名被换过）——拒收，请手动下载安装');
+  /* 验过了才把签名留在半成品边上：重启后内存里的 sigUrl 没了，安装前要靠磁盘上这一份再验一次。
+     落到 .part 旁边而不是最终名，半截包不许看起来像「连签名都齐了」。 */
+  if (saveTo) fs.writeFileSync(saveTo, text, 'utf8');
+  return true;
+}
+
+/* 重启后再验一次：包和签名都在本地，验的是「这次真要换上去的」还是当初签过的那一份。
+   installUpdate 要当场给页面回 true/false，所以这里必须同步，不碰网络、不走流式读取。 */
+function macVerifyLocalSignature(zip) {
+  let text;
+  try { text = fs.readFileSync(zip + MAC_SIG_SUFFIX, 'utf8').trim(); }
+  catch (err) { throw new Error('已下好的包没有配套签名，不敢替换，请重新下载'); }
+  if (!text || !/^[A-Za-z0-9+/=]+$/.test(text)) throw new Error('配套签名文件内容不对，不敢替换');
+  const sig = Buffer.from(text, 'base64');
+  if (!sig.length) throw new Error('配套签名解不出来，不敢替换');
+  const hashHex = crypto.createHash('sha256').update(fs.readFileSync(zip)).digest('hex');
+  const payload = Buffer.from(macSigPayload(hashHex, path.basename(zip)), 'utf8');
+  for (const key of mac.keys) {
+    try { if (crypto.verify(null, payload, key, sig)) return true; } catch (err) { /* 换下一把 */ }
+  }
+  throw new Error('已下好的包签名验不过（磁盘上这份可能被换过）——拒收，请重新下载');
 }
 
 /* 期望的 sha256：发布页不给 digest 就拒收，不许静默跳过——有条件校验等于没有校验。 */
@@ -1233,7 +1257,7 @@ async function macPullDiff(p, bodyUrl, sigUrl, part) {
   if (p.size && st.size !== p.size) throw new Error('拼出来的包大小不对（' + st.size + ' 字节，应为 ' + p.size + '）');
   const gotHex = await macSha256File(part);
   if (macDigestExpected(p) !== gotHex) throw new Error('拼出来的包 sha256 与发布页对不上（基准包不是这一版？）');
-  await macCheckSignature(p, gotHex, sigUrl);   // 独立一遭：期望值与地址同源，签名不靠它们
+  await macCheckSignature(p, gotHex, sigUrl, part + MAC_SIG_SUFFIX);   // 独立一遭：期望值与地址同源，签名不靠它们
   /* 清单留着：装完挪成基准，下次才有得对 */
   try { fs.writeFileSync(part + '.blockmap', bm.buf); } catch (err) { log('update-blockmap-save', (err && err.message) || String(err)); }
   log('update-diff', '差量下完：下 ' + plan.fetchBytes + ' 字节 / 整包 ' + plan.total + ' 字节（基准 v' + base.version
@@ -1249,7 +1273,7 @@ async function macPullSource(p, bodyUrl, sigUrl, part) {
       return await macPullDiff(p, bodyUrl, sigUrl, part);
     } catch (err) {
       log('update-diff-fallback', '差量这条路没走通（' + ((err && err.message) || String(err)) + '），这条来源改走整包：' + bodyUrl);
-      try { fs.unlinkSync(part); } catch (e) { /* 没写出来就算了 */ }
+      try { fs.unlinkSync(part); fs.unlinkSync(part + MAC_SIG_SUFFIX); } catch (e) { /* 没写出来就算了 */ }
     }
   }
   return await macPullOnce(p, bodyUrl, sigUrl, part);
@@ -1303,7 +1327,7 @@ async function macPullOnce(p, bodyUrl, sigUrl, part) {
   const want = macDigestExpected(p);
   const gotHex = hash.digest('hex');
   if (want !== gotHex) throw new Error('下载校验没过（sha256 与发布页对不上）');
-  await macCheckSignature(p, gotHex, sigUrl);   // 独立一遭：期望值与地址同源，签名不靠它们
+  await macCheckSignature(p, gotHex, sigUrl, part + MAC_SIG_SUFFIX);   // 独立一遭：期望值与地址同源，签名不靠它们
   /* 顺手把块清单留下来：装完它就是下一版的差量基准。取不回来不算失败（下次整包就是了） */
   if (p.blockmapUrl) {
     try { fs.writeFileSync(part + '.blockmap', (await macFetchBlockmap(p.blockmapUrl)).buf); }
@@ -1330,6 +1354,10 @@ function macPruneResidue(keepZipName) {
     if (!doomed) {
       const m = ZIP_NAME_RE.exec(n);
       doomed = !!m && cmpVersion(m[1], keep[1]) < 0;
+    }
+    /* 签名跟着包走：旧包清掉时它的 .sig 也一起清，刚下好那一份的留着给安装前重验 */
+    if (!doomed && /^liantai-desktop-\d+\.\d+\.\d+-(arm64|x64)\.zip\.sig$/.test(n)) {
+      doomed = n !== keepZipName + MAC_SIG_SUFFIX;
     }
     if (!doomed) continue;
     try { fs.unlinkSync(path.join(dir, n)); } catch (err) { /* 删不动就算了，能在下一轮再说 */ }
@@ -1364,6 +1392,9 @@ async function macPull(p) {
       try {
         if (fs.existsSync(part + '.blockmap')) fs.renameSync(part + '.blockmap', file + '.blockmap');
       } catch (err) { log('update-blockmap-save', (err && err.message) || String(err)); }   // 只是一份清单，不阻断
+      try {
+        if (fs.existsSync(part + MAC_SIG_SUFFIX)) fs.renameSync(part + MAC_SIG_SUFFIX, file + MAC_SIG_SUFFIX);
+      } catch (err) { log('update-sig-save', (err && err.message) || String(err)); }   // 签名缺失会在安装前被拦，不阻断下载
       macPruneResidue(name);   // 更旧的包（没装成的那些，每份 96MB）与过期脚本到这就没用了
       mac.ready = { version: p.version, path: file };
       mac.pending = null;
@@ -1372,7 +1403,7 @@ async function macPull(p) {
       return;
     } catch (err) {
       fail = err;
-      try { fs.unlinkSync(part); } catch (e) { /* 没留下就算了 */ }
+      try { fs.unlinkSync(part); fs.unlinkSync(part + MAC_SIG_SUFFIX); } catch (e) { /* 没留下就算了 */ }
       if (i + 1 < bodyCands.length) {
         log('update-download-retry', '这条来源没走通（' + ((err && err.message) || String(err)) + '），换下一条来源重来：' + body);
       }
@@ -1438,6 +1469,14 @@ function macInstall() {
     macFail('install', '没有权限替换 ' + target + '（它所在的目录不许写入）。已下好的包在 ' + zip + '，可以点「打开发布页」手动装');
     return false;
   }
+  /* 下载那次验过签不算数：中间隔了一次进程退出，updates/ 是本机任何进程都写得进的目录。
+     重启过来的包用磁盘上的签名再验一遍，验不过就不把换包脚本交出去。 */
+  try {
+    macVerifyLocalSignature(zip);
+  } catch (err) {
+    macFail('install', (err && err.message) || String(err));
+    return false;
+  }
   const logPath = path.join(macDir(), 'install.log');
   const scriptPath = path.join(macDir(), 'install-' + mac.pid + '.sh');
   /* 交出去之前把这份包与清单留成基准：换包脚本会把原件删掉，差量下次要靠这一份。
@@ -1459,6 +1498,7 @@ function macInstall() {
     macFail('install', '换包脚本起不来（' + ((err && err.message) || String(err)) + '）');
     return false;
   }
+  try { fs.unlinkSync(zip + MAC_SIG_SUFFIX); } catch (err) { /* 脚本接管了，签名留着也不影响 */ }
   log('update-install', '换包脚本已交出去：' + target + ' <- ' + zip + '（日志 ' + logPath + '）');
   mac.ready = null;   // 脚本接管了：不让页面再点第二次
   setPhase(PHASE.DOWNLOADED, '正在退出并换包…（换完会自己重新打开）');
