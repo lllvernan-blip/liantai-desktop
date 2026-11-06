@@ -839,6 +839,9 @@ ok(el("#docBody").innerHTML.indexOf('id="btnQuick">开始快速判断') >= 0
 /* 红头常显：首页也是一张公文纸（红头在卷首，hero 接在下方），进科目页照旧 */
 ok(el(".redhead").style.display === "", "首页: 公文红头常显（抬头 / 红线 / 文号回到卷首）");
 renderTabs(); renderStart();
+ok(el("#docBody").innerHTML.indexOf('id="btnSmart">出一道题</button>') >= 0
+   && el("#modLabel").textContent === "综合 · 智能出题",
+   "科目页: 主行动写动作「出一道题」，练法由抬头报，同一屏不把「智能出题」写两遍");
 ok(el(".redhead").style.display === "", "科目页: 公文红头照旧（卷面身份各屏一致）");
 renderHome();
 tabClick("zy.guina");
@@ -1750,14 +1753,14 @@ ok(slNoKeyStart.indexOf('data-start="subj"') >= 0 && slNoKeyStart.indexOf('class
 
 /* ②c 填了 Key 的科目首页：红按钮回到本科目的主行动 */
 state.settings.apiKey = "sk-test"; state.settings.subject = "zy"; renderStart();
-ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnSmart">开始') >= 0,
-   "科目页（填了 Key）: 红按钮只说动词「开始」（科目名由顶栏与文号报，不重复）");
+ok(el("#docBody").innerHTML.indexOf('class="primary big" id="btnSmart">出一道题</button>') >= 0,
+   "科目页（填了 Key）: 红按钮写动作「出一道题」，不只剩没有对象的「开始」，也不重报科目名");
 ok(el("#btnSmart").onclick === startSmart && el("#btnQuick").onclick !== startSmart,
    "科目页（填了 Key）: 红按钮接的是 startSmart（与「练一道综应大题」同一个动作，不是快判那条）");
 state.settings.subject = "sl"; renderStart();
 const slStart = el("#docBody").innerHTML;
-ok(slStart.indexOf('id="btnSmart">开始') >= 0 && slStart.indexOf("开始申论练习") < 0,
-   "科目页（填了 Key）: 申论与综应A 共用同一颗「开始」，不在按钮里重报科目名");
+ok(slStart.indexOf('id="btnSmart">出一道题</button>') >= 0 && slStart.indexOf("开始申论练习") < 0,
+   "科目页（填了 Key）: 申论与综应A 共用同一颗「出一道题」，不在按钮里重报科目名");
 ok(slStart.indexOf('class="hero-sub"') < 0 && slStart.indexOf("学习卡") < 0,
    "申论布局（填了 Key）: 说明行整行不在，链上那几步不回锅到入口屏");
 state.settings.apiKey = ""; state.settings.subject = "zy";
@@ -2921,7 +2924,7 @@ current = { module:"zy.guina", subtype:"概括做法", question:{ background:"�
 renderZyPage();
 ok(dtHtml().indexOf("作答要求：") >= 0 && dtHtml().indexOf('class="qtools"') < dtHtml().indexOf("作答要求：")
    && dtHtml().indexOf('id="btnSwitch"') < dtHtml().indexOf("作答要求：") && dtHtml().indexOf(">题目<") < 0,
-   "作答页: 题面不挂标签，换一题/分值/难度/限时都在作答要求上面那一行（2026-11-02 由阿楠定的头三行）");
+   "作答页: 题面不挂标签，换一题/分值/难度/限时都在作答要求上面那一行");
 ok(PAGE_HTML.indexOf("body:not(.wide-cols) .qhead{order:-2;}") >= 0
    && PAGE_HTML.indexOf("body:not(.wide-cols) .col-mat{order:-1;}") >= 0
    && PAGE_HTML.indexOf("body:not(.wide-cols) .col-work{display:contents;}") >= 0,
@@ -3328,6 +3331,9 @@ ok(H22c.indexOf("第一段内容。\n第二段内容。") >= 0,
    "批改页: 范文按原文换行渲染（pre-wrap，不再折成一坨）");
 ok(H22c.indexOf('<div class="reviewbody"><p>格式缺项，写了做法没写日期。</p></div>') >= 0,
    "批改页: 老记录的归类归因连成一段话（回退不硬套两段，也不摆成条）");
+const legacyDot = reviewHtml({ causes:[ { title:"格式缺项", why:"写了做法没写日期。" } ] });
+ok(legacyDot.indexOf("。。") < 0 && legacyDot.indexOf("格式缺项，写了做法没写日期。</p>") >= 0,
+   "批改页: 老记录归因自带句号时只留一个句号（连成一段的口径不变）");
 ok(H22c.indexOf('class="modelanswer"') > H22c.indexOf('class="reviewbody"'),
    "批改页: 范文排在解析之后（先看范文，解析就白写了）");
 ok(H22c.indexOf('class="principle"') < 0,
@@ -3518,8 +3524,9 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">快判</div>') < 0
      && PAGE_HTML.indexOf('<div class="pdstate" id="pdState"') >= 0,
      "层级: 快判一轮页不另起标题行（「快判」已由红头说），主题与进度落红头中段");
-  ok(PAGE_HTML.indexOf("红＝没拿满 · <i") >= 0 && PAGE_HTML.indexOf("橙＝拿满") < 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
-     "层级: 批改页的标注图例挪进标题行（不再每题占一行），而且只留最短那一版说法");
+  ok(PAGE_HTML.indexOf("红＝没拿满 · 灰＝拿满 · ") >= 0 && PAGE_HTML.indexOf('<i class="asc">+N</i>') < 0
+     && PAGE_HTML.indexOf("橙＝拿满") < 0 && PAGE_HTML.indexOf("标红＝这句没对上任何采分点") < 0,
+     "层级: 批改页图例挪进标题行、只留最短那一版，两档颜色双向说清且不拿红色 +N 自证");
   ok(PAGE_HTML.indexOf('<div class="secrow"><div class="sec-title">我的答案</div>') >= 0
      && PAGE_HTML.indexOf('class="sec-title">参考答案</div>') >= 0
      && PAGE_HTML.indexOf("stackbox") < 0,

@@ -218,7 +218,11 @@ html,body{margin:0;padding:0;}
   /* 换模块那一行：文字键 + 间隔点，字号与灰比第一排低一档 */
   .pdnav{display:flex;align-items:center;flex-wrap:wrap;gap:0 4px;margin-top:24px;font-size:var(--fs-note);color:var(--muted-2);}
   .pdnav .pdlab{margin-right:4px;}
-  .pdnav button.linkbtn{font-size:var(--fs-note);padding:0 4px;}
+  /* 页脚这排是文字键，但不能透明到被读成一句说明：只给一条细下划线当「可按」的记号，
+     不套壳、不加箭头，仍比上面那排文种胶囊低一档（2026-11-06 改，规范 §三「键必须是看得见的按钮」）。 */
+  .pdnav button.linkbtn{font-size:var(--fs-note);padding:0 4px;
+    text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong);}
+  .pdnav button.linkbtn:hover{text-decoration-color:var(--ink);}
   .pdnav .pddot{color:var(--text-disabled);}
 /* 科目页/模块落地页尾部的模块切换行：仍是次级导航（比主按钮与文种 chips 小一号），
    但必须是看得见的胶囊——透明灰字会被读成说明文字，没人知道能点（2026-11-01 改）。
@@ -927,7 +931,7 @@ html,body{margin:0;padding:0;}
 
   <div class="modal" id="modalSettings" hidden role="dialog" aria-modal="true" aria-label="设置">
     <div class="box">
-      <div class="mhead"><span>设置（AI 接口 / 纸面样式）</span><button class="x" title="关闭">✕</button></div>
+      <div class="mhead"><span>设置</span><button class="x" title="关闭">✕</button></div>
       <div class="panel-body">
       <section class="setgrp">
         <div class="grpt">AI 服务</div>
@@ -3205,10 +3209,13 @@ function startBoxHtml(resume){
   }
   // 科目页与首页同一套排布：入口屏不摆问句标题（「今天练什么？」「综应A 练什么？」），
   // 抬头已经说了这是什么，主行动自己就是这一屏要办的事。
-  // 红按钮只说动词：「开始」——科目名顶栏与文号都报过了，写第三遍是凑字（2026-11-01 改）。
+  // 红按钮给动作对象，但不重复抬头：科目由顶栏与文号报过，练法由抬头「综合 · 智能出题」报过，
+  // 按钮再写「智能出题」就是同一屏说第三遍。只留「开始」又没说要开始什么，
+  // 下面那排模块胶囊还没选中态，人点之前不知道会出哪类题，所以写动作本身：「出一道题」。
+  // 功能名沿用 SPEC 4.3 的「智能出题」，按钮字面只报这一下会干什么（2026-11-06 改）。
   return `<div class="startbox start-entry start-hero" data-start="subj">
     <div class="actions">${canStart()
-      ? `<button class="primary big" id="btnSmart">开始</button>`
+      ? `<button class="primary big" id="btnSmart">出一道题</button>`
       : `<button class="primary big" id="btnSetup">${setupActionLabel()}</button>`}</div>
     <div class="pdforms"><div class="subtypechips">${moduleKeysOf(curSubject()).map(k=>`<button class="chip" data-mod="${k}">${esc(MODULES[k].name)}</button>`).join("")}${paperPill}</div></div>
     ${resumeHtml}
@@ -5501,7 +5508,12 @@ function reviewHtml(g){
   }
   const cs = (Array.isArray(g && g.causes)? g.causes : []).filter(c=> c && (c.title || c.why));
   if(cs.length){
-    const one = cs.map(c=> [c.title, c.why].filter(Boolean).join("，") + "。").join("");
+    /* 老记录的 why 可能自带句号，无条件再补一个就成了「。。」。只补缺的那个，
+       不拆段、不改口径：这类记录照原样连成一段（AGENTS.md 批改页那条）。 */
+    const one = cs.map(c=>{
+      const s = [c.title, c.why].filter(Boolean).join("，").trim();
+      return /[。！？]$/.test(s)? s : s + "。";
+    }).join("");
     return `<div class="sec-title">解析</div><div class="reviewbody"><p>${esc(one)}</p></div>`;
   }
   if(g && g.comment) return `<div class="sec-title lite">解析</div><div class="comment">${gradeCommentHtml(g.comment)}</div>`;
@@ -5521,7 +5533,9 @@ function gradeHtml(g, total){
   const ansReview = answerReviewHtml(g, ansText);
   const am = answerMarks(g.hits, ansText);
   const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
-  const legend = (ansReview && am.usable)? `红＝没拿满 · <i class="asc">+N</i> ` + (allLocated? "相加＝总分" : "是本句得分") : "";
+  /* 图例只留最短那一版：两档颜色双向说清，不再拿一个红色 +N 举例（那等于自证，
+     而且「+6」是加号得分却染红，容易被读成扣分）。标注收起时图例也不在纸面占位。 */
+  const legend = (ansReview && am.usable)? `红＝没拿满 · 灰＝拿满 · ` + (allLocated? "相加＝总分" : "是本句得分") : "";
   /* 限时与分数同处一条信息带（2026-11-02）：它是一行高的一句话，本来就该并进这一行。
      单独占一行 22px，下面的两栏就往下挪 30——一屏里为半句话付一整行，正是「一行高的信息不许各占一行」要治的。
      「本题限时」的「本题」也删了：这一页只有这一道题，位置自己会说是哪一题的限时。 */
