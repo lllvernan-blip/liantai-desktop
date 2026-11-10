@@ -340,9 +340,7 @@ html,body{margin:0;padding:0;}
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
   .material{background:var(--mat);border-radius:var(--r-ctl);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);white-space:pre-wrap;word-break:break-word;}
   .material .label{display:flex;align-items:center;gap:8px;font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
-  /* 分值与难度：标签紧贴值、两个一组。摆哪儿由调用点定——作答页把它们并进「题目」那一行的右侧，
-     其余屏仍单独占一行（.metarow：左边报事实，右边说怎么用）。 */
-  .metarow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;}
+  /* 分值与难度：标签紧贴值、两个一组，并进工具行右侧（metaInlineHtml）。 */
   .meta{display:flex;gap:24px;font-size:var(--fs-body);}
   .meta b{font-family:var(--hei);font-weight:700;margin-right:4px;}
   /* 划线说明：现在只在材料块头右侧说一遍（读之前就看得见）；划过之后材料下面换成「我划的重点」清单 */
@@ -367,7 +365,7 @@ html,body{margin:0;padding:0;}
   @media (max-height:860px){ .material.mat-scroll{max-height:calc(2.05em * 7 + 52.65px);} }
   @media (max-height:720px){ .material.mat-scroll{max-height:calc(2.05em * 5 + 52.65px);} }
   @media (max-height:820px){ .material.mat-scroll{max-height:calc(2.05em * 3 + 52.65px);} }   /* 矮窗：材料只露三行、内部可滚，作答区才进首屏 */
-  @media (max-height:820px){ .require,.metarow{margin-top:8px;} }   /* 矮窗：题面几行收紧一档，把首屏留给作答区 */
+  @media (max-height:820px){ .require{margin-top:8px;} }   /* 矮窗：题面几行收紧一档，把首屏留给作答区 */
   @media (min-height:1020px){ .material.mat-scroll{max-height:calc(2.05em * 12 + 52.65px);} }
   /* 两栏（凡有材料的屏都这一套）：左材料、右作答。HTML 只写一种形态——.paper-cols 里三块（题面 / 材料 / 作答区），
      单栏时这一壳等于不存在，按 DOM 顺序上下排，与今天一模一样。
@@ -472,13 +470,13 @@ html,body{margin:0;padding:0;}
 
   .answer-wrap{margin-top:24px;}
   /* 作答框与它的字数徽标同处一层：徽标绝对定位在框内右下角，不参与排版，也不随窗口变宽变窄挪位置 */
-  /* 作答区是一个整框：正文、字数、底下的动作条都在这个框里，框的下沿与材料框齐平。
+  /* 作答区是一个整框：正文与字数在框里，动作条挂在框外正下方——框是 overflow:hidden 的（圆角裁切用），
+     sticky 关进 overflow 框里就被废成 static，出口会掉出视口；挂在框外才吸得住（2026-11-10）。
      框线挂在 .answer-box 上，textarea 自己那圈线去掉——否则一屏里会有三道并排的边。 */
   .answer-box{position:relative;display:flex;flex-direction:column;flex:1 1 auto;min-height:0;
     border:1px solid var(--line-strong);border-radius:var(--r-ctl);background:var(--write);overflow:hidden;}
   .answer-scroll{position:relative;display:flex;flex:1 1 auto;min-height:0;}
   .answer-scroll>#answer{flex:1 1 auto;border:none;border-radius:var(--r-flat);background:transparent;padding-bottom:32px;}   /* 底下多留一行：最后一行不会从徽标底下穿过去 */
-  .answer-box .actbar{position:static;margin:0;padding:8px 12px;border-top:1px solid var(--line-soft);background:var(--write);}
   .boxmeta{position:absolute;right:16px;bottom:12px;display:flex;align-items:center;gap:8px;
     padding:0 4px;border-radius:var(--r-icon);background:var(--write);color:var(--muted);pointer-events:none;user-select:none;}
   .boxmeta:empty{display:none;}
@@ -488,9 +486,10 @@ html,body{margin:0;padding:0;}
   textarea#answer{width:100%;min-height:300px;resize:vertical;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);border:1px solid var(--line-strong);padding:16px;background:var(--write);color:var(--ink);border-radius:var(--r-ctl);}
   textarea#answer:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px;align-items:center;}
-  /* 交卷吸底（2026-11-01）：作答再长，交卷也在视口里。粘住时自己带纸色底与一根细线，
-     压在作答框上仍读得出是「一条动作」而不是正文；内容短的时候它就在原位，看不出差别。
-     用 sticky 不用 fixed：纸面（.doc）是 overflow:clip 的，fixed 会飘到纸外去。 */
+  /* 交卷吸底（2026-11-01 立，2026-11-10 挪出作答框）：作答再长，交卷也在视口里。粘住时自己带纸色底与一根细线，
+     压在版面上仍读得出是「一条动作」而不是正文；内容短的时候它就在原位，看不出差别。
+     用 sticky 不用 fixed：纸面（.doc）是 overflow:clip 的，fixed 会飘到纸外去。
+     两栏时 margin-top:auto 把它钉在右栏底（与材料框下沿齐平），单栏时 sticky 兜住视口底。 */
   .actbar{position:sticky;bottom:0;z-index:4;background:var(--paper);
     margin:16px 0 0;padding:8px 0;border-top:1px solid var(--line-soft);justify-content:flex-end;}
   /* 字数靠左、动作靠右：两头都贴在这个栏的边线上（与上面的「换一题」「限时」同一根右缘）。
@@ -543,26 +542,22 @@ html,body{margin:0;padding:0;}
   details.pditem[open]>summary::after{content:"▾";}
   .pditem .pdexp{color:var(--muted);font-size:var(--fs-note);line-height:var(--lh-doc);white-space:pre-wrap;}
   details.pditem .pdexp{padding:0 12px 8px 38px;}
-  /* 批改页 2026-11-02 重排：一条竖线到底。
-     原来「我的答案（左栅）· 解析（右栅）· 参考答案（通栏居中）」三块并排，谁都不像主角——
-     面积最大的是原答（证据），真正该先看的是「这几分从哪丢的」。而且范文 620 居中，
-     左缘 261，跟左栅 70、右栅 587 三条竖线谁都不挨谁。
-     现在整页 620 正文档居中，从上到下：分数 → 丢分清单 → 解析 → ▸原答 → ▸范文。
-     唯一主角是丢分清单，其余全部退到它下面或收进可展开。 */
+  /* 批改页 2026-11-10 定稿：宽窗左右对照——左「我的答案 / 自述」、右「解析 / 参考答案」，
+     主行动「同模块再来一道」钉在分数带正下方（解析再长它也在首屏）。
+     窄窗与无答卷的老记录没有对照结构可分（wide-review 不亮 / grade-columns 不渲染），
+     落回 620 单栏正文列，自上而下：分数 → 主行动 → 我的答案 → 自述 → 解析 → 参考答案。
+     两栏门槛与作答页同一条（MIN_SHEET_REVIEW=950，理由见它的注释）。 */
   .grade{margin-top:24px;}
-  body.wide-review #docBody>*{max-width:var(--text-col);margin-left:auto;margin-right:auto;}
+  .grade-columns .gcol{min-width:0;}
+  body.wide-review .grade-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px 32px;align-items:start;}
   /* 解析两段（2026-11-02）：一段讲想偏在哪，一段讲怎么改。不分条、不加小标题，
      连成话读才像有人在跟你讲；拆成「建议一、建议二」就变成待办清单了。 */
   .reviewbody p{margin:0 0 12px;font-family:var(--fangsong);font-size:var(--fs-title);line-height:var(--lh-doc);color:var(--ink);}
   .reviewbody p:last-child{margin-bottom:0;}
 
   body.wide-cols .c-head .require:first-child{margin-top:0;}
-  .ctrlrow{justify-content:flex-end;margin:0;}
   /* 作答框上面那一摞（题面 → 建议结构 → 分值/换一题 → 经验与限时）：一行就是一行，
      行与行之间只留一档 8；作答要求按 1.65 走（纸面正文的 2.05 是给成段的公文用的，不是给界面条目用的） */
-  .prebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0;}
-  .prebar>details{flex:1 1 auto;min-width:0;}
-  .prebar>.ctrlrow{flex:0 0 auto;}
   .qhead>.require{margin-top:8px;line-height:var(--lh-body);}
   .qhead>.require:first-child{margin-top:0;}
   .qrow{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;margin-top:8px;}
@@ -582,9 +577,6 @@ html,body{margin:0;padding:0;}
   .foldbtn small{margin-left:8px;font-size:var(--fs-note);color:var(--muted-2);font-weight:400;}
   .tlicon{width:24px;height:100%;padding:0;border:none;border-left:1px solid var(--line);border-radius:var(--r-flat);background:transparent;color:var(--muted);font-size:var(--fs-note);line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
   .tlicon:hover{background:var(--ctl-2);color:var(--ink);}
-  .qrow>.fmtbox{margin:0;}
-  .qrow>.fmtbox[open]{flex:1 1 100%;}
-  .qrow>.metarow{margin-top:0;flex:0 0 auto;}
   .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 16px;background:none;border-bottom:1px solid var(--line-soft);margin-bottom:24px;}
   /* 分数带右侧：图例解释的就是左边这个数，两样共用一条基线与同一个右缘；「换一题」退到最外，动作与说明分开 */
   .ghead-right{display:flex;align-items:center;gap:16px;}
@@ -634,7 +626,8 @@ html,body{margin:0;padding:0;}
   .drawer{position:fixed;inset:0;z-index:60;background:rgba(31,31,31,.35);}
   .drawer[hidden]{display:none;}
   /* 抽屉宽度 430 → 620（2026-11-02）：430 里四节只能竖着摞成一长串，六条要点 + 一块框架 + 六条失分点
-     串下来 1279px 高，得滚两屏才看得完，谁都没有先跳出来。放到 620 才能把「怎么答」和「注意什么」摆成两栏。 */
+     串下来 1279px 高，得滚两屏才看得完。620 是单栏长滚的舒服行宽——节内并不并排（cardHtml 现行
+     就是竖着的一串），「怎么答」与「注意什么」要并排属于另一档工程，不在这张卡上顺手做。 */
   .drawer .sheet{position:absolute;top:0;right:0;bottom:0;width:min(620px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 30px rgba(0,0,0,.18);overflow:auto;}
   .drawer .card-body{padding:16px 16px 24px;}
   /* 学习卡入口是纸上的一个按钮：跟「先归类再写」「换一题」同一行、同一套描边与高度。
@@ -666,22 +659,6 @@ html,body{margin:0;padding:0;}
   /* 参考答案是成文范文，跟材料同一套字体（仿宋），别和界面字混在一起 */
   .sec-title + .modelanswer{margin-top:0;}
   .modelanswer{margin-top:24px;background:var(--wash);border-radius:var(--r-ctl);padding:24px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);white-space:pre-wrap;}
-  /* 一行字就能说完、想起来才看的东西，一律折成一行标题（动笔前的经验、建议结构都是这一套）。
-     收着只占一行、报一句里面有多少，展开才有底色和边框。summary 自己把行高压回 1.5——
-     纸面正文是 2.05，一行灰字跟着正文的行高走，看着就是「微微有点开」。 */
-  .foldbox{margin:0 0 12px;}
-  .foldbox>summary{display:flex;align-items:baseline;gap:8px;cursor:pointer;list-style:none;font-family:var(--hei);font-size:var(--fs-note);font-weight:600;color:var(--muted);padding:4px 0;line-height:var(--lh-body);}
-  .foldbox>summary::-webkit-details-marker{display:none;}
-  .foldbox>summary:hover{color:var(--ink);}
-  .foldbox>summary::after{content:"▸";margin-left:auto;flex:0 0 auto;font-size:var(--fs-note);color:var(--line-strong);}
-  .foldbox[open]>summary::after{content:"▾";}
-  .foldbox[open]{padding:12px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--write);margin:0 0 16px;}
-  .foldbox[open]>summary{padding-bottom:4px;}
-  .foldbox .prepcount{font-family:var(--yahei);font-weight:400;color:var(--muted-2);}
-  /* summary 里的小注跟着走 13px，不按 <small> 的默认 0.83em 缩成 10.8——那是五档之外的字号 */
-  .foldbox>summary small{font-size:var(--fs-note);font-weight:400;color:var(--muted-2);}
-  .fmtbox{margin:8px 0 12px;}   /* 接在作答要求下面：两行字之间留一档，不然标题挤进上一段里 */
-  .foldbox .foldbody{font-size:var(--fs-body);line-height:var(--lh-body);margin-top:4px;}
   .prepline{font-size:var(--fs-body);line-height:var(--lh-body);margin-top:8px;}
   .prepline .etag{font-family:var(--hei);font-size:var(--fs-note);color:var(--muted);background:var(--wash-3);padding:1px 8px;border-radius:var(--r-pill);margin-right:8px;}
   .prepline b{font-weight:600;}
@@ -693,10 +670,8 @@ html,body{margin:0;padding:0;}
   textarea.selfin:focus{outline:none;border-color:var(--gov-red);box-shadow:var(--focus-halo);}
   .selfrow{display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;}
   .selfrow button{min-height:var(--h-ctl-sm);font-size:var(--fs-body);padding:0 16px;}
-  .metarow>.tool{min-height:var(--h-ctl-sm);padding:0 12px;}   /* 题头行里的「换一题」：与限时同在 .secright，款式就是 .tool */
-  .grade-answer .hint{letter-spacing:0;}
   .grade-columns .modelanswer,.grade-columns .answerreview{overflow-wrap:anywhere;}
-  .grade .nextrow{padding-top:16px;border-top:1px solid var(--line-soft);}
+  .grade .nextrow{margin-top:0;margin-bottom:8px;}   /* 主行动贴着分数带（ghead 自带 24px 下距与细线），与正文之间留一档 8 */
   /* 设置弹层分组：组间一条 1px 分隔线，组内 16px 一档（弹层间距收敛到 8/16/24/40 四档） */
   .setgrp{margin-top:24px;padding:16px;background:var(--wash);border-radius:var(--r-card);}   /* 区块间 24：与 .sec-title 上边距同一档 */
   .setgrp:first-of-type{margin-top:0;}
@@ -2886,15 +2861,6 @@ function prepRules(k){
     .sort((a,b)=> prepRank(a.type) - prepRank(b.type) || Number(b.ts||0) - Number(a.ts||0))
     .slice(0, PREP_MAX);
 }
-function prepRulesHtml(k){
-  const all = (state.experiences||[]).filter(e=> e && !e.disabled && e.module === k);
-  const list = prepRules(k);
-  if(!list.length) return "";
-  return `<details class="foldbox prepbox"><summary>动笔前 · 你在这类题上攒下的经验<small class="prepcount">${all.length} 条</small></summary>`
-    + list.map(e=>`<div class="prepline"><span class="etag">${esc(e.type)}</span><b>${esc(e.title)}</b> <span class="prepbody">${esc(e.body)}</span></div>`).join("")
-    + (all.length > list.length? `<div class="hint" style="margin-top:8px">另有 ${all.length - list.length} 条，在画像的「我的经验」里</div>` : "")
-    + `</details>`;
-}
 function wireExperiences(){
   document.querySelectorAll("[data-exp-toggle]").forEach(b=> b.onclick = ()=>{
     const e = (state.experiences||[]).find(x=>x.id===b.dataset.expToggle);
@@ -3174,11 +3140,10 @@ function startBoxHtml(resume){
   const foot = canStart()
     ? ""
     : (state.settings.apiKey? "选好模型就能开始" : "填好 API Key 就能开始");
-  const paperAns = (state.paper && Array.isArray(state.paper.answers))? state.paper.answers.filter(Boolean).length : 0;
   /* 进度只按真记录算：哪条有批改结果（grade.total > 0）才算练完一题。
-     平均表现用得分率——各题型满分不一样（10 / 15 / 20 分），直接平均分数是拿不同的尺子加在一起。 */
+     平均表现走 recordTotal（折百分制得分率），与画像同一把尺——各题型满分不同，直接平均原始分是拿不同的尺子相加。 */
   const done = (Array.isArray(state.history)? state.history : []).filter(h=> h && h.grade && h.grade.total > 0);
-  const avgRate = done.length? Math.round(done.reduce((a,h)=> a + (Number(h.grade.scored)||0) / h.grade.total, 0) / done.length * 100) : 0;
+  const avgRate = done.length? Math.round(done.reduce((a,h)=> a + (recordTotal(h)||0), 0) / done.length) : 0;
   const statHtml = done.length? `<div class="histent">已练 ${done.length} 题 · 平均 ${avgRate}%</div>` : "";
   /* 整卷是申论特有的第二种练法，但它也是「点了就去的去处」——长成与模块同一形状的一颗胶囊，
      不再另起一行描边按钮（2026-11-01 改：原来上下两处都在说「开始」，一句话写两遍）。 */
@@ -4030,45 +3995,18 @@ function renderQuestion(){
 
 /* ============ 综应A 两阶段：学习卡（折叠+笔记+翻卡计数）→ 我已学习，开始作答 → 作答页；结果页与申论共用 gradeHtml ============ */
 // 不建训练链、不渲染步骤条；翻卡计次照旧进练习记录、参与调度（PEEK_WEIGHT）。
-/* 分值与难度：单独占一行太贵。作答页把它们并进「题目」那一行的右侧（metaInlineHtml），
-   其余屏仍单独一行（metaLineHtml：左边报事实，右边说怎么用）。 */
+/* 分值与难度：并进工具行右侧（metaInlineHtml），单独占一行太贵。 */
 function metaInlineHtml(q){
   const parts = [];
   if(q && q.score) parts.push(`<span><b>分值</b>${esc(q.score)} 分</span>`);
   if(q && q.difficulty) parts.push(`<span><b>难度</b>${esc(q.difficulty)}</span>`);
   return parts.length? `<span class="meta">${parts.join("")}</span>` : "";
 }
-function metaLineHtml(q, right){
-  const inline = metaInlineHtml(q);
-  if(!inline && !right) return "";
-  return `<div class="metarow">${inline}${right || ""}</div>`;
-}
-/* 建议结构一行、分值/难度/换一题一行，都是一行高的东西：分开摆就是两条半空的带子，
-   左边空一半、右边空一半，还白吃掉一屏里的四十像素。并成一行——结构在左，账在右。
-   展开时结构拿到整行宽，账被挤到下一行，这也是它该有的样子。 */
-function qMetaRowHtml(fmt, metaHtml){
-  const fmtHtml = fmt? fmtFoldHtml(fmt) : "";
-  if(!fmtHtml && !metaHtml) return "";
-  return `<div class="qrow">${fmtHtml}${metaHtml}</div>`;
-}
-/* 建议结构：标题→称谓→开头→主体→结尾→落款这一串，写的时候看一两眼就够了，
-   常驻在题面上等于替作答框挖掉三行高的坑。折成一行，展开才铺开。 */
-function fmtFoldHtml(fmt){
-  const steps = String(fmt).split(/[→>]/).map(x=>x.trim()).filter(Boolean);
-  const n = steps.length > 1? `<small class="prepcount">${steps.length} 步</small>` : "";
-  return `<details class="foldbox fmtbox"><summary>建议结构${n}</summary><div class="foldbody">${esc(fmt)}</div></details>`;
-}
-function qHeadHtml(showQuestion){
-  const {question} = current;
-  // 整卷题干里已带分值，题头不再重复报一次；难度仍保留
-  // 题面不挂「题目」这个标签——题干自己会说是题；分值与「换一题」落在题干末尾那一行
-  const metaQ = current && current.paperId? Object.assign({}, question, { score:0 }) : question;
+/* 学习卡阶段的题头：不亮题面（题目等点了「开始」再见面，两科一致），只剩「学习卡」标签与一颗换一题。
+   作答页的头另走 draftHeadHtml（工具行 / 要求 / 参考行），不经过这里。 */
+function qHeadHtml(){
   const switchBtn = `<button class="tool" id="btnSwitch">换一题</button>`;
-  // 学习卡阶段不亮题面：题目等点了「开始」再见面（两科一致）；这行只剩一颗按钮
-  if(showQuestion === false) return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright">${switchBtn}</span></div>`;
-  let html = `<div class="require" style="margin-top:8px"><b>作答要求：</b><br>${esc(question.requirements||"")}</div>`;
-  html += qMetaRowHtml(question.suggestedFormat, metaLineHtml(metaQ, switchBtn));
-  return html;
+  return `<div class="secrow" style="margin:8px 0 0"><div class="sec-title">学习卡</div><span class="secright">${switchBtn}</span></div>`;
 }
 /* 学习卡整页：综应A 的学习阶段与申论链的开头共用这一屏（先记知识点再动手，做的时候忘了还能随时翻）。
    btn = {id, label}—— 只有主按钮的文字各科不同，其余一字不差。 */
@@ -4098,7 +4036,7 @@ function wireCardPage(btnId, onGo){
 function renderZyPage(){
   if(!current || !current.question){ renderStart(); return; }
   const phase = current.phase || "card";
-  const head = phase === "grade"? "" : qHeadHtml(phase !== "card");   // 批改页不重复题面：这一页的头是分数（换一题在分数那一行）
+  const head = phase === "card"? qHeadHtml() : "";   // 只有学习卡阶段用这个头；作答页另走 draftHeadHtml，批改页的头是分数
   let html = head;
   if(phase === "grade" && current.grade){
     html += gradeHtml(current.grade.g, current.grade.total);
@@ -4384,10 +4322,10 @@ async function genPDRound(form, theme){
   showLoading(`AI 正在出「${f.name}」快速判断题（主题：${theme}）…`);
   const tick = setInterval(()=>{
     const el = $("#elapsed");
-    if(!el){ clearInterval(tick); return; }
+    if(!el || mySeq !== reqSeq){ clearInterval(tick); return; }   // 被更晚的请求取代：别把秒数写进别人的等待页
     el.textContent = `已等待 ${Math.round((Date.now()-t0)/1000)} 秒`;
   }, 1000);
-  const onDelta = (d, full)=>{ const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`; };
+  const onDelta = (d, full)=>{ if(mySeq !== reqSeq) return; const cc = $("#streamChars"); if(cc) cc.textContent = `· 已接收 ${full.length} 字`; };
   const exps = pdExperienceBlock(theme);
   const weakTraps = pdWeakTraps(3);   // 闭环：上一轮小结答应「这些辨析点会再考你」，这里把它写进出题请求
   const mix = isPDMix(f);
@@ -4526,9 +4464,10 @@ function renderPDSummary(){
     return it.explain
       ? `<details class="pditem ${cls}"><summary>${head}</summary><div class="pdexp">${esc(it.explain)}</div></details>`
       : `<div class="pditem ${cls}">${head}</div>`; }).join("") + `</div>`;
+  /* 归组与「下次再考你」同一口径（pdTrapKind）：同类错处的不同说法归成一行，错得多的排前面 */
   const traps = {};
-  for(const x of misses){ const t = x.it.trap || "其他"; traps[t] = (traps[t]||0)+1; }
-  const trapStr = Object.keys(traps).map(t=>`${t}（${traps[t]}题）`).join("、");
+  for(const x of misses){ const t = pdTrapKind(x.it.trap) || "其他"; traps[t] = (traps[t]||0)+1; }
+  const trapStr = Object.keys(traps).sort((a,b)=> traps[b]-traps[a]).map(t=>`${t}（${traps[t]}题）`).join("、");
   const trapLine = misses.length
     ? "答错的集中在：" + esc(trapStr) + "——下次出题会在这些辨析点上再考你。"
     : (r.form === PD_MIX? "全对——三种形式的辨析点你都站得住。" : "全对——这个形式的辨析点你站得稳。");
@@ -4719,7 +4658,7 @@ function navHtml(step){
   return html + `</div>`;
 }
 function renderChainCard(f){
-  docBody.innerHTML = qHeadHtml(false) + cardPageHtml({ id:"btnChainStart", label:"我已学习，开始作答" });
+  docBody.innerHTML = qHeadHtml() + cardPageHtml({ id:"btnChainStart", label:"我已学习，开始作答" });
   paintFab();
   renderHeader();
   wireSwitchBtn(()=> loadQuestion(current.module, current.subtype));
@@ -4923,17 +4862,6 @@ function openCardDrawer(count){
   $("#cardDrawer").hidden = false;
 }
 function wireCardDrawer(count){ const b = $("#btnCard"); if(b) b.onclick = ()=> openCardDrawer(!!count); }
-/* 作答区为什么拆成三块（经验 / 控制行 / 作答框）：两栏时材料与作答框必须从同一根横线起，
-   而经验那一行与控制行原本都堆在右栏顶上，正好把作答框压下去一截。它们改成 .paper-cols 的直接子元素，
-   两栏时坐在材料与作答框上面那一格里（左一右一），单栏时按 DOM 顺序仍落在材料与作答框之间。 */
-function draftCtrlHtml(){
-  return `<div class="secrow ctrlrow"><span class="secright"><span id="cardHost"></span>${limitRowHtml()}</span></div>`;
-}
-/* 经验一行、限时一行，两行都只有半句高，分开摆就是上下两条细缝，白吃掉一屏里的三四十像素。
-   合成一行：左边「动笔前 · 经验 N 条」，右边学习卡与限时，各占各的半边。 */
-function draftPrebarHtml(){
-  return `<div class="prebar">${prepRulesHtml(current.module)}${draftCtrlHtml()}</div>`;
-}
 /* 工具行：分值 · 难度 · 换一题 ·（学习卡 + 限时）。
    学习卡与限时并成一组，宽窗排在同一行末端，窄窗一起折到下一行——不会被拆成两行。 */
 function toolsRowHtml(q){
@@ -5007,12 +4935,12 @@ function draftAnswerHtml(prevNav){
         <textarea id="answer" placeholder="${module===GONGWEN_KEY? "在此作答。可点「插入公文骨架」获得格式引导。" : "在此作答。"}"></textarea>
         <span class="boxmeta"><span class="tlleft" id="timeLeft"></span><span class="counter wordb" id="wordCount"><b>0</b> 字</span></span>
       </div>
+    </div>
     <div class="actions actbar">
       ${prevNav || ''}
       ${module===GONGWEN_KEY? '<button id="btnTpl">插入公文骨架</button>':''}
       <button class="primary" id="btnSubmit">提交阅卷</button>
       <span class="hint" id="gradeLive" aria-live="polite"></span>
-    </div>
     </div>
     <div class="peek" id="gradePeek"></div></div>`;
 }
@@ -5520,15 +5448,15 @@ function reviewHtml(g){
   return "";
 }
 function gradeHtml(g, total){
-  // 批改页自己收尾（沉淀已并进这一页）：去哪由 nextrow 三颗按钮交代——
-  // 推送是出题引擎底层的事（每次出题自适应选题），页面上没有「推送」入口（SPEC 4.6）。
+  // 批改页自己收尾（沉淀已并进这一页）：主行动「同模块再来一道」钉在分数带正下方——
+  // 解析再长它也在首屏，不用滚到底才找得到。推送是出题引擎底层的事（每次出题自适应选题），
+  // 页面上没有「推送」入口（SPEC 4.6）。
   const pts = pointsOf(g.hits);
   // 子项合计与题目满分不一致时不静默：只说清这次按哪个口径算的，不替模型补分
   const paperScore = Number(current && current.question && current.question.score);
   const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
-  // 分数就是这一页的头：「换一题」落在它右侧；题面（作答要求/分值/难度）不在这一页重复（2026-10-13）
+  // 分数就是这一页的头：限时与「回整卷」落在它右侧；题面（作答要求/分值/难度）不在这一页重复（2026-10-13）
   // 只报卷面分（实得 / 子项满分）：折百分制是给画像比较用的，摆在批改页只会跟这个数打架（2026-10-16）
-  // 答卷的逐句标注与图例先算出来：图例解释的是「这一页的分怎么相加」，所以它跟分数同处一条信息带
   const ansText = String((lastGrade && lastGrade.answer) || "");
   const ansReview = answerReviewHtml(g, ansText);
   const am = answerMarks(g.hits, ansText);
@@ -5537,7 +5465,6 @@ function gradeHtml(g, total){
      而且「+6」是加号得分却染红，容易被读成扣分）。标注收起时图例也不在纸面占位。 */
   const legend = (ansReview && am.usable)? `红＝没拿满 · 灰＝拿满 · ` + (allLocated? "相加＝总分" : "是本句得分") : "";
   /* 限时与分数同处一条信息带（2026-11-02）：它是一行高的一句话，本来就该并进这一行。
-     单独占一行 22px，下面的两栏就往下挪 30——一屏里为半句话付一整行，正是「一行高的信息不许各占一行」要治的。
      「本题限时」的「本题」也删了：这一页只有这一道题，位置自己会说是哪一题的限时。 */
   const tm = lastGrade && lastGrade.time;
   const overTm = tm? overtimeSec(tm.min, tm.usedSec) : 0;
@@ -5545,44 +5472,47 @@ function gradeHtml(g, total){
   const hits = g.hits || [];
   const lostN = countLost(g);
   let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分` : "/ 100 分"}</small>${lostN? `<span class="lossn">错 ${lostN} 处</span>` : ""}</div>`
-    /* 页头只留「回整卷」这一个出口：普通题的「换一题」与底部「同模块再来一道」说的是同一件事，
+    /* 页头只留「回整卷」这一个出口：普通题的「换一题」与下面那颗主行动说的是同一件事，
        摆两处只会让人站在分数前面犹豫点哪个（2026-11-01）。
        图例搬进「我的答案」那一折：它解释的是逐句标注，标注收起来了，图例就不该还在纸面上占位。 */
     + `<div class="ghead-right">${timeHint}${(current && current.paperId)? `<button class="tool" id="btnSwitch">回整卷</button>` : ""}</div></div>`;
-  html += `</div>`;
+  // 主行动在分数带正下方（2026-11-10）：宽窗两栏、解析再长，它都在首屏；「完成」「看我的画像」次级跟随
+  html += `<div class="nextrow"><button class="primary" id="btnRetry">同模块再来一道</button><button class="ghost" id="btnDone">完成</button><button class="tool" id="btnSeeProfile">看我的画像</button></div>`;
   const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
   if(sumNote) html += `<div class="hint" style="margin:4px 0 4px">${sumNote}</div>`;
-  // —— 正文按批改的格式顺序排（2026-11-02）：一、我的答案与标注 → 二、解析两段 → 三、参考答案。
-  // 从「他写了什么」开始，读到解析时手里还攥着自己那句原话；范文放最后，先看范文解析就白写了。
-  // 四、（在最后）自己写一下大概错在哪儿，见 selfNoteHtml。
-  if(ansReview) html += `<div class="secrow"><div class="sec-title">我的答案</div>`
-    + (legend? `<div class="hint">${legend}</div>` : "") + `</div>` + ansReview;
-  html += reviewHtml(g);
-  if(g.modelAnswer) html += `<div class="sec-title">参考答案</div><div class="modelanswer">${esc(tightLines(g.modelAnswer))}</div>`;
-  // 老记录（无采分点、也没解析）退回「待改进」的原话
-  if(!hits.length && !(g.review||[]).length && !(g.causes||[]).length && (g.weaknesses||[]).length) html += `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>`;
-  // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）
+  // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）。跟着解析走（右栏）
   const ec = (lastGrade && lastGrade.expCheck) || null;
   const ecLegacy = !(ec && ec.v >= 2);
   const ecAgain = (ec && Array.isArray(ec.again))? ec.again : [];
   const ecFixed = (ec && Array.isArray(ec.fixed))? ec.fixed : [];
   const ecPending = (ec && Array.isArray(ec.pending))? ec.pending : [];
+  let ecHtml = "";
   if(ecAgain.length || ecFixed.length || ecPending.length){
     const bits = [];
     if(ecAgain.length) bits.push(`「${ecAgain.join("」「")}」又犯了`);
     if(ecFixed.length) bits.push(`「${ecFixed.join("」「")}」${ecLegacy? "这次没再犯（旧记录）" : "这次换题没再犯"}`);
     if(ecPending.length) bits.push(`「${ecPending.join("」「")}」同题答对，换题再验`);
-    html += `<div class="hint" style="margin-top:12px">记过的错因：${esc(bits.join("；"))}。</div>`;
+    ecHtml = `<div class="hint" style="margin-top:12px">记过的错因：${esc(bits.join("；"))}。</div>`;
   }
-  // 思路自述：两折都收起之后才轮到它——它是收尾动作，不是参考答案
-  html += selfNoteHtml(g, total);
+  // 老记录（无采分点、也没解析）退回「待改进」的原话
+  const fallback = ((!hits.length && !(g.review||[]).length && !(g.causes||[]).length && (g.weaknesses||[]).length)
+    ? `<div class="hint" style="margin-top:8px">待改进：${g.weaknesses.map(s=>esc(s)).join("、")}。</div>` : "");
+  // —— 右栏：解析 → 参考答案（先看范文解析就白写了）→ 回执与老记录兜底
+  const reviewCol = reviewHtml(g)
+    + (g.modelAnswer? `<div class="sec-title">参考答案</div><div class="modelanswer">${esc(tightLines(g.modelAnswer))}</div>` : "")
+    + fallback + ecHtml;
+  if(ansReview){
+    // 宽窗对照（2026-11-10 恢复）：左「我的答案 / 自述」，右「解析 / 参考答案」。
+    // 窄窗 wide-review 不亮，这层壳不分组，按 DOM 顺序落回单栏；无答卷的老记录走下面分支，不建空栏。
+    html += `<div class="grade-columns"><div class="gcol"><div class="secrow"><div class="sec-title">我的答案</div>`
+      + (legend? `<div class="hint">${legend}</div>` : "") + `</div>` + ansReview
+      + selfNoteHtml(g, total)
+      + `</div><div class="gcol">` + reviewCol + `</div></div>`;
+  } else {
+    html += reviewCol + selfNoteHtml(g, total);
+  }
   // 提炼是批改之后异步跑的：跑完就地补一行（见 paintExpLine），不让用户为了看「这次提炼了什么」再走一屏
-  html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div>`;
-  html += `<div class="nextrow">
-      <button class="primary" id="btnRetry">同模块再来一道</button>
-      <button class="ghost" id="btnDone">完成</button>
-      <button class="tool" id="btnSeeProfile">看我的画像</button>
-    </div></div>`;
+  html += `<div class="hint" id="expLine" style="margin-top:8px" aria-live="polite"></div></div>`;
   return html;
 }
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
@@ -6044,7 +5974,7 @@ function rawStoragePayload(){
   const keys = ["gw_state", HISTORY_KEY, "gw_draft", "gw_marks"];
   const raw = {};
   for(const k of keys) raw[k] = localStorage.getItem(k);
-  return { exportedAt: new Date().toISOString(), note: "原始 localStorage 快照，未解析、未修改；恢复前不要继续写入。", raw };
+  return { exportedAt: new Date().toISOString(), note: "原始 localStorage 快照，未解析、未修改；恢复前不要继续写入。内含 API Key 等敏感信息，请勿外传。", raw };
 }
 function exportRawStorage(){
   const blob = new Blob([JSON.stringify(rawStoragePayload(), null, 2)], { type:"application/json" });
@@ -6054,7 +5984,7 @@ function exportRawStorage(){
   a.download = `练习台-原始数据-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}-${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
-  banner("已生成原始数据快照。先备份好这个文件，再修复存储或到设置里导入一份有效备份。", "", "storage");
+  banner("已生成原始数据快照。先备份好这个文件，再修复存储或到设置里导入一份有效备份。快照是原样导出，内含 API Key，请勿外传。", "", "storage");
 }
 function showStorageLoadFailure(){
   if(!_loadFailed) return;

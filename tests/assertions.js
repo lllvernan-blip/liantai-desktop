@@ -372,7 +372,16 @@ ok(el("#bannerSlot").innerHTML.indexOf("只保留了最近 40 条") >= 0, "裁�
 localStorage.setItem = realSet;
 saveHistory();
 ok(load().history.length === 40, "练习记录写盘 + 读回往返一致");
-ok(loadHistory() === null || Array.isArray(loadHistory()), "loadHistory 对坏数据返回 null 而不是抛错");
+{
+  /* 真喂坏数据：坏 JSON 与非数组都该回 null 而不是抛错（原来那条析取重言式没喂坏数据，永不失败）。 */
+  const _raw = localStorage.getItem(HISTORY_KEY);
+  localStorage.setItem(HISTORY_KEY, "{坏 JSON");
+  const badNull = loadHistory() === null;
+  localStorage.setItem(HISTORY_KEY, '{"not":"an array"}');
+  const nonArrayNull = loadHistory() === null;
+  localStorage.setItem(HISTORY_KEY, _raw);
+  ok(badNull && nonArrayNull, "loadHistory 对坏数据（坏 JSON / 非数组）返回 null 而不是抛错");
+}
 
 /* 6.0b 启动读取失败：暂停写入，原始数据不被默认值覆盖 */
 {
@@ -391,6 +400,8 @@ ok(loadHistory() === null || Array.isArray(loadHistory()), "loadHistory 对坏�
      "读取失败: saveHistory() 拒绝覆盖原始记录");
   ok(rawStoragePayload().raw.gw_state === bad,
      "读取失败: 原始快照保留坏数据原文");
+  ok(rawStoragePayload().note.indexOf("API Key") >= 0 && PAGE_HTML.indexOf("内含 API Key") >= 0,
+     "读取失败: 原始快照自带「含 Key 勿外传」警示（文件自身与横幅都在说）");
   el("#bannerSlot").innerHTML = "";
   showStorageLoadFailure();
   ok(el("#bannerSlot").innerHTML.indexOf("已暂停写入") >= 0 && el("#bannerSlot").innerHTML.indexOf("btnExportRaw") >= 0,
@@ -1832,6 +1843,20 @@ ok(el("#docBody").innerHTML.indexOf("下次出题会在这些辨析点上再考�
 state.history = state.history.filter(h=> h.track !== "pd"); saveHistory();
 pdActive = false; pdRound = null; pdForm = null; state.settings.apiKey = apiKeyBeforeUp; callLLM = pdStubPrev;
 
+/* 小结的辨析点归组与「下次再考你」同一口径（pdTrapKind）：同一类错处的两种说法归成一行 */
+{
+  pdActive = true; pdForm = "fact-select";
+  pdRound = { form:"fact-select", theme:"归组主题", items:[
+    Object.assign({}, pdFakeItem, { stem:"第一题", ok:false, picked:0, trap:"改范围（只取其中一类）" }),
+    Object.assign({}, pdFakeItem, { stem:"第二题", ok:false, picked:1, trap:"范围扩大了" })
+  ], idx:1, correct:0, done:true };
+  renderPDSummary();
+  const sumHtml = el("#docBody").innerHTML;
+  ok(sumHtml.indexOf("改范围（2题）") >= 0 && sumHtml.indexOf("范围扩大了（1题）") < 0 && sumHtml.indexOf("改范围（1题）") < 0,
+     "快判小结: 同类错处的不同说法归成一行（与复测的归组同一口径，承诺兑得现）");
+  pdActive = false; pdRound = null; pdForm = null;
+}
+
 
 /* ============ 13.6 首页（谁都没选）与两句大题各自点名科目 ============ */
 
@@ -1911,6 +1936,19 @@ ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") <
   state.history = _h;
   ok(withData.indexOf("近期加权均分") >= 0 && withData.indexOf("还没练过") < 0,
      "废话精简: 有数据才报那一行（均分与次数算得出来才写，空着就空着）");
+}
+{
+  /* 首页「平均 X%」走 recordTotal 折百分制：scored 现在是 {got,max} 对象，
+     旧写法 Number(对象)=NaN 会把均分恒算成 0。喂一条新形状记录，均分必须等于 grade.total。 */
+  const _h = state.history;
+  state.history = [{ ts:Date.now(), module:"zy.guina", subtype:"概括问题",
+    question:{ background:"b", requirements:"r", score:10 }, answer:"a", keyPoints:[], hits:[],
+    grade:{ total:80, scored:{ got:8, max:10 } } }];
+  renderHome();
+  const homeAvg = el("#docBody").innerHTML;
+  state.history = _h;
+  ok(homeAvg.indexOf("平均 80%") >= 0 && homeAvg.indexOf("平均 0%") < 0,
+     "首页均分: 平均表现按 recordTotal 折百分制算（新形状 scored 对象不再算成 0）");
 }
 renderModuleLanding("zy.duice");
 ok(el("#docBody").innerHTML.indexOf('class="hero-sub"') < 0
@@ -3279,17 +3317,18 @@ ok(H22.indexOf('>我的答案<') > 0 && H22.indexOf('>我的答案<') < H22.inde
    && H22.indexOf('>解析<') < H22.indexOf('>参考答案<'),
    "批改页: 次序是我的答案 → 解析 → 参考答案（从自己写的开始，读到解析时手里还攥着那句原话）");
 ok(H22.indexOf('class="modelanswer"') > H22.indexOf('>解析<')
-   && H22.indexOf('class="nextrow"') > H22.indexOf('class="modelanswer"'),
-   "批改页: 范文仍在解析之后、动作行之前");
+   && H22.indexOf('class="nextrow"') > H22.indexOf('class="ghead"')
+   && H22.indexOf('class="nextrow"') < H22.indexOf('>解析<'),
+   "批改页: 范文仍在解析之后；主行动钉在分数带正下方、解析之前（长解析滚多久它都在首屏）");
 ok(H22.indexOf('<span class="lossn">错 2 处</span>') > 0,
    "批改页: 「错 N 处」跟分数同一句（14/20 反推不出处数，一个采分点 4-6 分，丢 6 分可能两处也可能三处）");
 ok(PAGE_HTML.indexOf('.answerreview .asent.got.full{color:var(--ink);}') >= 0
    && PAGE_HTML.indexOf('.answerreview .asc.full{color:var(--muted);}') >= 0,
    "批改配色: 满分句用正文色与灰分数，红色只标没拿满的句子");
-ok(PAGE_HTML.indexOf("body.wide-review #docBody>*{max-width:var(--text-col)") >= 0
-   && PAGE_HTML.indexOf("body.wide-review .grade-columns{grid-template-columns") < 0
-   && PAGE_HTML.indexOf('class="grade-columns"') < 0,
-   "批改页: 恒单栏 620 正文列居中（不再按窗口宽度切两栏，范文与正文同踩一条左缘）");
+ok(PAGE_HTML.indexOf('class="grade-columns"') >= 0
+   && PAGE_HTML.indexOf("body.wide-review .grade-columns{display:grid;grid-template-columns") >= 0
+   && PAGE_HTML.indexOf("body.wide-review #docBody>*{max-width:var(--text-col)") < 0,
+   "批改页: 宽窗真两栏（grade-columns 由 gradeHtml 真渲染：左「我的答案/自述」右「解析/参考答案」）；窄窗与无答卷单栏");
 ok(PAGE_HTML.indexOf('--mat:var(--wash)') >= 0 && PAGE_HTML.indexOf('--write:var(--ctl)') >= 0,
    "纸面配色: 材料使用中性浅底，作答使用控件纸色，不叠彩色纸面");
 ok(PAGE_HTML.indexOf('html{overflow-y:scroll;scrollbar-gutter:stable;scroll-padding-bottom:56px;}') >= 0,
@@ -3390,11 +3429,13 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(_pr[2].title === "表达条" && _pr.map(e=>e.id).indexOf("e1") < 0,
      "规则展示位: 表达往后排，错因排最后（摊不到 3 条时才轮到它）");
   ok(_pr.map(e=>e.id).indexOf("e5") < 0, "规则展示位: 停用的经验不摆出来");
-  const _ph = prepRulesHtml("zy.gongwen");
-  ok(_ph.indexOf("动笔前") >= 0 && _ph.indexOf("规则条A") >= 0 && _ph.indexOf("另有 1 条") >= 0,
-     "规则展示位: 摆出前 3 条，其余只报个数");
-  state.experiences = [];
-  ok(prepRulesHtml("zy.gongwen") === "", "规则展示位: 这个模块没经验时整块不出现，不留空框");
+  /* 11/10：经验从「常驻正文」折成一颗按钮。条数只数启用的；没经验时按钮自己就不出现，
+     所以「整块不留空框」现在靠不渲染按钮兑现，而不是渲染完再隐藏。 */
+  ok(expBtnHtml("zy.gongwen").indexOf('id="btnExpFold"') >= 0
+     && expBtnHtml("zy.gongwen").indexOf("4 条") >= 0,
+     "规则展示位: 经验折成按钮，条数只数启用的（5 条里 1 条停用 → 4 条）");
+  ok(expBtnHtml("zy.guina") === "" && expBtnHtml("sl.duice") === "",
+     "规则展示位: 这个模块没经验时整颗按钮不出现，不留空壳");
   state.experiences = [ _mk("e2","规则","规则条A",200) ];
   current = { module:"zy.gongwen", subtype:"通知", cardPeeks:0, phase:"answer",
     question:{ background:"材".repeat(80), requirements:"不超过500字。", suggestedFormat:"标题→称谓→开头→主体→结尾→落款" }, keyPoints:[] };
@@ -3407,6 +3448,31 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(dtHtml().indexOf('id="btnFmtFold"') >= 0 && dtHtml().indexOf('id="btnExpFold"') > dtHtml().indexOf('id="btnFmtFold"')
      && dtHtml().indexOf(">建议结构") > 0 && dtHtml().indexOf("6 步") > 0 && dtHtml().indexOf("prepbox") < 0,
      "建议结构: 折成一颗按钮与经验并排，步数写在括注里，正文不在纸面上（点了开弹层）");
+  /* 两颗折叠按钮点下去真的开弹层：这是「正文不在纸面上」能成立的前提。
+     光断言按钮存在不够——弹层里发出来要是空的，人点开就是白点。 */
+  {
+    const _bf = el("#btnFmtFold");
+    ok(_bf && typeof _bf.onclick === "function", "建议结构弹层: 按钮接上了点击");
+    if(_bf && _bf.onclick) _bf.onclick();
+    ok(el("#foldTitle").textContent === "建议结构"
+       && el("#foldPanel").innerHTML.indexOf("称谓") > 0 && el("#foldPanel").innerHTML.indexOf('class="foldsteps"') > 0,
+       "建议结构弹层: 标题与步数清单都发出来了（5 步按 → 切开逐条排）");
+    const _be = el("#btnExpFold");
+    ok(_be && typeof _be.onclick === "function", "经验弹层: 按钮接上了点击");
+    if(_be && _be.onclick) _be.onclick();
+    ok(el("#foldTitle").textContent.indexOf("动笔前") >= 0
+       && el("#foldPanel").innerHTML.indexOf("规则条A") >= 0
+       && el("#foldPanel").innerHTML.indexOf('class="etag"') >= 0,
+       "经验弹层: 弹层里是经验条（类型标签 + 标题 + 正文），不是空壳");
+  }
+  {
+    const _keep = state.experiences;
+    state.experiences = [];
+    renderZyPage();   // #docBody 是上一次渲染的产物，不重渲染就看不出按钮消没消失
+    ok(dtHtml().indexOf('id="btnExpFold"') < 0, "经验弹层: 没经验时纸面上不出现这颗按钮（老断言「整块不留空框」的现在式）");
+    state.experiences = _keep;
+    renderZyPage();
+  }
   current = _cur0;
   state.experiences = _exp0;
   ok(PAGE_HTML.indexOf('if(step === "draft") head = draftHeadHtml();') >= 0
@@ -3446,7 +3512,7 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok(selfNoteHtml({ hits:[{score:10,awarded:9}] }, 90) === "",
      "思路自述: 记录不是当前这道题时不出现（不把自述写到别人头上）");
   state.history = _hist0;
-  ok(PAGE_HTML.indexOf("html += selfNoteHtml(g, total);") >= 0, "思路自述: 接在解析后面（两科共用 gradeHtml）");
+  ok(PAGE_HTML.indexOf("selfNoteHtml(g, total)") >= 0, "思路自述: 与我的答案同栏（宽窗对照的左栏；单栏时排在解析之前）");
   ok(PAGE_HTML.indexOf("function wireSelfNote(){") >= 0 && (PAGE_HTML.match(/wireSelfNote\(\);/g) || []).length === 2,
      "思路自述: 申论批改步与综应A 结果页都接了线（两处调用 + 一处定义）");
 }
@@ -3513,10 +3579,10 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      "层级: 区块标题只有一档（16px 红竖线）");
   ok(PAGE_HTML.indexOf(".sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body)") >= 0,
      "层级: 次级标题降一档（14px 灰、不缩进）");
-  ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<div class="secrow ctrlrow"><span class="secright"><span id="cardHost"></span>${limitRowHtml()}') >= 0,
-     "层级: 作答框不再挂「作答区」这个标签——框和占位字已经说了；那一行只留学习卡与限时");
+  ok(PAGE_HTML.indexOf(">作答区</div>") < 0 && PAGE_HTML.indexOf('<span class="toolsend"><span id="cardHost"></span>${limitRowHtml()}</span>') >= 0,
+     "层级: 作答框不再挂「作答区」这个标签——框和占位字已经说了；工具行末端只留学习卡与限时");
   ok(PAGE_HTML.indexOf('<div class="sec-title">题目</div>') < 0
-     && PAGE_HTML.indexOf("metaLineHtml(metaQ, switchBtn)") >= 0
+     && PAGE_HTML.indexOf("metaInlineHtml(q)") >= 0
      && PAGE_HTML.indexOf("function toolsRowHtml") >= 0
      && PAGE_HTML.indexOf("if(step === \"draft\") head = draftHeadHtml();") >= 0
      && PAGE_HTML.indexOf("readHeadHtml") < 0,
@@ -3715,11 +3781,13 @@ ok(PAGE_HTML.indexOf(".start-entry .entrylist{margin:24px auto 0;") >= 0 && PAGE
   _view = _keepView; current = _keepCur; pdActive = _keepPd; pdRound = _keepRound;
 }
 
-/* 2026-11-01 P0：交卷吸底——作答再长，出口也在视口里。sticky 而不是 fixed：
-   纸面是 overflow:clip 的，fixed 会飘到纸外去。 */
+/* 交卷出口在视口（2026-11-01 立，2026-11-10 收紧）：动作条必须挂在作答框外——
+   框是 overflow:hidden 的，sticky 关进去就被废成 static，出口掉出视口。几何由 layout 审计真量。 */
 ok(PAGE_HTML.indexOf('<div class="actions actbar">') >= 0
-   && PAGE_HTML.indexOf(".actbar{position:sticky;bottom:0;") >= 0,
-   "交卷吸底: 提交阅卷那一行是 sticky 动作条");
+   && PAGE_HTML.indexOf(".actbar{position:sticky;bottom:0;") >= 0
+   && /<div class="answer-box">[\s\S]{0,600}?<\/div>\s*<div class="actions actbar">/.test(PAGE_HTML)
+   && PAGE_HTML.indexOf(".answer-box .actbar{position:static") < 0,
+   "交卷吸底: 动作条挂在作答框外（不被框内 static 规则废武功），吸底规则仍在");
 
 /* 2026-11-02：能按的都有壳，壳的形状分「按」和「填」。
    动作键 .tool 是胶囊 + 细边 + 控件底，输入是方角（--r-icon）；更安静的一档 .linkbtn 无框灰字，
@@ -3901,14 +3969,14 @@ ok(PAGE_HTML.indexOf('<div class="actions actbar">') >= 0
 ok(PAGE_HTML.indexOf(".modal .box:focus{outline:none") >= 0, "弹层: 容器被聚焦时不画浏览器默认焦点环");
 ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*margin:0 8px 0 4px/) || [""])[0].length > 0, "批改页: 句末分数与下一句之间留出间距");
 ok(PAGE_HTML.indexOf('"这题你大概错在哪？"') >= 0 && PAGE_HTML.indexOf("卡在哪一步") < 0,
-   "批改页: 自述问句是「这题你大概错在哪？」（批改格式的第四部分，让他自己写一段）");
+   "批改页: 自述问句是「这题你大概错在哪？」（批改页的一问，跟我的答案同栏，让他自己写一段）");
 ok(PAGE_HTML.indexOf('${matSrcTag(current.question)}<span class="mathint">选中文字划线</span></div>') >= 0
    && PAGE_HTML.indexOf('return \'<div class="mathint">选中文字划线') < 0,
    "划线说明: 写在材料块头右侧（读材料之前就看得到），材料下面不再单占一行");
-ok(PAGE_HTML.indexOf("metaLineHtml(metaQ, switchBtn)") >= 0
-   && PAGE_HTML.indexOf('class="metarow"') >= 0
+ok(PAGE_HTML.indexOf("metaInlineHtml(q)") >= 0
+   && PAGE_HTML.indexOf('class="qtools"') >= 0
    && PAGE_HTML.indexOf("<b>分值</b>") >= 0 && PAGE_HTML.indexOf("分值：</b>") < 0,
-   "题面: 分值与难度跟着题干走、落在作答要求之后，「换一题」在同一行右侧（标签紧贴值，不用 5em 悬挂缩进）");
+   "题面: 分值与难度并进工具行、落在作答要求之前，「换一题」在同一行（标签紧贴值，不用 5em 悬挂缩进）");
 ok(PAGE_HTML.indexOf('data-start="landing"') >= 0 && PAGE_HTML.indexOf("${esc(m.name)} 练什么？") < 0,
    "落地页: 标题只说「这类题怎么练」，不复述抬头里的模块名");
 ok(renderHeader.toString().indexOf('_view === "q"') >= 0, "抬头: 子类型只在作答页报，落地页不带上一题的子类型");
