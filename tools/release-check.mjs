@@ -60,10 +60,9 @@ const ghAuthed = (() => {
 /* 仓库是公开的，匿名也能读：gh 没登录（或没装 gh）时自动退到匿名 GitHub API，只是额度低一些。 */
 const viaGh = Boolean(ghAuthed);
 
-function apiGet(path, raw) {
+function apiGet(path) {
   if (viaGh) {
     const args = ["api", path];
-    if (raw) args.push("-H", "Accept: application/vnd.github.raw");
     const r = spawnSync(GH, args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
     if (r.status !== 0) {
       /* 404 不是「gh 坏了」，是「这个东西还不存在」——最常见的一种：version 刚提上去、Release 还没建，

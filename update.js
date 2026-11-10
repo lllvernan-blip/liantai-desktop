@@ -47,7 +47,11 @@ const BACKUP_RETRY_MS = 1500;                 // 换到备用源后隔一下再�
    gh-proxy.com 1.6 MB/s（两轮都稳）、ghfast.top 0.7–2.2 MB/s（波动大）、ghproxy.net 8–36 KB/s，
    这三台都支持单段 Range（206，差量照旧）；gh.xxooo.cf / ghproxy.cc / gh.llkk.cc / hub.gitmirror.com /
    gh.zhaojun.im / ghproxy.cfd / gh-proxy.ygxz.in / gh.7vh.cn / ghp.ci 连不通；直连 github.com 37–95 KB/s。
-   按实测重排成三条：gh-proxy.com、ghfast.top、ghproxy.net。
+   2026-11-10 三轮复测（单段 Range 取 64KB，超时 8 秒）：cors.isteed.cc 三轮全 206（1.79 / 2.91 / 2.27 s），
+   gh-proxy.com 两轮 206 一轮超时，githubproxy.cc 同（1.54 / 3.60 / 超时），ghproxy.net 一次 500 两次超时——
+   ghproxy.net 已剔除：排最后也只是白等 8 秒才轮到官方直连。直连 github.com 三轮全 302、0.3 秒，
+   所以元数据的主路永远是 app-update.yml 直连，镜像只当它连不上时的兜底。候选保持三条：
+   自检里「备用源至少三条」那条断言拦着，少一条就得先找台实测活着的补上。
    元数据主源永远是包内 app-update.yml（GitHub 官方）；安装包地址默认就改到第一条镜像上——
    直连官方慢到没法用，镜像才是常态入口（候选顺序见 downloadSequence，逐条兜底到官方直连）。
    这里有一条不能省的规矩：「取 sha512 的源」与「下安装包的源」必须分开（applyCrossSourceDownload）：
@@ -72,9 +76,9 @@ const OFFICIAL_FEED = {
   useMultipleRangeRequest: false,
 };
 const BACKUP_FEEDS = [
+  'https://cors.isteed.cc/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
   'https://gh-proxy.com/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
-  'https://ghfast.top/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
-  'https://ghproxy.net/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
+  'https://githubproxy.cc/https://github.com/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/releases/latest/download/',
 ];
 
 let autoUpdater = null;
@@ -356,6 +360,10 @@ function stopUpdate() {
     clearTimeout(mac.timer);
     mac.timer = null;
   }
+  if (mat && mat.timer) {
+    clearTimeout(mat.timer);
+    mat.timer = null;
+  }
 }
 
 function hostOf(url) {
@@ -569,10 +577,15 @@ async function checkUpdate() {
   try {
     const p = autoUpdater.checkForUpdates();
     p.catch(() => {});   // 竞速输掉的那一边也要有人接住，否则会冒 unhandledRejection
-    await Promise.race([p, new Promise((_, reject) => {
-      const t = setTimeout(() => reject(new Error('检查更新超时（' + Math.round(CHECK_TIMEOUT_MS / 1000) + ' 秒没有回应）')), CHECK_TIMEOUT_MS);
-      if (t && typeof t.unref === 'function') t.unref();
-    })]);
+    let timeoutTimer = null;
+    try {
+      await Promise.race([p, new Promise((_, reject) => {
+        timeoutTimer = setTimeout(() => reject(new Error('检查更新超时（' + Math.round(CHECK_TIMEOUT_MS / 1000) + ' 秒没有回应）')), CHECK_TIMEOUT_MS);
+        if (timeoutTimer && typeof timeoutTimer.unref === 'function') timeoutTimer.unref();
+      })]);
+    } finally {
+      if (timeoutTimer) clearTimeout(timeoutTimer);   // 竞速赢了也要收走超时闹钟，别留两分钟的 stray timer
+    }
     status.lastCheckAt = new Date().toISOString();
     if (status.phase === PHASE.UP_TO_DATE) schedule(PERIODIC_CHECK_MS);
   } catch (err) {
@@ -622,10 +635,12 @@ async function winVerifyDownloaded(info) {
   const file = String((info && (info.downloadedFile || info.path)) || '');
   if (!file || !fs.existsSync(file)) throw new Error('拿不到已下载安装包的路径，无从验签');
   /* 资产名取元数据里给的 url 段，不用本地文件名：electron-updater 落盘时可能改名，
-     而签名覆盖的是发布时的资产名。 */
-  const assetName = String(
+     而签名覆盖的是发布时的资产名。url 可能已被源拆分钩子改写成镜像绝对地址（中文名会被
+     百分号编码），所以取末段再解码——签的是发布时那个裸文件名，不是下载地址。 */
+  let assetName = String(
     (info && info.files && info.files[0] && info.files[0].url) || path.basename(file)
-  ).split('?')[0];
+  ).split('?')[0].split('/').pop();
+  try { assetName = decodeURIComponent(assetName); } catch (err) { /* 不是编码形态就原样用 */ }
   const sigText = await winFetchSigText((info && info.version) || status.latestVersion, assetName);
   const hashHex = await macSha256File(file);
   winVerifySig(hashHex, assetName, sigText);
@@ -684,11 +699,11 @@ function installUpdate() {
 const MAC_API_DEFAULT = APP.apiReleases + '?per_page=15';   // 扫列表而不是 /releases/latest：mac 常发 prerelease，它不占 latest，查 latest 永远看不到
 const MAC_UA = APP.userAgent;
 const MAC_HOST_OK = /^(github\.com|api\.github\.com|[a-z0-9-]+\.githubusercontent\.com)$/i;   // 官方域（api 与资产）
-const MAC_MIRROR_HOSTS = /^(gh-proxy\.com|ghfast\.top|cors\.isteed\.cc|githubproxy\.cc)$/i;   // 加速镜像主机：逐台列，不放宽成通配
+const MAC_MIRROR_HOSTS = /^(cors\.isteed\.cc|gh-proxy\.com|githubproxy\.cc)$/i;   // 加速镜像主机：逐台列，不放宽成通配
 /* 2026-11-04 复测加了后两台：cors.isteed.cc 与 githubproxy.cc 三轮全回 206。
    这里的顺序只是候选池，不再决定谁先被用——下载前由 macRankSources 并发探一次，当场按快慢排。 */
-const MAC_MIRROR_PREFIXES = ['https://gh-proxy.com/', 'https://ghfast.top/',
-                             'https://cors.isteed.cc/', 'https://githubproxy.cc/'];
+const MAC_MIRROR_PREFIXES = ['https://cors.isteed.cc/', 'https://gh-proxy.com/',
+                             'https://githubproxy.cc/'];
 const MAC_LOOPBACK = /^(127\.0\.0\.1|localhost|\[::1\])$/i;                    // 自检用的假源
 const MAC_API_TIMEOUT_MS = 30 * 1000;
 const MAC_IDLE_TIMEOUT_MS = 60 * 1000;   // 下载 60 秒没有任何字节就算断（有字节流动会自动重置）
@@ -1443,6 +1458,12 @@ async function macPullOnce(p, bodyUrl, sigUrl, part) {
   let got = offset;
   let lastPercent = -1;
   await new Promise((resolve, reject) => {
+    /* 出错两条流都要拆：out 不关，缓冲字节可能晚些落进已被下一轮重用的 .part */
+    const bail = (err) => {
+      try { res.destroy(); } catch (e) { /* 已经断了 */ }
+      try { out.destroy(); } catch (e) { /* 已经关了 */ }
+      reject(err);
+    };
     res.on('data', (c) => {
       got += c.length;
       hash.update(c);
@@ -1457,8 +1478,8 @@ async function macPullOnce(p, bodyUrl, sigUrl, part) {
       };
       setPhase(PHASE.DOWNLOADING, '下载中 ' + percent + '%');
     });
-    res.on('error', reject);
-    out.on('error', reject);
+    res.on('error', bail);
+    out.on('error', bail);
     out.on('finish', resolve);
     res.pipe(out);
   });
@@ -1503,10 +1524,9 @@ function macPruneResidue(keepZipName) {
       const m = ZIP_NAME_RE.exec(n);
       doomed = !!m && cmpVersion(m[1], keep[1]) < 0;
     }
-    /* 签名跟着包走：旧包清掉时它的 .sig 也一起清，刚下好那一份的留着给安装前重验 */
-    if (!doomed && /^liantai-desktop-\d+\.\d+\.\d+-(arm64|x64)\.zip\.sig$/.test(n)) {
-      doomed = n !== keepZipName + MAC_SIG_SUFFIX;
-    }
+    /* 签名跟着包走：只清更旧版本的 .sig。同版/更新版（人手放的）与包同规矩，不归这管 */
+    const sm = /^liantai-desktop-(\d+\.\d+\.\d+)-(arm64|x64)\.zip\.sig$/.exec(n);
+    if (!doomed && sm) doomed = cmpVersion(sm[1], keep[1]) < 0;
     if (!doomed) continue;
     try { fs.unlinkSync(path.join(dir, n)); } catch (err) { /* 删不动就算了，能在下一轮再说 */ }
   }

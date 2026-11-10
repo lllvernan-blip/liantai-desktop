@@ -172,7 +172,8 @@ function reconcileRelease() {
      每次发版都重签——dist/ 可能刚重建，旧签名对不上新字节。 */
   let localSig = "";
   if (existsSync(localSetup)) {
-    doSign(localSetup);
+    /* 签上传用的 ASCII 资产名，不是本地中文名：客户端按 latest.yml 里的资产名验签。 */
+    doSign(localSetup, remoteSetupName);
     localSig = localSetup + ".sig";
   }
 

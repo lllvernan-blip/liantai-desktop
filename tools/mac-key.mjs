@@ -102,10 +102,12 @@ function initKey() {
   console.log("\n私钥不进仓库、不上传。丢了 = 已装版本只能手动重装一次。");
 }
 
-function doSign(file) {
+function doSign(file, assetName) {
   if (!file || !existsSync(file)) die("要签的包不存在：" + (file || "(没给路径)") + "\n用法：node tools/mac-key.mjs --sign dist/xxx.zip");
   const priv = loadPrivate();
-  const payload = macSigPayload(sha256Hex(file), basename(file));
+  /* 签名覆盖的是「发布出去的资产名」，不一定是本地文件名：Windows 本地产物是中文名，
+     上传时换成 ASCII 资产名，客户端按那个名字验签——这里必须签上传用的名字，否则永远验不过。 */
+  const payload = macSigPayload(sha256Hex(file), assetName || basename(file));
   const sig = sign(null, Buffer.from(payload, "utf8"), priv).toString("base64");
   writeFileSync(file + ".sig", sig + "\n");
   console.log("已签名：" + file + ".sig");
@@ -114,11 +116,11 @@ function doSign(file) {
   return payload;
 }
 
-function doVerify(file) {
+function doVerify(file, assetName) {
   if (!file || !existsSync(file)) die("要验的包不存在：" + (file || "(没给路径)"));
   const priv = loadPrivate();
   const pub = createPublicKey(priv);
-  const payload = macSigPayload(sha256Hex(file), basename(file));
+  const payload = macSigPayload(sha256Hex(file), assetName || basename(file));
   const sig = readSig(file);
   const good = verify(null, Buffer.from(payload, "utf8"), pub, sig);
   if (!good) die("签名验不过：" + file + "\n（这次签名用的不是 " + KEY_PATH + " 里那把私钥，或者包在签名之后被改过。）");
@@ -148,4 +150,4 @@ function main() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();
 
-export { KEY_PATH, doSign, doVerify, loadPrivate, publicPemOf, fingerprint };
+export { doSign };

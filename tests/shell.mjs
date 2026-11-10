@@ -13,7 +13,7 @@ import { EventEmitter } from "node:events";
 import { setTimeout as realSetTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, chmodSync, cpSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, unlinkSync, existsSync, readdirSync, chmodSync, cpSync, statSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
@@ -156,7 +156,7 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   const gh = "https://github.com/o/r/releases/download/v1/liantai-desktop-1.0.0-arm64.zip";
   const cands = mod.macSourceUrls(gh);
   ok(cands.length === mod.MAC_MIRROR_PREFIXES.length + 1
-     && cands[0].indexOf("https://gh-proxy.com/") === 0 && cands[0].indexOf(gh) > 0
+     && cands[0].indexOf("https://cors.isteed.cc/") === 0 && cands[0].indexOf(gh) > 0
      && cands[cands.length - 1] === gh
      && cands.some(u => u.indexOf("https://cors.isteed.cc/") === 0)
      && cands.some(u => u.indexOf("https://githubproxy.cc/") === 0),
@@ -164,11 +164,11 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   ok(mod.macSourceUrls("http://127.0.0.1:8080/dl/x.zip").join(",") === "http://127.0.0.1:8080/dl/x.zip"
      && mod.macSourceUrls("https://evil.example/payload.zip").join(",") === "https://evil.example/payload.zip",
      "壳/mac: 不是 github.com 的地址不被改写成镜像（本地假源 / 别的域都原样一条）");
-  ok(mod.macSourceUrls(gh + ".sig")[0] === "https://gh-proxy.com/" + gh + ".sig",
+  ok(mod.macSourceUrls(gh + ".sig")[0] === "https://cors.isteed.cc/" + gh + ".sig",
      "壳/mac: 签名地址也一并改写到镜像前缀上（包与签名按同一条来源成对重试）");
-  ok(["gh-proxy.com", "ghfast.top", "cors.isteed.cc", "githubproxy.cc"].every(h => mod.macHostAllowed(h))
-     && !mod.macHostAllowed("evil.example"),
-     "壳/mac: 四台镜像主机在白名单里，别的域仍不许");
+  ok(["cors.isteed.cc", "gh-proxy.com", "githubproxy.cc"].every(h => mod.macHostAllowed(h))
+     && !mod.macHostAllowed("evil.example") && !mod.macHostAllowed("ghfast.top"),
+     "壳/mac: 三台镜像主机在白名单里，死链 ghfast.top 已除名，别的域仍不许");
   restore();
 }
 
@@ -401,9 +401,11 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   mod.initUpdate({ log, isPackaged: true, currentVersion: "0.0.2" });
 
   let r = await fake.getUpdateInfoAndProvider();
-  ok(r.info.files[0].url.indexOf("https://gh-proxy.com/https://github.com/") === 0
-     && new URL(r.info.files[0].url).host === "gh-proxy.com",
-     "壳: 官方元数据可用时，安装包地址也改到默认加速镜像（不再直连 github.com）");
+  /* 不写死主机名：重排候选时不连测试一起改。断言的是「跟 BACKUP_FEEDS 第一条走」这件事本身。 */
+  const firstFeed = mod.BACKUP_FEEDS[0], firstHost = new URL(firstFeed).host;
+  ok(r.info.files[0].url.indexOf(firstFeed) === 0
+     && new URL(r.info.files[0].url).host === firstHost,
+     "壳: 官方元数据可用时，安装包地址也改到默认加速镜像（候选第一条 " + firstHost + "，不再直连 github.com）");
 
   fake.emit("checking-for-update");
   fake.emit("error", new Error("net::ERR_CONNECTION_RESET"));
@@ -800,9 +802,6 @@ if (process.platform !== "darwin") {
     /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
        等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
     await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
-    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
-       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
-    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
     ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 目录里没留下 old.app / 临时目录");
     ok(!existsSync(dlPath), "壳/mac: 换成功就把下好的包删掉（不留垃圾）");
     ok(c.quitCount() === 1, "壳/mac: 脚本交出去之后才请应用退出（顺序反了就是把应用白关一次）");
@@ -860,6 +859,14 @@ if (process.platform !== "darwin") {
     await waitFor(() => fake.calls.quitAndInstall.length === 1, 3000);
     ok(fake.calls.quitAndInstall.length === 1, "壳/win: 验过的包真的交给 quitAndInstall 了");
 
+    /* 源拆分钩子会把 files[].url 改写成镜像绝对地址（生产默认链路），中文还会被百分号编码。
+       资产名必须取末段再解码：拿整个 URL 当资产名，签名永远验不过，每一版都会误杀。 */
+    const mirrorUrl = "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/"
+      + exeName.replace("l", "%6C");   // %6C = l：逼验签方真做一次解码
+    fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: mirrorUrl }] });
+    ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000),
+       "壳/win: url 被改写成镜像绝对地址时按末段资产名验签（实际 " + mod.getStatus().phase + " " + mod.getStatus().error + "）");
+
     /* 同一个包改一个字节：签名必须当场拦下，而且不能留下可装的东西 */
     writeFileSync(exePath, Buffer.from("tampered-payload"));
     fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] });
@@ -886,9 +893,6 @@ if (process.platform !== "darwin") {
        + (readOr(logPath) ? "" : "（日志都没有：换包脚本可能没起来 —— " + JSON.stringify(c.mod.getStatus()) + "）"));
     ok(c.versionOf() === "0.0.15" && c.markerOf() === "old",
        "壳/mac: 包内版本不符 -> 放弃并保留旧版（不拿一个来路不明的包装上去）");
-    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
-       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
-    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
     /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
        等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
     await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
@@ -999,9 +1003,6 @@ if (process.platform !== "darwin") {
     /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
        等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
     await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
-    /* 换包脚本是独立进程：日志写完到 trap 清掉 WORK/STAGE 之间还有一小段窗口。
-       等应用目录真的干净了再断言，别把时序抖动当成功能回归。 */
-    await waitFor(() => readdirSync(c.appsDir).join(",") === "练习台.app", 30000);
     ok(readdirSync(c.appsDir).join(",") === "练习台.app", "壳/mac: 放弃时也不留残骸（暂存名/旧包名都清掉）");
     c.clean();
   }
@@ -1033,14 +1034,16 @@ if (process.platform !== "darwin") {
     const junkZip = join(c.userData, "updates", "liantai-desktop-0.0.15-arm64.zip");
     const junkSh = join(c.userData, "updates", "install-1234.sh");
     const foreignZip = join(c.userData, "updates", "liantai-desktop-0.0.99-arm64.zip");
+    const foreignSig = foreignZip + ".sig";
     writeFileSync(junkZip, "上一轮没装成的包");
     writeFileSync(junkSh, "#!/bin/bash\n");
     writeFileSync(foreignZip, "更新的包，不是程序下的");
+    writeFileSync(foreignSig, "更新那份包的签名，同样不归程序管");
     c.mod.downloadUpdate();
     await waitFor(() => c.mod.getStatus().phase === "downloaded", 30000);
-    ok(!existsSync(junkZip) && !existsSync(junkSh) && existsSync(foreignZip),
-       "壳/mac 差量: 下新版时只清更旧的那些（每份 96MB），更新的包与刚下好那份都留着");
-    try { unlinkSync(foreignZip); } catch (err) { /* 清不干净也不影响后面的用例 */ }
+    ok(!existsSync(junkZip) && !existsSync(junkSh) && existsSync(foreignZip) && existsSync(foreignSig),
+       "壳/mac 差量: 下新版时只清更旧的那些（每份 96MB），更新的包与它的签名、刚下好那份都留着");
+    try { unlinkSync(foreignZip); unlinkSync(foreignSig); } catch (err) { /* 清不干净也不影响后面的用例 */ }
     const dl = join(c.userData, "updates", c.zipName);
     ok(c.mod.getStatus().phase === "downloaded", "壳/mac 差量: 差量拼包也能走到「已下好」");
     ok(c.rangeHits() > 0 && c.zipHits() === 0,
@@ -1306,6 +1309,9 @@ if (process.platform !== "darwin") {
      "发布: 打包前那份资产清单是可重算的（let，不是 const）");
   ok(/signAssets\(\);[\s\S]{0,500}?want = wantedAssets\(\);/.test(rm),
      "发布: 签完名重算资产清单（blockmap 与 .sig 到这才齐，不然会漏传）");
+  const rw = readOr(join(here, "..", "tools", "release.mjs"));
+  ok(/doSign\(localSetup,\s*remoteSetupName\)/.test(rw),
+     "发布: Windows 签名签的是上传用的 ASCII 资产名（本地是中文名；客户端按 latest.yml 资产名验签，签错名字每一版都被拒）");
 }
 
 /* 测试副本（tools/build-test.mjs）：与正式版并存、数据分家的那一只 app。

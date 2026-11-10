@@ -16,9 +16,9 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
-/* Windows 资产在线上叫 ASCII 名（本地那份中文名不带版本只在 dist/ 里） */
+/* Windows 资产在线上叫 ASCII 名（本地那份中文名不带版本只在 dist/ 里），名字跟 pkg.name 走，与 release.mjs 同一口径 */
 function windowsFile() {
-  return "liantai-desktop-setup-" + pkg.version + ".exe";
+  return pkg.name + "-setup-" + pkg.version + ".exe";
 }
 
 /* mac 资产名从 package.json 的 artifactName 模板推出来，改模板或改 arch 都不用改这里 */
