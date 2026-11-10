@@ -55,7 +55,7 @@ if (maxCharsIdx >= 0 && !(MAX_CHARS > 0)) {
 const maxTotalIdx = flagOf("--max-total");
 const MAX_TOTAL = maxTotalIdx >= 0 ? Number(argv[maxTotalIdx + 1]) : null;
 if (maxTotalIdx >= 0 && !(MAX_TOTAL >= 0)) {   // 允许 0：入口屏已经一句说明性文案都不写，预算就该是 0
-  console.error("--max-total 要跟一个正整数");
+  console.error("--max-total 要跟一个非负整数");
   process.exit(2);
 }
 const STRICT = flagOf("--strict") >= 0;
@@ -120,6 +120,7 @@ const REGION_BY_CLASS = [
   ["hint", "数据行"],
   ["actions", "主行动"],
   ["entrylist", "主行动"],   // 卷首目录的去处行：整行可点的按钮，与 .actions 同一类，不背说明句的账
+  ["pdnav", "胶囊"],   // 落地页页脚的「其他模块」导航：里面是模块名与间隔点，是称呼不是说明句，不背文案账
   ["chiprow", "胶囊"],
   ["subtypechips", "胶囊"],
   ["pdforms", "胶囊"],
@@ -256,7 +257,7 @@ const pipelineHits = rows.flatMap((r) => r.clauses.filter((c) => c.pipeline).map
 const mechanismHits = rows.flatMap((r) => r.clauses.filter((c) => c.mechanism.length).map((c) => ({ screen: r.name, text: c.text, words: c.mechanism })));
 const overBudget = MAX_CHARS > 0 ? rows.filter((r) => r.proseChars > MAX_CHARS) : [];
 const proseTotal = rows.reduce((n, r) => n + r.proseChars, 0);
-const overTotal = MAX_TOTAL > 0 && proseTotal > MAX_TOTAL;
+const overTotal = MAX_TOTAL !== null && proseTotal > MAX_TOTAL;   // 预算 0 也要钉住：冒出一句说明性文案就 FAIL
 
 if (JSON_OUT) {
   console.log(JSON.stringify({
@@ -319,7 +320,7 @@ console.log("");
 console.log("—— 汇总 ——");
 const foldedTotal = rows.reduce((n, r) => n + r.foldedChars, 0);
 console.log(`  文案合计 ${proseTotal} 字（均值 ${(proseTotal / rows.length).toFixed(1)}）`
-  + (MAX_TOTAL > 0 ? ` / 预算 ${MAX_TOTAL}` + (overTotal ? " ✗ 超了" : " ✔") : "")
+  + (MAX_TOTAL !== null ? ` / 预算 ${MAX_TOTAL}` + (overTotal ? " ✗ 超了" : " ✔") : "")
   + (foldedTotal ? `；另有 ${foldedTotal} 字收在折叠里（收起时看不见，账仍记着）` : ""));
 console.log(`  流程句 ${pipelineHits.length} 条 · 机制词命中 ${mechanismHits.length} 条 · 重复口径 ${repeats.size} 句`);
 for (const [text, names] of repeats) console.log(`    「${text}」×${names.length}：${names.slice(0, 4).join("、")}${names.length > 4 ? "…" : ""}`);

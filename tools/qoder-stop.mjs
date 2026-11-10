@@ -68,7 +68,7 @@ if (stamp && stamp.state === state) process.exit(0);
 const run = spawnSync(process.execPath, [join(root, "tools", "loop.mjs"), "--quiet"], {
   cwd: root,
   encoding: "utf8",
-  timeout: 110000,
+  timeout: 300000,   // 不得短于 loop 里最重一阶段的自身上限（全量自检 180s + 布局 180s 的常态余量）；110s 曾会把还在跑的自检误杀成失败
   maxBuffer: 64 * 1024 * 1024,
 });
 const out = ((run.stdout || "") + (run.stderr || "")).trim();

@@ -405,9 +405,11 @@ function loadWindowBounds() {
 let _boundsSaveTimer = null;
 function saveWindowBounds() {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMinimized() || mainWindow.isMaximized() || mainWindow.isFullScreen()) return;
+  /* 取值在调用这一刻：close 之后窗口就销毁了，等定时器 firing 再取只会抛错被吞掉 */
+  const bounds = mainWindow.getBounds();
   clearTimeout(_boundsSaveTimer);
   _boundsSaveTimer = setTimeout(() => {
-    try { fs.writeFileSync(windowBoundsFile(), JSON.stringify(mainWindow.getBounds())); } catch (e) {}
+    try { fs.writeFileSync(windowBoundsFile(), JSON.stringify(bounds)); } catch (e) {}
   }, 300);
 }
 

@@ -45,6 +45,15 @@ const src = [
 // 换完再跑壳侧的话，状态机的定时器全是空转。
 await import(new URL("./shell.mjs", import.meta.url).href);
 
+// data: 模块报错时 stack 帧带着整段 base64（一帧约 1.7MB，一次自检刷 3.4MB 噪声）。
+// 打印前把这段 URL 截短：只动输出，不动执行，真实错误信息一个字不少。
+const trimDataURLs = (s) => String(s).replace(/data:text\/javascript;base64,[A-Za-z0-9+/=]+/g, "data:text/javascript;base64,…");
+for (const m of ["error", "warn", "log"]) {
+  const orig = console[m].bind(console);
+  console[m] = (...args) => orig(...args.map((a) =>
+    a instanceof Error ? trimDataURLs(a.stack || a.message) : (typeof a === "string" ? trimDataURLs(a) : a)));
+}
+
 // 以 data: 模块执行：桩子、应用、断言同处一个模块作用域，且支持顶层 await（异步自检用）
 const b64 = Buffer.from(src, "utf8").toString("base64");
 await import("data:text/javascript;base64," + b64);

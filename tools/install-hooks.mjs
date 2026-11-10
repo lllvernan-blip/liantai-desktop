@@ -60,5 +60,5 @@ git(["config", "core.hooksPath", ".githooks"]);
 /* git 只认可执行的钩子；Windows 没有这一位，git 自己会调它。 */
 if (process.platform !== "win32") chmodSync(join(root, ".githooks", "pre-commit"), 0o755);
 console.log("  pre-commit 钩子已装：core.hooksPath = .githooks");
-console.log("  下次 git commit 会先跑 node tools/loop.mjs --staged --quiet（约 5 秒）。");
+console.log("  下次 git commit 会先跑 node tools/loop.mjs --staged --quiet（约 15 秒）。");
 console.log("  撤掉：npm run hooks:install -- --remove");

@@ -23,10 +23,10 @@
  *
  * 边界：真接口、真花钱（一篇一次提炼调用）。抓下来的原文不落盘，只落骨架。
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, copyFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { tmpdir, homedir } from "node:os";
+import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const phase = (process.argv[2] || "").trim();

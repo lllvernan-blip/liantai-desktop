@@ -254,10 +254,10 @@ const ENTRY_TOTAL_BUDGET = 0;
    getBoundingClientRect 一律返回 0——“没有重叠”在那里是永真句，不是检查。
    软项（间距 / 圆角越档）不计入退出码，它们跟 tools/layout-baseline.json 比，只说变化。 */
 {
-  const electronBin = process.platform === "win32"
-    ? join(root, "node_modules", ".bin", "electron.cmd")
-    : join(root, "node_modules", ".bin", "electron");
-  const r = spawnSync(electronBin, [join(root, "tools", "layout-audit.mjs"), "--quick"],
+  /* 走 electron 的 JS 入口，不 spawn .bin/electron(.cmd)：Windows 上 Node 18.20+/20.12+ 禁止
+     不带 shell 地 spawn .cmd（CVE-2024-27980），那条路在 Windows 发布机上恒返回 EINVAL。 */
+  const electronCli = join(root, "node_modules", "electron", "cli.js");
+  const r = spawnSync(process.execPath, [electronCli, join(root, "tools", "layout-audit.mjs"), "--quick"],
     { cwd: root, encoding: "utf8", timeout: 180000, maxBuffer: 128 * 1024 * 1024 });
   const out = (r.stdout || "") + (r.stderr || "");
   const m = out.match(/✔ 布局 (\d+) 屏 (\d+) 问题 · (.+)/);
