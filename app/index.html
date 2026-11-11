@@ -1955,6 +1955,13 @@ async function callLLM(system, user, expectJson, onDelta, opts){
         llmFailNote("空输出", out);
         ri--; continue;
       }
+      /* 这一档重发到上限还是空：还有下一档就换上去（裸档不带思考参数，最可能跑通；思考型模型
+         把额度全给了思维链时，正是靠这一档救回来的）。已经是最后一档才往外抛。
+         调用次数上限不变：换档只在原有额度用完时才发生，一次请求最坏 5 次（3 档 + 2 次重发）。 */
+      if(ri < ladder.length - 1){
+        llmFailNote("空输出，换下一档", out);
+        continue;
+      }
       if(expectJson) throw {code:"EMPTY"};
     }
     if(expectJson){
@@ -4614,19 +4621,16 @@ function railHtml(f){
   return `<div class="railwrap"><div class="flowrail" id="flowRail">` +
     syncRail(f).map(s=>`<span class="fstep ${s.state}" data-step="${s.step}">${s.label}</span>`).join("") + `</div></div>`;
 }
-function prevNavBtnHtml(step){
+/* 「上一步」只有这一个出口：cls 交给摆放方（作答页那颗要小一号），id 与文案由这里定 */
+function prevFlowBtnHtml(step, cls){
   const i = FLOW_STEPS.indexOf(step);
   const prev = i > 0? FLOW_STEPS[i-1] : null;
-  return prev? `<button class="ghost sm" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>` : "";
+  return prev? `<button class="ghost${cls? " "+cls : ""}" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>` : "";
 }
 function navHtml(step){
-  const i = FLOW_STEPS.indexOf(step);
-  const prev = i > 0? FLOW_STEPS[i-1] : null;
-  // 链上每一步都自带主行动（找点完毕动笔写 / 提交阅卷）；末步「批改」之后没有下一步，
-  // 去哪由批改页自己的按钮交代（同模块再来一道 / 看我的画像）。所以这里只留「上一步」。
-  let html = `<div class="fnav">`;
-  if(prev) html += `<button class="ghost" id="btnFlowPrev">上一步：${FLOW_LABELS[prev]}</button>`;
-  return html + `</div>`;
+  // 每一步的主行动在面板自己那一行（作答页是「提交阅卷」）；批改之后没有下一步，
+  // 去哪由批改页自己的按钮交代（同模块再来一道 / 看我的画像），所以这里只留「上一步」。
+  return `<div class="fnav">${prevFlowBtnHtml(step)}</div>`;
 }
 function renderChainCard(f){
   docBody.innerHTML = qHeadHtml() + cardPageHtml({ id:"btnChainStart", label:"我已学习，开始作答" });
@@ -4680,7 +4684,7 @@ function chainMatHtml(f){
     + `<div id="materialBox">${mergedMaterialHtml(question, f)}</div></div>`;
 }
 function stepPanelHtml(step, f, lg){
-  if(step === "draft") return draftAnswerHtml(prevNavBtnHtml(step));
+  if(step === "draft") return draftAnswerHtml(prevFlowBtnHtml(step, "sm"));
   if(step === "review"){
     // 这句提示只留给「没有链」的老路径：有链又取不到结果时，上面已经退回一稿了，不会停在这一屏
     if(!lg) return `<div class="hint" style="margin-top:12px">还没有批改结果。</div>`;

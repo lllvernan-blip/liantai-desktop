@@ -2848,8 +2848,9 @@ let calls18f = 0;
 globalThis.fetch = () => { calls18f++; return mockRes({ json: async()=>({ choices:[{ message:{ content:'' }, finish_reason:"stop" }] }) }); };
 let threwEmpty = null;
 try{ await callLLM("sys", "user", true); }catch(e){ threwEmpty = e; }
-ok(calls18f === 3 && threwEmpty && threwEmpty.code === "EMPTY",
-   "网络抖动: 一直空输出就重发两次后报 EMPTY -> 发了 " + calls18f + " 次 code=" + (threwEmpty && threwEmpty.code));
+/* 空输出：本档发满三次仍为空就换下一档（裸档不带思考参数），三档都空才报 EMPTY */
+ok(calls18f === 5 && threwEmpty && threwEmpty.code === "EMPTY",
+   "网络抖动: 空输出先重发两次再逐档下探，三档全空报 EMPTY -> 发了 " + calls18f + " 次 code=" + (threwEmpty && threwEmpty.code));
 handleErr({ code:"EMPTY" }, true);
 ok(el("#bannerSlot").innerHTML.indexOf("答案还在") >= 0, "网络抖动: 空输出的提示告诉用户答案没丢、再点一次就行");
 
@@ -2875,8 +2876,8 @@ globalThis.fetch = (u, opt) => {
 };
 let threw18h = null;
 try{ await callLLM("sys", "user", true); }catch(e){ threw18h = e; }
-ok(calls18h === 3 && threw18h && threw18h.code === "EMPTY" && caps18h.join("/") === [MAX_OUT_TOKENS, MAX_OUT_TOKENS*2, MAX_OUT_TOKENS*4].join("/"),
-   "网络抖动: 一直撞上限就重发两次、额度逐次翻倍（" + caps18h.join(" → ") + "），仍失败报 EMPTY");
+ok(calls18h === 4 && threw18h && threw18h.code === "EMPTY" && caps18h.slice(0,3).join("/") === [MAX_OUT_TOKENS, MAX_OUT_TOKENS*2, MAX_OUT_TOKENS*4].join("/"),
+   "网络抖动: 一直撞上限就重发两次、额度逐次翻倍（" + caps18h.join(" → ") + "），下一档不带 max_tokens，三档全空报 EMPTY");
 
 globalThis.fetch = realFetch18;
 
