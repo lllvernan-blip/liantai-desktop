@@ -700,9 +700,11 @@ ok(el("#cardHost").innerHTML.indexOf("翻学习卡") >= 0 && el("#fabSlot").inne
    "读材料: 学习卡入口在纸面上（与其它控件同一行，不做浮在灰边上的胶囊）");
 ok(el("#docBody").innerHTML.indexOf("申论要点一：先找动词") < 0, "作答页: 笔记不再摊在纸面上（收进抽屉）");
 /* 链上两栏（读材料 / 一稿）：材料进左栏，右栏摆「这一屏真正要产出的东西」——读的时候是挑下来的点，
-   写的时候是作答区。DOM 顺序仍是题面 → 材料 → 面板，窄到放不下两栏时这层壳等于不存在，落回上下排。 */
+   写的时候是作答区。DOM 顺序是材料 → 题面 → 面板，窄到放不下两栏时这层壳等于不存在，落回上下排。 */
 ok((function(){ const h = el("#docBody").innerHTML;
-  return h.indexOf('class="paper-cols"') >= 0 && h.indexOf('class="c-head"') < h.indexOf('class="col-mat"')
+  return h.indexOf('class="paper-cols"') >= 0 && h.indexOf('class="col-mat"') >= 0
+     && h.indexOf('class="col-mat"') < h.indexOf('class="col-work"')
+     && h.indexOf('class="col-work"') < h.indexOf('class="qhead"')
      && h.indexOf('class="col-mat"') < h.indexOf('id="flowPanel"'); })(),
    "链两栏: 读材料步也两栏——题面压右栏上方、材料进左栏、挑下来的点与主按钮进右栏");
 ok((function(){ const h = el("#docBody").innerHTML;
@@ -760,8 +762,8 @@ ok(el("#docBody").innerHTML.indexOf("我已学习，开始作答") >= 0, "申论
 el("#btnChainStart").onclick();
 ok(el("#cardHost").innerHTML.indexOf("btnCard") >= 0, "申论学习卡: 作答页给入口（在纸面上，一开始就看得见）");
 el("#btnCard").onclick();
-ok(el("#cardDrawerTitle").textContent.indexOf("归纳概括") >= 0 && el("#drawerBody").innerHTML.indexOf("btnNewCard") >= 0,
-   "申论学习卡: 抽屉里写清是哪张卡，且照综应口径可「换一张」");
+ok(el("#cardDrawerTitle").textContent.indexOf("归纳概括") >= 0 && el("#drawerBody").innerHTML.indexOf("btnNewCard") < 0,
+   "申论学习卡: 抽屉里写清是哪张卡；作答中不给换卡入口（那会把题和答案一起换掉）");
 el("#btnDrawerClose").onclick();
 ok(current.cardPeeks === 1, "作答页: 翻卡计次（读材料那步没了，现在只有作答阶段能翻卡，一律计次）");
 const cachedCard = { title:"AI 生成的卡", points:["x"], pitfalls:[], templates:"" };
@@ -1077,8 +1079,10 @@ ok(rail[0].label === "作答" && rail[1].label === "批改" && rail.length === F
 /* ④ 局部重铺必须与整块渲染同源（找点与句子表 2026-11-01 下线，这里只剩划线切段那一份） */
 const mq2 = { background:"第一句。第二句。第三句", requirements:"r" };
 const mf2 = { step:"draft", sig:qSig(mq2), selections:[], groups:[], attempts:[] };
-ok(mergedMaterialRange(mq2, mf2, 0, mq2.background.length) === "第一句。第二句。第三句",
-   "作答页: 整块渲染按划线切段");
+const mhtml2 = mergedMaterialRange(mq2, mf2, 0, mq2.background.length);
+ok(mhtml2 === `<span class="ms" data-s="0" data-e="${mq2.background.length}">第一句。第二句。第三句</span>`
+   && mhtml2.indexOf("data-s") > 0,
+   "作答页: 整块渲染按划线切段，没划线的段也包 .ms（裸文本划不了）");
 ok(mergedMaterialHtml.toString().indexOf("mergedMaterialRange") >= 0, "作答页: 材料整块与局部走同一套分段（不另写一套）");
 
 /* ⑤ 批改请求体（拦 callLLM 检查） */
@@ -4465,6 +4469,17 @@ globalThis.window = _savedWinUpd;
      "整卷: 作答上限按真卷这一套（350/300/400/400/1000-1200）");
   ok(PAPER_SECTIONS.length === 4 && PAPER_SPEC.every(x=>x.section && x.focus),
      "整卷: 四段专题、每题一个切口");
+  ok(PAPER_SPEC.every(x => paperAnsLimit(x.ansLen) === ansLimitFor(x.module, { ansLen:paperAnsLimit(x.ansLen) }))
+     && paperAnsLimit("不超过350字") === 350 && paperAnsLimit("1000-1200字") === 1200 && paperAnsLimit("") === null,
+     "整卷: 每题作答上限从规格里取（区间取上限），计数器与题干同数");
+  const mkDrop = ()=> ({ id:"paper2", material:"材料".repeat(600), theme:"基层治理", sources:[],
+    questions:[pQ(PAPER_SPEC[0]), { module:"bogus.module", subtype:"",
+      question:{ requirements:"模块不在卷内，得扔", score:10 }, keyPoints:[] }, pQ(PAPER_SPEC[1])],
+    answers:{ 0:{ answer:"第一题" }, 2:{ answer:"第三题" } }, at:Date.now() });
+  const spDrop = sanitizePaper(mkDrop());
+  ok(spDrop && spDrop.questions.length === 2 && spDrop.answers[0].answer === "第一题"
+     && spDrop.answers[1] && spDrop.answers[1].answer === "第三题" && !spDrop.answers[2],
+     "整卷: 扔掉一题后答卷跟着题走，不整体错位");
   ok(materialSectionText("给定资料1\n甲\n给定资料2\n乙", "给定资料1").indexOf("甲") >= 0
      && materialSectionText("给定资料1\n甲\n给定资料2\n乙", "给定资料1").indexOf("乙") < 0,
      "整卷: 引用原句只在本段材料里找");
