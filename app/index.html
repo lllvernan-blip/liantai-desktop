@@ -1052,7 +1052,7 @@ const MODULES = {
 };
 // matLen：各模块材料长度档；ansLen：作答字数上限——唯一口径是这张本地表，出题 prompt 与字数统计都以它为准
 // （公文写作按文种定、无单一上限，回落到材料解析；数值依据见 题型规范.md）
-// ansLen：单题作答字数上限。公文写作**按文种定**、没有统一上限，所以数字写在这一层，不写进 MODULES。
+// ansLen：单题作答字数上限。MODULES 每一类都写了自己的数；公文写作按文种定、没有统一上限，那一类留给 GONGWEN_TYPES。
 // 取值依据：综应A 公文写作真题以 400–500 字最常见，长文书（讲话稿 / 工作方案 / 调研报告 / 汇报材料）
 // 到 600–800 字；短文书（公告 / 通告 / 请示 / 批复 / 编者按）相应下调。这是**待拍板**的默认值，改数字只改这张表。
 // 法定公文收录 11 种。依据《党政机关公文处理工作条例》第八条（共 15 种），未收的 4 种是
@@ -1092,7 +1092,7 @@ const SUBJECT_ORDER = ["zy","sl"];
 const DEFAULT_SUBJECT = "zy";
 const GONGWEN_KEY = "zy.gongwen";   // 公文写作：子类型就是文种，取 GONGWEN_TYPES 那一池
 
-/* 申论整卷：只做一套 5 题（与真题的题型顺序一致），共享同一份 4.5k-6k 材料。
+/* 申论整卷：只做一套 5 题（与真题的题型顺序一致），共享同一份 5.5k-6.5k 材料。
    材料来自材料池多篇骨架合并，不是真题原文；分值取 MODULES.score。 */
 /* 整卷四段专题：每段对应一个材料池主题，题目只准打一段，避免把四个领域塞进一道题。
    专题是可替换的：换池子时只改这张表和 PAPER_SPEC 的 section，不动出题代码。 */
@@ -1103,20 +1103,28 @@ const PAPER_SECTIONS = [
   { label:"给定资料3", focus:"非法码头生态治理", topics:["生态环保","基层治理"], keywords:["码头","岸线","非法装卸"] },
   { label:"给定资料4", focus:"汽车产品安全监管", topics:["法治建设","科技创新"], keywords:["汽车","门把手","零重力","智能驾驶"] }
 ];
+/* 每题一段规格。req 是写死的题面（{$section} / {$ansLen} 由 paperReq 填），
+   fixes 是这段材料里必须换掉的说法。换专题时改这张表就够，不用碰出题代码。 */
 const PAPER_SPEC = [
-  { module:"sl.guina",  subtype:"概括做法", ansLen:"不超过350字", section:"给定资料1", focus:"银发旅游与适老服务", kind:"normal" },
+  { module:"sl.guina",  subtype:"概括做法", ansLen:"不超过350字", section:"给定资料1", focus:"银发旅游与适老服务", kind:"normal",
+    req:"请根据{$section}，概括当前银发旅游适老服务供给的主要做法。要求：全面、准确、条理清晰；{$ansLen}。" },
   { module:"sl.fenxi",  subtype:"词句理解", ansLen:"不超过300字", section:"给定资料2", focus:"固态电池科技创新与安全", kind:"quote" },
-  { module:"sl.guanche", subtype:"讲话稿", ansLen:"不超过400字", section:"给定资料3", focus:"非法码头生态治理", kind:"normal" },
-  { module:"sl.duice",  subtype:"对策建议", ansLen:"不超过400字", section:"给定资料4", focus:"汽车产品安全监管", kind:"normal" },
+  { module:"sl.guanche", subtype:"讲话稿", ansLen:"不超过400字", section:"给定资料3", focus:"非法码头生态治理", kind:"normal",
+    req:"根据{$section}，假如你是某区政府专项整治工作负责人，在全区非法码头专项整治推进会上作部署讲话。请拟写一份讲话稿。要求：紧扣{$section}，内容全面，条理清晰，语言得体；{$ansLen}。" },
+  { module:"sl.duice",  subtype:"对策建议", ansLen:"不超过400字", section:"给定资料4", focus:"汽车产品安全监管", kind:"normal",
+    fixes:[[/汽车产品创新设计安全风险防控|汽车产品创新设计安全管理|汽车产品创新设计和研发测试验证管理/g, "汽车产品安全监管"]] },
   { module:"sl.zuowen", subtype:"关系思辨", ansLen:"1000-1200字", section:"综合", focus:"创新、安全、民生与治理的统筹", kind:"essay" }
 ];
+function paperReq(spec){
+  return String(spec.req || "").replace(/\{\$section\}/g, spec.section || "").replace(/\{\$ansLen\}/g, spec.ansLen || "");
+}
 
 function subjectOf(k){ const s = String(k==null?"":k).split(".")[0]; return SUBJECTS[s]? s : null; }
 function moduleKeysOf(subject){ const s = SUBJECTS[subject]; return s? s.modules : []; }
 function moduleName(k){ return (MODULES[k] && MODULES[k].name) || String(k==null?"":k); }
 function subjectName(k){ const s = subjectOf(k); return s? SUBJECTS[s].name : ""; }
 function roleOf(k){ const s = subjectOf(k); return (s && SUBJECTS[s].role) || SUBJECTS[DEFAULT_SUBJECT].role; }
-// 流程分叉：三步链（读材料含找点 / 一稿 / 批改）只归申论，链前先摆一整页学习卡；综应A 走「学习卡 → 作答 → 批改」两阶段
+// 流程分叉：两步链（作答 / 批改）只归申论，链前先摆一整页学习卡；综应A 走「学习卡 → 作答 → 批改」两阶段
 function usesFlowChain(k){ return subjectOf(k) === "sl"; }
 
 /* ============ 旧数据迁移：裸模块键 -> 科目前缀 ============ */
@@ -1140,7 +1148,7 @@ function migrateKeyedObject(src){
 }
 /* 思路自述（跨题归纳的语料）：两种时刻各记一句——how = 这道答对了，凭什么确定；
    stuck = 这道丢分了，他自己觉得错在哪（2026-11-02 才定成这个问法：
-   问卡在哪个环节要的是过程自述，问错在哪要的是结论，后者才是批改格式的第四部分）。上限 200 字：它是给人看的一句话，不是第二篇答卷。
+   问卡在哪个环节要的是过程自述，问错在哪要的是结论，后者才是批改格式的第四部分）。上限 200 字，够写一句结论就行。
    这两个常量必须声明在 migrateHistory 之前：load() 在模块顶层就会把它跑一遍，挪到后面要撞 TDZ。 */
 const SELF_KINDS = ["how","stuck"];
 const SELF_NOTE_MAX = 200;
@@ -1240,16 +1248,15 @@ const DEFAULT_STATE = {
 /* ============ 申论训练链（学习卡 → 读材料·找点 → 一稿 → 批改） ============ */
 // 只有申论走全链（usesFlowChain）；综应A 走「学习卡 → 作答 → 批改」两阶段（renderZyPage）——
 // 两科共用的只有开头那张学习卡：先记知识点再动手，是一致的。
-// 归类降级成一稿页上的入口、沉淀并进批改页（2026-10-09）：链子只剩三步。
 /* 申论训练链两步（2026-11-02）：作答 → 批改。
-   原来的「读材料」是单独一屏，读完点「读完了，动笔写」才进作答——那一步只干了一件事：把材料读一遍。
+   原来的「读材料」是单独一屏，读完再点一次才进作答；那一屏除了读材料没别的用处。
    现在材料直接落在作答页左栏，边读边划边写，划过的句子不用回上一步去对。 */
 const FLOW_STEPS  = ["draft","review"];
 const FLOW_LABELS = { draft:"作答", review:"批改" };
 
 /* 申论学习卡资料库（源：中公申论课程笔记 2026-06/07，按答题顺序重组）：gen() 出题时注入，
    AI 据此生成学习卡（照综应口径缓存、可「换一张」、对弱维度定向）；AI 未返回卡时也作兜底。
-   贯彻执行与申发论述暂无对应笔记，用通用常识垫底，有笔记后再替换。 */
+   每一类都有卡；以后新增题型没有对应资料时再按通用常识垫底。 */
 const SL_STUDY_CARDS = {
   "sl.guina": {
     title: "归纳概括·学习卡",
@@ -1438,6 +1445,7 @@ function saveHistory(){
 /* 错因闭集（与 GRADE_TAGS 的 key 必须一致，有断言盯着）。放 load() 之前，
    sanitizeExperiences 才能在顶层调用它；别引用 load 之后才声明的 GRADE_TAG_KEYS，会撞 TDZ。 */
 const EXP_KINDS = ["漏点","跑偏","结构","格式","表达","材料"];
+const EXP_TYPES = ["错因","规则","表达"];   // 同一道闸：这两份也得在 load() 之前
 
 /* 启动读取失败：所有写入口一律挂起，先把原始 localStorage 导出；导入一份有效备份可以恢复。
    这个标记必须在 let state = load() 之前声明——load() 在模块顶层就调用。 */
@@ -1471,12 +1479,11 @@ function normMarkColor(c){ return MARK_COLORS.indexOf(c) >= 0? c : DEFAULT_STATE
    这里只清形状，不改用户内容。**不要引用 load() 之后才声明的常量**：load 在模块顶层就跑，
    撞上 TDZ 会被它的 catch 吞成默认值，症状就是「数据全没了」。 */
 function sanitizeExperiences(list){
-  const types = ["错因","规则","表达"];
   return (Array.isArray(list)? list : []).filter(e => e && typeof e === "object" && typeof e.title === "string" && typeof e.body === "string")
     .map(e => {
       const out = Object.assign({}, e);
       out.type = String(out.type || "").trim();
-      if(types.indexOf(out.type) < 0) out.type = "";
+      if(EXP_TYPES.indexOf(out.type) < 0) out.type = "";
       const kind = String(out.kind || "").trim();
       if(out.type !== "错因" || EXP_KINDS.indexOf(kind) < 0) out.kind = "";
       else out.kind = kind;
@@ -1667,7 +1674,7 @@ const REASON_LEVELS = {
 };
 /* 内置档位的分工。
    **出题要设计**（编材料、分采分点、定分值）所以给 standard；其余四处都是「照着给定的东西做判断或抽取」——
-   材料在手、目标明确，quick 够用且更稳：思考量小就不容易把输出额度吃光。这不是理论，是实测过的：
+   材料在手、目标明确，quick 够用且更稳：思考量小，不容易把输出额度吃光。实测：
    deepseek-flash 在 standard 档想过 1.8 万字，撞上 16384 的输出上限就是一次空输出（fetchModelAnswer 就是这么坏的）。
    批改一直是 quick（GRADE_LEVEL），这次只是把它从「藏在 grade() 里」拿到这里与其余四档并列。 */
 const GEN_LEVEL     = "standard";  // 出题：编材料、设计采分点与分值
@@ -1747,41 +1754,30 @@ async function fetchWithTimeout(url, opt, ms){
 }
 
 // 解析一行 SSE：返回本次增量；非数据行、[DONE]、坏行都返回空串
-function sseDelta(line){
-  const l = line.trim();
-  if(l.indexOf("data:") !== 0) return "";
+/* SSE 一行里取出 choices[0]，三处解析共用这一段。 */
+function sseChoice(line){
+  const l = String(line || "").trim();
+  if(l.indexOf("data:") !== 0) return null;
   const payload = l.slice(5).trim();
-  if(payload === "[DONE]") return "";
+  if(!payload || payload === "[DONE]") return null;
   try{
     const j = JSON.parse(payload);
-    const ch = j.choices && j.choices[0];
-    return (ch && ((ch.delta && ch.delta.content) || ch.text)) || "";
-  }catch(e){ return ""; }
+    return (j.choices && j.choices[0]) || null;
+  }catch(e){ return null; }
+}
+function sseDelta(line){
+  const ch = sseChoice(line);
+  return (ch && ((ch.delta && ch.delta.content) || ch.text)) || "";
 }
 function sseReasonDelta(line){
-  // 与 sseDelta 同源解析，只取思考内容（reasoning_content）：它的量是「档位是否真生效」的可观测信号
-  const l = line.trim();
-  if(l.indexOf("data:") !== 0) return "";
-  const payload = l.slice(5).trim();
-  if(payload === "[DONE]") return "";
-  try{
-    const j = JSON.parse(payload);
-    const d = j.choices && j.choices[0] && j.choices[0].delta;
-    return (d && typeof d.reasoning_content === "string") ? d.reasoning_content : "";
-  }catch(e){ return ""; }
+  // 只取思考内容（reasoning_content）：它的量是「档位是否真生效」的可观测信号
+  const ch = sseChoice(line);
+  const d = ch && ch.delta;
+  return (d && typeof d.reasoning_content === "string") ? d.reasoning_content : "";
 }
-// 同源解析 finish_reason（只有最后一帧有）：用来区分「模型自己写完停下」和「额度用尽被截断」。
-// 空输出碰上 length，说明额度被思考吃光了——那重发就得换打法（摘掉思考参数），而不是原样再问一遍。
 function sseFinish(line){
-  const l = line.trim();
-  if(l.indexOf("data:") !== 0) return "";
-  const payload = l.slice(5).trim();
-  if(payload === "[DONE]") return "";
-  try{
-    const j = JSON.parse(payload);
-    const ch = j.choices && j.choices[0];
-    return (ch && typeof ch.finish_reason === "string") ? ch.finish_reason : "";
-  }catch(e){ return ""; }
+  const ch = sseChoice(line);
+  return (ch && typeof ch.finish_reason === "string") ? ch.finish_reason : "";
 }
 // 坏输出的现场留一句到控制台：main.js 把渲染进程的警告以上消息收进 logs/startup.log，
 // 所以用户那边真出事时，日志里查得到「是空输出还是坏 JSON、finish 是什么、吐了多少字」。
@@ -1886,7 +1882,7 @@ async function callLLM(system, user, expectJson, onDelta, opts){
   // 降级同时把「此模型拒收思考参数」记进 modelCaps，下次直接跳过首选，界面也如实收起三档。
   // 思考型模型会把输出额度分给思维链，不设 max_tokens 时吃满服务端默认额度，content 可能直接为空
   // （2026-09-23 实测 deepseek-flash 作文形状的输出已到 3428/默认4096，思维链另占 5800+ 字符）。
-  // 8192 是 DeepSeek 的输出上限；裸降级档不带它：个别兼容服务若不认这个参数，最后一档仍能跑通。
+  // 这一档带 thinking_budget（这里是 8192）；裸降级档不带任何思考参数，个别兼容服务不认它时最后一档仍能跑通。
   const primary = {model,messages,temperature:r.temp,max_tokens:MAX_OUT_TOKENS};
   if(adaptive) Object.assign(primary, fam.build(level));
   const ladder = adaptive
@@ -1922,7 +1918,7 @@ async function callLLM(system, user, expectJson, onDelta, opts){
     }catch(netErr){
       /* 传输层失败（DNS / TLS / 连接被搞断 / 整体超时）不该让一次练习作废：同一档原地静默重发一次。
          与下面的降级阶梯分开：那条路走的是 HTTP 参数类错误（400/422）；参数错了重发是白花钱，网络抖了不重发是白丢一次批改。
-         静默——用户什么都不用做，按钮上的秒数照走。 */
+         这期间用户不用做任何事，按钮上的秒数照走。 */
       if(!retriedNet){ retriedNet = true; ri--; continue; }
       throw netErr;
     }
@@ -2072,29 +2068,25 @@ function recordTotal(h){
   if(isFinite(t)) return t;
   return g.scores? dimTotal(g.scores, MODULES[k].dims) : null;
 }
-function dimStat(k, dim){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k) continue;
-    const v = Number(h.grade && h.grade.scores && h.grade.scores[dim]);
-    if(!isFinite(v)) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += v*w; wsum += w; n++;
-  }
-  return n? { avg: sum/wsum, n } : null;
-}
-function subtypeListOf(k){ return k===GONGWEN_KEY? GONGWEN_TYPES.map(t=>t.type) : ((MODULES[k] && MODULES[k].subtypes) || []); }
-function subtypeWord(k){ return k===GONGWEN_KEY? "文种" : "子类型"; }
-function subtypeStat(k, t){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k || (h.subtype||null) !== t) continue;
-    const v = recordTotal(h);
+/* 近期加权平均：按出现顺序给权，越近越重。三个统计共用这一份。 */
+function recentAvg(records, valueOf){
+  let sum = 0, wsum = 0, n = 0;
+  for(const h of records){
+    const v = valueOf(h);
     if(v == null || !isFinite(v)) continue;
     const w = Math.pow(RECENCY_DECAY, n);
     sum += v*w; wsum += w; n++;
   }
   return n? { avg: sum/wsum, n } : null;
+}
+function dimStat(k, dim){
+  return recentAvg(state.history.filter(h=>h.module === k),
+    h=>Number(h.grade && h.grade.scores && h.grade.scores[dim]));
+}
+function subtypeListOf(k){ return k===GONGWEN_KEY? GONGWEN_TYPES.map(t=>t.type) : ((MODULES[k] && MODULES[k].subtypes) || []); }
+function subtypeWord(k){ return k===GONGWEN_KEY? "文种" : "子类型"; }
+function subtypeStat(k, t){
+  return recentAvg(state.history.filter(h=>h.module === k && (h.subtype||null) === t), h=>recordTotal(h));
 }
 
 /* ============ 自适应选择 ============ */
@@ -2102,15 +2094,8 @@ function subtypeStat(k, t){
    以前这里是拿维度分平均当模块水平，于是画像的「均分」和练习记录表的「总分」是两个数：
    同一条答卷可以既显示均分 75 又显示总分 60。维度分是诊断用的，不该在这里代表水平。 */
 function moduleAvg(k){
-  let sum=0, wsum=0, n=0;
-  for(const h of state.history){
-    if(h.module !== k) continue;
-    const v = recordTotal(h);
-    if(v == null || !isFinite(v)) continue;
-    const w = Math.pow(RECENCY_DECAY, n);
-    sum += v*w; wsum += w; n++;
-  }
-  return n? sum/wsum : null;
+  const r = recentAvg(state.history.filter(h=>h.module === k), h=>recordTotal(h));
+  return r? r.avg : null;
 }
 
 // 自适应推送的第一性原理：没有数据并不等于“已经好了”。
@@ -2177,7 +2162,7 @@ function sysCoach(k){ return `你是公考教练，熟悉${roleOf(k)}各类题�
 function sysGrader(k){ return `你是${roleOf(k)}阅卷专家，严格按对应题型的评分维度阅卷。只输出 JSON，不要 markdown 代码块，不要任何解释。`; }
 /* 采分点分值体系（真实阅卷口径）：整题的得分点拆成带分值的子项，子项分值之和 = 题目满分。
    判定不靠印象分，只看考生对该子项内容的覆盖程度落三档。 */
-const GEN_POINT_RULES = "\n采分点分值：question.score 是题目满分（按真实试卷习惯取 15 / 20 / 25 分）；"
+const GEN_POINT_RULES = "\n采分点分值：question.score 是题目满分（取 MODULES 里这一类的 score）；"
   + "keyPoints 的每一项是一个带 score 的子项，所有子项分值之和必须正好等于 question.score；"
   + "子项要能拼成一份完整的满分答案，其总长度落在题干字数上限的 85%-95% 之间。"
   + "\n每条子项都要附一份 need：3-6 条「必须答到的具体情形」，逐条写清考生答案里出现什么才算答到这一点。"
@@ -2192,7 +2177,7 @@ const GEN_POINT_RULES = "\n采分点分值：question.score 是题目满分（�
    答案只答到其中一个，「算不算答到」又是边界判断——2026-09-29 实测同一道题同一份卷子跑四轮，
    每次摆的都是「系统壁垒」「事项梳理」这两个（need 里写了三个并列要件的那两条）。
    把 need 原子化（一条一个可核对的事实）后重测：那两个子项 10 次里一次没跳（极差 3/20 → 1/20）。
-   代价是满分更难拿到（一个子项要答到 5-7 条事实），分数会集中到中间档——这是知情的选择，不是 bug。 */
+   代价是满分更难拿到（一个子项要答到 5-7 条事实），分数会集中到中间档。这是有意为之。 */
 const SCORING_RULES = "逐子项判三档，判法是数点不估百分比：按该子项的 need 逐条核——"
   + "need 全部答到 → 给满分（awarded = score）；答到一部分（既不是全无也不是全到）→ 给一半分（awarded = score 的一半）；一条都没答到 → 0 分。"
   + "need 是一条一条核的：每条独立判「答到 / 没答到」，不许把两条并起来当一条判，也不许因为答到一条就顺带把另一条也算答到。"
@@ -2247,9 +2232,9 @@ function alignPointScores(data){
    「该找的点」不存在于任何地方，它说是就是。走有据这条路，材料站在真实报道的事实上，
    「该找的点」是那篇报道里客观存在的东西。
    只存骨架不存原文：骨架是一条一个事实的清单，既省空间，也避开了转载整篇文章的问题。
-   池子空了就回到编材料——是主路 + 兜底，不是二选一。 */
+   池子空了就回到编材料，两条路并存。 */
 
-/* 骨架改写的硬要求。里面每一条都有实测来历，不是想当然：
+/* 骨架改写的硬要求。下面每一条都对应一次实测或一份线上坏样本：
    ② 字数优先那条：最初写的是「骨架一条都不许丢」，结果和「不许加」「不超字数」打架——
       骨架动辄三五十条塞不进 800 字，模型选了丢字数，实测两篇超一倍（1176 / 1443 字）。
       改成「装不下的可以不用」后收到 987。
@@ -2273,7 +2258,7 @@ function groundedSpec(skel, m){
 这条对返回里的每个字段都适用（含学习卡的 example）。`;
 }
 /* 从池子取一篇骨架。取不到（界面不在壳里、池子空、读失败）一律返回 null，由调用方回落到编材料。
-   不在这里抛错：材料出不来是常态，不是异常。 */
+   材料取不到是常事，不在这里抛错。 */
 async function poolPick(topics){
   const api = (typeof window !== "undefined" && window.liantai) || null;
   if(!api || !api.poolPick) return null;
@@ -2287,7 +2272,7 @@ function poolTopicsFor(k){
 }
 /* 事前限量：**一条骨架条目实测平均 41 字**（池子 461 条 / 19070 字）。一篇骨架动辄三五十条，
    素材量是材料档的三倍；模型已经在压缩（那种一篇 1700 字的骨架压到了 1119），只是压不进 900。
-   与其事后裁材料（会把句子砍断），不如**事前就不给那么多**：按档反推最多喂几条，按栏轮流取，
+   事后裁材料会把句子砍断，所以**事前就不给那么多**：按档反推最多喂几条，按栏轮流取，
    保证背景 / 做法 / 成效 / 难点 / 建议各栏都有人，不至于全被背景栏占满。
    实测（2026-10-15，房车那篇）：54 条喂到 900 字档（取 21 条）后，材料从 1119 字落到 727 字，
    而且回链核对仍是零加料——少给素材没有伤到事实的覆盖。
@@ -2356,7 +2341,7 @@ async function gen(k, subtype, focusDim, needCard, onDelta, skel){
   return alignPointScores(data);
 }
 
-/* ============ 申论整卷：多篇骨架拼一套 4.5k-6k 材料，再逐题出题 ============ */
+/* ============ 申论整卷：多篇骨架拼一套 5.5k-6.5k 材料，再逐题出题 ============ */
 /* 材料只生成一次，5 道题共用。题面不重复存材料，避免 state.paper 里同一份 6k 文本存五遍；
    作答/批改时再由 openPaperQuestion 把 paper.material 填进 current.question.background。 */
 function materialSectionText(material, label){
@@ -2423,7 +2408,6 @@ async function genPaperQuestion(material, spec, idx){
   /* 作答上限跟着这一题走：整卷五题字数各不相同，模块表那条默认值套上来会让计数器与题干打架
      （题干写「不超过350字」，计数器却按 250 标红）。 */
   data.question.ansLen = paperAnsLimit(spec.ansLen);
-  if(!data.question.theme) data.question.theme = "";
   data.keyPoints = (data.keyPoints || []).filter(k => k && typeof k === "object")
     .map(k=>({ ...k, need:(Array.isArray(k.need)? k.need.slice(0,3) : []) }));
   // 命题约束不许漏进题干：真题不会写“不提其它资料”“不必写成完整公文”
@@ -2444,17 +2428,9 @@ async function genPaperQuestion(material, spec, idx){
       data.question.requirements = `根据${spec.section}，` + data.question.requirements;
     }
   }
-  // 整卷题干收口：一题一切口，不要把身份、参会名单、企业门牌都塞进 400 字题面
-  if(spec.module === "sl.guina"){
-    data.question.requirements = `请根据${spec.section}，概括当前银发旅游适老服务供给的主要做法。要求：全面、准确、条理清晰；${spec.ansLen}。`;
-  }
-  if(spec.subtype === "讲话稿"){
-    data.question.requirements = `根据${spec.section}，假如你是某区政府专项整治工作负责人，在全区非法码头专项整治推进会上作部署讲话。请拟写一份讲话稿。要求：紧扣${spec.section}，内容全面，条理清晰，语言得体；${spec.ansLen}。`;
-  }
-  if(spec.section === "给定资料4"){
-    data.question.requirements = String(data.question.requirements || "")
-      .replace(/汽车产品创新设计安全风险防控|汽车产品创新设计安全管理|汽车产品创新设计和研发测试验证管理/g, "汽车产品安全监管");
-  }
+  // 整卷题干收口：题面写死在 PAPER_SPEC.req 里，一题一切口，不把身份、参会名单、企业门牌塞进 400 字
+  if(spec.req) data.question.requirements = paperReq(spec);
+  for(const fx of (spec.fixes || [])) data.question.requirements = String(data.question.requirements || "").replace(fx[0], fx[1]);
   // 第2/5题用材料原句做抓手：模型给的 quote 必须短、在原段里、且不能把答案列在句子里；不合格就从材料里重挑
   let quote = String(data.quote || "").trim()
     .replace(/^[“”"']+|[“”"']+$/g, "")
@@ -2466,7 +2442,6 @@ async function genPaperQuestion(material, spec, idx){
     // 分析题强制从本段材料挑一句具体的，不用模型自己造的格言
     const picked = pickMaterialQuote(material, spec.section);
     if(picked) quote = picked;
-    if(quoteBad(quote)) quote = picked || quote;
   }
   if(spec.kind === "essay"){
     // 作文只给问题，不给结论；不摘案情/企业名/门牌号
@@ -2475,8 +2450,6 @@ async function genPaperQuestion(material, spec, idx){
   const quoteForReq = quote.replace(/“/g, "‘").replace(/”/g, "’");
   if(spec.kind === "quote" && quote && quoteScope.indexOf(quote) >= 0){
     data.question.requirements = `请根据“${spec.section}”，谈谈你对“${quoteForReq}”的理解。要求：观点明确，分析全面，条理清晰；${spec.ansLen}。`;
-  }else if(spec.kind === "essay" && quote){
-    data.question.requirements = `请结合全部给定资料，围绕“${quoteForReq}”，联系实际，自选角度，自拟题目，写一篇文章。要求：观点明确，见解深刻；参考给定资料，但不拘泥于给定资料；思路清晰，语言流畅；总字数${spec.ansLen}。`;
   }
   // 整卷的作答上限按真卷这一套走，不跟单题模块默认（如归纳 350 而非 250、贯彻执行 400 而非 500）
   if(spec.ansLen){
@@ -2525,7 +2498,7 @@ async function genPaperQuestion(material, spec, idx){
    基线（0.3 + 旧的百分比阈值）：「写得具体」的卷 5 次 13/11.5×4（极差 1.5）、「只点名不给事实」的卷
    5 次 16/20/15.5/20（极差 4.5）。把三档改成「数点」之后，具体卷回到 5 次全 11.5（极差 0），
    但点名卷还报 13.5/13/17/16/13.5（极差 4）——摆动的根子在采样本身，先把温度钉死到 0。
-   阅卷本来就该是“同一份卷子每次判差不多”，而 0 是唯一能把采样噪声拔干净的那个旋钮；
+   阅卷本来就该是“同一份卷子每次判差不多”，而 0 不会引入采样波动；
    出题那边依旧发敞（温度跟着档位走），两者互不影响。 */
 const GRADE_TEMP = 0;
 /* 阅卷的思考强度：常量已提到顶部与其余四档并列（GRADE_LEVEL），这里只留为什么是 quick。
@@ -2568,7 +2541,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta){
   return g;
 }
 /* 参考答案单独一次调用（2026-09-29 拆出）。由来：2026-09-29 真机实测，一次批改的请求在 deepseek-flash 上
-   思考要吞 12k~20k 字符，而输出上限是 8192 token，剩下的还得装 8 条采分点佐证 **+ 一篇成文范文**——撞上限
+   思考要吞 12k~20k 字符，输出额度剩下的还得装 8 条采分点佐证 **+ 一篇成文范文**，很容易撞上限
    就是正文被截成半截 JSON，重发多少遍都是同一个结局（17 次真调用撞上 2 次，约一成，其中一次就整题白做）。
    拆开之后主请求的输出直接减半（分数与采分点先稳稳拿到），范文这一请求只剩几百字。
    **要纯文本，不要 JSON**：一篇分段的范文里新行、引号、书名号样样都有，包里包去只会白白多一类
@@ -2595,16 +2568,15 @@ async function fetchModelAnswer(k, subtype, question, keyPoints, answer){
 }
 
 /* ============ 经验闭环（两科共用）：批改后自动提炼 → 注入后续出题与阅卷 ============ */
-// 「同一个循环，两个出口」：智能推送管「练哪」，个人经验管「题里带什么、批改盯什么」。
+// 智能推送负责选练哪一题，个人经验负责题里带什么、批改盯什么。
 // 不做成两个功能、不设采纳仪式：提炼全自动，失败静默跳过，绝不影响批改展示。
 const EXP_MAX = 60;
-const EXP_TYPES = ["错因","规则","表达"];
 const PREP_MAX = 3;   // 作答前最多摆几条：摆多了自己也不看
-// 动笔那一刻先看「怎么做」，再看「别怎么写」——规则是能照着做的动作，错因只是提醒
+// 动笔时按规则写（照着做的动作），错因只当提醒（别怎么写）
 const PREP_RANK = { "规则":0, "表达":1, "错因":2 };
 const prepRank = t => (t in PREP_RANK)? PREP_RANK[t] : 9;
-let _lastDistilled = [];   // 最近一次批改提炼出的经验（申论 distill 步展示用）
-const RETEST_DAYS = 7;   // 已改掉的错因不是注销，是排期复测：纠错后一周左右会回流，换题再来一次才算真的改掉
+let _lastDistilled = [];   // 最近一次批改提炼出的经验（批改页就地补一行，用这份）
+const RETEST_DAYS = 7;   // 已改掉的错因不删，一周左右复测一次；换了题也答住了，才算真的改掉
 function expDueRetest(e, now){
   if(!e || !e.lastCheckAt) return true;   // 从没核过的：随时等着考
   if(!e.cleared) return true;             // 还在犯的：接着考
@@ -2806,7 +2778,7 @@ function applyExperienceChecks(mod, g, now, q, answer){
   return _expCheckResult;
 }
 function mmdd(ts){ if(!ts) return ""; const d = new Date(ts); return `${d.getMonth()+1}/${d.getDate()}`; }
-/* 经验状态：已改掉（有换题证据）/ 待换题验证（同题答对）/ 复犯 / 还没考到——不虚报进步 */
+/* 经验状态：已改掉（有换题证据）/ 待换题验证（同题答对）/ 复犯 / 还没考到 */
 function expState(e){
   if(!e || (!e.lastCheckAt && !e.pendingAt)) return "fresh";
   if(e.cleared) return "cleared";
@@ -2841,7 +2813,7 @@ function expStatusSummaryHtml(){
   bits.push(`待验证 ${c.fresh} 条`);
   return `<div class="hint" style="margin:4px 0 8px">${bits.join(" · ")}</div>`;
 }
-/* 经验 UI：申论 distill 步 = 本次新提炼 + 我的经验列表；综应A 的管理入口在画像弹层（两处共用列表与接线） */
+/* 经验 UI：批改页就地补一行「本次新提炼」，完整列表在画像弹层（两处共用列表与接线） */
 function expSourceLabel(e){
   const h = (state.history||[]).find(x=> x.question && qSig(x.question) === e.sourceSig);
   if(!h) return "来源题已不在练习记录里";
@@ -2893,8 +2865,8 @@ function isPreviewHost(){
 }
 function networkFailHint(){
   if(cspBlocked || isPreviewHost()){
-    return " 检测到当前在 WorkBuddy 预览窗内：预览服务器的安全策略(CSP)禁止网页直接对外请求 AI 接口，故被拦截。"
-      + "解决办法：用本地浏览器打开本文件——双击 html，或在文件目录运行 python -m http.server 8000 后访问 http://localhost:8000/index.html；CORS 我已实测通过，本地浏览器可正常拉取并调用。";
+    return " 对外请求被当前页面的安全策略(CSP)拦住了。WorkBuddy 预览窗会这样，个别浏览器插件也会。"
+      + "解决办法：用本地浏览器打开本文件——双击 html，或在文件目录运行 python -m http.server 8000 后访问 http://localhost:8000/index.html，本地浏览器发出的跨域请求能通。";
   }
   if(location.protocol === "file:"){
     return " 当前以 file:// 打开：部分浏览器/环境会拦截本地文件的对外请求。建议用本地服务器方式打开（文件目录运行 python -m http.server 8000，访问 http://localhost:8000/index.html）。";
@@ -2903,7 +2875,7 @@ function networkFailHint(){
 }
 
 /* 卷首用哪一档（2026-11-01）：作答类工作屏用页眉版，入口 / 小结 / 批改用完整版。
-   分界不在「哪个函数画的」，而在「这一屏在干什么」：批改的头是分数，它就成完整版；
+   分界看这一屏在干什么：批改的头是分数，它就成完整版；
    快判进行中要能一眼看见题、材料与选项，它就成页眉版（小结回了完整版）。 */
 function compactHead(){
   if(_view === "q"){
@@ -2927,7 +2899,7 @@ function renderHeader(){
   const n = state.history.length + 1, y = new Date().getFullYear();
   // 落款跟着抬头走：抬头写哪个轨，文号就用哪个名字（申论轨写「申论」、快判轨写「快判」、综应轨写「综应A」）。
   // 三处原先都对不上：首页写「练习台 · 首页」而落款挂「综应练」；申论轨抬头写申论、落款挂「综应练」；快判轨同理。
-  // 前缀既已跟着抬头推出来，设置里的「文号前缀」就成了死开关，一并撤掉（规矩：界面不许有一个不起作用的控件）。
+  // 前缀既已跟着抬头推出来，设置里的「文号前缀」就成了死开关，一并撤掉（界面上不留没有作用的控件）。
   const pfx = (_view === "home" && !pdActive)? "练习台"
             : (pdActive? "快速判断" : SUBJECTS[curSubject()].name);
   $("#docNo").textContent = `${pfx}〔${y}〕第 ${String(n).padStart(3,"0")} 号`;
@@ -3121,7 +3093,6 @@ function renderPendingLeave(viewNow, land){
    两处走不通时红按钮按缺项说话（`setupActionLabel()`）：缺 Key 说填 Key、缺模型说选模型，红按钮就带他去真能走的那一步。 */
 function startBoxHtml(resume){
   const home = (_view === "home");
-  const subj = SUBJECTS[curSubject()] || SUBJECTS.zy;
   /* 首页的科目入口是「通往不同去处」的那一组，走卷首目录的整行可点（.navrow），不再是胶囊：
      胶囊并排读起来像同一维度的多个选项，而它们和快判是三种不同的练法。名字必须点名科目。 */
   const bigs = SUBJECT_ORDER.map(id=>{
@@ -3174,7 +3145,7 @@ function startBoxHtml(resume){
   // 科目页与首页同一套排布：入口屏不摆问句标题（「今天练什么？」「综应A 练什么？」），
   // 抬头已经说了这是什么，主行动自己就是这一屏要办的事。
   // 红按钮给动作对象，但不重复抬头：科目由顶栏与文号报过，练法由抬头「综合 · 智能出题」报过，
-  // 按钮再写「智能出题」就是同一屏说第三遍。只留「开始」又没说要开始什么，
+  // 「智能出题」这个词这一屏已经出现两次，按钮不必再写一遍。只留「开始」又没说要开始什么，
   // 下面那排模块胶囊还没选中态，人点之前不知道会出哪类题，所以写动作本身：「出一道题」。
   // 功能名沿用 SPEC 4.3 的「智能出题」，按钮字面只报这一下会干什么（2026-11-06 改）。
   return `<div class="startbox start-entry start-hero" data-start="subj">
@@ -3286,7 +3257,7 @@ function renderCurrentView(){
    游标 state.tut.seq 指向下一个未消费的步骤：一组播完（点「知道了」）先收尾，后面屏幕的组
    等首次进入再接着播；中途跳屏/被切走不回头补弹；跳过 = 整条序列完结，任何屏都不再自动弹。
    设置里可重置重新播。气泡不叠在弹层之上：弹层打开时引导暂歇（见 tourPause/tourResume）。
-   每屏只有一步：引导的活儿是「这一步该点哪儿」，不是把页面每个控件讲解一遍——落点（聚光框）
+   每屏只有一步：引导只讲「这一步该点哪儿」，页面每个控件不逐个讲。落点（聚光框）
    已经指出了是哪个元素，话再说一遍它在干什么就是负担。功能一个不删，只是不占引导的字数。 ---- */
 const TUT_SEQ = [
   // home 是打开软件落的屏，所以第一组是它；快判不进顶栏，唯一入口就是首页这颗红按钮。
@@ -3313,11 +3284,12 @@ function migrateTut(t){
 }
 /* 按当前 Key 有无给出可见步骤（带原始索引 raw）：没 Key 时 nk 变体替换 sel/text */
 function visibleSteps(){
-  const hasKey = !!state.settings.apiKey;
+  // 落点跟着「能不能开工」走：只填了 Key、还没选模型时入口按钮不渲染，引导会一屏都播不出来
+  const ready = canStart();
   const out = [];
   TUT_SEQ.forEach((s, idx)=>{
     // 有 Key 时把 alt 带上：首页有未完成练习时主行动是「继续上次」，落点要跟着换（tourPick 决定用哪个）
-    if(!hasKey){ out.push({ raw:idx, scr:s.scr, sel:(s.nk && s.nk.sel) || s.sel, text:(s.nk && s.nk.text) || s.text }); }
+    if(!ready){ out.push({ raw:idx, scr:s.scr, sel:(s.nk && s.nk.sel) || s.sel, text:(s.nk && s.nk.text) || s.text }); }
     else out.push({ raw:idx, scr:s.scr, sel:s.sel, text:s.text, alt:s.alt || null });
   });
   return out;
@@ -3522,7 +3494,7 @@ function renderModuleLanding(k){
   if(pendingGen) pendingGen.viewing = false;
   const m = MODULES[k];
   const avg = moduleAvg(k);
-  let n = 0; for(const h of state.history) if(h.module===k) n++;
+  let n = 0; for(const h of state.history) if(h.module===k && recordTotal(h) != null) n++;   // 与上面那条均分同分母
   const subs = subtypeListOf(k);
   const chipFor = t=>{
     const st = subtypeStat(k,t);
@@ -3577,7 +3549,7 @@ function modNavHtml(k){
 }
 
 /* 出题前的入口闸（2026-10-08 复查发现的会说谎）：没填 Key 时点「练一道综应大题」，界面会先演一遍
-   「AI 正在为「公文写作 · 通报」准备学习卡与仿真题…」再报错——明知走不通，却先答应了一声；
+   「AI 正在为「公文写作 · 通报」准备学习卡与仿真题…」再报错：先应了一声，随后失败；
    而且那句大题是「先切科目再出题」，人还被从首页拽进综应A（文号变成「综应A〔2026〕…」），他却什么都没练到。
    现在出题路（首页两句大题 / 起始页与快判页红按钮 / 模块落地页的胶囊与「开始练习」）都先过这里：
    原地提示，不切科目、不点灯、不进加载态。快判与出题同规：没 Key 也停在原地。 */
@@ -3623,8 +3595,7 @@ async function loadQuestion(k, subtype){
   const t0 = Date.now();
   showLoading(`AI 正在为「${MODULES[k].name}${subtype?' · '+subtype:''}」准备学习卡与仿真题…`, undefined, { cancel:true });
   pendingGen = { mySeq, module:k, subtype:subtype||null, startedAt:t0, status:"running", viewing:true, prepared:null,
-                 origin: _view === "home"? "home" : "start",   // 旧字段保留；恢复判断不再只看它
-                 originView: _view, originModule: k };
+                 origin: _view === "home"? "home" : "start", originView: _view, originModule: k };
   wireCancelGen(mySeq);
   // 上屏资格：还是我这次请求、且人正看着这一页。换页后旧请求还在跑，但它不许再往别人的页面上写秒数与实况
   const owns = ()=> !!(pendingGen && pendingGen.mySeq === mySeq && pendingGen.viewing);
@@ -3681,7 +3652,7 @@ async function loadQuestion(k, subtype){
           pendingGen = null; handleErr(e, true);
           renderPendingLeave(viewNow, land);
         }else{
-          pendingGen.status = "failed"; pendingGen.error = e; pendingGen.viewing = false;
+          pendingGen.status = "failed"; pendingGen.viewing = false;
         }
       }
       return;
@@ -3882,7 +3853,7 @@ async function startPaper(){
       banner("整卷没有拼成：" + esc((e && (e.text || e.message)) || "请稍后重试。"), "error");
       renderPendingLeave(viewNow);
     }else{
-      pendingGen.status = "failed"; pendingGen.error = e; pendingGen.viewing = false;
+      pendingGen.status = "failed"; pendingGen.viewing = false;
     }
   }
 }
@@ -4129,7 +4100,7 @@ const PD_FORMS = {
     desc:"比较几句改写，看哪一句改变了原意。",
     spec:"每题给一段 120-200 字的材料节选（context，含平均数、限定语、目标与结果这类易被改写坏的敏感点），再对节选中某句话给出几种改写，问「哪一项改变了原意」或「哪一种最规范」。每题只涉及一处错误（主体、范围、因果或语体）；干扰项只能从这几类里造：把平均数说成人人如此（平均跑一点一次说成只需跑一点一次）、把目标说成结果（拟推行说成已推行）、抹掉限定语（基本解决说成彻底解决）、并列改成因果。"
   },
-  /* 综合判别：三种形式混在一轮。练的是“不告诉你这是哪类题”的实战眼力——
+  /* 综合判别：三种形式混在一轮。题面不说是哪一类，得自己认；
      考试里没人先告诉你这道题考的是主体、范围还是因果。 */
   "__mix":{
     name:"综合判断",
@@ -4303,11 +4274,11 @@ function pdThemeValue(){   // 主题从 PD_TOPICS 按权重抽（不再提供自
   for(let i=0;i<PD_TOPICS.length;i++){ r -= w[i]; if(r < 0) return PD_TOPICS[i]; }
   return PD_TOPICS[PD_TOPICS.length-1];
 }
-function startPDRound(form){
+function startPDRound(form, theme){
   if(entryBlocked()) return;   // 没 Key / 没选模型都停在原地：不进加载态，也不先把人挪去别的屏
   pdActive = true;
   _view = "pd";   // 判别轨是独立的第四屏：不设它，灰字会按首页那支报「首页」，而文号已经在报「快判」
-  genPDRound(form, pdThemeValue());
+  genPDRound(form, theme || pdThemeValue());
 }
 // 出题：一轮 5 道同形式判别题，沿用 callLLM（流式等待页 + reqSeq 守卫 + handleErr 失败保留现场）
 async function genPDRound(form, theme){
@@ -4475,7 +4446,7 @@ function renderPDSummary(){
   html += `<div class="actions" style="justify-content:center;margin-top:16px"><button class="primary big" id="pdAgain">再来一轮</button><button class="ghost" id="pdHome">回首页</button></div></div>`;
   docBody.innerHTML = html; renderHeader();
   paintFab();
-  $("#pdAgain").onclick = ()=> genPDRound(r.form, r.theme);
+  $("#pdAgain").onclick = ()=> startPDRound(r.form, r.theme);   // 走统一入口：判入口封锁、切轨、等待页能取消，换页也不会白丢一轮
   $("#pdHome").onclick = ()=>{ pdActive = false; renderHome(); };
 }
 
@@ -4687,14 +4658,13 @@ function renderFlowStep(){
   let head = "";
   if(step === "draft") head = draftHeadHtml();    // 作答步的头与综应作答页一字不差：工具行 / 要求 / 参考行
   const work = `<div id="flowPanel">${stepPanelHtml(step, f, lg)}</div>` + (f && step !== "draft"? navHtml(step) : "");
-  const pre = "";   // 经验与限时都进了 draftHeadHtml 的那三行，右栏顶上不再单起一条
   /* 作答步在窗口够宽时两栏：材料进左栏（可划线），题面与作答区进右栏。
      批改步与学习卡不带材料，仍是单栏。窄到放不下两栏时这层壳等于不存在，
      DOM 顺序（材料 → 题面 → 面板）就是原来的上下排。 */
   const mat = (step === "draft")? chainMatHtml(f) : "";
   html += mat? `<div class="paper-cols"><aside class="col-mat">${mat}</aside>`
-                 + `<div class="col-work"><div class="qhead">${head}</div>${pre}${work}</div></div>`
-             : `<div class="qhead">${head}</div>` + pre + work;
+                 + `<div class="col-work"><div class="qhead">${head}</div>${work}</div></div>`
+             : `<div class="qhead">${head}</div>` + work;
   docBody.innerHTML = html;
   const fb = FAB_BY_STEP[step];   // 浮标挂在纸面之外：写与读材料时随时能翻卡
   paintFab(fb && fb.act, fb && fb.count);
@@ -4757,7 +4727,7 @@ function limitRowHtml(){
     `<button class="tlicon" id="btnLimitStart" title="开始计时：从现在算到结束" aria-label="开始计时">▶</button>` +
     `</span></span>`;
 }
-function fmtClock(sec){   // mm:ss：剩余时间、用时、超时都用这一种写法
+function fmtClock(sec){   // mm:ss：作答页读数、记录表的用时、超时秒数都走这一种写法（批改页那句时长说成「N 分 M 秒」，见 fmtDur）
   const s = Math.max(0, Math.round(sec));
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 }
@@ -4919,7 +4889,10 @@ function wireDraftHead(){
   if(bi) bi.onclick = ()=>{
     const m = normLimitMin($("#inpLimit") && $("#inpLimit").value);
     if(!m){ banner("先填一个分钟数，再点开始。"); return; }
-    setLimitState(m, Date.now());
+    /* 这一颗是「开始」，不是「重新计时」：表已经在跑就别动起点，
+       改数字也沿用同一个起点（跟 setTimeLimit 一套口径），手滑点一下不该把已用时间清零。 */
+    if(!curLimitFrom()) setLimitState(m, Date.now());
+    else if(curLimitMin() !== m) setLimitState(m, curLimitFrom());
     const el = $("#timeLeft"); if(el) paintTimeLeft(el);
     if($("#timeLeft") && !_timeTick) startTimeLeft();
   };
@@ -4986,7 +4959,7 @@ function wireMarks(unmarkOnClick){
     pop.style.top = (r.top + window.scrollY - 38) + "px";
     pop.style.display = "block";
   };
-/* 划线变更：优先局部替换（只重建受影响的几个片段，不整块重铺——整块 innerHTML 重建会肉眼可见地闪一下） */
+/* 划线变更：优先局部替换（只重建受影响的几个片段；整块 innerHTML 重建会闪一下） */
   const renderMaterial = (s, e)=>{
     if(!mbox) return;
     if(s == null || !updateMaterialRange(mbox, current.question, s, e)) mbox.innerHTML = materialHtml(current.question);
@@ -5045,7 +5018,7 @@ function wireDraft(f){
   const limit = ansLimitFor(module, question);
   const ta = $("#answer");
   const draft = loadDraft(sig);
-  if(draft) ta.value = draft;   // 静默恢复：框里有字本身就是恢复的证据，不必再贴一句「已恢复」
+  if(draft) ta.value = draft;   // 恢复不另提示：框里有字就说明恢复过了
   setWordCount(ta.value, limit);
   ta.addEventListener("input", ()=> syncAnswer(sig, ta, limit));
   wireDraftHead();   // 建议结构 / 经验两颗按钮进弹层，限时旁边那颗 ▶ 起表
@@ -5456,7 +5429,10 @@ function gradeHtml(g, total){
   const mismatch = !!(pts && isFinite(paperScore) && paperScore > 0 && Math.abs(paperScore - pts.max) > 0.001);
   // 分数就是这一页的头：限时与「回整卷」落在它右侧；题面（作答要求/分值/难度）不在这一页重复（2026-10-13）
   // 只报卷面分（实得 / 子项满分）：折百分制是给画像比较用的，摆在批改页只会跟这个数打架（2026-10-16）
-  const ansText = String((lastGrade && lastGrade.answer) || "");
+  /* 答卷、限时、回执只认同一道题的批改：分是这一屏传进来的 g，那三样读的是缓存，
+     题号对不上就空着，免得把上一题的答卷当这一题的证据。 */
+  const lg = (lastGrade && (!lastGrade.sig || (current && current.question && lastGrade.sig === qSig(current.question))))? lastGrade : null;
+  const ansText = String((lg && lg.answer) || "");
   const ansReview = answerReviewHtml(g, ansText);
   const am = answerMarks(g.hits, ansText);
   const allLocated = !!am.usable && (!am.need || am.ok >= am.need);
@@ -5465,14 +5441,14 @@ function gradeHtml(g, total){
   const legend = (ansReview && am.usable)? `红＝没拿满 · 灰＝拿满 · ` + (allLocated? "相加＝总分" : "是本句得分") : "";
   /* 限时与分数同处一条信息带（2026-11-02）：它是一行高的一句话，本来就该并进这一行。
      「本题限时」的「本题」也删了：这一页只有这一道题，位置自己会说是哪一题的限时。 */
-  const tm = lastGrade && lastGrade.time;
+  const tm = lg && lg.time;
   const overTm = tm? overtimeSec(tm.min, tm.usedSec) : 0;
   const timeHint = tm? `<span class="hint">限时 ${tm.min} 分钟 · 用时 ${fmtDur(tm.usedSec)}${overTm > 0? `（超时 ${fmtDur(overTm)}）` : ""}</span>` : "";
   const hits = g.hits || [];
   const lostN = countLost(g);
   let html = `<div class="grade"><div class="ghead"><div class="total">${pts? pts.got : total} <small>${pts? `/ ${pts.max} 分` : "/ 100 分"}</small>${lostN? `<span class="lossn">错 ${lostN} 处</span>` : ""}</div>`
     /* 页头只留「回整卷」这一个出口：普通题的「换一题」与下面那颗主行动说的是同一件事，
-       摆两处只会让人站在分数前面犹豫点哪个（2026-11-01）。
+       同一个动作摆两处，点之前得先犹豫一下。
        图例搬进「我的答案」那一折：它解释的是逐句标注，标注收起来了，图例就不该还在纸面上占位。 */
     + `<div class="ghead-right">${timeHint}${(current && current.paperId)? `<button class="tool" id="btnSwitch">回整卷</button>` : ""}</div></div>`;
   // 主行动在分数带正下方（2026-11-10）：宽窗两栏、解析再长，它都在首屏；「完成」「看我的画像」次级跟随
@@ -5481,7 +5457,7 @@ function gradeHtml(g, total){
   const sumNote = (mismatch? `阅卷列出的采分点合计 ${pts.max} 分，与本题满分 ${paperScore} 分不一致，本次只按已列出的子项计分。` : "");
   if(sumNote) html += `<div class="hint" style="margin:4px 0 4px">${sumNote}</div>`;
   // 错因回执：沉淀过的老毛病这次犯没犯。只说事实，不报数字（数字在「我的经验」里）。跟着解析走（右栏）
-  const ec = (lastGrade && lastGrade.expCheck) || null;
+  const ec = (lg && lg.expCheck) || null;
   const ecLegacy = !(ec && ec.v >= 2);
   const ecAgain = (ec && Array.isArray(ec.again))? ec.again : [];
   const ecFixed = (ec && Array.isArray(ec.fixed))? ec.fixed : [];
@@ -5518,11 +5494,12 @@ function gradeHtml(g, total){
 /* 批改结果：申论进「批改」步（renderFlowStep）；综应A 显示结果页（renderZyPage），两科共用 gradeHtml */
 function renderGrade(g, total, expCheck, time, answer){
   // answer 要留住：证据区里那句「哪句没对上」要用答卷原文
-  const ans = String(answer || (state.history[0] && state.history[0].answer) || "");
+  const ans = String(answer || "");   // 只有这一个入口传答卷；拿 history[0] 兜底会把别的题的原句当证据
   const f = (current && usesFlowChain(current.module))? activeFlow() : null;
   const forThis = !!(f && current && f.sig === qSig(current.question));
   /* flowId 是这份缓存的门牌：重渲这一屏时只认属于这条链的缓存，跨链一律不借（见 renderFlowStep）。 */
-  lastGrade = { g, total, expCheck: expCheck || null, time: time || null, answer: ans, flowId: forThis? f.id : null };
+  lastGrade = { g, total, expCheck: expCheck || null, time: time || null, answer: ans, flowId: forThis? f.id : null,
+                sig: (current && current.question)? qSig(current.question) : "" };   // 答卷/限时/回执只给同一道题用
   if(current && !current.paperId && usesFlowChain(current.module)){
     if(forThis) f.step = "review";
     renderFlowStep();
@@ -5718,7 +5695,7 @@ function openHistRecord(h){
   const total = h.grade.total != null? h.grade.total : (pts? Math.round(pts.got/pts.max*100) : 0);
   lastGrade = { g, total, expCheck: h.expCheck || null,
     time: (h.usedSec != null)? { min: h.timeLimit || 0, usedSec: h.usedSec } : null,
-    answer: String(h.answer || ""), flowId: null };
+    answer: String(h.answer || ""), flowId: null, sig: qSig(h.question) };
   _flowId = null;
   activeModule = h.module;
   current = { module:h.module, subtype:h.subtype || "", question:h.question, keyPoints:h.keyPoints || [], cardPeeks:0 };
@@ -6712,9 +6689,9 @@ const FULL_SHEET = MAT_SIDE + MAT_W;             // 1304：这张纸最宽能到
    这一路全散成上下排——材料在上、作答框在下，写一句往上滚一句。改成跟批改页统一到 950：
    材料栏仍卡在 400（MAT_W_MIN），收的是作答栏，两侧都还站得住。 */
 const MIN_SHEET_WORK = 950;                      // 950：材料栏 400 + 纸边 140 + 中缝 24，作答栏余 386
-/* 批改页两栏的下限单独算：那两栏是「我的答卷 ｜ 解析」，没有材料栏，各到 460 就是一行 28 字，
-   借用作答页那条下限等于替材料栏交税——窗口差 4px 就退回单栏（2026-11-01 实测 1130 卡在门槛下）。 */
-const MIN_SHEET_REVIEW = 950;                    // 950：两栏各 (950-140-32)/2 = 389，窗口 960 起就是左右对照
+/* 批改页两栏与作答页同一条下限（950）：那两栏是「我的答卷 ｜ 解析」，两栏各 389 就够读，
+   单独定一个数只会让同一台机器在两页之间来回切换单双栏（2026-11-01 实测 1130 卡在门槛下）。 */
+const MIN_SHEET_REVIEW = MIN_SHEET_WORK;         // 950：两栏各 (950-140-32)/2 = 389，窗口 960 起就是左右对照
 function paperScaleFor(w, h){
   const avail = (Number(w) || 1024) - SCROLL_GUTTER;
   let s = Math.min(1.5, Math.max(1, avail / FULL_SHEET));

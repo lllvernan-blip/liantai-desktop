@@ -4469,6 +4469,10 @@ globalThis.window = _savedWinUpd;
      "整卷: 作答上限按真卷这一套（350/300/400/400/1000-1200）");
   ok(PAPER_SECTIONS.length === 4 && PAPER_SPEC.every(x=>x.section && x.focus),
      "整卷: 四段专题、每题一个切口");
+  ok(paperReq(PAPER_SPEC[0]).indexOf("给定资料1") > 0 && paperReq(PAPER_SPEC[0]).indexOf("不超过350字") > 0
+     && PAPER_SPEC.filter(x=>x.req).length === 2
+     && genPaperQuestion.toString().indexOf("银发") < 0 && genPaperQuestion.toString().indexOf("非法码头") < 0,
+     "整卷: 写死的题面只在 PAPER_SPEC 一处，出题代码里没有专题词");
   ok(PAPER_SPEC.every(x => paperAnsLimit(x.ansLen) === ansLimitFor(x.module, { ansLen:paperAnsLimit(x.ansLen) }))
      && paperAnsLimit("不超过350字") === 350 && paperAnsLimit("1000-1200字") === 1200 && paperAnsLimit("") === null,
      "整卷: 每题作答上限从规格里取（区间取上限），计数器与题干同数");
