@@ -158,6 +158,10 @@ ok(recordTotal({ module:"zy.guina", grade:{ total:42, scores: scoresFor("zy.guin
    "recordTotal: 有总分就以总分为准");
 ok(recordTotal({ module:"zy.guina", grade:{ scores: scoresFor("zy.guina",20) } }) === 100,
    "recordTotal: 老记录没存总分时，用维度分折算");
+ok(recordTotal({ module:"zy.guina", grade:{ hits:[{ score:10, awarded:8 }] } }) === 80,
+   "recordTotal: 没存总分但有采分点时按采分点折算");
+ok(totalOfGrade({ total:60, hits:[{ score:10, awarded:10 }] }, "zy.guina") === 60,
+   "totalOfGrade: 存下来的总分优先于采分点");
 ok(recordTotal({ module:"zy.guina", grade:{} }) === null, "recordTotal: 总分与维度都没有，返回 null 而不是 0");
 ok(recordTotal({ track:"pd", form:"fact-select", correct:3, total:5 }) === null,
    "recordTotal: 快判记录没有 module，天然不计入");
@@ -400,7 +404,7 @@ ok(load().history.length === 40, "练习记录写盘 + 读回往返一致");
      "读取失败: saveHistory() 拒绝覆盖原始记录");
   ok(rawStoragePayload().raw.gw_state === bad,
      "读取失败: 原始快照保留坏数据原文");
-  ok(rawStoragePayload().note.indexOf("API Key") >= 0 && PAGE_HTML.indexOf("内含 API Key") >= 0,
+  ok(rawStoragePayload().note.indexOf("API Key") >= 0 && PAGE_HTML.indexOf("可能含 API Key") >= 0,
      "读取失败: 原始快照自带「含 Key 勿外传」警示（文件自身与横幅都在说）");
   el("#bannerSlot").innerHTML = "";
   showStorageLoadFailure();
@@ -1954,6 +1958,30 @@ ok(landPlain.indexOf("<h2>") < 0 && landPlain.indexOf("概括问题 / 原因") <
   ok(homeAvg.indexOf("平均 80%") >= 0 && homeAvg.indexOf("平均 0%") < 0,
      "首页均分: 平均表现按 recordTotal 折百分制算（新形状 scored 对象不再算成 0）");
 }
+{
+  /* 0 分与没存 total 的老记录都是真记录：首页分母只能按「总分算不算得出来」判。 */
+  const _h = state.history;
+  state.history = [
+    { ts:2, module:"zy.guina", subtype:"概括问题", grade:{ total:0, hits:[] } },
+    { ts:1, module:"zy.guina", subtype:"概括问题", grade:{ scores: scoresFor("zy.guina",15) } }   // 75%
+  ];
+  renderHome();
+  const home = el("#docBody").innerHTML;
+  ok(home.indexOf("已练 2 题") >= 0 && home.indexOf("平均 38%") >= 0,
+     "首页计数: 0 分与 scores-only 老记录都算已练，平均包含它们（38%）");
+  state.history = _h; renderHome();
+}
+{
+  /* 打开记录也只能走同一把尺：scores-only 老记录不能显示成 0 分。 */
+  const _h = state.history, _v = _view, _cur = current, _lg = lastGrade, _fid = _flowId, _am = activeModule;
+  state.history = [{ ts:1, module:"zy.guina", subtype:"概括问题",
+    question:{ background:"b", requirements:"r", score:20 }, answer:"a", keyPoints:[], hits:[],
+    grade:{ scores: scoresFor("zy.guina",17) } }];
+  openHistRecord(state.history[0]);
+  ok(lastGrade && lastGrade.total === 85, "打开旧记录: 没存 total 时按维度分得到 85，不回落成 0");
+  state.history = _h; _view = _v; current = _cur; lastGrade = _lg; _flowId = _fid; activeModule = _am;
+  renderHome();
+}
 renderModuleLanding("zy.duice");
 ok(el("#docBody").innerHTML.indexOf('class="hero-sub"') < 0
    && el("#docBody").innerHTML.indexOf("针对问题提出解决措施") < 0
@@ -2652,7 +2680,7 @@ lastGrade = { g:gExec, total:100, expCheck:null };
 ok(gradeHtml(gExec, 100).indexOf("记过的错因：") < 0, "批改页: 没有回执就不摆空行");
 lastGrade = null; current = null;
 
-/* 16.3b 推送归出题引擎底层（SPEC 4.6）：批改页没有「智能推送下一题」，nextrow 只剩两颗按钮 */
+/* 16.3b 推送归出题引擎底层（SPEC 4.6）：批改页没有「智能推送下一题」，nextrow 保留三颗按钮 */
 ok(PAGE_HTML.indexOf("智能推送下一题") < 0 && PAGE_HTML.indexOf("btnNext") < 0,
    "批改页: 「智能推送下一题」按钮下线，页面上没有推送入口（选题是引擎在出题时做的事）");
 ok(PAGE_HTML.indexOf('id="btnRetry"') >= 0 && PAGE_HTML.indexOf('id="btnSeeProfile"') >= 0
@@ -3330,10 +3358,12 @@ ok(H22.indexOf('<span class="lossn">错 2 处</span>') > 0,
 ok(PAGE_HTML.indexOf('.answerreview .asent.got.full{color:var(--ink);}') >= 0
    && PAGE_HTML.indexOf('.answerreview .asc.full{color:var(--muted);}') >= 0,
    "批改配色: 满分句用正文色与灰分数，红色只标没拿满的句子");
-ok(PAGE_HTML.indexOf('class="grade-columns"') >= 0
+ok(H22.indexOf('class="grade-columns"') >= 0
+   && H22.indexOf("我的答案") > 0
+   && H22.indexOf("解析") > 0 && H22.indexOf("参考答案") > 0
    && PAGE_HTML.indexOf("body.wide-review .grade-columns{display:grid;grid-template-columns") >= 0
    && PAGE_HTML.indexOf("body.wide-review #docBody>*{max-width:var(--text-col)") < 0,
-   "批改页: 宽窗真两栏（grade-columns 由 gradeHtml 真渲染：左「我的答案/自述」右「解析/参考答案」）；窄窗与无答卷单栏");
+   "批改页: 有答卷时真渲染两栏（左「我的答案/自述」右「解析/参考答案」）；窄窗与无答卷单栏");
 ok(PAGE_HTML.indexOf('--mat:var(--wash)') >= 0 && PAGE_HTML.indexOf('--write:var(--ctl)') >= 0,
    "纸面配色: 材料使用中性浅底，作答使用控件纸色，不叠彩色纸面");
 ok(PAGE_HTML.indexOf('html{overflow-y:scroll;scrollbar-gutter:stable;scroll-padding-bottom:56px;}') >= 0,
@@ -3787,7 +3817,8 @@ ok(PAGE_HTML.indexOf(".start-entry .entrylist{margin:24px auto 0;") >= 0 && PAGE
 }
 
 /* 交卷出口在视口（2026-11-01 立，2026-11-10 收紧）：动作条必须挂在作答框外——
-   框是 overflow:hidden 的，sticky 关进去就被废成 static，出口掉出视口。几何由 layout 审计真量。 */
+   框是 overflow:hidden 的，sticky 关进去会吸在框底而不是视口底，出口掉出视口。
+   900×600 的几何由 layout 审计的交卷出口检查真量。 */
 ok(PAGE_HTML.indexOf('<div class="actions actbar">') >= 0
    && PAGE_HTML.indexOf(".actbar{position:sticky;bottom:0;") >= 0
    && /<div class="answer-box">[\s\S]{0,600}?<\/div>\s*<div class="actions actbar">/.test(PAGE_HTML)

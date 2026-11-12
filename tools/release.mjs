@@ -234,6 +234,21 @@ function reconcileRelease() {
       stillMissing.push(w.name);
     }
   }
+  /* gh 的返回码只说明“传了”，不说明资产名没被改写。传完重新列一遍：
+     latest.yml / 签名 / 客户端都按名字取资产，名字对不上等于没传。 */
+  const check = spawnSync("gh", ["release", "view", tag, "--repo", REPO, "--json", "assets", "--jq", ".assets[].name"],
+    { cwd: root, encoding: "utf8" });
+  if (check.status !== 0) {
+    console.error("  上传后没能重新列资产（" + ((check.stderr || "").trim() || "gh 失败") + "）");
+    if (!stillMissing.length) stillMissing.push("上传后资产对账失败");
+  } else {
+    const got = new Set((check.stdout || "").split("\n").map((s) => s.trim()).filter(Boolean));
+    for (const w of want) {
+      if (got.has(w.name)) continue;
+      console.error("  对不上 " + w.name + "（远端实际资产名与 latest.yml 不一致）");
+      if (!stillMissing.includes(w.name)) stillMissing.push(w.name);
+    }
+  }
   return stillMissing;
 }
 
@@ -258,8 +273,13 @@ function ensureLatestYml(ymlPath) {
     const yml = readFileSync(ymlPath, "utf8");
     const v = (((/^version:\s*(.+)$/m.exec(yml) || [])[1]) || "").trim().replace(/^['"]|['"]$/g, "");
     const s = (((/^\s*sha512:\s*(.+)$/m.exec(yml) || [])[1]) || "").trim();
-    if (v === pkg.version && s === sha) return;   // 就是当前这一版，别动它
-    console.log("  dist/latest.yml 与当前产物不符（版本 " + (v || "?") + " / 哈希 " + (s ? s.slice(0, 12) + "…" : "?") + "），按本地安装包重写。");
+    /* electron-builder 写的是本地中文产物名；客户端按 latest.yml 里的名字取资产，
+       而 gh 会把非 ASCII 剥掉。名字没归一就不能提前返回，否则脚本报成功、客户端 404。 */
+    const ymlPathName = (((/^path:\s*(.+)$/m.exec(yml) || [])[1]) || "").trim();
+    const ymlUrl = (((/^\s*- url:\s*(.+)$/m.exec(yml) || [])[1]) || "").trim();
+    if (v === pkg.version && s === sha && ymlPathName === remoteSetupName && ymlUrl === remoteSetupName) return;
+    console.log("  dist/latest.yml 与当前产物不符（版本 " + (v || "?") + " / 哈希 " + (s ? s.slice(0, 12) + "…" : "?") +
+      " / path " + (ymlPathName || "?") + "），按本地安装包重写。");
   } else {
     console.log("  本地没有 dist/latest.yml，按本地安装包生成一份。");
   }

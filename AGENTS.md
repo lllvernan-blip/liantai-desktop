@@ -134,7 +134,7 @@
 
 ## 修改后验证
 
-`npm run check`（静态检查 + `node tests/run.mjs` + 入口文案 + 布局快扫）必须全绿；想拦在提交前跑 `npm run hooks:install`（只改本仓库 `core.hooksPath`，不自动装），Qoder 里由 `.qoder/settings.json` 的 Stop 钩子在任务结束时自动跑。只改文档 / 发布脚本可用 `npm run check -- --no-tests`。改界面后除了 `check`，还要跑一次 `npm run audit:layout`（全量 187 屏 × 3 宽度）；`--quick` 只扫 22 个代表屏，漏掉的是文种和宽度差异。涉及窗口 / 启动 / 加载方式再真跑 `npm start`；涉及浏览器交互、异步、设置弹层、导入导出或本地存储要真路径走一遍并看控制台。**细节看 `docs/验证工具.md`**，别凭记忆改工具参数。
+`npm run check`（静态检查 + `node tests/run.mjs` + 入口文案 + 布局快扫）必须全绿；想拦在提交前跑 `npm run hooks:install`（只改本仓库 `core.hooksPath`，不自动装），Qoder 里由 `.qoder/settings.json` 的 Stop 钩子在任务结束时自动跑。只改文档 / 发布脚本可用 `npm run check -- --no-tests`（跳过全量自测与 Electron 布局，仍跑静态检查与入口文案）。改界面后除了 `check`，还要跑一次 `npm run audit:layout`（全量：行数随模块/文种增长，门面/批改/画像等关键屏跑 1280/960/780 三档，其余屏固定 1280）；`--quick` 只扫 22 个代表屏并量一次 900×600 交卷出口，漏掉的是文种和宽度差异。涉及窗口 / 启动 / 加载方式再真跑 `npm start`；涉及浏览器交互、异步、设置弹层、导入导出或本地存储要真路径走一遍并看控制台。**细节看 `docs/验证工具.md`**，别凭记忆改工具参数。
 
 - 临时量一段真行为：写成探针文件再跑 `node tools/probe.mjs 我的探针.js`（一次性，用完删）。
 - 量阅卷漂移用 `tools/drift.mjs`，**基线必须两份答卷都跑**。

@@ -205,7 +205,7 @@ const log = (event, detail) => logs.push(event + (detail === undefined ? "" : " 
   const fake = new FakeUpdater();
   const { mod, restore } = loadUpdate({ autoUpdater: fake });
   /* 这一组量的是状态机，但「下完」现在必须过发布侧签名：给一份真签好的临时包，
-     别让验签失败路径混进来影响状态断言（验签本身在 6c 单独量）。 */
+     别让验签失败路径混进来影响状态断言（验签本身在 6-win 单独量）。 */
   const tmp2 = mkdtempSync(join(tmpdir(), "liantai-win2-"));
   const exe2 = join(tmp2, "liantai-desktop-setup-1.0.1.exe");
   writeFileSync(exe2, Buffer.from("payload-for-state-machine-".repeat(80)));
@@ -829,56 +829,6 @@ if (process.platform !== "darwin") {
   }
 
 
-  /* 6c. Windows：electron-updater 自己下自己装，我们插不进下载过程，
-         但必须在「下完」和「装之前」各验一次发布侧签名。
-         这条链的 sha512 期望值与下载地址来自同一份元数据，源被换掉时两者一起改，自证必然通过。 */
-  {
-    const tmp = mkdtempSync(join(tmpdir(), "liantai-win-"));
-    const exeName = "liantai-desktop-setup-1.0.1.exe";
-    const exePath = join(tmp, exeName);
-    writeFileSync(exePath, Buffer.from("fake-nsis-payload-".repeat(400)));
-    const keyDir = join(tmp, "keys");
-    mkdirSync(keyDir, { recursive: true });
-    const keyPath = join(keyDir, "release.pem");
-    macKeyTool(["--init", "--key", keyPath]);
-    macKeyTool(["--sign", exePath, "--key", keyPath]);
-    const sigText = readFileSync(exePath + ".sig", "utf8").trim();
-    const pubPem = macKeyTool(["--pubkey", "--key", keyPath]).split("\n\n")[0].trim();
-
-    const fake = new FakeUpdater();
-    const { mod, restore } = loadUpdate({ autoUpdater: fake });
-    mod.initUpdate({ log, isPackaged: true, currentVersion: "1.0.0", platform: "win32",
-                     userDataDir: join(tmp, "userData"), winPublicKeys: [pubPem],
-                     winSig: async () => ({ text: sigText }) });
-    const info = { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] };
-    fake.emit("update-downloaded", info);
-    ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000),
-       "壳/win: 签名对得上的安装包下完就放行（实际 " + mod.getStatus().phase + "）");
-    ok(fake.autoInstallOnAppQuit === true, "壳/win: 验过之后才恢复「退出时装」");
-    ok(mod.installUpdate() === true, "壳/win: 验过的包才放行安装");
-    await waitFor(() => fake.calls.quitAndInstall.length === 1, 3000);
-    ok(fake.calls.quitAndInstall.length === 1, "壳/win: 验过的包真的交给 quitAndInstall 了");
-
-    /* 源拆分钩子会把 files[].url 改写成镜像绝对地址（生产默认链路），中文还会被百分号编码。
-       资产名必须取末段再解码：拿整个 URL 当资产名，签名永远验不过，每一版都会误杀。 */
-    const mirrorUrl = "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/"
-      + exeName.replace("l", "%6C");   // %6C = l：逼验签方真做一次解码
-    fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: mirrorUrl }] });
-    ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000),
-       "壳/win: url 被改写成镜像绝对地址时按末段资产名验签（实际 " + mod.getStatus().phase + " " + mod.getStatus().error + "）");
-
-    /* 同一个包改一个字节：签名必须当场拦下，而且不能留下可装的东西 */
-    writeFileSync(exePath, Buffer.from("tampered-payload"));
-    fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] });
-    ok(await waitFor(() => mod.getStatus().phase === "error", 8000),
-       "壳/win: 包被改过就报错，不当成「下好了」（实际 " + mod.getStatus().phase + "）");
-    ok(fake.autoInstallOnAppQuit === false && !existsSync(exePath),
-       "壳/win: 验不过就删掉安装包并关掉「退出时装」（没有可装的东西）");
-    ok(mod.installUpdate() === false, "壳/win: 验不过时点安装也不放行");
-    restore();
-    try { rmSync(tmp, { recursive: true, force: true }); } catch (err) { /* 删不掉留给系统，别影响断言 */ }
-  }
-
   /* 6b. 包内版本与元数据不符：必须掉头，旧版一个字节都不能动 */
   {
     const c = await macCase({ currentVersion: "0.0.15", apiVersion: "0.0.16", zipVersion: "0.0.99" });
@@ -1132,6 +1082,69 @@ if (process.platform !== "darwin") {
   }
 }
 
+/* ---- 6-win. Windows：electron-updater 自己下自己装，我们插不进下载过程，
+       但必须在「下完」和「装之前」各验一次发布侧签名。
+       这条链的 sha512 期望值与下载地址来自同一份元数据，源被换掉时两者一起改，自证必然通过。
+       这一段只依赖 fake updater 与 Node crypto，不依赖 ditto / PlistBuddy，所以不跟随上面
+       mac 换包组一起按平台跳过——Windows 机器上也要跑。 ---- */
+{
+  const tmp = mkdtempSync(join(tmpdir(), "liantai-win-"));
+  const exeName = "liantai-desktop-setup-1.0.1.exe";
+  const exePath = join(tmp, exeName);
+  writeFileSync(exePath, Buffer.from("fake-nsis-payload-".repeat(400)));
+  const keyDir = join(tmp, "keys");
+  mkdirSync(keyDir, { recursive: true });
+  const keyPath = join(keyDir, "release.pem");
+  macKeyTool(["--init", "--key", keyPath]);
+  macKeyTool(["--sign", exePath, "--key", keyPath]);
+  const sigText = readFileSync(exePath + ".sig", "utf8").trim();
+  const pubPem = macKeyTool(["--pubkey", "--key", keyPath]).split("\n\n")[0].trim();
+
+  const fake = new FakeUpdater();
+  const { mod, restore } = loadUpdate({ autoUpdater: fake });
+  mod.initUpdate({ log, isPackaged: true, currentVersion: "1.0.0", platform: "win32",
+                   userDataDir: join(tmp, "userData"), winPublicKeys: [pubPem],
+                   winSig: async () => ({ text: sigText }) });
+  const info = { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] };
+  fake.emit("update-downloaded", info);
+  ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000),
+     "壳/win: 签名对得上的安装包下完就放行（实际 " + mod.getStatus().phase + "）");
+  ok(fake.autoInstallOnAppQuit === true, "壳/win: 验过之后才恢复「退出时装」");
+  ok(mod.installUpdate() === true, "壳/win: 验过的包才放行安装");
+  await waitFor(() => fake.calls.quitAndInstall.length === 1, 3000);
+  ok(fake.calls.quitAndInstall.length === 1, "壳/win: 验过的包真的交给 quitAndInstall 了");
+
+  /* 源拆分钩子会把 files[].url 改写成镜像绝对地址（生产默认链路），中文还会被百分号编码。
+     资产名必须取末段再解码：拿整个 URL 当资产名，签名永远验不过，每一版都会误杀。 */
+  const mirrorUrl = "https://gh-proxy.com/https://github.com/lllvernan-blip/liantai-desktop/releases/latest/download/"
+    + exeName.replace("l", "%6C");   // %6C = l：逼验签方真做一次解码
+  fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: mirrorUrl }] });
+  ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000),
+     "壳/win: url 被改写成镜像绝对地址时按末段资产名验签（实际 " + mod.getStatus().phase + " " + mod.getStatus().error + "）");
+
+  /* 同一个包改一个字节：签名必须当场拦下，而且不能留下可装的东西 */
+  writeFileSync(exePath, Buffer.from("tampered-payload"));
+  fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] });
+  ok(await waitFor(() => mod.getStatus().phase === "error", 8000),
+     "壳/win: 包被改过就报错，不当成「下好了」（实际 " + mod.getStatus().phase + "）");
+  ok(fake.autoInstallOnAppQuit === false && !existsSync(exePath),
+     "壳/win: 验不过就删掉安装包并关掉「退出时装」（没有可装的东西）");
+  ok(mod.installUpdate() === false, "壳/win: 验不过时点安装也不放行");
+
+  /* 验过之后、点安装之前被换：显式安装要拒，退出时装也必须一起关掉。
+     只把 phase 置 ERROR 不够——electron-updater 仍会在退出时装它自己那份。 */
+  writeFileSync(exePath, Buffer.from("fake-nsis-payload-".repeat(400)));
+  fake.emit("update-downloaded", { version: "1.0.1", downloadedFile: exePath, files: [{ url: exeName }] });
+  ok(await waitFor(() => mod.getStatus().phase === "downloaded", 8000),
+     "壳/win: 重新验签成功后才允许下一步（实际 " + mod.getStatus().phase + "）");
+  writeFileSync(exePath, Buffer.from("tampered-after-verify"));
+  ok(mod.installUpdate() === false, "壳/win: 验签后包被换 -> 装前复核拒绝");
+  ok(fake.autoInstallOnAppQuit === false && !existsSync(exePath),
+     "壳/win: 装前复核失败 -> 关掉退出时装并删掉包，关窗口也不会装它");
+  restore();
+  try { rmSync(tmp, { recursive: true, force: true }); } catch (err) { /* 删不掉留给系统，别影响断言 */ }
+}
+
 /* ---- 8. 钉在包里的公钥与本机发布私钥是不是同一把 ----
    这一条防的是「签的时候用 A、钉进去的是 B」：真机上表现为每一版都被自己的应用拒收，
    而两边的日志都只会说「签名验不过」，很难往这儿想。本机没那把私钥就跳过（别的机器上跑测试不该要它）。 */
@@ -1265,10 +1278,11 @@ if (process.platform !== "darwin") {
      本地源码直跑一切正常，装上才知道。（electron-builder 只拿 files 列的东西，不是整个仓库。） */
   const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
   const listed = (pkg.build && pkg.build.files) || [];
-  const required = Array.from(mainSrc.matchAll(/require\('\.\/([\w.-]+\.js)'\)/g)).map((m) => m[1]);
+  const shellReqs = [mainSrc, readOr(join(here, "..", "update.js")), readOr(join(here, "..", "preload.js"))].join("\n");
+  const required = Array.from(shellReqs.matchAll(/require\('\.\/([\w.-]+\.js)'\)/g)).map((m) => m[1]);
   const notPacked = required.filter((f) => listed.indexOf(f) < 0);
   ok(required.length >= 2 && notPacked.length === 0,
-     "壳: main.js 引的仓内模块都在 package.json 的 build.files 里 -> " + required.join("、")
+     "壳: main / update / preload 引的仓内模块都在 package.json 的 build.files 里 -> " + required.join("、")
      + (notPacked.length ? "（缺：" + notPacked.join("、") + "）" : ""));
 }
 
@@ -1312,6 +1326,8 @@ if (process.platform !== "darwin") {
   const rw = readOr(join(here, "..", "tools", "release.mjs"));
   ok(/doSign\(localSetup,\s*remoteSetupName\)/.test(rw),
      "发布: Windows 签名签的是上传用的 ASCII 资产名（本地是中文名；客户端按 latest.yml 资产名验签，签错名字每一版都被拒）");
+  ok(/ymlPathName === remoteSetupName && ymlUrl === remoteSetupName/.test(rw) && /got\.has\(w\.name\)/.test(rw),
+     "发布: latest.yml 的 path/url 必须归一到 ASCII 资产名，且上传后重新列资产核对（名字被 gh 改写也算没传）");
 }
 
 /* 测试副本（tools/build-test.mjs）：与正式版并存、数据分家的那一只 app。
@@ -1667,9 +1683,17 @@ if (process.platform !== "darwin") {
   try { qoder = JSON.parse(readOr(join(here, "..", ".qoder", "settings.json"), "{}")); } catch (e) { qoder = null; }
   const stopHooks = ((qoder && qoder.hooks && qoder.hooks.Stop) || [])
     .flatMap((g) => (g && Array.isArray(g.hooks) ? g.hooks : []));
-  ok(stopHooks.some((h) => h && h.type === "command" && /stop-check\.sh/.test(String(h.command || "")) && Number(h.timeout) >= 60),
-     "闭环/Qoder: Stop 钩子指向 .qoder/hooks/stop-check.sh，超时够跑完整套");
+  const loopSrc = readOr(join(here, "..", "tools", "loop.mjs"));
+  const loopBudget = Array.from(loopSrc.matchAll(/timeout:\s*(\d+)/g))
+    .reduce((a, m) => a + Number(m[1]), 0);
+  const stopHook = stopHooks.find((h) => h && h.type === "command" && /stop-check\.sh/.test(String(h.command || "")));
+  ok(!!stopHook && Number(stopHook.timeout) * 1000 >= loopBudget,
+     "闭环/Qoder: Stop 钩子指向 .qoder/hooks/stop-check.sh，超时覆盖 loop 三阶段总和（"
+       + (stopHook ? Number(stopHook.timeout) : 0) + "s / " + (loopBudget / 1000) + "s）");
   const stopJs = readOr(join(here, "..", "tools", "qoder-stop.mjs"));
+  const stopBudget = Number((/timeout:\s*(\d+)/.exec(stopJs) || [])[1]) || 0;
+  ok(stopBudget * 1000 >= loopBudget,
+     "闭环/Qoder: qoder-stop 给 loop 的超时也覆盖三阶段总和（" + (stopBudget / 1000) + "s / " + (loopBudget / 1000) + "s）");
   ok(/stop_hook_active/.test(stopJs) && /liantai-loop-stamp/.test(stopJs) && /process\.exit\(2\)/.test(stopJs),
      "闭环/Qoder: 钩子有防重入、同状态只查一次、失败时用退出码 2 回给模型");
   ok(/git\(\["diff", "HEAD", "--binary"\]\)/.test(stopJs) && /hash-object/.test(stopJs),

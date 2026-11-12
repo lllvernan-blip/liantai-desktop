@@ -465,7 +465,7 @@ html,body{margin:0;padding:0;}
   .answer-wrap{margin-top:24px;}
   /* 作答框与它的字数徽标同处一层：徽标绝对定位在框内右下角，不参与排版，也不随窗口变宽变窄挪位置 */
   /* 作答区是一个整框：正文与字数在框里，动作条挂在框外正下方——框是 overflow:hidden 的（圆角裁切用），
-     sticky 关进 overflow 框里就被废成 static，出口会掉出视口；挂在框外才吸得住（2026-11-10）。
+     它会形成自己的滚动容器，sticky 关进去会吸在框底而不是视口底，出口因此掉出视口；挂在框外才吸得住（2026-11-10）。
      框线挂在 .answer-box 上，textarea 自己那圈线去掉——否则一屏里会有三道并排的边。 */
   .answer-box{position:relative;display:flex;flex-direction:column;flex:1 1 auto;min-height:0;
     border:1px solid var(--line-strong);border-radius:var(--r-ctl);background:var(--write);overflow:hidden;}
@@ -2063,17 +2063,24 @@ function parseJsonLoose(text){
 // 所以不做终身平均，而是按近期加权：最新一次权重 1，往前每次 ×0.85（约 4 次前权重减半）。
 // 练习记录是唯一事实源，画像不再单独存聚合值——存两份迟早对不上。
 const RECENCY_DECAY = 0.85;
-/* 一条记录的「总分」（百分制）——画像里所有模块级/子类型级比较都用它，只有一个口径。
-   优先采分点折出来的 grade.total；只有老记录没存这个值时，才用维度分折算，
-   规则与 submitAnswer 写入 total 时完全一致，不引入第二套算法。
-   拿不到就返回 null（判别轨记录没有 module，天然落到这里）。 */
+/* 一条批改记录的「总分」（百分制），全站只在这一处折算：
+   存下来的 grade.total 优先；老记录没存就用采分点折；再没有才用维度分折。
+   拿不到返回 null（判别轨记录没有 module，天然落到这里）。 */
+function totalOfGrade(g, moduleKey){
+  if(!g || typeof g !== "object") return null;
+  const t = (g.total == null)? NaN : Number(g.total);
+  if(isFinite(t)) return t;
+  const pts = pointsOf(g.hits);
+  if(pts) return Math.round(pts.got / pts.max * 100);
+  const m = moduleKey && MODULES[moduleKey];
+  const dims = m && m.dims;
+  if(dims && g.scores && dims.some(d=> isFinite(Number(g.scores[d])))) return dimTotal(g.scores, dims);
+  return null;
+}
 function recordTotal(h){
   const k = h && h.module;
   if(!k || !MODULES[k]) return null;
-  const g = h.grade || {};
-  const t = (g.total == null)? NaN : Number(g.total);
-  if(isFinite(t)) return t;
-  return g.scores? dimTotal(g.scores, MODULES[k].dims) : null;
+  return totalOfGrade(h.grade, k);
 }
 /* 近期加权平均：按出现顺序给权，越近越重。三个统计共用这一份。 */
 function recentAvg(records, valueOf){
@@ -3117,10 +3124,10 @@ function startBoxHtml(resume){
   const foot = canStart()
     ? ""
     : (state.settings.apiKey? "选好模型就能开始" : "填好 API Key 就能开始");
-  /* 进度只按真记录算：哪条有批改结果（grade.total > 0）才算练完一题。
+  /* 进度只按真记录算：总分算得出来（含 0 分与没存 total 的老记录）就算练完一题。
      平均表现走 recordTotal（折百分制得分率），与画像同一把尺——各题型满分不同，直接平均原始分是拿不同的尺子相加。 */
-  const done = (Array.isArray(state.history)? state.history : []).filter(h=> h && h.grade && h.grade.total > 0);
-  const avgRate = done.length? Math.round(done.reduce((a,h)=> a + (recordTotal(h)||0), 0) / done.length) : 0;
+  const done = (Array.isArray(state.history)? state.history : []).filter(h=> recordTotal(h) != null);
+  const avgRate = done.length? Math.round(done.reduce((a,h)=> a + recordTotal(h), 0) / done.length) : 0;
   const statHtml = done.length? `<div class="histent">已练 ${done.length} 题 · 平均 ${avgRate}%</div>` : "";
   /* 整卷是申论特有的第二种练法，但它也是「点了就去的去处」——长成与模块同一形状的一颗胶囊，
      不再另起一行描边按钮（2026-11-01 改：原来上下两处都在说「开始」，一句话写两遍）。 */
@@ -3947,11 +3954,13 @@ function openPaperQuestion(i){
      重开应用就只剩分数，同一会话里还会沿用上一题的答卷。 */
   lastGrade = null;
   if(a && a.g){
-    current.grade = { g:a.g, total:a.total || 0 };
+    const stored = (a.total == null)? NaN : Number(a.total);
+    const paperTotal0 = isFinite(stored)? stored : totalOfGrade(a.g, item.module);
+    const paperTotal = paperTotal0 == null? 0 : paperTotal0;
+    current.grade = { g:a.g, total:paperTotal };
     const hits = Array.isArray(a.g.hits)? a.g.hits : [];
-    const pts = pointsOf(hits);
     lastGrade = { g:Object.assign({}, a.g, { hits }),
-      total: a.total != null? a.total : (pts? Math.round(pts.got/pts.max*100) : 0),
+      total: paperTotal,
       expCheck: a.expCheck || null, time: a.time || null,
       answer: String(a.answer || ""), flowId: null };
   }
@@ -5105,7 +5114,8 @@ async function submitAnswer(){
     updateProfile(mod);
     const expCheck = applyExperienceChecks(mod, g, undefined, q, ans);   // 回执要带题目签名与答卷：同题 / 引文对不上都不算改掉
     const pts = pointsOf(g.hits);
-    const total = pts ? Math.round(pts.got / pts.max * 100) : dimTotal(g.scores, MODULES[mod].dims);
+    const totalNow = totalOfGrade({ hits: g.hits, scores: g.scores }, mod);
+    const total = totalNow == null? 0 : totalNow;
     /* 回执日志：again/fixed/pending/na/rejected 全落盘。以前只存 again/fixed，
        na 与“没通过本地核对”的拒绝记录都丢了，分母永远算不出来。 */
     const expLog = {};
@@ -5679,7 +5689,8 @@ function profileHistHtml(){
     const weak = rev.length? (rev[0].length > 22? rev[0].slice(0, 22) + "…" : rev[0])
       : (Array.isArray(gh.causes)? gh.causes.map(c=> (c && c.title) || "").filter(Boolean) : (gh.weaknesses||[])).slice(0,2).join("；");
     const openable = !!(h.question && h.grade);
-    html += `<tr${openable? ` class="histrow" data-hist="${idx}" title="点开看这次批改"`:""}><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${h.grade && h.grade.total != null? esc(String(h.grade.total)) : "—"}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
+    const rowTotal = recordTotal(h);
+    html += `<tr${openable? ` class="histrow" data-hist="${idx}" title="点开看这次批改"`:""}><td>${ds}</td><td>${esc(subjectName(h.module)||"—")}</td><td>${esc(moduleName(h.module))}</td><td>${esc(h.subtype||"—")}</td><td class="num">${rowTotal == null? "—" : esc(String(rowTotal))}</td>${usedCellHtml(h)}<td>${esc(weak||"—")}</td></tr>`;
   });
   html += `</tbody></table></div><div class="histfoot">` + (histAll > HIST_PAGE
     ? (histLimit < histAll? `<button class="linkbtn" id="btnHistMore">展开全部 ${histAll} 条</button>` : `<button class="linkbtn" id="btnHistLess">只看最近 ${HIST_PAGE} 条</button>`)
@@ -5695,8 +5706,8 @@ function openHistRecord(h){
   if(pendingGen && pendingGen.viewing) pendingGen.viewing = false;
   const hits = Array.isArray(h.hits)? h.hits : [];
   const g = Object.assign({ hits }, h.grade);
-  const pts = pointsOf(hits);
-  const total = h.grade.total != null? h.grade.total : (pts? Math.round(pts.got/pts.max*100) : 0);
+  const totalMaybe = totalOfGrade(h.grade, h.module);
+  const total = totalMaybe == null? 0 : totalMaybe;
   lastGrade = { g, total, expCheck: h.expCheck || null,
     time: (h.usedSec != null)? { min: h.timeLimit || 0, usedSec: h.usedSec } : null,
     answer: String(h.answer || ""), flowId: null, sig: qSig(h.question) };
@@ -5956,7 +5967,7 @@ function rawStoragePayload(){
   const keys = ["gw_state", HISTORY_KEY, "gw_draft", "gw_marks"];
   const raw = {};
   for(const k of keys) raw[k] = localStorage.getItem(k);
-  return { exportedAt: new Date().toISOString(), note: "原始 localStorage 快照，未解析、未修改；恢复前不要继续写入。内含 API Key 等敏感信息，请勿外传。", raw };
+  return { exportedAt: new Date().toISOString(), note: "原始 localStorage 快照，未解析、未修改；恢复前不要继续写入。可能含 API Key 等敏感信息，请勿外传。", raw };
 }
 function exportRawStorage(){
   const blob = new Blob([JSON.stringify(rawStoragePayload(), null, 2)], { type:"application/json" });
@@ -5966,7 +5977,7 @@ function exportRawStorage(){
   a.download = `练习台-原始数据-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}-${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}.json`;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
-  banner("已生成原始数据快照。先备份好这个文件，再修复存储或到设置里导入一份有效备份。快照是原样导出，内含 API Key，请勿外传。", "", "storage");
+  banner("已生成原始数据快照。先备份好这个文件，再修复存储或到设置里导入一份有效备份。快照是原样导出，可能含 API Key，请勿外传。", "", "storage");
 }
 function showStorageLoadFailure(){
   if(!_loadFailed) return;

@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "sh \"$(git rev-parse --show-toplevel)/.qoder/hooks/stop-check.sh\"",
-            "timeout": 120
+            "timeout": 480
           }
         ]
       }

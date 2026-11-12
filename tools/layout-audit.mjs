@@ -2,7 +2,7 @@
  * 布局审计的驱动：把每一屏直接摆出来量一遍。不点按钮，不走真流程，不需要 API Key。
  *
  *   npm run audit:layout                    全量：每个模块 × 每个文种 × 三个阶段
- *   npm run audit:layout -- --quick         只跑约 24 个关键屏（十几秒，已挂进 npm run check）
+ *   npm run audit:layout -- --quick         只跑 23 个关键屏（十几秒，已挂进 npm run check）
  *   npm run audit:layout -- --fast          只跑 1280 一个宽度（快扫）
  *   npm run audit:layout -- --only=作答     只测名字里带「作答」的
  *   npm run audit:layout -- --widths=1280,960
@@ -175,6 +175,21 @@ app.whenReady().then(async () => {
 
   // ---- 整卷页
   await take('整卷页', 'renderPaper()', null, true)
+
+  // ---- 交卷出口：900×600 下长答卷的真实几何。源码里写着 sticky 不等于它吸得住。
+  await js(`closeModals(); state.settings.timeLimit = 0; current = { module:"zy.guina", subtype:"概括问题",
+    question:${Q('关于做好冬季安全生产检查工作的通知','安全生产')}, keyPoints:[], cardPeeks:0, phase:"answer" };
+    renderZyPage();
+    const ta = document.querySelector("#answer");
+    if (ta) { ta.value = "长答卷内容。".repeat(300); ta.dispatchEvent(new Event("input", { bubbles:true })); }`)
+  await sleep(700)   // 等入场动画跑完：动画中的 transform 会成为 sticky 的包含块，量早了会误判
+  win.setSize(900, 600)
+  await sleep(300)
+  const submitAudit = (await js('submitBarAudit()')) || {}
+  if (!submitAudit.ok) console.log('  交卷出口调试 ' + JSON.stringify(submitAudit.debug))
+  report.push({ 屏: '交卷出口-900x600', 屏宽: 900, 屏高: 600,
+    计数: { 渗出: (submitAudit.bad || []).length },
+    明细: { 渗出: (submitAudit.bad || []).map(x => ({ 交卷: x })) } })
 
   // ---- 汇报：成功一行，失败才展开。硬项判退出码，软项跟基线比。
   const HARD = ['文字重叠', '文字被裁', '收起却占位', '控件高度', '字号越档', '渗出']

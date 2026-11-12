@@ -218,7 +218,63 @@ function layoutAudit(root) {
   const counts = Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.length]));
   return { 屏宽: innerWidth, 屏高: innerHeight, 计数: counts, 明细: trim(out), 总计: Object.values(counts).reduce((a, b) => a + b, 0) };
 }
-if (typeof window !== 'undefined') window.layoutAudit = layoutAudit;
+/* 交卷出口的真实几何：长答卷、窗口压到 900×600 时，只要作答框还在视口里，
+   提交按钮就必须也在视口里。源码里写着 sticky 不等于它吸得住。 */
+function submitBarAudit() {
+  const bar = document.querySelector('#docBody .actbar');
+  const btn = bar && bar.querySelector('#btnSubmit');
+  const ans = document.querySelector('#docBody #answer');
+  if (!bar || !btn || !ans) return { ok: false, bad: [{ 原因: '找不到作答框或提交按钮' }] };
+  const H = innerHeight;
+  const doc = document.documentElement;
+  const prev = scrollY || 0;
+  /* 页面全局有 scroll-behavior:smooth；同步 scrollTo 之后立刻量，量到的是动画起点。
+     量几何时临时改回 auto，量完恢复。 */
+  const pre = {
+    滚动: Math.round(scrollY || 0),
+    按钮顶: Math.round(btn.getBoundingClientRect().top),
+    作答顶: Math.round(ans.getBoundingClientRect().top),
+    滚动行为: getComputedStyle(doc).scrollBehavior,
+  };
+  const behavior = doc.style.scrollBehavior;
+  doc.style.scrollBehavior = 'auto';
+  const ansTop = ans.getBoundingClientRect().top + prev;
+  const maxY = Math.max(0, doc.scrollHeight - H);
+  const points = [...new Set([0, maxY / 2, maxY, ansTop - H / 2]
+    .map(y => Math.round(Math.max(0, Math.min(maxY, y)))))];
+  const bad = [];
+  let checked = 0;
+  for (const y of points) {
+    scrollTo(0, y);
+    const ar = ans.getBoundingClientRect();
+    if (!(ar.bottom > 0 && ar.top < H)) continue;   // 作答框不在视口，这一档不适用
+    checked++;
+    const br = btn.getBoundingClientRect();
+    if (br.width < 1 || br.height < 1 || br.top < -1 || br.bottom > H + 1) {
+      bad.push({ 滚到: y, 实际: Math.round(scrollY || 0), 按钮顶: Math.round(br.top), 按钮底: Math.round(br.bottom), 视口高: H });
+    }
+  }
+  scrollTo(0, prev);
+  doc.style.scrollBehavior = behavior;
+  if (!checked) bad.push({ 原因: '作答框始终不在视口，没量到' });
+  const cs = getComputedStyle(bar), as = getComputedStyle(ans);
+  const bars = [...document.querySelectorAll('.actbar')].map(e => {
+    const r = e.getBoundingClientRect();
+    return { 顶: Math.round(r.top), 底: Math.round(r.bottom), 高: Math.round(r.height), 定位: getComputedStyle(e).position };
+  });
+  return { ok: bad.length === 0, bad, checked, debug: {
+    视口: [innerWidth, innerHeight], 文档高: doc.scrollHeight, body: document.body.className,
+    动作条: { 定位: cs.position, 底: cs.bottom, 顶: Math.round(bar.getBoundingClientRect().top), 底px: Math.round(bar.getBoundingClientRect().bottom) },
+    动作条数: bars,
+    作答框: { 顶: Math.round(ans.getBoundingClientRect().top), 底: Math.round(ans.getBoundingClientRect().bottom), 溢出: as.overflowY },
+    文档: { 缩放: getComputedStyle(doc).zoom, 宽: Math.round(doc.getBoundingClientRect().width), 顶: Math.round(doc.getBoundingClientRect().top) },
+    纸栏: (() => { const p = document.querySelector('#docBody .paper-cols'); if (!p) return null;
+      const s = getComputedStyle(p); return { 显示: s.display, 变换: s.transform, 动画: s.animationName, 状态: s.animationPlayState }; })(),
+    pre,
+    档位: points,
+  } };
+}
+if (typeof window !== 'undefined') { window.layoutAudit = layoutAudit; window.submitBarAudit = submitBarAudit; }
 // executeJavaScript 会把这段脚本的最后表达式当返回值送出去；补一条 void 0，
 // 免得把函数本身丢进 IPC，那边克隆不了对象会直接报「An object could not be cloned」。
 if (typeof window !== 'undefined') void 0;

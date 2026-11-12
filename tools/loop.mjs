@@ -248,12 +248,14 @@ const ENTRY_TOTAL_BUDGET = 0;
 }
 
 /* ================= 10. 布局：代表屏摆出来量几何 =================
-   挂的是 --quick（22 屏、约 10 秒），不是全量。提交前要回答的是「这一刀有没有把谁挤坏」，
-   全量 187 屏 × 3 宽度留给 `npm run audit:layout` 单独跑。
+   挂的是 --quick（22 个代表屏 + 900×600 交卷出口，约 10 秒），不是全量。提交前要回答的是「这一刀有没有把谁挤坏」，
+   全量（关键屏三档宽度、其余 1280）留给 `npm run audit:layout` 单独跑。
    为什么必须起真 Electron：tests/assertions.js 跑在 jsdom 里，没有布局引擎，
    getBoundingClientRect 一律返回 0——“没有重叠”在那里是永真句，不是检查。
    软项（间距 / 圆角越档）不计入退出码，它们跟 tools/layout-baseline.json 比，只说变化。 */
-{
+if (noTests) {
+  add("布局：代表屏无重叠 / 无被裁 / 无渗出", true, "按 --no-tests 跳过（它要起 Electron）");
+} else {
   /* 走 electron 的 JS 入口，不 spawn .bin/electron(.cmd)：Windows 上 Node 18.20+/20.12+ 禁止
      不带 shell 地 spawn .cmd（CVE-2024-27980），那条路在 Windows 发布机上恒返回 EINVAL。 */
   const electronCli = join(root, "node_modules", "electron", "cli.js");

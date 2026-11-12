@@ -356,10 +356,6 @@ function stopUpdate() {
     clearTimeout(timer);
     timer = null;
   }
-  if (mac && mac.timer) {
-    clearTimeout(mac.timer);
-    mac.timer = null;
-  }
   if (mat && mat.timer) {
     clearTimeout(mat.timer);
     mat.timer = null;
@@ -653,17 +649,24 @@ function installUpdate() {
   if (!status.supported || !autoUpdater) return false;
   if (status.phase !== PHASE.DOWNLOADED) return false;
   /* 装前复核：磁盘上这份还是不是验签时那一份。防的是「验过之后被换」。
-     同步算，因为这里要当场给页面回 true/false。 */
-  if (winVerified) {
-    let now = '';
-    try { now = crypto.createHash('sha256').update(fs.readFileSync(winVerified.path)).digest('hex'); }
-    catch (err) { now = ''; }
-    if (now !== winVerified.sha) {
-      winVerified = null;
-      status.error = '安装前复核没通过：磁盘上这份安装包和验签时不是同一份，已拒绝安装';
-      setPhase(PHASE.ERROR, status.error);
-      return false;
-    }
+     同步算，因为这里要当场给页面回 true/false。没有验签记录也一律拒装——
+     否则任何让 phase 变成 DOWNLOADED 的旁路都能把没验过的包交出去。 */
+  if (!winVerified) {
+    status.error = '安装前复核缺少验签记录：拒绝安装';
+    setPhase(PHASE.ERROR, status.error);
+    return false;
+  }
+  let now = '';
+  try { now = crypto.createHash('sha256').update(fs.readFileSync(winVerified.path)).digest('hex'); }
+  catch (err) { now = ''; }
+  if (now !== winVerified.sha) {
+    const stale = winVerified.path;
+    winVerified = null;
+    try { if (stale) fs.unlinkSync(stale); } catch (err) { /* 删不掉也拦住不装 */ }
+    autoUpdater.autoInstallOnAppQuit = false;   // 退出时装必须一起关：否则关窗口仍会装这份被换过的包
+    status.error = '安装前复核没通过：磁盘上这份安装包和验签时不是同一份，已拒绝安装';
+    setPhase(PHASE.ERROR, status.error);
+    return false;
   }
   log('update-install', 'quitAndInstall');
   setImmediate(() => {
@@ -801,11 +804,18 @@ if ! mv "$TARGET" "$BAK" 2>>"$LOG"; then
   note "更新放弃：没法挪走旧版（多半是权限）"; reopen; exit 1
 fi
 if ! mv "$STAGE" "$TARGET" 2>>"$LOG"; then
-  if ! mv "$BAK" "$TARGET" 2>>"$LOG"; then
-    cp -pR "$BAK" "$TARGET" 2>>"$LOG" && rm -rf "$BAK"   # rename 也失败的最后一道退路：整份拷回
+  if mv "$BAK" "$TARGET" 2>>"$LOG"; then
+    note "更新失败：换入新版没成功，已恢复旧版"
+    reopen; exit 1
   fi
-  note "更新失败：换入新版没成功，已恢复旧版"
-  reopen; exit 1
+  if cp -pR "$BAK" "$TARGET" 2>>"$LOG"; then   # rename 也失败的最后一道退路：整份拷回
+    rm -rf "$BAK"
+    note "更新失败：换入新版没成功，已恢复旧版"
+    reopen; exit 1
+  fi
+  note "更新失败：换入新版没成功，旧版也恢复失败——旧版停在 \${BAK}，请手动移回 \${TARGET}"
+  "$OPENCMD" "$BAK" >>"$LOG" 2>&1
+  exit 1
 fi
 xattr -dr com.apple.quarantine "$TARGET" >>"$LOG" 2>&1
 rm -rf "$BAK" "$WORK"
@@ -1752,7 +1762,7 @@ function matWriteMark(obj) {
 }
 
 function matSchedule(delayMs) {
-  if (!mat) return;
+  if (!mat || stopped) return;   // 退出流程中在途同步结束后不许再排下一轮
   if (mat.timer) { clearTimeout(mat.timer); mat.timer = null; }
   mat.timer = setTimeout(() => { mat.timer = null; matSyncNow(); }, Math.max(1000, delayMs));
   if (mat.timer && mat.timer.unref) mat.timer.unref();   // 别为了拉材料把进程吊着不退出
@@ -1868,7 +1878,7 @@ function matSeed(appDir) {
 }
 
 async function matSyncNow() {
-  if (!mat || mat.running) return null;
+  if (!mat || mat.running || stopped) return null;
   if (mat.lastAt && (Date.now() - mat.lastAt) < MAT_PERIOD_MS) {
     matSchedule(MAT_PERIOD_MS - (Date.now() - mat.lastAt) + 1000);
     return null;
@@ -1924,7 +1934,6 @@ async function matSyncNow() {
 }
 
 function initMaterials(options) {
-  const mark = {};
   mat = {
     userDataDir: options.userDataDir || '',
     api: options.api || (APP.apiReleases + '/tags/' + MAT_TAG),

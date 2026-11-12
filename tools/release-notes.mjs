@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
-/* Windows 资产在线上叫 ASCII 名（本地那份中文名不带版本只在 dist/ 里），名字跟 pkg.name 走，与 release.mjs 同一口径 */
+/* Windows 资产在线上叫 ASCII 名（本地那份是中文名、带版本，只在 dist/ 里），名字跟 pkg.name 走，与 release.mjs 同一口径 */
 function windowsFile() {
   return pkg.name + "-setup-" + pkg.version + ".exe";
 }

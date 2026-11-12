@@ -68,10 +68,11 @@ if (stamp && stamp.state === state) process.exit(0);
 const run = spawnSync(process.execPath, [join(root, "tools", "loop.mjs"), "--quiet"], {
   cwd: root,
   encoding: "utf8",
-  timeout: 300000,   // 不得短于 loop 里最重一阶段的自身上限（全量自检 180s + 布局 180s 的常态余量）；110s 曾会把还在跑的自检误杀成失败
+  timeout: 460000,   // 覆盖 loop 三个阶段的上限总和（180s + 60s + 180s = 420s）再留 40s；宿主 Stop 钩子配 480s
   maxBuffer: 64 * 1024 * 1024,
 });
 const out = ((run.stdout || "") + (run.stderr || "")).trim();
+const unfinished = !!run.error || run.signal != null || run.status == null;
 
 if (run.status === 0) {
   try { writeFileSync(stampPath, JSON.stringify({ state, ok: true, at: Date.now() }) + "\n"); } catch (e) { /* 只影响下一次是否重跑 */ }
@@ -80,7 +81,11 @@ if (run.status === 0) {
   process.exit(0);
 }
 
-/* 失败：先落 stamp，再以 2 退出——同状态不会再拦第二次，改动了才会重新查。 */
-try { writeFileSync(stampPath, JSON.stringify({ state, ok: false, at: Date.now() }) + "\n"); } catch (e) { /* 同上 */ }
-console.error("[工程闭环] 没过，先修再交付：\n" + (out || (run.error && run.error.message) || "loop 没有输出").slice(0, 6000));
+/* 真失败：落 stamp，以 2 退出——同状态不会再拦第二次，改动了才会重新查。
+   超时或被信号打断不算“查过”：不落 stamp，否则下一次同一份内容会被直接放行，检查永远补不上。 */
+if (!unfinished) {
+  try { writeFileSync(stampPath, JSON.stringify({ state, ok: false, at: Date.now() }) + "\n"); } catch (e) { /* 同上 */ }
+}
+const why = unfinished ? "检查没跑完（超时或被中止），这次不记为已查" : "没过";
+console.error("[工程闭环] " + why + "，先修再交付：\n" + (out || (run.error && run.error.message) || "loop 没有输出").slice(0, 6000));
 process.exit(2);

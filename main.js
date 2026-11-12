@@ -402,15 +402,45 @@ function loadWindowBounds() {
   } catch (e) {}
   return null;
 }
+/* 记住的位置来自另一块屏幕时，先按当前 workArea 夹小并挪回可见区：
+   getDisplayMatching 只要有一点交集就判“可见”，不会替你居中。 */
+function fitWindowBounds(b) {
+  if (!b) return null;
+  let wa;
+  try { wa = screen.getDisplayMatching({ x: b.x || 0, y: b.y || 0, width: b.width, height: b.height }).workArea; }
+  catch (e) { try { wa = screen.getPrimaryDisplay().workArea; } catch (e2) { return b; } }
+  const width = Math.min(Math.max(WIN_MIN.width, b.width), wa.width);
+  const height = Math.min(Math.max(WIN_MIN.height, b.height), wa.height);
+  const out = { width, height };
+  if (Number.isFinite(b.x) && Number.isFinite(b.y)) {
+    out.x = Math.min(Math.max(b.x, wa.x), wa.x + wa.width - width);
+    out.y = Math.min(Math.max(b.y, wa.y), wa.y + wa.height - height);
+  }
+  return out;
+}
 let _boundsSaveTimer = null;
+let _lastBounds = null;
+function writeWindowBounds(bounds) {
+  if (!bounds) return;
+  try { fs.writeFileSync(windowBoundsFile(), JSON.stringify(bounds)); } catch (e) {}
+}
 function saveWindowBounds() {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMinimized() || mainWindow.isMaximized() || mainWindow.isFullScreen()) return;
   /* 取值在调用这一刻：close 之后窗口就销毁了，等定时器 firing 再取只会抛错被吞掉 */
-  const bounds = mainWindow.getBounds();
+  _lastBounds = mainWindow.getBounds();
   clearTimeout(_boundsSaveTimer);
   _boundsSaveTimer = setTimeout(() => {
-    try { fs.writeFileSync(windowBoundsFile(), JSON.stringify(bounds)); } catch (e) {}
+    _boundsSaveTimer = null;
+    writeWindowBounds(_lastBounds);
   }, 300);
+}
+/* 退出前补一次同步写：close 时排的 300ms 定时器通常等不到，最后一次移动/缩放会丢。 */
+function flushWindowBounds() {
+  if (_boundsSaveTimer) {
+    clearTimeout(_boundsSaveTimer);
+    _boundsSaveTimer = null;
+  }
+  writeWindowBounds(_lastBounds);
 }
 
 /* ============ 材料池 ============
@@ -471,7 +501,7 @@ function poolHandlers() {
 }
 
 function createWindow() {
-  const saved = loadWindowBounds();
+  const saved = fitWindowBounds(loadWindowBounds());
   mainWindow = new BrowserWindow({
     width: saved ? saved.width : WIN_DEFAULT.width,
     height: saved ? saved.height : defaultWinHeight(WIN_DEFAULT.height),
@@ -657,8 +687,9 @@ function setupUpdate() {
 function collectStartupNotices() {
   if (serverPort !== PREFERRED_PORT) {
     startupNotices.push('<b>注意：</b>本次启动端口 ' + PREFERRED_PORT +
-      ' 被占用，本次退到 ' + serverPort + '，你之前的练习数据不在这里显示——<b>数据没有丢</b>，' +
-      '关掉占用端口的程序后重新打开本应用即可恢复。');
+      ' 被占用，本次退到 ' + serverPort + '，你之前的练习数据不在这里显示——<b>旧数据没有丢</b>；' +
+      '但本次在这个端口上练的记录会单独保存，回到常用端口后不会合并。' +
+      '建议先关掉占用 ' + PREFERRED_PORT + ' 的程序，再重新打开本应用。');
     log('port-fallback-notice', '已把端口退让的事写进首页提示');
   }
   const fail = update.macLastFailure();
@@ -742,6 +773,7 @@ if (!gotLock) {
 
   app.on('before-quit', () => {
     log('before-quit');
+    flushWindowBounds();
     update.stopUpdate();
     stopServer();
   });
