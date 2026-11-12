@@ -500,6 +500,72 @@ function poolHandlers() {
   });
 }
 
+/* ============ 启动滚动备份 ============
+   每次启动把界面给的全量状态（exportPayload，已删 API Key）落一份到 userData/backup/，只留 10 份。
+   主进程不解析业务字段：合并、校验、schema 都在页面侧的 applyBackup，文件导入与启动备份恢复共用一条路。
+   名字只认固定格式；路径拼接、存在性校验、越界拦截都在这里，界面传不进任意路径。 */
+const BACKUP_KEEP = 10;
+const BACKUP_NAME_RE = /^backup-\d{8}-\d{6}-\d{3}\.json$/;
+function backupDir() { return path.join(app.getPath('userData'), 'backup'); }
+function backupFile(name) {
+  const s = String(name || '');
+  if (!BACKUP_NAME_RE.test(s)) return null;
+  const dir = backupDir();
+  const p = path.join(dir, s);
+  return path.dirname(p) === dir ? p : null;
+}
+function backupNames() {
+  try { return fs.readdirSync(backupDir()).filter(n => BACKUP_NAME_RE.test(n)).sort(); }
+  catch (e) { return []; }
+}
+function backupSnapshot(payload) {
+  try {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, error: 'bad payload' };
+    if (payload.settings) delete payload.settings.apiKey;   // 再兜一层：备份永不携带 API Key
+    if (!payload.appVersion) payload.appVersion = app.getVersion();   // 页面未及取回版本号时由主进程补齐
+    const text = JSON.stringify(payload);
+    if (text.length > 32 * 1024 * 1024) return { ok: false, error: 'too large' };
+    const dir = backupDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const d = new Date();
+    const p2 = n => String(n).padStart(2, '0');
+    const name = 'backup-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate())
+      + '-' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds())
+      + '-' + String(d.getMilliseconds()).padStart(3, '0') + '.json';
+    const tmp = path.join(dir, name + '.tmp');
+    fs.writeFileSync(tmp, text, 'utf8');
+    fs.renameSync(tmp, path.join(dir, name));   // 写完才改名，不留半份
+    const names = backupNames();
+    for (const old of names.slice(0, Math.max(0, names.length - BACKUP_KEEP))) {
+      try { fs.unlinkSync(path.join(dir, old)); } catch (e) { log('backup-rotate-fail', old); }
+    }
+    return { ok: true, name };
+  } catch (e) {
+    log('backup-write-fail', String(e && e.message || e));
+    return { ok: false, error: String(e && e.message || e) };
+  }
+}
+function backupList() {
+  const dir = backupDir();
+  return backupNames().reverse().map(name => {
+    let size = 0, at = 0;
+    try { const st = fs.statSync(path.join(dir, name)); size = st.size; at = st.mtimeMs; } catch (e) {}
+    return { name, size, at };
+  });
+}
+function backupRead(name) {
+  const f = backupFile(name);
+  if (!f) return { ok: false, error: 'bad name' };
+  try { return { ok: true, text: fs.readFileSync(f, 'utf8') }; }
+  catch (e) { log('backup-read-fail', String(name)); return { ok: false, error: 'read fail' }; }
+}
+function backupHandlers() {
+  ipcMain.handle('app:version', () => app.getVersion());
+  ipcMain.handle('backup:snapshot', (_e, payload) => backupSnapshot(payload));
+  ipcMain.handle('backup:list', () => backupList());
+  ipcMain.handle('backup:read', (_e, arg) => backupRead(arg && arg.name));
+}
+
 function createWindow() {
   const saved = fitWindowBounds(loadWindowBounds());
   mainWindow = new BrowserWindow({
@@ -744,6 +810,7 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     poolHandlers();
+    backupHandlers();
     log('app-ready');
     return startServer();
   }).then(() => {

@@ -377,14 +377,19 @@ localStorage.setItem = realSet;
 saveHistory();
 ok(load().history.length === 40, "练习记录写盘 + 读回往返一致");
 {
-  /* 真喂坏数据：坏 JSON 与非数组都该回 null 而不是抛错（原来那条析取重言式没喂坏数据，永不失败）。 */
+  /* 真喂坏数据：坏 JSON 与非数组都该回 null 而不是抛错（原来那条析取重言式没喂坏数据，永不失败）。
+     新行为里坏数据还会挂起写入，这里只是探针，跑完必须把只读开关与横幅复原，不许污染后面的用例。 */
   const _raw = localStorage.getItem(HISTORY_KEY);
+  const _prevParts = _partsReadFailed;
   localStorage.setItem(HISTORY_KEY, "{坏 JSON");
   const badNull = loadHistory() === null;
   localStorage.setItem(HISTORY_KEY, '{"not":"an array"}');
   const nonArrayNull = loadHistory() === null;
   localStorage.setItem(HISTORY_KEY, _raw);
   ok(badNull && nonArrayNull, "loadHistory 对坏数据（坏 JSON / 非数组）返回 null 而不是抛错");
+  ok(!!_partsReadFailed, "loadHistory 坏数据进入只读模式，不许静默变空再被覆盖");
+  _partsReadFailed = _prevParts;
+  banner("");
 }
 
 /* 6.0b 启动读取失败：暂停写入，原始数据不被默认值覆盖 */
@@ -4681,6 +4686,155 @@ globalThis.window = _savedWinUpd;
      && eQ.question.requirements.indexOf("全部给定资料") >= 0, "整卷: 作文只给问题不给结论");
   callLLM = _callFinal;
   callLLM = _callClean;
+}
+
+/* 6.2 冻结收口：备份合并 / schema / 三键只读 / 200 上限 / 清缓存横幅 / 记录字段 */
+{
+  const rec = (ts, stem) => ({ ts, module:"zy.gongwen", flowId:"legacy-"+ts,
+    question:{ requirements:stem }, answer:"", grade:{ total:60, scores:{} } });
+  const local = [rec(3,"本机三"), rec(2,"本机二"), rec(1,"本机一")];
+  const backup = [rec(0,"旧备份一"), rec(1,"本机一")];   // 第二条与本机重复
+  const merged = mergeHistories(local, backup);
+  ok(merged.length === 4, "备份恢复: 旧备份 1 条并入本机 3 条，结果 4 条");
+  ok(new Set(merged.map(historyKeyOf)).size === 4, "备份恢复: 4 条无重复（时间戳 + 题面哈希去重）");
+  ok(merged.some(h=>h.ts===0) && merged.some(h=>h.ts===3), "备份恢复: 本机记录与备份记录都在，没整份替换");
+  ok(mergeHistories([], [rec(9,"同题"), rec(9,"同题")]).length === 1, "备份恢复: 同 ts 同题面只留一条");
+  ok(mergeHistories([], [rec(9,"题甲"), rec(9,"题乙")]).length === 2, "备份恢复: 同 ts 不同题面都保留");
+  ok(PAGE_HTML.indexOf("mergeHistories(prevState.history") >= 0, "备份恢复: 导入路径确实走合并去重");
+}
+{
+  const p = exportPayload();
+  ok(p.schema === BACKUP_SCHEMA && typeof p.appVersion === "string" && /^\d{4}-\d{2}-\d{2}T/.test(p.exportedAt),
+     "备份对象: 带 schema / appVersion / exportedAt");
+  ok(!(p.settings && "apiKey" in p.settings), "备份对象: 仍不含 API Key");
+  const before = localStorage.getItem("gw_state");
+  const rejected = applyBackup({ schema: BACKUP_SCHEMA + 1, history:[{ ts:1 }] });
+  ok(rejected.ok === false && rejected.message.indexOf("更高版本") >= 0, "备份 schema: 高于本版拒绝并提示");
+  ok(localStorage.getItem("gw_state") === before, "备份 schema: 拒绝时本机数据一字未动");
+  ok(backupSchemaTooNew({ schema: BACKUP_SCHEMA }) === false && backupSchemaTooNew({}) === false,
+     "备份 schema: 同版与无 schema 的旧备份都兼容");
+}
+{
+  const rawH = localStorage.getItem(HISTORY_KEY), rawD = localStorage.getItem("gw_draft"), rawM = localStorage.getItem("gw_marks");
+  const prevParts = _partsReadFailed, prevLoad = _loadFailed, prevState = state;
+  _partsReadFailed = null; _loadFailed = null;
+  localStorage.setItem(HISTORY_KEY, "{坏 JSON");
+  localStorage.setItem("gw_draft", "{坏 JSON");
+  localStorage.setItem("gw_marks", "{坏 JSON");
+  loadHistory(); loadDrafts(); marksAll();
+  ok(!!_partsReadFailed && storageReadOnly(), "三键只读: gw_history / 草稿 / 划线解析失败都挂起写入");
+  ok(saveHistory() === false, "三键只读: 练习记录写入被挂起");
+  saveDraft("sigRO", "新草稿"); saveMarks("sigRO", new Set([1])); clearDraft("sigRO");
+  ok(localStorage.getItem(HISTORY_KEY) === "{坏 JSON", "三键只读: gw_history 原文没被覆盖");
+  ok(localStorage.getItem("gw_draft") === "{坏 JSON", "三键只读: 草稿原文没被覆盖");
+  ok(localStorage.getItem("gw_marks") === "{坏 JSON", "三键只读: 划线原文没被覆盖");
+  ok(rawStoragePayload().raw.gw_draft === "{坏 JSON", "三键只读: 原始快照能把坏数据原文带出来");
+  showStorageLoadFailure();
+  ok(el("#bannerSlot").innerHTML.indexOf("已暂停写入") >= 0
+     && el("#bannerSlot").innerHTML.indexOf(_partsReadFailed) >= 0
+     && el("#bannerSlot").innerHTML.indexOf("btnExportRaw") >= 0,
+     "三键只读: 横幅点名坏键并给原始数据导出入口");
+  for(const [k,v] of [[HISTORY_KEY,rawH],["gw_draft",rawD],["gw_marks",rawM]]){
+    if(v == null) localStorage.removeItem(k); else localStorage.setItem(k,v);
+  }
+  _partsReadFailed = prevParts; _loadFailed = prevLoad; state = prevState;
+  banner("");
+}
+{
+  const prevHist = state.history;
+  state.history = Array.from({ length:HISTORY_MAX+2 }, (_,i)=>({ ts:i, module:"zy.gongwen", flowId:"x",
+    question:{ requirements:"题"+i }, grade:{ total:60, scores:{} } }));
+  el("#bannerSlot").innerHTML = "";
+  ok(capHistory() === true && state.history.length === HISTORY_MAX, "200 条上限: 触顶裁到 200 条");
+  ok(el("#bannerSlot").innerHTML.indexOf("200 条上限") >= 0, "200 条上限: 触顶横幅提示最旧记录被挤出");
+  el("#bannerSlot").innerHTML = "";
+  ok(capHistory() === false, "200 条上限: 未触顶不误报");
+  state.history = prevHist;
+}
+{
+  const realSet = localStorage.setItem;
+  let n = 0;
+  localStorage.setItem = (k,v)=>{ if(k === "gw_state"){ n++; if(n === 1){ const e = new Error("quota"); e.name = "QuotaExceededError"; throw e; } } realSet(k,v); };
+  state.cache.studyCards = { "zy.gongwen::通知": { title:"卡" } };
+  el("#bannerSlot").innerHTML = "";
+  const saved = save();
+  ok(saved === true, "存储满清缓存: 清掉可再生的学习卡后写入成功");
+  ok(el("#bannerSlot").innerHTML.indexOf("学习卡缓存") >= 0 && el("#bannerSlot").innerHTML.indexOf("笔记") >= 0,
+     "存储满清缓存: 横幅说明清了什么、没动什么，不假成功");
+  localStorage.setItem = realSet;
+  state.cache.studyCards = {};
+  el("#bannerSlot").innerHTML = "";
+}
+{
+  const oldList = migrateHistory([{ ts:1, module:"zy.gongwen", flowId:"legacy-1", grade:{ total:60, scores:{} } }]).list;
+  ok(oldList[0].model === "" && oldList[0].scoringVersion === "", "记录字段: 旧记录补 model 与口径版本空值");
+  ok(migrateHistory(oldList).changed === false, "记录字段: 补空值幂等");
+  ok(PAGE_HTML.indexOf("scoringVersion:SCORING_VERSION") >= 0 && PAGE_HTML.indexOf("model:String(state.settings.model") >= 0,
+     "记录字段: 新记录写实际模型与当前口径版本");
+}
+
+/* 6.3 启动滚动备份：设置页列出、恢复与文件导入共用合并路径、坏文件不改动数据 */
+{
+  const prevWin = globalThis.window;
+  let snapSeen = null;
+  globalThis.window = { liantai: {
+    appVersion: async ()=> "0.0.25",
+    backupSnapshot: async (p)=>{ snapSeen = p; return { ok:true, name:"backup-20261112-163000-000.json" }; },
+    backupList: async ()=> [{ name:"backup-20261112-163000-000.json", at:Date.now(), size:2048 }],
+    backupRead: async ()=> ({ ok:false })
+  } };
+  await window.liantai.backupSnapshot(exportPayload());
+  ok(snapSeen && snapSeen.schema === BACKUP_SCHEMA && !(snapSeen.settings && "apiKey" in snapSeen.settings),
+     "启动备份: 送出去的是全量状态且不含 API Key");
+  await renderBackupList();
+  ok(el("#backupList").innerHTML.indexOf("恢复这份") >= 0
+     && el("#backupList").innerHTML.indexOf("backup-20261112-163000-000.json") >= 0,
+     "启动备份: 设置页列出可恢复的每一份");
+  const before = localStorage.getItem("gw_state");
+  el("#bannerSlot").innerHTML = "";
+  await restoreBackup("backup-20261112-163000-000.json");
+  ok(el("#bannerSlot").innerHTML.indexOf("读不出来") >= 0 && localStorage.getItem("gw_state") === before,
+     "启动备份: 读不出来就出声，不动本机数据");
+  window.liantai.backupRead = async ()=> ({ ok:true, text:"{坏 JSON" });
+  await restoreBackup("backup-20261112-163000-000.json");
+  ok(el("#bannerSlot").innerHTML.indexOf("不是有效 JSON") >= 0, "启动备份: 坏 JSON 拒绝恢复");
+  window.liantai.backupRead = async ()=> ({ ok:true, text:JSON.stringify({ schema: BACKUP_SCHEMA+1 }) });
+  await restoreBackup("backup-20261112-163000-000.json");
+  ok(el("#bannerSlot").innerHTML.indexOf("更高版本") >= 0, "启动备份: 恢复同样走 schema 闸门");
+  ok(PAGE_HTML.indexOf("backupSnapshot(exportPayload())") >= 0 && PAGE_HTML.indexOf("!storageReadOnly()") >= 0,
+     "启动备份: 每次启动写一份，读取失败时不写空状态");
+  ok(PAGE_HTML.indexOf("const res = applyBackup(s)") >= 0, "启动备份: 恢复与文件导入共用合并路径");
+  ok(backupTimeText(0) === "时间未知" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(backupTimeText(Date.now())),
+     "启动备份: 列表时间按本地时间显示");
+  if(prevWin === undefined) delete globalThis.window; else globalThis.window = prevWin;
+  banner("");
+}
+
+{
+  /* 只读恢复不死锁：草稿/划线损坏进入只读后，导入含草稿与空草稿的备份都能恢复并彻底解除只读 */
+  const rawH = localStorage.getItem(HISTORY_KEY), rawD = localStorage.getItem("gw_draft"),
+        rawM = localStorage.getItem("gw_marks"), rawS = localStorage.getItem("gw_state");
+  const prevParts = _partsReadFailed, prevLoad = _loadFailed, prevState = state;
+  localStorage.setItem("gw_draft", "{坏 JSON");
+  localStorage.setItem("gw_marks", "{坏 JSON");
+  loadDrafts(); marksAll();
+  ok(storageReadOnly() === true, "只读恢复前置: 草稿与划线损坏进入只读");
+  const rWith = applyBackup({ schema:1, history:[], drafts:{ qFix:{ text:"恢复草稿", ts:9 } }, marks:{ qFix:[1,2] } });
+  ok(rWith.ok === true && storageReadOnly() === false && loadDraft("qFix") === "恢复草稿" && loadMarks("qFix").has(2),
+     "只读恢复: 草稿与划线损坏时导入带草稿的备份不再死锁回滚");
+  localStorage.setItem("gw_draft", "{坏 JSON");
+  loadDrafts();
+  const rEmpty = applyBackup({ schema:1, history:[] });
+  loadDrafts();
+  ok(rEmpty.ok === true && storageReadOnly() === false,
+     "只读恢复: 导入不含草稿的备份也会清掉损坏原文，下次读草稿不再掉回只读");
+  ok(PAGE_HTML.indexOf("verDone.then(()=>") >= 0,
+     "启动备份: 等 appVersion 返回后再拍快照，避免备份里 appVersion 为空");
+  for(const [k,v] of [[HISTORY_KEY,rawH],["gw_draft",rawD],["gw_marks",rawM],["gw_state",rawS]]){
+    if(v == null) localStorage.removeItem(k); else localStorage.setItem(k,v);
+  }
+  _partsReadFailed = prevParts; _loadFailed = prevLoad; state = prevState;
+  banner("");
 }
 
 console.log(T.join("\n"));

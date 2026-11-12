@@ -948,6 +948,11 @@ html,body{margin:0;padding:0;}
           <div class="note long">练习记录、草稿、划线只存你这台机器上（我们的服务器不碰）；批改那一步会把题目、你的作答和你积累的错因发给你上面填的服务商——它才能给分。备份里不含 Key，可放心转存。换电脑前先「导出备份」，新机器上「导入备份」接着练。</div>
         </div>
         <div class="field">
+          <label>启动备份</label>
+          <div id="backupList" class="note">每次启动留一份，最多 10 份。</div>
+          <div class="note">恢复按时间戳与题面合并练习记录，本机已有的记录不会丢。</div>
+        </div>
+        <div class="field">
           <label>使用引导</label>
           <button type="button" id="btnTutReset">重置使用引导</button>
           <div class="note">清掉「已看过」的记录，下次进入会重新播放。</div>
@@ -1152,6 +1157,11 @@ function migrateKeyedObject(src){
    这两个常量必须声明在 migrateHistory 之前：load() 在模块顶层就会把它跑一遍，挪到后面要撞 TDZ。 */
 const SELF_KINDS = ["how","stuck"];
 const SELF_NOTE_MAX = 200;
+/* 备份结构版本：导入时高于本版一律拒绝。口径版本只作记录标记，不参与判分，
+   SCORING_RULES 与 recordTotal 那套判分语义不因它改变。 */
+const BACKUP_SCHEMA = 1;
+const SCORING_VERSION = "1";
+const HISTORY_MAX = 200;   // 练习记录条数上限：触顶要出声，不能默默挤掉最旧的那条
 function migrateHistory(list){
   let changed = false;
   const out = [];
@@ -1193,6 +1203,14 @@ function migrateHistory(list){
       }
       if(nh.selfKind !== undefined && SELF_KINDS.indexOf(nh.selfKind) < 0) patch.selfKind = undefined;
       if(Object.keys(patch).length){ nh = Object.assign({}, nh, patch); touched = true; }
+    }
+    /* 老记录没有模型与口径版本：补空值，不臆造当时用的是哪个模型、按哪套口径判的。
+       补过一次后就不再变（幂等），新记录由落记录处写实际值与 SCORING_VERSION。 */
+    if(nh.model === undefined || nh.scoringVersion === undefined){
+      const patch = {};
+      if(nh.model === undefined) patch.model = "";
+      if(nh.scoringVersion === undefined) patch.scoringVersion = "";
+      nh = Object.assign({}, nh, patch); touched = true;
     }
     if(touched){ changed = true; out.push(nh); return; }
     out.push(h);
@@ -1419,12 +1437,37 @@ const MARK_COLORS = ["#fde68a","#a7f3d0","#bfdbfe","#fbcfe8","#fed7aa"];
 
 const HISTORY_KEY = "gw_history";
 let _historyTrimWarned = false;
+/* gw_state 之外的三个键（gw_history / gw_draft / gw_marks）解析失败同样进入只读：
+   内存里只能留默认值，磁盘上读不出来的原文绝不能被随后的写入覆盖。
+   与 gw_state 的 _loadFailed 合用一个只读开关，所有写入口都查 storageReadOnly()。 */
+let _partsReadFailed = null;
+function storageReadOnly(){ return !!_loadFailed || !!_partsReadFailed; }
+function storageParseFail(key, e){
+  if(!_partsReadFailed) _partsReadFailed = key;
+  console.error("[liantai] " + key + " 解析失败：已暂停写入，磁盘原文未清除。", e);
+  try{ showStorageLoadFailure(); }catch(err){ /* 启动早期常量未就绪：init() 会补一次横幅 */ }
+}
 function loadHistory(){
-  try{ const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || "null"); return Array.isArray(h) ? h : null; }
-  catch(e){ return null; }
+  let raw;
+  try{ raw = localStorage.getItem(HISTORY_KEY); }
+  catch(e){ storageParseFail(HISTORY_KEY, e); return null; }
+  if(raw == null) return null;   // 首次使用没有这个键：正常，不是解析失败
+  try{
+    const h = JSON.parse(raw);
+    if(!Array.isArray(h)){ storageParseFail(HISTORY_KEY, new Error("gw_history 不是数组")); return null; }
+    return h;
+  }
+  catch(e){ storageParseFail(HISTORY_KEY, e); return null; }
+}
+/* 记录到上限要出声：最旧那条会被挤出去，用户得有机会先导出备份。 */
+function capHistory(){
+  if(state.history.length <= HISTORY_MAX) return false;
+  state.history.length = HISTORY_MAX;
+  banner("练习记录已到 " + HISTORY_MAX + " 条上限：最旧的记录会被挤出去，先「导出」备份可保住全部。", "error");
+  return true;
 }
 function saveHistory(){
-  if(_loadFailed) return false;   // 启动读取失败：先导出原始数据，任何写入都会覆盖原记录
+  if(storageReadOnly()) return false;   // 读取失败：先导出原始数据，任何写入都会覆盖原记录
   try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); return true; }
   catch(e){
     // 实在写不下：裁到 40 条再试，宁可丢最老的记录也不打断作答；有「导出」兑底
@@ -1564,7 +1607,7 @@ function load(){
       const h0 = loadHistory();
       if(h0){
         const mh0 = migrateHistory(h0);   // 独立 key 里也可能是旧版裸模块键
-        if(mh0.changed){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(mh0.list)); }catch(e){} }
+        if(mh0.changed && !storageReadOnly()){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(mh0.list)); }catch(e){} }
         fresh.history = mh0.list;
       }
       return fresh;
@@ -1594,9 +1637,9 @@ function load(){
     if(Array.isArray(s.history) && s.history.length){
       let moved = false;
       // 新 key 为空数组也算「没有数据」：否则会把 gw_state 里那份旧记录当副本清掉，一条都没迁
-      if(!hist || !hist.length){ hist = s.history; try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); moved = true; }catch(e){} }
+      if(!hist || !hist.length){ hist = s.history; if(!storageReadOnly()){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); moved = true; }catch(e){} } }
       else moved = true;  // 新 key 已有数据，旧副本直接清
-      if(moved){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
+      if(moved && !storageReadOnly()){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
     }
     s.history = hist || [];
     s.cache = s.cache||{studyCards:{}};
@@ -1623,9 +1666,9 @@ function load(){
     const mh = migrateHistory(s.history);
     if(mh.changed){
       s.history = mh.list;
-      try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(s.history)); }catch(e){}
+      if(!storageReadOnly()){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(s.history)); }catch(e){} }
     }
-    if(migrated){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
+    if(migrated && !storageReadOnly()){ try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, s, { history: undefined }))); }catch(e){} }
     return s;
   }catch(e){
     // 读失败就整份回默认——但这件事不能不出声。这条路上任何一处抛异常（最典型的是某个符号
@@ -1637,14 +1680,20 @@ function load(){
   }
 }
 function save(){
-  if(_loadFailed) return false;   // 启动读取失败：先导出原始数据，不拿默认值覆盖
+  if(storageReadOnly()) return false;   // 读取失败：先导出原始数据，不拿默认值覆盖
   // gw_state 不再含练习记录（见 load 迁移）；写满时优先丢弃可再生的大块：学习卡缓存（手写笔记不在其中）
   // 返回值 = 这次到底写进去了没有。界面上那些「已保存 ✓」得据此说（2026-10-08 复查：
   // 原来存储写满时，banner 说「本次数据未能保存」，设置页同一屏却写着「已保存 ✓」）。
   try{ localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); return true; }
   catch(e){
     try{
-      if(Object.keys(state.cache.studyCards||{}).length){ state.cache.studyCards = {}; localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined }))); return true; }
+      if(Object.keys(state.cache.studyCards||{}).length){
+        state.cache.studyCards = {};
+        localStorage.setItem("gw_state", JSON.stringify(Object.assign({}, state, { history: undefined })));
+        // 省空间成功也得说清代价：缓存是可再生的，笔记、记录、草稿不是；一句「已保存」会把这次清理瞒过去
+        banner("本地存储写不下：已清掉可再生的学习卡缓存，本次数据写入成功；手写笔记、练习记录和草稿都没动。", "error");
+        return true;
+      }
       else throw e;
     }catch(e2){ banner("本地存储已满，本次数据未能保存；建议先用「导出」备份。", "error"); return false; }
   }
@@ -4397,9 +4446,10 @@ function pdFinish(){
   r.done = true;
   // 判别轨记录带 track:'pd'（区分于作答轨）；只写 gw_history，不写 dims、不进 lastModules、不触发经验提炼
   state.history.unshift({ ts:Date.now(), track:"pd", form:r.form, theme:r.theme,
+    model:String(state.settings.model || ""), scoringVersion:SCORING_VERSION,
     items:r.items.map(it=>({ form:it.form||r.form, stem:it.stem, options:it.options, answer:it.answer, picked:it.done? it.picked : null, ok:!!it.ok, trap:it.trap||"", explain:it.explain||"" })),
     correct:r.correct, total:r.items.length });
-  if(state.history.length>200) state.history.length=200;
+  capHistory();
   saveHistory();
   renderPDSummary();
 }
@@ -5124,6 +5174,7 @@ async function submitAnswer(){
     }
     if(Object.keys(expLog).length) expLog.v = 2;   // 旧记录没有 v：批改页/画像据此退回旧措辞
     state.history.unshift({ ts:Date.now(), module:mod, subtype:sub, flowId: inFlow? f.id : undefined,
+      model:String(state.settings.model || ""), scoringVersion:SCORING_VERSION,
       timeLimit: usedSec == null? undefined : limMin,
       usedSec: usedSec == null? undefined : usedSec,
       question:q, answer:ans, keyPoints:kps, hits:g.hits||[], cardPeeks:peeks,
@@ -5132,13 +5183,13 @@ async function submitAnswer(){
               review:(Array.isArray(g.review)? g.review : undefined),
               causes:(Array.isArray(g.causes)? g.causes : undefined),
               modelAnswer:g.modelAnswer || "" } });   // 范文进记录：批改页从记录派生时才不丢「参考答案」
-    if(state.history.length>200) state.history.length=200;
+    capHistory();
     if(inFlow) f.attempts.push({ ts:Date.now(), answer:ans });   // 批改门槛的事实源
     clearInterval(tick);
     // 草稿只在记录确实落盘后才清，而且只清「还是我刚才交的那份」：阅卷那 10-60 秒里
     // 又敲进去的字不能跟着一起删掉（那些字不在记录里，删了就再也找不回来）。
     if(saveHistory()){ clearDraftIfSubmitted(qSig(q), ans); }
-    else if(!_loadFailed){ banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
+    else if(!storageReadOnly()){ banner("本地存储写不下了：这次练习记录没能保存，草稿已保留——可先「导出」备份，再清理旧记录后重交。", "error"); }
     save();
     if(!inFlow && current && !usesFlowChain(mod)){ state.resumeZy = null; save(); }   // 综应A 交卷：快照作废，结果改从记录打开
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
@@ -5937,11 +5988,15 @@ async function testConnection(){
    代价：换机迁移要在新机器上重填一次 Key，值得。
    另外：草稿与划线不在 state 里（独立键 gw_draft / gw_marks），必须显式带上——
    那才是用户手写、不可再生的东西，漏了就不算「备份」。 */
+let _appVersion = "";   // 壳在启动时给：页面运行期不读 package.json
 function exportPayload(){
   const s = structuredClone(state);
   if(s.settings) delete s.settings.apiKey;
   s.drafts = loadDrafts();
   s.marks = marksAll();
+  s.schema = BACKUP_SCHEMA;
+  s.appVersion = _appVersion;
+  s.exportedAt = new Date().toISOString();
   return s;
 }
 /* 导出的反馈只报到「文件已生成」为止：浏览器与 Electron 都可能弹保存位置，
@@ -5980,8 +6035,9 @@ function exportRawStorage(){
   banner("已生成原始数据快照。先备份好这个文件，再修复存储或到设置里导入一份有效备份。快照是原样导出，可能含 API Key，请勿外传。", "", "storage");
 }
 function showStorageLoadFailure(){
-  if(!_loadFailed) return;
-  banner("读取本地数据失败：为了不覆盖原数据，已暂停写入。<br>请先导出原始数据；修复后可在设置里导入备份恢复。"
+  if(!storageReadOnly()) return;
+  const which = _partsReadFailed || "gw_state";
+  banner("读取本地数据失败（" + which + "）：为了不覆盖原数据，已暂停写入。<br>请先导出原始数据；修复后可在设置里导入备份恢复。"
     + '<button class="linkbtn" id="btnExportRaw">导出原始数据</button>' + OPEN_SETTINGS_BTN, "error", "storage");
   const b = $("#btnExportRaw"); if(b) b.onclick = exportRawStorage;
 }
@@ -5996,18 +6052,47 @@ function plainPick(o){
   return out;
 }
 function plainObj(v){ return (v && typeof v === "object" && !Array.isArray(v))? v : null; }
-function importJSON(file){
-  const r = new FileReader();
-  r.onload = ()=>{
-    // 导入要么整份生效、要么原样退回：先留旧状态与本地存储的原文，出错时逐项还原
-    const rawSnap = {};
-    ["gw_state", HISTORY_KEY, "gw_draft", "gw_marks"].forEach(k=>{ rawSnap[k] = localStorage.getItem(k); });
-    const prevState = state, prevCur = current, prevLG = lastGrade, prevFlowId = _flowId;
-    const prevLoadFailed = _loadFailed;   // 有效导入是用户显式恢复：先解除禁写；失败再挂回去
-    try{
-      const s = JSON.parse(r.result);
-      if(!s || typeof s !== "object" || Array.isArray(s)) throw new Error("格式不对");
-      _loadFailed = null;   // 只有解析通过后才解禁；下面任何一步失败都会在 catch 里恢复
+/* 恢复备份不整份替换练习记录：本机记录多半是备份之后练出来的，按「时间戳 + 题面哈希」
+   判同一条，两边取并集；同键只留本机那条，不拿旧内容盖掉新内容。 */
+function historyStemOf(h){
+  const q = h && h.question;
+  if(q && typeof q === "object") return String(q.requirements || q.background || "");
+  if(h && h.track === "pd") return "pd|" + String(h.form || "") + "|" + String(h.theme || "");
+  return String((h && h.stem) || "");
+}
+function historyKeyOf(h){
+  let hash = 0;
+  const s = historyStemOf(h);
+  for(let i=0;i<s.length;i++) hash = (hash*31 + s.charCodeAt(i))|0;
+  return String((h && h.ts) || 0) + "#" + hash;
+}
+function mergeHistories(localList, backupList){
+  const seen = new Set(), out = [];
+  const all = (Array.isArray(localList)? localList : []).concat(Array.isArray(backupList)? backupList : []);
+  for(const h of all){
+    if(!h || typeof h !== "object") continue;
+    const k = historyKeyOf(h);
+    if(seen.has(k)) continue;
+    seen.add(k); out.push(h);
+  }
+  out.sort((a,b)=> (Number(b.ts)||0) - (Number(a.ts)||0));
+  return out.length > HISTORY_MAX? out.slice(0, HISTORY_MAX) : out;
+}
+function backupSchemaTooNew(s){
+  const n = Number(s && s.schema);
+  return isFinite(n) && n > BACKUP_SCHEMA;
+}
+/* 文件导入与启动备份恢复共用这一份：要么整份生效、要么原样退回。 */
+function applyBackup(s){
+  if(!s || typeof s !== "object" || Array.isArray(s)) return { ok:false, message:"导入失败：文件不是有效的备份 JSON。" };
+  if(backupSchemaTooNew(s)) return { ok:false,
+    message:"导入失败：这份备份来自更高版本（schema " + Number(s.schema) + "），本版只认到 " + BACKUP_SCHEMA + "。请升级练习台后再导入；本机数据没有改动。" };
+  const rawSnap = {};
+  ["gw_state", HISTORY_KEY, "gw_draft", "gw_marks"].forEach(k=>{ rawSnap[k] = localStorage.getItem(k); });
+  const prevState = state, prevCur = current, prevLG = lastGrade, prevFlowId = _flowId;
+  const prevLoadFailed = _loadFailed, prevParts = _partsReadFailed;   // 有效导入是用户显式恢复：先解除禁写；失败再挂回去
+  try{
+    _loadFailed = null; _partsReadFailed = null;   // 只有拿到合格对象后才解禁；下面任何一步失败都会在 catch 里恢复
       // 接口配置与 Key 只认本机：备份里的 provider/baseUrl/model/apiKey 一律不采用，
       // 否则一份改过的备份就能把本机 Key 带去别人的地址。
       const keepCfg = { provider: state.settings.provider, baseUrl: state.settings.baseUrl, model: state.settings.model, apiKey: state.settings.apiKey || "" };
@@ -6033,7 +6118,7 @@ function importJSON(file){
         if(pm) state.profile.modules = migrateKeyedObject(plainPick(pm)).map;
         if(Array.isArray(pf.lastModules)) state.profile.lastModules = pf.lastModules.map(k=>migrateModuleKey(k));
       }
-      state.history = migrateHistory(Array.isArray(s.history)? s.history : []).list;
+      state.history = mergeHistories(prevState.history, migrateHistory(Array.isArray(s.history)? s.history : []).list);
       // cache：studyCards / notes 逐字段校验（键过滤 + 迁移），手写笔记分毫不能丢
       const ca = plainObj(s.cache);
       if(ca){
@@ -6065,7 +6150,17 @@ function importJSON(file){
       // 跨题归纳缓存跟着备份走：换了机器不用从零再攒一遍（形状不对的项丢掉，不整包失败）
       const dg = plainObj(s.digests);
       if(dg) state.digests = normDigests(plainPick(dg));
-      // 草稿与划线：不在 state 里，按题目签名逐条校验后合并回来；本机已有的一份不覆盖
+      // 草稿与划线：不在 state 里，按题目签名逐条校验后合并回来；本机已有的一份不覆盖。
+      // 若本机的 gw_draft / gw_marks 原本损坏，先清成空对象再合并（坏原文已在 rawSnap 里，写盘失败会原样回滚），
+      // 否则 loadDraft / marksAll 读到坏原文会重新触发只读，导致导入回滚或导完仍卡在只读。
+      for(const bk of [DRAFT_KEY, MARKS_KEY]){
+        if(rawSnap[bk] == null) continue;
+        let okObj = false;
+        try{ okObj = !!plainObj(JSON.parse(rawSnap[bk])); }catch(err){ okObj = false; }
+        if(!okObj){
+          try{ localStorage.setItem(bk, "{}"); }catch(err){ throw { code: "SAVE" }; }
+        }
+      }
       const dr = plainObj(s.drafts);
       if(dr){
         for(const k of Object.keys(dr)){
@@ -6090,25 +6185,72 @@ function importJSON(file){
       const savedHist = saveHistory(), savedState = save();
       if(!savedHist || !savedState) throw { code: "SAVE" };   // 写不进去就整份回滚，不报假成功
       fillSettings(); applyMarkColor(); ensureActive(); renderTabs(); renderHeader(); renderStart(); renderProfile(); openModal("modalProfile");
-      banner(hadKey? "已从备份恢复数据 ✓ 文件里的接口配置与 API Key 未被采用（本机的保持不变）。" : "已从备份恢复数据 ✓");
+      banner(hadKey? "已从备份恢复数据 ✓ 练习记录按时间戳与题面合并，本机已有记录没有被替换；文件里的接口配置与 API Key 未被采用（本机的保持不变）。"
+                    : "已从备份恢复数据 ✓ 练习记录按时间戳与题面合并，本机已有记录没有被替换。");
+      return { ok:true };
     }catch(e){
       // 回滚：先还原本地存储原文，再还原内存里的状态与当前题
       try{
         for(const k of Object.keys(rawSnap)){ if(rawSnap[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, rawSnap[k]); }
       }catch(e2){}
       state = prevState; current = prevCur; lastGrade = prevLG; _flowId = prevFlowId;
-      _loadFailed = prevLoadFailed;
+      _loadFailed = prevLoadFailed; _partsReadFailed = prevParts;
       banner(e && e.code === "SAVE"
         ? "导入失败：本地存储写不进去（可能是满了），本次导入没有生效。"
         : "导入失败：文件不是有效的备份 JSON。", "error");
       // 说给人听的那句只得一句，但真实原因得留下来：不然现场只看到「不是有效 JSON」
       console.error("[liantai] 导入失败：", e);
+      return { ok:false, message:"" };   // 横幅已经出声，外层不重复报
     }
+}
+function importJSON(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    let s;
+    try{ s = JSON.parse(r.result); }
+    catch(e){ banner("导入失败：文件不是有效的备份 JSON。", "error"); return; }
+    const res = applyBackup(s);
+    if(!res.ok && res.message) banner(res.message, "error");
   };
   // 读不成也得说一声：权限、文件被移走、编码不对都落在这里，原来是彻底安静
   r.onerror = ()=> banner("导入失败：这个文件读不出来（可能被移走了，或没有读取权限）。", "error");
   r.onabort = ()=> banner("导入已取消。", "error");
   r.readAsText(file);
+}
+/* 启动备份：主进程每次启动留一份，设置页挑一份恢复。恢复与文件导入共用 applyBackup，
+   练习记录照样按时间戳与题面合并，不会拿旧备份整份换掉本机后来的记录。 */
+function backupApi(){ return (typeof window !== "undefined" && window.liantai) || null; }
+function backupTimeText(at){
+  if(!at) return "时间未知";
+  const d = new Date(at);
+  if(isNaN(d.getTime())) return "时间未知";
+  const p2 = n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())+" "+p2(d.getHours())+":"+p2(d.getMinutes());
+}
+async function renderBackupList(){
+  const box = $("#backupList"); if(!box) return;
+  const api = backupApi();
+  if(!api || !api.backupList){ box.textContent = "启动备份只在桌面壳里可用。"; return; }
+  let items;
+  try{ items = await api.backupList(); }catch(e){ box.textContent = "启动备份读不出来。"; return; }
+  if(!Array.isArray(items) || !items.length){ box.textContent = "还没有启动备份。"; return; }
+  box.innerHTML = items.map(x=>{
+    const name = String((x && x.name) || "");
+    return `<div class="bkrow"><span>${esc(backupTimeText(x && x.at))} · ${Math.round(Number((x && x.size) || 0)/1024)} KB</span> <button type="button" data-bk="${esc(name)}">恢复这份</button></div>`;
+  }).join("");
+  box.querySelectorAll("[data-bk]").forEach(b=>{ b.onclick = ()=> restoreBackup(b.dataset.bk); });
+}
+async function restoreBackup(name){
+  const api = backupApi();
+  if(!api || !api.backupRead) return;
+  let r;
+  try{ r = await api.backupRead(name); }catch(e){ r = null; }
+  if(!r || !r.ok || typeof r.text !== "string"){ banner("这份启动备份读不出来，本次没有改动数据。", "error"); return; }
+  let s;
+  try{ s = JSON.parse(r.text); }catch(e){ banner("这份启动备份不是有效 JSON，本次没有改动数据。", "error"); return; }
+  const res = applyBackup(s);
+  if(!res.ok && res.message) banner(res.message, "error");
+  else renderBackupList();
 }
 
 /* ============ 工具 ============ */
@@ -6123,25 +6265,28 @@ function qSig(q){
   return "q"+h;
 }
 function loadDrafts(){
+  let raw;
+  try{ raw = localStorage.getItem(DRAFT_KEY); }catch(e){ storageParseFail(DRAFT_KEY, e); return {}; }
+  if(raw == null) return {};   // 没有这个键是正常使用，不算解析失败
   try{
-    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}");
-    if(!d || typeof d !== "object" || Array.isArray(d)) return {};
+    const d = JSON.parse(raw);
+    if(!d || typeof d !== "object" || Array.isArray(d)){ storageParseFail(DRAFT_KEY, new Error("gw_draft 形状不对")); return {}; }
     if(typeof d.sig === "string") return { [d.sig]: { text:d.text, ts:d.ts||0 } };  // 兼容旧版单槽格式
     return d;
-  }catch(e){ return {}; }
+  }catch(e){ storageParseFail(DRAFT_KEY, e); return {}; }
 }
 function loadDraft(sig){ const d = loadDrafts()[sig]; return (d && typeof d.text === "string")? d.text : ""; }
 /* 草稿与划线落盘失败不再无声：本地存储写满时，用户手写的东西会静默消失——这是最不该不出声的一类失败
    （save() 会出声，草稿和划线反而不会）。同一个故障只报一次，不刷屏。 */
 let _storageWarned = false;
 function storageFail(what){
-  if(_loadFailed) return;   // 数据安全横幅已在说明“暂停写入”，别再拿“存储满了”盖掉它
+  if(storageReadOnly()) return;   // 数据安全横幅已在说明“暂停写入”，别再拿“存储满了”盖掉它
   if(_storageWarned) return;
   _storageWarned = true;
   banner(`${what}没能存到本地（多半是本地存储已满），刷新或关掉应用就会丢；建议先用设置里的「导出」备份。`, "error");
 }
 function saveDraft(sig, text, ts){
-  if(_loadFailed){ storageFail("这份草稿"); return; }   // 启动读取失败：先导出原始数据，别覆盖旧草稿
+  if(storageReadOnly()){ storageFail("这份草稿"); return; }   // 读取失败：先导出原始数据，别覆盖旧草稿
   try{
     const all = loadDrafts();
     if(!text){ delete all[sig]; }
@@ -6160,7 +6305,7 @@ function saveDraft(sig, text, ts){
   }catch(e){ storageFail("这份草稿"); }
 }
 function clearDraft(sig){
-  if(_loadFailed) return;
+  if(storageReadOnly()) return;
   try{
     if(sig == null){ localStorage.removeItem(DRAFT_KEY); return; }
     const all = loadDrafts(); delete all[sig]; localStorage.setItem(DRAFT_KEY, JSON.stringify(all));
@@ -6232,10 +6377,19 @@ function syncAnswer(sig, ta, limit){
 /* 划线：自由选中文字弹窗确认；标记存到字符级，多细都能划；按题目签名保存，超量淘汰最旧 */
 const MARKS_KEY = "gw_marks";
 const MARKS_MAX = 8;
-function marksAll(){ try{ const d = JSON.parse(localStorage.getItem(MARKS_KEY)||"{}"); return (d && typeof d==="object" && !Array.isArray(d))? d : {}; }catch(e){ return {}; } }
+function marksAll(){
+  let raw;
+  try{ raw = localStorage.getItem(MARKS_KEY); }catch(e){ storageParseFail(MARKS_KEY, e); return {}; }
+  if(raw == null) return {};   // 没有这个键是正常使用，不算解析失败
+  try{
+    const d = JSON.parse(raw);
+    if(!d || typeof d!=="object" || Array.isArray(d)){ storageParseFail(MARKS_KEY, new Error("gw_marks 形状不对")); return {}; }
+    return d;
+  }catch(e){ storageParseFail(MARKS_KEY, e); return {}; }
+}
 function loadMarks(sig){ const a = marksAll()[sig]; return new Set(Array.isArray(a)? a : []); }
 function saveMarks(sig, set){
-  if(_loadFailed){ storageFail("划线标记"); return; }
+  if(storageReadOnly()){ storageFail("划线标记"); return; }
   try{
     const all = marksAll();
     delete all[sig];
@@ -6612,6 +6766,17 @@ renderChangelog();
   if(state.settings.apiKey) fetchModels(true);
   renderStartNotices();
   showStorageLoadFailure();   // 读取失败时盖掉普通提示：暂停写入，先导原始数据
+  /* 启动滚动备份：先拿版本号再落盘，避免备份里的 appVersion 恒为空；读失败时不写，免得空状态占名额。 */
+  const bkApi = (typeof window !== "undefined" && window.liantai) || null;
+  const verDone = (bkApi && bkApi.appVersion)
+    ? Promise.resolve(bkApi.appVersion()).then(v=>{ if(typeof v === "string") _appVersion = v; }).catch(()=>{})
+    : Promise.resolve();
+  verDone.then(()=>{
+    if(bkApi && bkApi.backupSnapshot && !storageReadOnly()){
+      Promise.resolve(bkApi.backupSnapshot(exportPayload())).catch(()=>{});
+    }
+  });
+  renderBackupList();
   $("#setProvider").onchange = onProviderChange;
   $("#btnTutReset").onclick = ()=>{
     if(tour) tourEnd(false);   // 若正播到一半（暂歇中）：旧播报作废，不推进游标，按重置后的序列重新来
@@ -6675,7 +6840,7 @@ renderChangelog();
   }
   $("#btnSaveSet").onclick = saveSettings;
   $("#btnTest").onclick = testConnection;
-  $("#btnSettings").onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); };
+  $("#btnSettings").onclick = ()=>{ pollUpdateStatus(); openModal("modalSettings"); renderBackupList(); };
   $("#btnExport2").onclick = ()=> $("#btnExport").click();   // 设置页里的备份入口复用顶栏那一套，导出/导入只有一份实现
   $("#btnImport2").onclick = ()=> $("#btnImport").click();
   $("#btnProfile").onclick = ()=>{ openModal("modalProfile"); renderProfile(); };

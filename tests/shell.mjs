@@ -13,7 +13,7 @@ import { EventEmitter } from "node:events";
 import { setTimeout as realSetTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, unlinkSync, existsSync, readdirSync, chmodSync, cpSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, renameSync, unlinkSync, existsSync, readdirSync, chmodSync, cpSync, statSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
@@ -751,7 +751,9 @@ if (process.platform !== "darwin") {
       try { mod.stopUpdate(); } catch (err) { /* 已经停了 */ }
       restore();
       srv.close();
-      rmSync(base, { recursive: true, force: true });
+      /* 本机安全策略可能禁止删临时目录：删不掉只留下文件，不许让清理动作把整轮自检打断。
+         这些目录都是本用例刚建的，留着不影响任何断言。 */
+      try { rmSync(base, { recursive: true, force: true }); } catch (err) { /* 留给系统清理 */ }
     };
     return { base, appsDir, target, userData, zipName, zipPath, zipBytes, mod, clean, keyPath, pubPem,
              baseZipName, baseBytes, mapBytes,
@@ -1184,13 +1186,15 @@ if (process.platform !== "darwin") {
   ok(mod.alignDifferentialCache(dir) === true && !existsSync(bmPath),
      "壳: 对照数据停在上一个版本 -> 重置，不拿错尺子去量安装包");
   writeBm([10, 20]);
-  rmSync(insPath);
+  /* 这里要的是「目录里没有安装包」这个状态，不是删除动作本身。删不掉就把它挪出目录，
+     断言判断的条件一模一样；不许因为清理权限把后面的用例整段掐掉。 */
+  try { rmSync(insPath); } catch (err) { renameSync(insPath, insPath + ".moved"); }
   ok(mod.alignDifferentialCache(dir) === false && existsSync(bmPath),
      "壳: 没有安装包可比 -> 不硬删（缺了对照数据差量本来也走不了）");
   writeFileSync(bmPath, "not a gzip");
   ok(mod.alignDifferentialCache(dir) === false && existsSync(bmPath),
      "壳: 对照数据读不懂 -> 当没事发生，不删");
-  rmSync(dir, { recursive: true, force: true });
+  try { rmSync(dir, { recursive: true, force: true }); } catch (err) { /* 清理权限不足，留给系统 */ }
   restore();
 }
 
@@ -1364,8 +1368,11 @@ if (process.platform !== "darwin") {
   ok(exposed.length === 1 && exposed[0][1] === "liantai",
      "材料池: preload 只往 window.liantai 上挂东西（别的全局名不占）");
   const names = exposed.length ? Array.from(exposed[0][2].matchAll(/(\w+)\s*:\s*\(/g)).map(m => m[1]) : [];
-  ok(names.length === 3 && ["poolPick","poolList","poolStat"].every(n => names.indexOf(n) >= 0),
-     "材料池: 只开三个口子（取一篇 / 列池子 / 数数量），不开通用 fs（当前 " + names.join("/") + "）");
+  /* 预期值从 3 改到 7：启动滚动备份新增 appVersion / backupSnapshot / backupList / backupRead。
+     判断没有放宽：仍要求这七个一个不多一个不少，下面「只 require electron」那条也不变。 */
+  const BRIDGE_NAMES = ["poolPick","poolList","poolStat","appVersion","backupSnapshot","backupList","backupRead"];
+  ok(names.length === BRIDGE_NAMES.length && BRIDGE_NAMES.every(n => names.indexOf(n) >= 0),
+     "材料池/启动备份: preload 只开这七个口子，不开通用 fs（当前 " + names.join("/") + "）");
   // 只允许 require("electron")：不写 require("fs") 之类，注释里提到 fs 不算
   const reqs = Array.from(pre.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g)).map(m => m[1]);
   ok(reqs.length === 1 && reqs[0] === "electron",
@@ -1463,7 +1470,7 @@ if (process.platform !== "darwin") {
     const st = mod.materialsStatus();
     restore();
     srv.close();
-    rmSync(base, { recursive: true, force: true });
+    try { rmSync(base, { recursive: true, force: true }); } catch (err) { /* 清理权限不足，留给系统 */ }
     return { files, parts, marker, seen, init, apiHits, twice, st, err: st.lastError };
   }
 
@@ -1531,8 +1538,8 @@ if (process.platform !== "darwin") {
   ok(older.files.length === 5 && older.seen.some((x) => x.indexOf("materials-sync-older") === 0),
      "材料同步: 发布侧那份比随包的还少就不动本机池子（当前剩 " + older.files.length + " 篇）");
 
-  rmSync(base2, { recursive: true, force: true });
-  rmSync(keyDir0, { recursive: true, force: true });
+  try { rmSync(base2, { recursive: true, force: true }); } catch (err) { /* 清理权限不足，留给系统 */ }
+  try { rmSync(keyDir0, { recursive: true, force: true }); } catch (err) { /* 清理权限不足，留给系统 */ }
 
   /* 随包兜底要真的进得了包，也要真的被播下去——两边缺一样，断网用户的池子就是空的。 */
   const pkg = JSON.parse(readOr(join(here, "..", "package.json"), "{}"));
@@ -1714,6 +1721,27 @@ if (process.platform !== "darwin") {
   ok(/npm run check/.test(readOr(join(here, "..", "README.md")))
      && /npm run check/.test(readOr(join(here, "..", "docs", "验证工具.md"))),
      "闭环: README 与验证工具文档都写了入口（新人不靠口口相传）");
+}
+
+/* 启动滚动备份（主进程侧）：目录固定、留 10 份、越界拦截、口子对齐 */
+{
+  const mainSrc = readOr(join(here, "..", "main.js"), "");
+  const preSrc = readOr(join(here, "..", "preload.js"), "");
+  ok(/const BACKUP_KEEP = 10;/.test(mainSrc), "启动备份: userData/backup/ 只留 10 份");
+  ok(/function backupDir\(\)[\s\S]{0,160}'backup'/.test(mainSrc), "启动备份: 目录固定在 userData/backup/");
+  ok(/BACKUP_NAME_RE\.test\(s\)/.test(mainSrc) && /path\.dirname\(p\) === dir/.test(mainSrc),
+     "启动备份: 只认固定文件名并挡住越界路径");
+  ok(/delete payload\.settings\.apiKey/.test(mainSrc), "启动备份: 主进程再兜一层，备份不携带 API Key");
+  ok(/if \(!payload\.appVersion\) payload\.appVersion = app\.getVersion\(\)/.test(mainSrc),
+     "启动备份: 主进程兜底补齐 appVersion，避免异步竞态落空");
+  ok(/names\.slice\(0, Math\.max\(0, names\.length - BACKUP_KEEP\)\)/.test(mainSrc),
+     "启动备份: 按文件名排序轮转，只删最旧的那些");
+  ok(/ipcMain\.handle\('backup:snapshot'/.test(mainSrc) && /ipcMain\.handle\('backup:list'/.test(mainSrc)
+     && /ipcMain\.handle\('backup:read'/.test(mainSrc), "启动备份: 写 / 列 / 读三个口子都注册");
+  ok(/backupSnapshot:/.test(preSrc) && /backupList:/.test(preSrc) && /backupRead:/.test(preSrc) && /appVersion:/.test(preSrc),
+     "启动备份: preload 暴露的口子与主进程一一对应");
+  ok(/backupRead: \(name\) => ipcRenderer\.invoke\("backup:read", \{ name: String\(name \|\| ""\) \}\)/.test(preSrc),
+     "启动备份: 恢复只传名字，不把路径交给渲染进程");
 }
 
 console.log(T.join("\n"));
