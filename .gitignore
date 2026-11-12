@@ -30,3 +30,6 @@ docs/学习卡重设计对比.html
 # 冻结收口任务的过程文件，只在本机保留，不入库
 PROGRESS.md
 BLOCKED.md
+
+# IDE/助手工作记忆与配置（Qoder 已卸载，目录留在本地）
+.qoder/
