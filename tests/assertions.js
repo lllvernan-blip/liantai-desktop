@@ -4837,6 +4837,67 @@ globalThis.window = _savedWinUpd;
   banner("");
 }
 
+/* 6.4 整卷：卷信息、换卷确认、池子文案、四段专题与材料同步解耦 */
+{
+  ok(paperTitleOf(null) === "" && paperTitleOf({ theme:"基层治理", at:Date.now() }).indexOf("基层治理") >= 0
+     && /^申论整卷 · \d{4}-\d{2}-\d{2}$/.test(paperTitleOf({ at:Date.now() })),
+     "整卷: 卷标题由主题推出、无主题落到日期、无卷为空");
+  const oldRec = migrateHistory([{ ts:5, module:"zy.gongwen", flowId:"legacy-5", grade:{ total:60, scores:{} } }]).list;
+  ok(oldRec[0].paperId === "" && oldRec[0].paperTitle === "", "整卷: 旧记录 paperId 与卷标题补空值，不算错");
+  ok(migrateHistory(oldRec).changed === false, "整卷: 卷字段补空值幂等");
+  ok(PAGE_HTML.indexOf("paperId:String((current && current.paperId)") >= 0
+     && PAGE_HTML.indexOf("paperTitle:String((current && current.paperTitle)") >= 0,
+     "整卷: 新练习记录带 paperId 与卷标题");
+  ok(paperHasAnswers({ questions:[{},{}], answers:{ 1:{ answer:"写过" } } }) === true
+     && paperHasAnswers({ questions:[{}], answers:{} }) === false
+     && paperHasAnswers(null) === false, "整卷: 有任一作答就判为已动笔");
+  ok(PAGE_HTML.indexOf("if(btn && touched && Date.now() - _paperArm > 4000)") >= 0
+     && PAGE_HTML.indexOf("startPaper(true)") >= 0, "整卷: 答完的卷也要两步确认才换");
+  ok(POOL_SHORT_HINT === "整卷需要材料池，单题不受影响" && PAGE_HTML.indexOf("const msg = POOL_SHORT_HINT") >= 0,
+     "整卷: 池子不足文案点名单题不受影响");
+}
+{
+  const picks = PAPER_SECTIONS.map((sec,i)=> i === 1 ? null : {
+    name:"s"+i+".md", title:"素材"+i, text:"## 背景\n- 事实"+i, section:sec }).filter(Boolean);
+  const sections = paperSectionsFromPicks(picks);
+  ok(sections.length === 4, "整卷四段: 移走一篇锚点骨架后仍是四段");
+  ok(sections.every(s=>s.label && s.focus && s.text), "整卷四段: 每段都有段名、专题与文本");
+  ok(sections[1].fromAnchor === true && sections[1].text === PAPER_ANCHOR_MISS,
+     "整卷四段: 缺的那段用锚点占位，不编造事实、不随材料同步消失");
+  ok(sections[0].fromAnchor === false && sections[0].text.indexOf("事实0") >= 0,
+     "整卷四段: 本次实际 picks 按段名对齐，不因缺篇整体错位");
+  const brief = paperSectionBrief(sections);
+  ok(PAPER_SECTIONS.every(sec=>brief.indexOf(sec.label) >= 0),
+     "整卷四段: 材料提示由本次 sections 生成，四段都在");
+  ok((paperSourcesText(sections).match(/^## 给定资料[1-4]/gm) || []).length === 4,
+     "整卷四段: 喂给模型的骨架文本仍是四段");
+  ok(genPaperMaterial.toString().indexOf("paperSectionBrief(sections)") >= 0
+     && genPaperMaterial.toString().indexOf("银发旅游") < 0,
+     "整卷四段: 材料 prompt 不再写死四个专题，与材料池同步解耦");
+  const altSpec0 = paperSpecForSections(PAPER_SPEC[0], sections);
+  ok(altSpec0.unanchored === true && altSpec0.req === undefined && altSpec0.focus === "素材0",
+     "整卷四段: 骨架换题后撤掉写死给旧锚点的题面，改按本次实际骨架出题");
+  const missSpec1 = paperSpecForSections(PAPER_SPEC[1], sections);
+  ok(missSpec1.section === "给定资料1" && missSpec1.unanchored === true,
+     "整卷四段: 某段缺骨架时该题落到有真实骨架的段落，不对着空段硬问");
+  const anchoredSections = paperSectionsFromPicks([{ name:"a.md", title:"银发专列", text:"银发老年旅游专列改造", section:PAPER_SECTIONS[0] }]);
+  ok(anchoredSections[0].anchored === true && paperSpecForSections(PAPER_SPEC[0], anchoredSections).req === PAPER_SPEC[0].req,
+     "整卷四段: 锚点骨架仍在池子里时保留精修题面");
+}
+{
+  const prevPaper = state.paper, prevCur = current, prevView = _view;
+  const p = { id:"paperX", theme:"基层治理", at:Date.now(), material:"材料".repeat(600),
+    questions:[{ module:"sl.guina", subtype:"", question:{ requirements:"概括做法", score:20 }, keyPoints:[] }], answers:{} };
+  state.paper = p;
+  openPaperQuestion(0);
+  ok(current && current.paperId === "paperX" && current.paperTitle.indexOf("基层治理") >= 0,
+     "整卷: 开题时 current 带 paperId 与卷标题");
+  rememberPaperAnswer({ hits:[] }, 10, "答案");
+  ok(p.answers[0] && p.answers[0].paperId === "paperX" && p.answers[0].paperTitle.indexOf("基层治理") >= 0,
+     "整卷: 卷内答卷也带 paperId 与卷标题");
+  state.paper = prevPaper; current = prevCur; _view = prevView;
+}
+
 console.log(T.join("\n"));
 const fails = T.filter(x => x.indexOf("FAIL") === 0);
 console.log("\n== " + (T.length - fails.length) + "/" + T.length + " passed ==");
