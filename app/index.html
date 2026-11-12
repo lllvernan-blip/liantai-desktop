@@ -916,6 +916,13 @@ html,body{margin:0;padding:0;}
           <input type="password" id="setKey" placeholder="粘贴你的 API Key">
           <div class="note">Key 只发往上面这个地址；只认 https 或本机 http（127.0.0.1 / localhost），别用来路不明的地址。</div>
         </div>
+        <div class="field">
+          <label>DeepSeek 账户余额</label>
+          <div class="actions" style="margin-top:0">
+            <button type="button" id="btnBalance">查询余额</button>
+          </div>
+          <div class="note" id="balanceNote" aria-live="polite">点一次查余额；每轮批改后也会自动查。</div>
+        </div>
         <details class="notebox" id="keyHelp">
           <summary>还没有 API Key？四步拿到（以 DeepSeek 为例）</summary>
           <div class="notebody">① 注册：浏览器打开 platform.deepseek.com，用手机号注册并登录。
@@ -1794,6 +1801,23 @@ function recordProbe(model, level, reasonChars, secs){
   const e = m[level] = m[level] || { n:0, reason:0, secs:0 };
   e.n++; e.reason += reasonChars; e.secs += secs;
 }
+/* 上下文缓存有没有命中，只能从响应的 usage 看。服务商不给这几个字段就什么都不写，
+   不拿 0 冒充「没命中」——缺字段和命中 0 是两回事。 */
+function usageOf(v){
+  const u = (v && typeof v === "object")? v : null;
+  const num = k => { const n = Number(u && u[k]); return isFinite(n) && n >= 0? n : 0; };
+  return { prompt:num("prompt_tokens"), hit:num("prompt_cache_hit_tokens"), miss:num("prompt_cache_miss_tokens") };
+}
+function recordUsage(model, level, usage){
+  const v = usageOf(usage);
+  if(!v.prompt && !v.hit && !v.miss) return;
+  state.modelProbe = state.modelProbe || {};
+  const m = state.modelProbe[model] = state.modelProbe[model] || {};
+  const e = m[level] = m[level] || { n:0, reason:0, secs:0 };
+  e.prompt = (Number(e.prompt)||0) + v.prompt;
+  e.hit = (Number(e.hit)||0) + v.hit;
+  e.miss = (Number(e.miss)||0) + v.miss;
+}
 const CALL_TIMEOUT    = 180000; // 非流式调用的整体上限
 const CONNECT_TIMEOUT = 60000;  // 流式：多久内必须开始响应
 const IDLE_TIMEOUT    = 60000;  // 流式：连续多久没有新字节才算吊死——有字节流动就永远不算卡
@@ -1859,6 +1883,18 @@ function sseFinish(line){
   const ch = sseChoice(line);
   return (ch && typeof ch.finish_reason === "string") ? ch.finish_reason : "";
 }
+/* 流式最后一帧是 choices:[] + usage（要请求带 stream_options.include_usage 才有）。
+   sseChoice 只认 choices[0]，取不到这一帧，所以单独解一次。 */
+function sseUsage(line){
+  const l = String(line || "").trim();
+  if(l.indexOf("data:") !== 0) return null;
+  const payload = l.slice(5).trim();
+  if(!payload || payload === "[DONE]") return null;
+  try{
+    const j = JSON.parse(payload);
+    return (j && j.usage && typeof j.usage === "object")? j.usage : null;
+  }catch(e){ return null; }
+}
 // 坏输出的现场留一句到控制台：main.js 把渲染进程的警告以上消息收进 logs/startup.log，
 // 所以用户那边真出事时，日志里查得到「是空输出还是坏 JSON、finish 是什么、吐了多少字」。
 function llmFailNote(kind, out){
@@ -1906,11 +1942,12 @@ async function postStream(url, body, headers, onDelta){
     const c = msg.content || "";
     onDelta(c, c);
     return { content:c, reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0,
-             finish:(data.choices && data.choices[0] && data.choices[0].finish_reason) || "" };
+             finish:(data.choices && data.choices[0] && data.choices[0].finish_reason) || "",
+             usage:data.usage || null };
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder("utf-8");
-  let buf = "", content = "", reason = "", finish = "", lastByte = Date.now();
+  let buf = "", content = "", reason = "", finish = "", usage = null, lastByte = Date.now();
   const idleTimer = setInterval(()=>{ if(Date.now() - lastByte > IDLE_TIMEOUT) ctrl.abort(); }, 1000);
   try{
     for(;;){
@@ -1927,13 +1964,14 @@ async function postStream(url, body, headers, onDelta){
         if(d){ content += d; onDelta(d, content); }
         reason += sseReasonDelta(line);
         const fr = sseFinish(line); if(fr) finish = fr;
+        const u = sseUsage(line); if(u) usage = u;
       }
     }
   }catch(err){
     if(ctrl.signal.aborted) throw {code:"TIMEOUT"};
     throw err;
   }finally{ clearInterval(idleTimer); clearTimeout(connectTimer); }
-  return { content, reasonChars: reason.length, finish };
+  return { content, reasonChars: reason.length, finish, usage };
 }
 
 async function callLLM(system, user, expectJson, onDelta, opts){
@@ -1979,7 +2017,9 @@ async function callLLM(system, user, expectJson, onDelta, opts){
     // 裸降级档不带 max_tokens（个别兼容服务不认这个参数），那就照旧不带；只给认它的档位换额度
     const body = Object.assign({}, base,
       (base.max_tokens && outCap !== base.max_tokens)? {max_tokens: outCap} : null,
-      streaming? {stream:true} : null);
+      /* 流式要最后一帧的 usage 才知道缓存命中了多少；降级档不带这个参数，
+         免得某个兼容服务因为不认它一直回 400、连降级都救不回来。 */
+      streaming? (ri === 0? {stream:true, stream_options:{include_usage:true}} : {stream:true}) : null);
     let out;
     try{
       if(streaming){
@@ -1992,7 +2032,7 @@ async function callLLM(system, user, expectJson, onDelta, opts){
           const ch0 = (rr.json && rr.json.choices && rr.json.choices[0]) || {};
           const msg = ch0.message || {};
           out = { content: msg.content || "", reasonChars:(typeof msg.reasoning_content==="string")? msg.reasoning_content.length : 0,
-                  finish: ch0.finish_reason || "" };
+                  finish: ch0.finish_reason || "", usage:(rr.json && rr.json.usage) || null };
         }
       }
     }catch(netErr){
@@ -2009,15 +2049,17 @@ async function callLLM(system, user, expectJson, onDelta, opts){
       if(out.status!==400 && out.status!==422) break; // 仅参数类错误才降级重试
       continue;
     }
+    // 用量与思考参数无关：降级成功的那次也要记，缺字段就什么都不写
+    recordUsage(model, REASON_LEVELS[level]? level : "standard", out.usage);
     if(adaptive){
       const rejected = ri>0;
       state.modelCaps[model] = rejected ? "rejected" : "ok";
       // 记的是「实际发的那个档位」（level）——阅卷那条路会指定 quick，不能按用户的设置记，
       // 不然设置页那个「两档实测差多少」的结论就建在一份对不上号的样本上
       if(!rejected) recordProbe(model, REASON_LEVELS[level]? level : "standard", out.reasonChars||0, (Date.now()-rungT0)/1000);
-      save();
       if(rejected) banner(`实测「${esc(model)}」不接受思考参数，已自动改按默认方式发送（已记住，之后不再尝试）。`);
     }
+    save();
     // 输出坏了就重发，两种坏法分开对付（各留 BODY_RETRY_MAX 次）：
     // ① content 为空：finish=length 就是被额度截断了（空的那一次连正文都没轮到）；不是 length 的（服务端抽风）原样重发。
     // ② content 在但解不出 JSON——2026-09-27 真机同一份请求连撞两次，隔一分钟重问就好，这种抖动重发最有效。
@@ -2489,10 +2531,13 @@ async function genPaperQuestion(material, spec, idx){
     "quote":"（第2/5题必填）从指定资料里逐字摘出的材料原句；其它题留空",
     ${kpSchema}
   }`;
-  const sys = sysCoach(spec.module) + "\n" + modInstruction(spec.module) + GEN_POINT_RULES
-    + `\n这套材料已经由命题人给定，**不要改写、不要另写材料**；只出第 ${idx+1} 题和采分点。返回 JSON：\n` + schema;
+  /* 同一套卷的五次调用共用一份 system：模块说明、题号、每题约束都挪到 user 的材料之后，
+     公共前缀从 system 开头一路到材料结尾，服务商的上下文缓存才命中得到整段材料。 */
+  const sys = sysCoach(spec.module) + GEN_POINT_RULES
+    + `\n这套材料已经由命题人给定，**不要改写、不要另写材料**；只出这一题和采分点。返回 JSON：\n` + schema;
   const user = JSON.stringify({
-    module:m.name, subtype:spec.subtype, material, score:m.score,
+    material,
+    module:m.name, subtype:spec.subtype, moduleNote:modInstruction(spec.module), score:m.score,
     note:`这是同一套申论整卷的第 ${idx+1} 题（共 ${PAPER_SPEC.length} 题），全卷总主题是“${PAPER_THEME}”。题目满分 ${m.score} 分；本题只准打 ${spec.section}（${spec.focus}），不得把其它资料的内容拉进来，不得用“等领域”式并列；题干必须落到材料中的具体主体（企业/部门/活动/人物），不得只写抽象口号；同一份卷子里不得与其它题共用同一种文种/场景；**这些命题约束不要写进 requirements**，requirements 只写作答身份、任务、字数与格式，不要写“不必写成完整公文”“不提其它资料”这类提示语；本题作答上限：${spec.ansLen || "按模块默认"}，必须写进 requirements；采分点 4-6 条，每条 need 2-3 条，只写最核心的可核对事实；不要输出 background。${spec.subtype==="讲话稿"? " 本题是具体活动上的讲话稿，不得写成展板文稿、宣传稿或意见建议；题干只写身份、会议/活动、任务，企业全称、门牌号、部门名单等具体事实留在材料里，不要写进题干；400字要能答完。" : ""}${spec.section==="给定资料4" && !spec.unanchored? " 使用材料中已有的政策/制度表述（监管、召回、安全评估等），不得生造“汽车产品创新设计安全管理”这类堆叠提法。" : ""}${spec.kind==="quote"? " 第2题必须在 requirements 里引用" + spec.section + "的一句短原句并围绕它设问；引文不得以“这些情况表明”开头，不得把多个采分点列在句子里，不得用“同一枚硬币”“慢不得也急不得”这类抽象格言。" : ""}${spec.kind==="essay"? " 第5题只给问题/主题，不把中心论点或结论提前写死；不得用“唯有…才能…”式命题；必须明确结合全部给定资料。" : ""}`
   });
   const data = await callLLM(sys, user, true, null, { level: GEN_LEVEL });
@@ -2595,6 +2640,18 @@ async function genPaperQuestion(material, spec, idx){
    阅卷本来就该是“同一份卷子每次判差不多”，而 0 不会引入采样波动；
    出题那边依旧发敞（温度跟着档位走），两者互不影响。 */
 const GRADE_TEMP = 0;
+/* 批改与范文共用同一个 user 构造函数、同一套键序：服务商的上下文缓存按前缀命中，
+   两条请求的公共部分必须逐字相同。范文那次不带 answer，只把任务指令追加在 user 末尾。 */
+const GRADE_EXP_NOTE = "用户在 experiences 里这些点上栽过跟头：请特别核对考生是否又犯了这些错。";
+const ANSWER_TASK = "只写一篇本题的完整参考答案（成文范文）：按题目分值定长短，结构规范、语言正式，把采分点全部盖到，供考生整篇对照学习。本次不返回 JSON、不要代码块或 markdown 标题，开头不要写「参考答案」，也不要分点列举；一行就是一行，行与行之间不要空行。上面 system 里关于 JSON 与评分的要求本次都不适用，只输出范文正文。";
+function gradeUser(k, subtype, question, keyPoints, exps, answer, tail){
+  const m = MODULES[k];
+  const o = { module:m.name, subtype:subtype||"", question, keyPoints:keyPoints||[] };
+  if(exps){ o.experiences = exps; o.expNote = GRADE_EXP_NOTE; }
+  if(tail) o.task = tail;
+  else o.answer = answer;
+  return JSON.stringify(o);
+}
 /* 阅卷的思考强度：常量已提到顶部与其余四档并列（GRADE_LEVEL），这里只留为什么是 quick。
    为什么要单独指定：思考与正文共用一个输出额度，真机实测一次批改的思考能吞 12k~20k 字符
    （约 4k~7k token）——想得越久，留给正文的越少，撞上限时正文被截成半截 JSON，重发只是把同一个赌局再摇一次。
@@ -2605,10 +2662,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta){
   const exps = expBlock(k);   // 经验闭环：请阅卷特别核对用户是否又犯这些错，两科都注入
   // 错因回执：请阅卷顺手判定「带进去的这几条错因这次犯没犯」。只用于经验状态跟进，不进分数
   const expCheck = exps? `\n另请在 experienceChecks 里逐条回报 experiences：title 原样照抄，status 取 again（这次又犯了同一处）/ fixed（这次没再犯）/ na（本题考不到这条）。**每条必须带 evidence 字段**：again 引考生原句；fixed 引考生答案里体现这条规则已用上的原句；na 写一句本题为什么考不到。evidence 必须是答卷里连续的一段原句，用「」括起来，不得用省略号拼接多处，也不得转述；找不到原句就填 na。没有 evidence 或引文不在答卷里的回执视为无效，不许改状态。这一项只用于考生自己的错因跟进，**不参与计分**，不得因此改动 hits、scores 与总分。` : "";
-  const expNote = exps? "用户在 experiences 里这些点上栽过跟头：请特别核对考生是否又犯了这些错。" : "";
-  const user = JSON.stringify(Object.assign(
-    { module:m.name, subtype:subtype||"", question, answer, keyPoints:keyPoints||[] },
-    exps? { experiences:exps, expNote } : {}));
+  const user = gradeUser(k, subtype, question, keyPoints, exps, answer, null);
   const schema = `{
     "hits":[{"point":"与 keyPoints 一一对应的子项","score":5,"awarded":5,"status":"满分/半分/零分","kind":"未拿满分时从这几类里选一个：${GRADE_TAG_KEYS.join(" / ")}（满分填 -）","evidence":"答到的：逐字照抄考生原句，用「」括起来，一个字都不许改（标点也别改，抄整句不截断）；没答到的用【缺：xxx】标注"}],
     "scores":${scoresSchema(k)},
@@ -2630,7 +2684,7 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta){
   const g = await callLLM(sys, user, true, onDelta, { temp: GRADE_TEMP, level: GRADE_LEVEL });   // 阅卷的思考强度见 GRADE_LEVEL（额度被思考吃光就交不出分数）
   // 参考答案（范文）另起一次调用：它占输出大头，塞进主请求会把主请求顶到模型输出上限（见下面的 fetchModelAnswer）。
   // 范文失败只当没写过：留空，折叠区自然不会出现，绝不让附属内容拖垮一次批改。
-  try{ if(g && typeof g === "object") g.modelAnswer = await fetchModelAnswer(k, subtype, question, keyPoints, answer); }
+  try{ if(g && typeof g === "object") g.modelAnswer = await fetchModelAnswer(k, subtype, question, keyPoints, exps, sys); }
   catch(e){ llmFailNote("范文单独调用失败", { finish:(e && e.code) || "" }); if(g && typeof g === "object") g.modelAnswer = ""; }
   return g;
 }
@@ -2641,13 +2695,11 @@ async function grade(k, subtype, question, keyPoints, answer, onDelta){
    **要纯文本，不要 JSON**：一篇分段的范文里新行、引号、书名号样样都有，包里包去只会白白多一类
    “解不出 JSON”的翻车法（真机已撞过：正文写了 411 字、JSON 没闭合）。空输出就在原地重试一次，
    两次都空才放弃，当本题没给范文（额度不够时 callLLM 内部会自动翻倍重发，这里不用管）。 */
-async function fetchModelAnswer(k, subtype, question, keyPoints, answer){
-  const m = MODULES[k];
-  const sys = sysGrader(k) + "\n" + modInstruction(k)
-    + `\n任务：只写一篇本题的完整参考答案（成文范文）——按题目分值定长短，结构规范、语言正式，把采分点全部盖到，供考生整篇对照学习。`
-    + `\n直接输出范文正文：纯文本，不要 JSON、不要代码块、不要 markdown 标题，开头不要写「参考答案」这类字样，也不要分点列举。`
-    + `\n排版：一行就是一行，行与行之间不要空行（不要连打两个换行）。`;
-  const user = JSON.stringify({ module:m.name, subtype:subtype||"", question, keyPoints:keyPoints||[], answer: answer||"" });
+async function fetchModelAnswer(k, subtype, question, keyPoints, exps, sharedSys){
+  /* system 原样复用批改那一次：缓存按前缀命中，改一个字都会让整段重新计费。
+     范文要纯文本这件事由 user 末尾的 task 说明，不再另拼一份 system。 */
+  const sys = sharedSys;
+  const user = gradeUser(k, subtype, question, keyPoints, exps, null, ANSWER_TASK);
   for(let i=0; i<2; i++){
     try{
       // 空输出、撞额度都在 callLLM 里重发过（带真实 finish），这里不重复记流水；只有两轮都空才留一条。
@@ -5241,6 +5293,7 @@ async function submitAnswer(){
     save();
     if(!inFlow && current && !usesFlowChain(mod)){ state.resumeZy = null; save(); }   // 综应A 交卷：快照作废，结果改从记录打开
     renderGrade(g, total, expCheck, usedSec == null? null : { min: limMin, usedSec }, ans);   // 申论：提交即进入「批改」步；综应A：显示结果页
+    checkBalance(false);   // 每轮批改后顺手查一次余额；失败只改设置页那一行，不影响这次批改
     if(current && current.paperId) rememberPaperAnswer(g, total, ans, expCheck, usedSec == null? null : { min: limMin, usedSec });
     setLimitState(limMin, 0);   // 这一稿停表：交完就算一稿，下次进作答区重新起算
     // 沉淀 = 经验闭环（两科共用）：批改成功后自动提炼；失败静默跳过，绝不影响批改展示。
@@ -5895,6 +5948,33 @@ function renderMarkSwatches(){
   $("#markSwatches").innerHTML = MARK_COLORS.map(c=>`<button class="swatch${state.settings.markColor===c?" sel":""}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join("");
   $("#markSwatches").querySelectorAll(".swatch").forEach(b=> b.onclick = ()=>{ state.settings.markColor = b.dataset.c; save(); applyMarkColor(); renderMarkSwatches(); });
 }
+/* 余额只报一行：币种 + total_balance，不折算、不列子项。
+   接口少给字段就如实说「没给」，缺字段和余额为 0 是两回事。 */
+const BALANCE_URL = "https://api.deepseek.com/user/balance";
+function balanceLine(data){
+  const list = (data && Array.isArray(data.balance_infos))? data.balance_infos : [];
+  const one = list.find(x => x && x.total_balance != null) || null;
+  if(!one) return "接口没给余额字段";
+  const cur = String(one.currency || "").trim();
+  return "余额：" + (cur? cur + " " : "") + String(one.total_balance).trim();
+}
+async function checkBalance(manual){
+  const note = $("#balanceNote"); if(!note) return;
+  const key = String((state.settings && state.settings.apiKey) || "").trim();
+  if(!key){ if(manual) note.textContent = "先填 API Key 再查余额。"; return; }
+  if(manual) note.textContent = "查询中…";
+  try{
+    const r = await fetchWithTimeout(BALANCE_URL, { headers:{ Authorization:"Bearer "+key } }, 12000);
+    if(r.res.status === 401){ note.textContent = "Key 不对或已失效：去服务商后台核对后重新填。"; return; }
+    if(!r.res.ok){ note.textContent = "余额查询失败（HTTP " + r.res.status + "）。"; return; }
+    note.textContent = balanceLine(r.json);
+  }catch(e){
+    note.textContent = (e && e.code === "TIMEOUT")
+      ? "查余额超时了，稍后再点一次。"
+      : "余额查询没连上，检查网络后再点一次。";
+  }
+}
+
 function fillSettings(){
   fillProviderSelect();
   $("#setProvider").value = PROVIDERS.some(p=>p.id===state.settings.provider)? state.settings.provider : "deepseek";
@@ -6836,6 +6916,7 @@ renderChangelog();
     if(!renderCurrentView()) banner("使用说明已重置。本页练习还在进行，回到首页或科目页时会重新显示引导。");
   };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
+  $("#btnBalance").onclick = ()=> checkBalance(true);
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
   setModelEl.addEventListener("click", ()=> modelMenuShow(true));

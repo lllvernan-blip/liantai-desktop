@@ -975,11 +975,13 @@ state.history = [];
 
 /* 9.5 prompt 口径随模块所属科目走（拦下 callLLM，直接看真拼出来的 system prompt） */
 const realCallLLM = callLLM;
-let cap = null, answerCalls = 0;
+let cap = null, capAns = null, answerCalls = 0;
 const ANSWERASK = "只写一篇本题的完整参考答案";
 fetchModelAnswer = realFetchModelAnswer;   // 这一段专考范文链路，把它装回真身
+/* 预期值随行为改：范文指令已从 system 挪到 user 末尾，system 现在与批改那次逐字相同，
+   所以识别范文调用改看 user，不能再看 system。 */
 callLLM = async (sys, user)=>{
-  if(sys.indexOf(ANSWERASK) >= 0){ answerCalls++; return "范文正文"; }   // 范文是另一次调用（纯文本），不让它把 cap 顶掉
+  if(user.indexOf(ANSWERASK) >= 0){ answerCalls++; capAns = { sys, user }; return "范文正文"; }   // 范文是另一次调用（纯文本），不让它把 cap 顶掉
   cap = { sys, user };
   return { question:{ background:"b", requirements:"r" }, keyPoints:[] };
 };
@@ -1004,9 +1006,17 @@ ok(cap.user.indexOf("情形A") >= 0 && cap.user.indexOf("情形B") >= 0 && cap.s
    "阅卷 prompt: 采分点自带的 need 原样带进判分请求，且 prompt 要求照它逐条核");
 ok(gWithAns && gWithAns.modelAnswer === "范文正文" && answerCalls >= 1,
    "阅卷: 范文由单独一次调用出，并合进批改结果（范文调用=" + answerCalls + " 次）");
+ok(capAns && capAns.sys === cap.sys, "缓存前缀: 范文复用批改的完整 system，逐字一致");
+{
+  const uMain = JSON.parse(cap.user), uAns = JSON.parse(capAns.user);
+  ok(uAns.answer === undefined && "task" in uAns && uAns.task.indexOf(ANSWERASK) >= 0,
+     "缓存前缀: 范文 user 删 answer，范文指令挪到末尾");
+  ok(Object.keys(uMain).slice(0,-1).join(",") === Object.keys(uAns).slice(0,-1).join(","),
+     "缓存前缀: 两条 user 同一函数构造、键序一致（末尾分别是 answer / task）");
+}
 /* 范文那一次炸了不影响批改：分数与采分点先拿到手，范文那一段不出现就行 */
 callLLM = async (sys, user)=>{
-  if(sys.indexOf(ANSWERASK) >= 0) throw {code:"EMPTY"};
+  if(user.indexOf(ANSWERASK) >= 0) throw {code:"EMPTY"};
   cap = { sys, user }; return {};
 };
 const gAnsFail = await grade("zy.guina", "归纳概括", { background:"b" }, [], "答案");
@@ -4896,6 +4906,72 @@ globalThis.window = _savedWinUpd;
   ok(p.answers[0] && p.answers[0].paperId === "paperX" && p.answers[0].paperTitle.indexOf("基层治理") >= 0,
      "整卷: 卷内答卷也带 paperId 与卷标题");
   state.paper = prevPaper; current = prevCur; _view = prevView;
+}
+
+/* 6.5 第二批：上下文缓存前缀、usage 观测、DeepSeek 余额 */
+{
+  const prevCall = callLLM;
+  const caps = [];
+  callLLM = async (sys,user)=>{ caps.push({sys,user});
+    return { question:{ requirements:"请根据给定资料作答，不超过300字。", score:20 }, keyPoints:[{point:"p",score:20,need:["n"]}], quote:"" }; };
+  const mat = "给定资料1\n甲\n给定资料2\n乙\n给定资料3\n丙\n给定资料4\n丁";
+  await genPaperQuestion(mat, PAPER_SPEC[0], 0);
+  await genPaperQuestion(mat, PAPER_SPEC[1], 1);
+  ok(caps.length === 2 && caps[0].sys === caps[1].sys, "缓存前缀: 同卷两次出题共用一份 system（题号不写进 system）");
+  ok(caps.every(c=> c.user.indexOf('{"material":') === 0), "缓存前缀: 材料全文在 user 最前");
+  const u0 = JSON.parse(caps[0].user), u1 = JSON.parse(caps[1].user);
+  ok(u0.material === mat && u1.material === mat, "缓存前缀: 公共前缀一路到材料结尾");
+  ok(u0.note !== u1.note && Object.keys(u0)[0] === "material", "缓存前缀: 每题不同的内容排在材料之后");
+  callLLM = prevCall;
+}
+{
+  ok(sseUsage('data: {"choices":[],"usage":{"prompt_tokens":9,"prompt_cache_hit_tokens":7,"prompt_cache_miss_tokens":2}}').prompt_tokens === 9,
+     "用量: 流式最后一帧的 usage 单独解得出来");
+  ok(sseUsage('data: [DONE]') === null && sseUsage('data: {坏') === null, "用量: 非数据行与坏行不炸");
+  const prevFetch = globalThis.fetch, prevProbe = state.modelProbe;
+  const prevKey = state.settings.apiKey, prevModel = state.settings.model;
+  state.modelProbe = {}; state.settings.apiKey = "sk-test"; state.settings.model = "cache-model";
+  delete state.modelCaps["cache-model"];
+  globalThis.fetch = ()=> mockRes({ json: async()=>({ choices:[{message:{content:"ok"}}],
+    usage:{ prompt_tokens:1200, prompt_cache_hit_tokens:1000, prompt_cache_miss_tokens:200 } }) });
+  await callLLM("s","u",false, null, { level:"quick" });
+  const e = state.modelProbe["cache-model"] && state.modelProbe["cache-model"].quick;
+  ok(e && e.prompt === 1200 && e.hit === 1000 && e.miss === 200, "用量: 非流式 usage 记进 modelProbe");
+  globalThis.fetch = ()=> mockRes({ json: async()=>({ choices:[{message:{content:"ok"}}] }) });
+  await callLLM("s","u",false, null, { level:"quick" });
+  const e2 = state.modelProbe["cache-model"].quick;
+  ok(e2.prompt === 1200 && e2.hit === 1000 && e2.miss === 200, "用量: 服务商不给 usage 时不拿 0 冒充命中");
+  let streamBody = null;
+  globalThis.fetch = (u,opt)=>{ streamBody = JSON.parse(opt.body);
+    return mockRes({ json: async()=>({ choices:[{message:{content:"ok"}}], usage:{prompt_tokens:5} }) }); };
+  await callLLM("s","u",false, ()=>{}, { level:"quick" });
+  ok(streamBody && streamBody.stream === true && streamBody.stream_options && streamBody.stream_options.include_usage === true,
+     "用量: 流式请求带 stream_options.include_usage");
+  globalThis.fetch = prevFetch; state.modelProbe = prevProbe;
+  state.settings.apiKey = prevKey; state.settings.model = prevModel;
+}
+{
+  ok(balanceLine(null) === "接口没给余额字段" && balanceLine({ balance_infos:[] }) === "接口没给余额字段",
+     "余额: 接口缺字段不炸");
+  ok(balanceLine({ balance_infos:[{ currency:"CNY", total_balance:"12.34", granted_balance:"1.00" }] }) === "余额：CNY 12.34"
+     && balanceLine({ balance_infos:[{ currency:"CNY", total_balance:"12.34" }] }).indexOf("1.00") < 0,
+     "余额: 只做余额行，不显示折算金额");
+  const prevFetch = globalThis.fetch, prevKey = state.settings.apiKey;
+  const note = el("#balanceNote");
+  state.settings.apiKey = "";
+  await checkBalance(true);
+  ok(note.textContent.indexOf("先填 API Key") >= 0, "余额: 没 Key 给人话提示");
+  state.settings.apiKey = "sk-wrong";
+  globalThis.fetch = ()=> mockRes({ ok:false, status:401, text: async()=> "unauthorized" });
+  await checkBalance(true);
+  ok(note.textContent.indexOf("Key 不对") >= 0, "余额: 401 给人话提示，不甩 HTTP 码");
+  globalThis.fetch = ()=> Promise.reject({ code:"TIMEOUT" });
+  await checkBalance(true);
+  ok(note.textContent.indexOf("超时") >= 0, "余额: 超时给人话提示");
+  globalThis.fetch = ()=> mockRes({ json: async()=>({ is_available:true, balance_infos:[{ currency:"CNY", total_balance:"8.80" }] }) });
+  await checkBalance(true);
+  ok(note.textContent === "余额：CNY 8.80", "余额: 正常响应只写一行余额");
+  globalThis.fetch = prevFetch; state.settings.apiKey = prevKey;
 }
 
 console.log(T.join("\n"));
