@@ -157,11 +157,13 @@ v = await run({ ua: MAC_UA, latest: null, api: apiList });
 ok(endsWith(v.btnHref, "v0.0.23/liantai-desktop-0.0.23-arm64.dmg") && v.meta.indexOf("0.0.23") === 0,
    "取数二级: Mac 打开时主按钮直接是最新那一版");
 
-/* 两级都拿不到：保持写死的数，不显示拿不准的东西（也不该是空的或旧版） */
+/* 两级都拿不到：保持写死的数，不显示拿不准的东西（也不该是空的或旧版）。
+   预期值随行为改：兜底从 0.0.22 换成 0.1.0 占位，文件名跟着占位版本走；
+   第二条反而更严，整个 0.0.x 旧版号都不许出现。 */
 v = await run({ ua: WIN_UA, latest: null, api: null });
-ok(endsWith(v.btnHref, "v0.0.22/" + EXE) && v.meta.indexOf("0.0.22") === 0,
-   "取数兜底: 两级都拿不到时用页面里写死的版本，按钮照样能下载");
-ok(v.btnHref.indexOf("/v0.0.21/") < 0, "取数兜底: 写死的版本号不是上一版（旧版号会让用户下到旧包）");
+ok(endsWith(v.btnHref, "v0.1.0/liantai-desktop-setup-0.1.0.exe") && v.meta.indexOf("0.1.0") === 0,
+   "取数兜底: 两级都拿不到时用页面里的占位版本，按钮照样能下载");
+ok(v.btnHref.indexOf("0.0.") < 0, "取数兜底: 占位版本不是旧版（旧版号会让用户下到旧包）");
 
 console.log(T.join("\n"));
 const fails = T.filter((x) => x.indexOf("FAIL") === 0);

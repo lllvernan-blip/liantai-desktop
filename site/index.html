@@ -292,9 +292,11 @@ const REPO = 'lllvernan-blip/liantai-desktop';
 const MIRROR = 'https://gh-proxy.com/';
 const PLAT = { windows:{ who:'Windows', kind:'Windows 安装包（.exe）' },
                mac:{ who:'macOS', kind:'Apple 芯片（arm64）' } };
-const FALLBACK = { version:'0.0.22', date:'2026-10-17',
-  windows:{ version:'0.0.22', tag:'v0.0.22', date:'2026-10-17', file:'liantai-desktop-setup-0.0.22.exe', size:86729277 },
-  mac:{ version:'0.0.22', tag:'v0.0.22', date:'2026-10-17', file:'liantai-desktop-0.0.22-arm64.dmg', size:100813509 } };
+/* 两级都拿不到时才用这份。0.1.0 是冻结后的占位版本，不是已发布版本；
+   正式数字来自 site/latest.json，发版后由站点数据覆盖。 */
+const FALLBACK = { version:'0.1.0', date:'',
+  windows:{ version:'0.1.0', tag:'v0.1.0', date:'', file:'liantai-desktop-setup-0.1.0.exe', size:0 },
+  mac:{ version:'0.1.0', tag:'v0.1.0', date:'', file:'liantai-desktop-0.1.0-arm64.dmg', size:0 } };
 
 const mb = n => Math.round(Number(n) / 1048576) + ' MB';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));

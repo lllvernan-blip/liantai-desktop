@@ -5,6 +5,7 @@
  *   npm run release:mac -- --dry-run     只看会传哪些东西，不打包、不联网
  *   npm run release:mac -- --skip-build  不出包，直接传 dist/ 现有的
  *   npm run release:mac -- --create --prerelease   单独发 mac（不碰 Windows 的 /releases/latest）
+ *   npm run release:mac -- --allow-partial         明知 Windows 那一半没跟上，仍要补传 mac 资产
  *
  * 为什么不是「一条命令发两个平台」：
  *   mac 包只能在 mac 上打（--mac 要求本机是 mac，dmg 还要 hdiutil），win 包只能在 Windows 上打
@@ -48,6 +49,7 @@ const skipBuild = argv.includes("--skip-build") || dryRun;
 const create = argv.includes("--create");
 const prerelease = argv.includes("--prerelease");
 const force = argv.includes("--force");
+const allowPartial = argv.includes("--allow-partial");
 
 const DIST = join(root, "dist");
 const YML = join(DIST, "latest-mac.yml");
@@ -274,10 +276,13 @@ function main() {
     const names = (info.assets || []).map((a) => a.name);
     console.log("  Release " + tag + " 已存在，现有资产 " + names.length + " 个" + (info.isPrerelease ? "（prerelease）" : ""));
     if (!info.isPrerelease && names.indexOf("latest.yml") < 0) {
-      /* 这是最要命的一种组合：它是最新的非 prerelease Release，却没有 win 的清单 */
-      console.error("\n  [警告] 这个 Release 里没有 win 的 latest.yml，而它不是 prerelease ——");
-      console.error("         Windows 用户的 /releases/latest/download/latest.yml 会 404（检查更新直接失败）。");
-      console.error("         办法：在 Windows 上补跑 npm run release，或者下次用 --create --prerelease 单独发 mac。");
+      /* 最要命的一种组合：最新的非 prerelease Release 却没有 win 清单，Windows 的检查更新会 404。
+         默认硬失败，只有显式 --allow-partial 才放行（明知 Windows 那一半还没跟上，仍要补传 mac）。 */
+      if (!allowPartial) {
+        die("这个 Release 不是 prerelease，却缺少 win 的 latest.yml：Windows 用户的 /releases/latest/download/latest.yml 会 404。\n" +
+            "先在 Windows 上补跑 npm run release；确实要单发 mac，就加 --allow-partial（或下次用 --create --prerelease）。");
+      }
+      console.error("\n  [已放行] --allow-partial：非 prerelease 且缺 win 的 latest.yml，Windows 检查更新仍会 404。");
     }
   }
 

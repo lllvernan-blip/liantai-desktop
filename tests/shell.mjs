@@ -1334,6 +1334,19 @@ if (process.platform !== "darwin") {
      "发布: latest.yml 的 path/url 必须归一到 ASCII 资产名，且上传后重新列资产核对（名字被 gh 改写也算没传）");
 }
 
+/* 闸门按新行为重算：非 prerelease 却缺 win 清单，原来是警告，现在默认硬失败，
+   只有显式 --allow-partial 才放行。上面那些发布断言一条没删、判断也没放宽。 */
+{
+  const rm = readOr(join(here, "..", "tools", "release-mac.mjs"));
+  ok(/const allowPartial = argv\.includes\("--allow-partial"\)/.test(rm),
+     "闸门: --allow-partial 是显式开关，默认不开");
+  ok(/if \(!info\.isPrerelease && names\.indexOf\("latest\.yml"\) < 0\)[\s\S]{0,700}?if \(!allowPartial\)[\s\S]{0,700}?die\(/.test(rm),
+     "闸门: 非 prerelease 却缺 latest.yml 时直接 die，不再只打警告");
+  ok(rm.indexOf("[警告] 这个 Release 里没有 win 的 latest.yml") < 0
+     && /\[已放行\] --allow-partial/.test(rm),
+     "闸门: 旧警告文案已移除，显式放行也留一句看得见的说明");
+}
+
 /* 测试副本（tools/build-test.mjs）：与正式版并存、数据分家的那一只 app。
    三处都不能松——userData 没切开就等于拿真数据当试验场；更新链没摘掉，自动更新会把
    测试版顶成正式版；端口撞上则让 localStorage 分区漂走，测的东西不算数。 */
@@ -1368,11 +1381,11 @@ if (process.platform !== "darwin") {
   ok(exposed.length === 1 && exposed[0][1] === "liantai",
      "材料池: preload 只往 window.liantai 上挂东西（别的全局名不占）");
   const names = exposed.length ? Array.from(exposed[0][2].matchAll(/(\w+)\s*:\s*\(/g)).map(m => m[1]) : [];
-  /* 预期值从 3 改到 7：启动滚动备份新增 appVersion / backupSnapshot / backupList / backupRead。
-     判断没有放宽：仍要求这七个一个不多一个不少，下面「只 require electron」那条也不变。 */
-  const BRIDGE_NAMES = ["poolPick","poolList","poolStat","appVersion","backupSnapshot","backupList","backupRead"];
+  /* 预期值从 3 改到 8：启动滚动备份新增 4 个，打开日志目录新增 openLogs。
+     判断没有放宽：仍要求这几个一个不多一个不少，下面「只 require electron」那条也不变。 */
+  const BRIDGE_NAMES = ["poolPick","poolList","poolStat","appVersion","backupSnapshot","backupList","backupRead","openLogs"];
   ok(names.length === BRIDGE_NAMES.length && BRIDGE_NAMES.every(n => names.indexOf(n) >= 0),
-     "材料池/启动备份: preload 只开这七个口子，不开通用 fs（当前 " + names.join("/") + "）");
+     "材料池/启动备份/日志: preload 只开这八个口子，不开通用 fs（当前 " + names.join("/") + "）");
   // 只允许 require("electron")：不写 require("fs") 之类，注释里提到 fs 不算
   const reqs = Array.from(pre.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g)).map(m => m[1]);
   ok(reqs.length === 1 && reqs[0] === "electron",
@@ -1742,6 +1755,9 @@ if (process.platform !== "darwin") {
      "启动备份: preload 暴露的口子与主进程一一对应");
   ok(/backupRead: \(name\) => ipcRenderer\.invoke\("backup:read", \{ name: String\(name \|\| ""\) \}\)/.test(preSrc),
      "启动备份: 恢复只传名字，不把路径交给渲染进程");
+  ok(/ipcMain\.handle\('app:openLogs', async \(\) => \{[\s\S]{0,400}shell\.openPath\(LOG_DIR\)/.test(mainSrc)
+     && /openLogs: \(\) => ipcRenderer\.invoke\("app:openLogs"\)/.test(preSrc),
+     "打开日志: 主进程用固定 LOG_DIR，preload 只发动作不传路径");
 }
 
 console.log(T.join("\n"));

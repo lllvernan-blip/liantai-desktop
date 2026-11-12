@@ -3285,27 +3285,13 @@ ok(el("#bannerSlot").innerHTML.indexOf("没能存到本地") >= 0,
 
 /* ============ 21. 字段地基：思路自述 / 材料主题 / 跨题归纳缓存 ============ */
 
-/* 21.1 归纳缓存：缺省是空对象，形状只能是「模块键 -> {at, basedOn, data}」 */
-ok(DEFAULT_STATE.digests && typeof DEFAULT_STATE.digests === "object" && !Array.isArray(DEFAULT_STATE.digests)
-   && Object.keys(DEFAULT_STATE.digests).length === 0,
-   "字段地基: digests 默认是空对象");
-
-/* 21.2 归纳缓存是可再生的（记录没变就复用、记录变了重算）：坏项直接丢，裸模块键补上科目前缀。
-   取值里特意留一个 null：那一行挡不住的话，下一行读 .at 就抛，整个 load() 会掉进兜底分支。 */
-let dg21 = null, dg21err = "";
-try{
-  dg21 = normDigests({
-    gongwen: { at:1, basedOn:20, data:{ pattern:"x" } },
-    "zy.guina": { at:2, basedOn:20, data:{ pattern:"y" } },
-    "zy.fenxi": { at:3, basedOn:20 },
-    "zy.duice": { at:"昨天", basedOn:20, data:{} },
-    "not.a.module": { at:4, basedOn:20, data:{} },
-    "zy.shiwu": null,
-    "zy.guanche": { at:5, basedOn:20, data:[1,2] }
-  });
-}catch(e){ dg21err = String((e && e.message) || e); }
-ok(!dg21err && Object.keys(dg21).join(",") === "zy.gongwen,zy.guina" && dg21["zy.gongwen"].data.pattern === "x",
-   "字段地基: 归纳缓存的坏项丢掉（null 不炸、data 不是对象也挡），裸模块键补上科目前缀");
+/* 21.1 / 21.2 预期值随行为改：跨题归纳缓存整个删掉了，画像只由练习记录即时推导。
+   两条断言仍在判断「删干净没有」，不放宽、不删用例。 */
+ok(!("digests" in DEFAULT_STATE) && typeof normDigests === "undefined",
+   "字段地基: digests 已从默认状态与页面实现里移除");
+ok(PAGE_HTML.indexOf("normDigests") < 0 && PAGE_HTML.indexOf("state.digests") < 0
+   && PAGE_HTML.indexOf("s.digests =") < 0,
+   "字段地基: 归纳缓存的清洗与读写引用一并删干净");
 
 /* 21.3 思路自述只认字符串与闭集里的 kind：坏值丢掉，但记录本体必须留着 */
 const mh21 = migrateHistory([
@@ -3328,13 +3314,12 @@ ok(mh21b[0].selfNote.length === SELF_NOTE_MAX,
 ok(migrateHistory(mh21b).changed === false,
    "字段地基: 自述归一后二次迁移不再改动（幂等，不会每启动一次就回写一遍）");
 
-/* 21.5 归纳缓存跟着备份走：换了机器不用从零再攒一遍；缺字段的坏项挡在门外 */
+/* 21.5 预期值随行为改：旧备份里带 digests 也不再收，不留第二份可再生聚合状态。 */
 importJSON(JSON.stringify({ settings:{}, history:[],
   digests:{ "zy.gongwen":{ at:7, basedOn:22, data:{ pattern:"先看选项再回材料" } }, "zy.fenxi":{ at:8 } } }));
-ok(state.digests["zy.gongwen"] && state.digests["zy.gongwen"].basedOn === 22 && !state.digests["zy.fenxi"],
-   "字段地基: 导入恢复归纳缓存（缺字段的坏项被挡在门外）");
+ok(!("digests" in state), "字段地基: 旧备份里的归纳缓存被丢弃，导入不再重建它");
 
-/* 21.6 出题顺手给材料主题标签：归纳与去重要用它（本步只落盘，不参与出题行为） */
+/* 21.6 出题顺手给材料主题标签：题面与画像用它（本步只落盘，不参与出题行为） */
 const realCall21 = callLLM;
 let sys21 = "";
 callLLM = async sys => { sys21 = String(sys||"");
@@ -4972,6 +4957,18 @@ globalThis.window = _savedWinUpd;
   await checkBalance(true);
   ok(note.textContent === "余额：CNY 8.80", "余额: 正常响应只写一行余额");
   globalThis.fetch = prevFetch; state.settings.apiKey = prevKey;
+}
+
+/* 6.6 清理：归纳缓存、预览窗死分支、文案假话、日志入口 */
+{
+  ok(PAGE_HTML.indexOf("isPreviewHost") < 0 && PAGE_HTML.indexOf("cspBlocked") < 0
+     && PAGE_HTML.indexOf("securitypolicyviolation") < 0,
+     "清理: 桌面壳里走不到的预览窗 CSP 分支已删");
+  ok(networkFailHint().indexOf("网络不通") >= 0, "清理: 失败提示保留通用分支，不再误报 CSP");
+  ok(PAGE_HTML.indexOf("导出模板都用") < 0, "清理: 练习抬头不再谎称导出模板也用它");
+  ok(PAGE_HTML.indexOf('id="btnOpenLogs"') >= 0 && PAGE_HTML.indexOf("打开日志目录") >= 0,
+     "清理: 设置页有打开日志目录的入口");
+  ok(PAGE_HTML.indexOf("userData/logs/startup.log") >= 0, "清理: 日志路径写的是应用数据目录");
 }
 
 console.log(T.join("\n"));

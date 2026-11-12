@@ -42,7 +42,7 @@ mac 版**没有 Apple 开发者证书**，所以不签名、不公证，也不�
 | `.qoder/settings.json` | Qoder 项目级 `Stop` 钩子：任务结束时自动跑工程闭环（工作区有改动才跑；入口脚本在 `.qoder/hooks/`） |
 | `build/icon.icns` | mac 图标，由 `tools/make-mac-icon.py` 从 `build/liantai-app-icon-v3.png` 生成（macOS 的 1024 网格要留边距，不能直接把满幅方图当 icns 用） |
 | `tools/` | 打包与发布辅助：`stamp-build.mjs` 写 `app/build.json`（版本号）；`release.mjs` 一键发布 Windows 版；`release-mac.mjs` 发布 mac 版（顺手给 zip 签 `.sig`）；`gate.mjs` 发布闸门（发布脚本开头自动跑）；`mac-key.mjs` 管发布签名密钥；`release-check.mjs` 发完站在外面看整个 Release 齐不齐；`release-notes.mjs` 出两个平台共用的 Release 说明；`material-pool.mjs` 抓一手材料并提炼成骨架（`npm run materials`）；`materials-pack.mjs` 打包签名发布材料池（`npm run materials:pack`）；`loop.mjs` 工程闭环（`npm run check`；`doc-refs.mjs` 是它与发布对账共用的文档引用检查；`install-hooks.mjs` 负责装 pre-commit；`qoder-stop.mjs` 是 Qoder Stop 钩子的主体）；`push-via-api.mjs`（`git push` 连不上时改走 GitHub API 推提交）；`probe.mjs` 跑一次性探针；`drift.mjs` 量阅卷漂移 |
-| `logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
+| `userData/logs/startup.log` | 启动日志（已 gitignore）。窗口没出来、数据看着像丢了，先看它 |
 | `node_modules/` | 只有 electron（已 gitignore），开发与打包时才需要 |
 
 ## 运行
@@ -91,7 +91,9 @@ npm run site:data     # 写 site/latest.json 与 site/changelog.json，提交推
 一条硬规矩：**每个 Release 要么两边都齐，要么 mac 那份标成 prerelease**。Windows 的自动更新读的是
 `/releases/latest/download/latest.yml`，而 GitHub 的 “latest” 指的是「最新的非 prerelease Release」——
 一个只带 mac 资产的新 Release 把它占住，Windows 用户的检查更新就会 404。只发 mac 时用
-`npm run release:mac -- --create --prerelease`（脚本自己也会在发现这种组合时告警）。
+`npm run release:mac -- --create --prerelease`。非 prerelease 却缺 win 的 `latest.yml` 时，mac 发布脚本会硬失败；确实要补传 mac 资产才加 `--allow-partial`。
+
+Windows 首次安装 SmartScreen 会拦一下：安装包没有 EV 代码签名，点「更多信息」→「仍要运行」即可，装过一次之后不再提示。
 
 自动更新：Windows 安装版用 GitHub Release 差量更新；macOS 版走应用自实现的换包链（查 → 下 zip → 换包 → 重启，下与换都要点一下），详情见下面「自动更新（安装版）」。
 
@@ -100,7 +102,7 @@ npm run site:data     # 写 site/latest.json 与 site/changelog.json，提交推
 - **源**：GitHub Release。配置在 `package.json` 的 `build.publish`，打包时生成包内 `app-update.yml`；换源不必改代码，设环境变量 `LIANTAI_UPDATE_FEED` 指向任意 generic 源（目录里放 `latest.yml` + 安装包 + `.blockmap`）即可，本地验证与换源都走它。检查更新本身走同一个 Release 的官方元数据，安装包另走加速线路（见下一条）。
 - **差量**：NSIS 目标会一并出 `latest.yml` 与 `.blockmap`，更新时只下载与上一版**不同的数据块**。省多少要看两个版本的差异，别当它一定省很多：2026-09-24 实测一次 0.0.12→0.0.13，全量 84.6MB、待下 56.5MB（2756 个变化块），只省约三分之一；那一次差量包组装后校验没过，又退成了整包下载（前后约 141MB）。两个前提：缓存里有上一版安装包（手工装的第一版没有，首次会退化成全量）、且**源上旧版的 `.blockmap` 别删**；不满足或组装失败只会退成全量，不会出错。
 - **不做免安装版**：只发 NSIS 安装版。免安装版对 quitAndInstall 只会「装出一个新副本」，得单独禁用它（代码里那道防线还留着，免得哪天又有人拿 portable 包去跑）。
-- **失败不阻断**：任何更新错误只写日志与设置页一行提示，30 分钟后自动重试；排查看 `logs/startup.log` 里的 `update-*` 行。
+- **失败不阻断**：任何更新错误只写日志与设置页一行提示，30 分钟后自动重试；排查看 `userData/logs/startup.log` 里的 `update-*` 行。
 - **安装包默认走加速线路**：直连 GitHub 实测只有几十 KB/s，所以元数据仍从官方取（sha512 照它核），安装包默认从加速线路下；某条不通就按顺序换下一条，三条都试完才回官方直连，差量照旧（单段 Range 逐块取，镜像实测支持 206）。不用手动做什么；想指定自己的源就设 `LIANTAI_UPDATE_FEED`，设了就不再兜底。
 - **macOS 版是应用自己实现的换包链**：Squirrel.Mac 要求更新包与本体的签名一致，而 mac 版还没上 Apple 开发者证书，走系统那套只会在用户机器上报签名校验失败。所以 mac 上「有没有新版」由应用自己问 GitHub，「更新」由应用自己下 zip（校验 sha256）、自己解压替换、自己重新打开——**两个动作都要你点**（「更新到 vX」= 开始下载，「重启并更新」= 换包并重启），全程不碰用户数据目录，也不会在你没点的时候把应用换掉。换包没成会回滚到旧版、重新打开，并在首页说清是哪一步没过（细节在用户数据目录的 `updates/install.log`）。设置页的「打开发布页」一直都在，是这条链的兜底。
 
@@ -133,7 +135,7 @@ node tests/run.mjs            # 只跑自检
 ## 数据与端口（重要）
 
 - 窗口通过 `http://127.0.0.1:18743` 加载。**端口固定是刻意的**：存储按 origin（含端口）分区，端口一变就是另一套空间，用户的设置、练习记录、草稿、划线会「凭空消失」（数据还在磁盘上，只是换了 key 空间）。
-- 端口被占用时依次退让到邻近端口，并在 `logs/startup.log` 里写 `port-fallback-warning`。**看到这条告警，就意味着这次启动读不到旧数据。**
+- 端口被占用时依次退让到邻近端口，并在 `userData/logs/startup.log` 里写 `port-fallback-warning`。**看到这条告警，就意味着这次启动读不到旧数据。**
 - 应用数据目录：Windows 是 `%APPDATA%\liantai-desktop`，macOS 是 `~/Library/Application Support/liantai-desktop`（打包版与开发版共用同一目录，Key 和记录只填一次；两个平台各算各的，不互通）。存储是异步落盘的，**强杀进程（任务管理器）可能丢掉最近几次写入**；正常关窗口不受影响。申论整卷的共用材料、5 题与逐题批改存在 `gw_state.paper`，导出备份一起带走。
 - 启动时 `gw_state`、`gw_history`、`gw_draft`、`gw_marks` 任一读不出来：**进入只读**，顶部提示「已暂停写入」并给「导出原始数据」，不会用默认值覆盖原数据；修好或导入一份有效备份后恢复。练习记录写满时只保留最近 40 条，并在横幅里说明；到 200 条上限时同样出横幅，提示先导出备份。
 - 导出 / 导入：备份 JSON **不含 API Key**（所以备份可以放心分享、传网盘），并带 `schema`、`appVersion`、`exportedAt`；`schema` 高于本版的备份一律拒绝并提示升级，本机数据不动。导入只拿记录与画像，**文件里的接口地址、模型与 Key 一律不采用**，本机那三项原样不动——换机迁移要在新机器上重填一次 Key、选一次模型。练习记录按「时间戳 + 题面哈希」合并去重，**不整份替换本机记录**。写不进去（本地存储满）时整份回滚并如实报错，不会报「已恢复」却什么都没进来。

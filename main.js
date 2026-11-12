@@ -564,6 +564,17 @@ function backupHandlers() {
   ipcMain.handle('backup:snapshot', (_e, payload) => backupSnapshot(payload));
   ipcMain.handle('backup:list', () => backupList());
   ipcMain.handle('backup:read', (_e, arg) => backupRead(arg && arg.name));
+  /* 日志目录只在主进程定：界面没有传路径的口子，越界也就无从谈起。 */
+  ipcMain.handle('app:openLogs', async () => {
+    try {
+      fs.mkdirSync(LOG_DIR, { recursive: true });
+      const err = await shell.openPath(LOG_DIR);
+      return { ok: !err, error: err || '' };
+    } catch (e) {
+      log('open-logs-fail', String(e && e.message || e));
+      return { ok: false, error: String(e && e.message || e) };
+    }
+  });
 }
 
 function createWindow() {

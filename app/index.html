@@ -942,7 +942,7 @@ html,body{margin:0;padding:0;}
       </section>
       <section class="setgrp">
         <div class="grpt">纸面样式</div>
-        <div class="field"><label>练习抬头</label><input type="text" id="setOrg" placeholder="如：XX 市第零综合服务中心"><div class="note">红头那行字，练习页、批改与导出模板都用。用明显虚构的名字，别像真实单位。</div></div>
+        <div class="field"><label>练习抬头</label><input type="text" id="setOrg" placeholder="如：XX 市第零综合服务中心"><div class="note">顶栏红头那行字，插入公文骨架时也拿它当落款。用明显虚构的名字，别像真实单位。</div></div>
         <div class="field"><label>划线颜色</label><div class="swatches" id="markSwatches"></div></div>
       </section>
       <section class="setgrp">
@@ -958,6 +958,11 @@ html,body{margin:0;padding:0;}
           <label>启动备份</label>
           <div id="backupList" class="note">每次启动留一份，最多 10 份。</div>
           <div class="note">恢复按时间戳与题面合并练习记录，本机已有的记录不会丢。</div>
+        </div>
+        <div class="field">
+          <label>启动日志</label>
+          <button type="button" id="btnOpenLogs">打开日志目录</button>
+          <div class="note">窗口没出来、数据看着像丢了，先看 userData/logs/startup.log。</div>
         </div>
         <div class="field">
           <label>使用引导</label>
@@ -1256,25 +1261,8 @@ function migrateHistory(list){
   return { list:out, changed };
 }
 
-/* 跨题归纳缓存：模块键 → { at, basedOn, data }。够量才生成，没生成就是空对象。
-   它是可再生的（记录没变就该复用、记录变了重算），所以坏项直接丢，不做兼容迁移；
-   键仍按模块键迁移一次：旧数据里可能存着裸键。 */
-function normDigests(v){
-  const out = {};
-  const src = (v && typeof v === "object" && !Array.isArray(v))? v : {};
-  for(const k of Object.keys(src)){
-    const key = migrateModuleKey(k);
-    const it = src[k];
-    if(!MODULES[key]) continue;
-    // 值必须是对象：null 得挡在这里（下面一读 .at 就抛）；数组与字符串不用单独拦，
-    // 后面的字段校验自然不放过它们（数组没有数字 at，data 也不是对象）
-    if(!it || typeof it !== "object") continue;
-    if(!isFinite(Number(it.at)) || !isFinite(Number(it.basedOn))) continue;
-    if(!it.data || typeof it.data !== "object" || Array.isArray(it.data)) continue;
-    out[key] = { at:Number(it.at), basedOn:Number(it.basedOn), data:it.data };
-  }
-  return out;
-}
+/* 跨题归纳缓存（digests）已删除：画像全部由练习记录即时推导，不再留第二份可再生的聚合状态。
+   旧备份里带这个字段也不再收进来，见 applyBackup。 */
 
 /* 画像聚合字段（dims.sum/n、weakDims/strongDims/types）已删除：画像全部由练习记录即时推导，
    两份聚合迟早对不上。profile.modules 降级为旧数据 pass-through 容器（load/import 只做键迁移，不再写入这些字段）。 */
@@ -1294,7 +1282,6 @@ const DEFAULT_STATE = {
   resumeZy:null,   // 综应A 当前题（不在 flows 里）：刷新 / 崩溃后靠它恢复题目与计时起点
   paper:null,      // 申论整卷（一套材料 + 5 题 + 每题作答/批改）；一次只留一套，跨重启恢复
   experiences:[],   // 经验闭环（两科共用）：批改后自动沉淀，出题与阅卷注入
-  digests:{},       // 跨题归纳缓存（见 normDigests）：模块键 → { at, basedOn, data }
   cache:{ studyCards:{}, notes:{} },
   modelCache:{},
   modelCaps:{},   // 档位实测记忆：模型名 → "ok"（思考参数被接受）/ "rejected"（被拒，之后不再白发）
@@ -1699,7 +1686,7 @@ function load(){
     s.flows = sanitizeFlows(s.flows);
     s.resumeZy = sanitizeResumeZy(s.resumeZy);
     s.paper = sanitizePaper(s.paper);
-    s.digests = normDigests(s.digests);
+    delete s.digests;   // 旧 gw_state 里可能还留着这份已删除的聚合缓存，别让 save() 又写回去
     // 练习记录的模块键补前缀；记录存在独立的 gw_history，得单独回写
     const mh = migrateHistory(s.history);
     if(mh.changed){
@@ -2998,22 +2985,9 @@ function refreshAfterExpChange(){
 const $ = s => document.querySelector(s);
 const docBody = $("#docBody");
 
-/* ============ 运行环境 / CSP 检测 ============ */
-// WorkBuddy 预览窗会下发限制性 CSP（connect-src 不含各 AI 服务商域名），
-// 浏览器据此拦截对外 fetch，表现为裸「Failed to fetch」。此处自动识别，给出精准提示。
-let cspBlocked = null;
-document.addEventListener("securitypolicyviolation", function(e){
-  const dir = e.effectiveDirective || e.violatedDirective || "";
-  if(dir.indexOf("connect-src") >= 0) cspBlocked = e.blockedURI || "external-api";
-});
-function isPreviewHost(){
-  return /^127\.0\.0\.1(:\d+)?$/.test(location.host) && /static-html/i.test(location.pathname);
-}
+/* ============ 运行环境 / 失败提示 ============ */
+/* 桌面壳由本地服务下发 CSP，预览窗那套识别与提示在这里永远走不到，已删。 */
 function networkFailHint(){
-  if(cspBlocked || isPreviewHost()){
-    return " 对外请求被当前页面的安全策略(CSP)拦住了。WorkBuddy 预览窗会这样，个别浏览器插件也会。"
-      + "解决办法：用本地浏览器打开本文件——双击 html，或在文件目录运行 python -m http.server 8000 后访问 http://localhost:8000/index.html，本地浏览器发出的跨域请求能通。";
-  }
   if(location.protocol === "file:"){
     return " 当前以 file:// 打开：部分浏览器/环境会拦截本地文件的对外请求。建议用本地服务器方式打开（文件目录运行 python -m http.server 8000，访问 http://localhost:8000/index.html）。";
   }
@@ -6070,7 +6044,7 @@ async function fetchModels(silent){
       $("#modelNote").textContent = "接口地址不安全：API Key 只发往 https，或本机的 http（127.0.0.1 / localhost）。请改掉 Base URL。";
       $("#setMsg").textContent = "接口地址不安全：请用 https，或本机 http";
     } else {
-      // 真正的网络/异常：把真实报错透出来，并给针对性提示（区分预览窗 CSP / 真网络）
+      // 真正的网络/异常：把真实报错透出来，并给针对性提示
       const nm = (e && e.name) || "";
       const ms = (e && e.message) || "";
       $("#modelNote").textContent = `拉取失败（${nm||"网络"}：${ms}）。${tail}${networkFailHint()}`;
@@ -6105,7 +6079,7 @@ async function testConnection(){
     if(e && e.code==="NO_KEY") msg.textContent = "请先填 API Key";
     else if(e && e.code==="NO_MODEL") msg.textContent = "请先点「拉取模型列表」选一个模型（或手动输入）";
     else if(e && e.code==="API") msg.textContent = `失败（${e.status}）：${(e.text||"").slice(0,90)}`;
-    else msg.textContent = "失败：" + ((e && e.message) || "未知错误") + ((cspBlocked||isPreviewHost())? "（预览窗 CSP 可能拦截了对外请求，请用本地浏览器打开本文件）":"");
+    else msg.textContent = "失败：" + ((e && e.message) || "未知错误") + networkFailHint();
   }
 }
 
@@ -6275,9 +6249,7 @@ function applyBackup(s){
       state.resumeZy = sanitizeResumeZy(s.resumeZy);
       // 整卷同理：材料/题目/每题批改结果逐项校验，坏卷整卷丢弃，不整包失败
       state.paper = sanitizePaper(s.paper);
-      // 跨题归纳缓存跟着备份走：换了机器不用从零再攒一遍（形状不对的项丢掉，不整包失败）
-      const dg = plainObj(s.digests);
-      if(dg) state.digests = normDigests(plainPick(dg));
+      // 旧备份里的 digests 不再收：画像由练习记录即时推导，不留第二份聚合状态
       // 草稿与划线：不在 state 里，按题目签名逐条校验后合并回来；本机已有的一份不覆盖。
       // 若本机的 gw_draft / gw_marks 原本损坏，先清成空对象再合并（坏原文已在 rawSnap 里，写盘失败会原样回滚），
       // 否则 loadDraft / marksAll 读到坏原文会重新触发只读，导致导入回滚或导完仍卡在只读。
@@ -6686,7 +6658,7 @@ function renderChangelog(){
 }
 
 /* 构建标识：回答「我装的是不是新版」。唯一来源是 app/build.json，打包时由 stamp-build.mjs 写入，页面只读。
-   包里没有这个文件就是源码直跑（双击 html / 预览窗），显示「开发版」。失败一律静默，不影响启动。 */
+   包里没有这个文件就是源码直跑（双击 html），显示「开发版」。失败一律静默，不影响启动。 */
 function loadBuildNote(){
   const el = $("#buildNote"); if(!el) return;
   el.textContent = "练习台 · 开发版（未打包）";
@@ -6864,7 +6836,7 @@ function initUpdateUi(){
   setInterval(pollUpdateStatus, 60000);
 }
 
-/* 首页顶部那几条并列提示（壳要说的话 + 小更新提示 + 预览窗警告）。启动时铺一次；
+/* 首页顶部那几条并列提示（壳要说的话 + 小更新提示）。启动时铺一次；
    填完 Key 保存后要能当场重排——这个区只装「运行时才知道的事」，不装常驻的招呼话。
    提示可以并列，不能互相覆盖。壳灌进来的那几条（端口退让 / 上次换包失败）由壳自己保证已是 HTML，
    页面只补 own 这几条（自己拼的串）。
@@ -6878,7 +6850,6 @@ function renderStartNotices(){
   for(let i=0;i<fromShell.length;i++) notices.push(fromShell[i]);
   const un = updateNoticeHtml(updateInfo);
   if(un) notices.push(un);
-  if(isPreviewHost()) notices.push("提示：你正通过 WorkBuddy 预览窗打开本页。预览窗的安全策略(CSP)会拦截网页对外请求 AI 接口，导致「拉取模型列表 / 出题 / 阅卷」失败。请改用本地浏览器打开本文件：双击 html，或在文件目录运行 <code>python -m http.server 8000</code> 后访问 http://localhost:8000/index.html（CORS 已实测通过，可正常调用）。");
   banner(notices.length? notices.join("<br>") : "", "", "notices");
 }
 
@@ -6917,6 +6888,13 @@ renderChangelog();
   };
   $("#btnFetchModels").onclick = ()=> fetchModels(false);
   $("#btnBalance").onclick = ()=> checkBalance(true);
+  $("#btnOpenLogs").onclick = async ()=>{
+    const api = (typeof window !== "undefined" && window.liantai) || null;
+    if(!api || !api.openLogs){ banner("日志目录只在桌面壳里能打开。", "error"); return; }
+    let r = null;
+    try{ r = await api.openLogs(); }catch(e){}
+    if(!r || !r.ok) banner("日志目录没打开成。", "error");
+  };
   const setModelEl = $("#setModel");
   setModelEl.addEventListener("focus", ()=> modelMenuShow(true));
   setModelEl.addEventListener("click", ()=> modelMenuShow(true));
