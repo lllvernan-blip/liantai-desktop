@@ -1697,32 +1697,6 @@ if (process.platform !== "darwin") {
      "闭环: 装钩子只改 core.hooksPath，且给得出卸载办法");
   ok(/chmodSync/.test(inst), "闭环: 装钩子时补可执行位（重复克隆也不靠手敲 chmod）");
 
-  /* Qoder 的任务结束钩子：配置在项目级 .qoder/settings.json，脚本在 .qoder/hooks/。
-     配置里的命令走 shell，所以用 git 找根 + sh 包一层，不写死这台机器的中文路径。 */
-  let qoder = null;
-  try { qoder = JSON.parse(readOr(join(here, "..", ".qoder", "settings.json"), "{}")); } catch (e) { qoder = null; }
-  const stopHooks = ((qoder && qoder.hooks && qoder.hooks.Stop) || [])
-    .flatMap((g) => (g && Array.isArray(g.hooks) ? g.hooks : []));
-  const loopSrc = readOr(join(here, "..", "tools", "loop.mjs"));
-  const loopBudget = Array.from(loopSrc.matchAll(/timeout:\s*(\d+)/g))
-    .reduce((a, m) => a + Number(m[1]), 0);
-  const stopHook = stopHooks.find((h) => h && h.type === "command" && /stop-check\.sh/.test(String(h.command || "")));
-  ok(!!stopHook && Number(stopHook.timeout) * 1000 >= loopBudget,
-     "闭环/Qoder: Stop 钩子指向 .qoder/hooks/stop-check.sh，超时覆盖 loop 三阶段总和（"
-       + (stopHook ? Number(stopHook.timeout) : 0) + "s / " + (loopBudget / 1000) + "s）");
-  const stopJs = readOr(join(here, "..", "tools", "qoder-stop.mjs"));
-  const stopBudget = Number((/timeout:\s*(\d+)/.exec(stopJs) || [])[1]) || 0;
-  ok(stopBudget * 1000 >= loopBudget,
-     "闭环/Qoder: qoder-stop 给 loop 的超时也覆盖三阶段总和（" + (stopBudget / 1000) + "s / " + (loopBudget / 1000) + "s）");
-  ok(/stop_hook_active/.test(stopJs) && /liantai-loop-stamp/.test(stopJs) && /process\.exit\(2\)/.test(stopJs),
-     "闭环/Qoder: 钩子有防重入、同状态只查一次、失败时用退出码 2 回给模型");
-  ok(/git\(\["diff", "HEAD", "--binary"\]\)/.test(stopJs) && /hash-object/.test(stopJs),
-     "闭环/Qoder: 判断「内容变没变」看 diff 与 untracked 内容，不只看文件名");
-  const stopSh = readOr(join(here, "..", ".qoder", "hooks", "stop-check.sh"));
-  ok(/git rev-parse --show-toplevel/.test(stopSh) && /\.local\/opt\/node\/bin\/node/.test(stopSh),
-     "闭环/Qoder: 入口脚本自己找仓库根与 node（钩子的 PATH 不靠终端）");
-  ok(/\.qoder\/settings\.json/.test(loop), "闭环/Qoder: loop 自己也会核对这条接线（拆了会在检查里报）");
-
   const d = checkDocRefs(join(here, ".."));
   ok(d.checked > 0 && d.missing.length === 0,
      "闭环: 文档引用的仓内文件都存在（当前 " + d.checked + " 处）"

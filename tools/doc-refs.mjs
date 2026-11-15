@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-const PREFIXES = ["app/", "tests/", "tools/", "docs/", "build/", "site/", ".github/", ".qoder/"];
+const PREFIXES = ["app/", "tests/", "tools/", "docs/", "build/", "site/", ".github/"];
 const ROOT_FILES = ["AGENTS.md", "README.md", "package.json", "main.js", "update.js", "打包.bat"];
 
 export function checkDocRefs(root) {

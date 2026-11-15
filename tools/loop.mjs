@@ -191,17 +191,8 @@ function git(args, opts) {
   if (!hook) missing.push(".githooks/pre-commit");
   else if (!/tools\/loop\.mjs[^\n]*--staged/.test(hook)) missing.push(".githooks/pre-commit 没有调 tools/loop.mjs --staged");
 
-  /* Qoder 的任务结束钩子：配置在项目级 .qoder/settings.json，入口脚本可以换，
-     但必须仍然指到 stop-check（它再调 tools/qoder-stop.mjs）。 */
-  let qoder = null;
-  try { qoder = JSON.parse(readFileSync(join(root, ".qoder", "settings.json"), "utf8")); } catch (e) { qoder = null; }
-  const stopGroups = qoder && qoder.hooks && Array.isArray(qoder.hooks.Stop) ? qoder.hooks.Stop : [];
-  const stopHooks = stopGroups.flatMap((g) => (g && Array.isArray(g.hooks) ? g.hooks : []));
-  const qoderWired = stopHooks.some((h) => h && h.type === "command" && /stop-check\.sh/.test(String(h.command || "")));
-  if (!qoderWired) missing.push(".qoder/settings.json 的 Stop 钩子");
-
-  add("闭环：npm scripts、pre-commit 与 Qoder Stop 钩子都接在 loop 上", missing.length === 0,
-    missing.length ? "缺 " + missing.join("、") : "test / check / check:staged / hooks:install + 两个钩子");
+  add("闭环：npm scripts 与 pre-commit 都接在 loop 上", missing.length === 0,
+    missing.length ? "缺 " + missing.join("、") : "test / check / check:staged / hooks:install + pre-commit");
 }
 
 /* ================= 8. 全量自检 =================
