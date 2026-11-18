@@ -358,8 +358,8 @@ html,body{margin:0;padding:0;}
   .material.mat-scroll{display:flex;flex-direction:column;max-height:calc(2.05em * 8 + 52.65px);overflow:hidden;}
   .material.mat-scroll #materialBox{overflow-y:auto;min-height:0;}
   @media (max-height:860px){ .material.mat-scroll{max-height:calc(2.05em * 7 + 52.65px);} }
-  @media (max-height:720px){ .material.mat-scroll{max-height:calc(2.05em * 5 + 52.65px);} }
-  @media (max-height:820px){ .material.mat-scroll{max-height:calc(2.05em * 3 + 52.65px);} }   /* 矮窗：材料只露三行、内部可滚，作答区才进首屏 */
+  @media (max-height:820px){ .material.mat-scroll{max-height:calc(2.05em * 5 + 52.65px);} }   /* 矮窗：材料露五行、内部可滚，作答区才进首屏 */
+  @media (max-height:720px){ .material.mat-scroll{max-height:calc(2.05em * 3 + 52.65px);} }   /* 更矮：再收到三行 */
   @media (max-height:820px){ .require{margin-top:8px;} }   /* 矮窗：题面几行收紧一档，把首屏留给作答区 */
   @media (min-height:1020px){ .material.mat-scroll{max-height:calc(2.05em * 12 + 52.65px);} }
   /* 两栏（凡有材料的屏都这一套）：左材料、右作答。HTML 只写一种形态——.paper-cols 里三块（题面 / 材料 / 作答区），
@@ -859,6 +859,15 @@ html,body{margin:0;padding:0;}
   /* 阅读动效：hover 只给真能点的东西（这里原先还挂了 details.card，那条已下线）*/
   /* 采分点对照行不是可点元素，不给 hover——加上去会让人以为能点（hover 只给交互元素） */
   .flowrail .fstep{transition:background var(--t-state) var(--ease-std),border-color var(--t-state) var(--ease-std),color var(--t-state) var(--ease-std);}
+
+  /* 手机：纸边、顶栏与提示条共用 18px 边距；输入字号抵消纸面缩放，避免 iOS 聚焦时自动放大页面。 */
+  @media (max-width:640px){
+    .doc{padding:24px 18px 32px;}
+    .topbar{flex-wrap:wrap;}
+    .toolbar{--tb-edge:max(16px,calc((100% - var(--sheet-w) * var(--paper-scale))/2 + 16px + 18px * var(--paper-scale)));flex-wrap:wrap;}
+    #bannerSlot{margin:0 calc(18px * var(--paper-scale));}
+    input,textarea,select{font-size:calc(16px / var(--paper-scale)) !important;}
+  }
 
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto;}
@@ -2412,7 +2421,7 @@ async function poolPick(topics){
   try{
     if(typeof window === "undefined" || typeof fetch !== "function"
       || !window.poolPicker || typeof window.poolPicker.pickOne !== "function") return null;
-    const res = await fetch("pool.json");
+    const res = await fetch("pool.json", { cache: "no-store" });
     if(!res || !res.ok) return null;
     const data = await res.json();
     const items = data && Array.isArray(data.items)? data.items : [];

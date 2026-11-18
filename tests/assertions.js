@@ -3583,14 +3583,18 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
   ok((PAGE_HTML.match(/var\(--fs-note\)/g) || []).length >= 40
      && (PAGE_HTML.match(/var\(--fs-body\)/g) || []).length >= 35,
      "尺子: 字号确实被用上了（不是定义了没人用）");
-  // 间距：只允许五档 + 几个大留白，中间值一个不剩
+  // 间距：只允许五档 + 几个大留白，中间值一个不剩；640px 窄屏的 18px 纸边单独核，不放进桌面尺子
+  const _mobile640 = (PAGE_HTML.match(/@media \(max-width:640px\)\{[\s\S]*?\n  \}/) || [""])[0];
+  const _spacingHtml = _mobile640 ? PAGE_HTML.replace(_mobile640, "") : PAGE_HTML;
   const _spOK = [0,1,4,8,12,16,24,32,36,38,40,42,48,54,56,58,84,100,760];
   const _spVals = new Set();
-  for(const m of PAGE_HTML.matchAll(/(?:margin|padding|gap)(?:-[a-z]+)?\s*:\s*([^;}]+)/g))
+  for(const m of _spacingHtml.matchAll(/(?:margin|padding|gap)(?:-[a-z]+)?\s*:\s*([^;}]+)/g))
     for(const d of m[1].matchAll(/(\d+)px/g)) _spVals.add(Number(d[1]));
   const _spBad = Array.from(_spVals).filter(v => _spOK.indexOf(v) < 0);
   ok(_spBad.length === 0,
      "尺子: 间距没有中间值（2/3/5/6/7/9/10/11/13/14/18/20/22/26/28/30 一个不剩）");
+  ok(_mobile640 && (_mobile640.match(/18px/g) || []).length === 3,
+     "尺子: 18px 只给 640px 窄屏的纸边、顶栏与提示条三处");
   ok(_spVals.has(4) && _spVals.has(8) && _spVals.has(12) && _spVals.has(16) && _spVals.has(24),
      "尺子: 五档间距确实在用（4 / 8 / 12 / 16 / 24）");
   // 字族与字距（2026-11-01：字体栈按「本机真命中」重排后钉住）。
@@ -3966,6 +3970,55 @@ ok(PAGE_HTML.indexOf('<div class="actions actbar">') >= 0
   globalThis.window = { liantai: { poolPick: async () => ({ name: "x.md", title: "x", text: "## 背景\n- a" }) } };
   const _r = await poolPick();
   ok(_r && _r.text === "## 背景\n- a", "有据: 取得到就把骨架递回给 gen");
+
+  // 网页分支：与壳内共用选材函数，但材料来自同源构建产物；所有失败都只回 null。
+  const _savedFetch = globalThis.fetch;
+  const _savedPoolUsed = state.poolUsed;
+  let _fetchUrl = "", _fetchOptions = null;
+  globalThis.window = { poolPicker: { pickOne: (items)=>items[0] || null } };
+  globalThis.fetch = async (url, options)=>{
+    _fetchUrl = String(url); _fetchOptions = options;
+    return { ok:true, json:async()=>({ items:[{ name:"web.md", text:"## 背景\n- 网页" }] }) };
+  };
+  state.poolUsed = [];
+  const _web = await poolPick(["基层治理"]);
+  ok(_web && _web.name === "web.md" && _web.text === "## 背景\n- 网页"
+     && state.poolUsed[state.poolUsed.length - 1] === "web.md",
+     "网页取材: 合法 items 返回选中材料，name 压进 poolUsed 末尾");
+  ok(_fetchUrl === "pool.json" && _fetchOptions && _fetchOptions.cache === "no-store",
+     "网页取材: 读同源 pool.json 且不使用缓存");
+
+  globalThis.fetch = async ()=>({ ok:false, json:async()=>({ items:[] }) });
+  ok((await poolPick()) === null, "网页取材: pool.json 404 回 null");
+  globalThis.fetch = async ()=>{ throw new Error("offline"); };
+  ok((await poolPick()) === null, "网页取材: fetch 抛错回 null");
+  globalThis.fetch = async ()=>({ ok:true, json:async()=>({ items:[] }) });
+  ok((await poolPick()) === null, "网页取材: items 为空回 null");
+  globalThis.fetch = async ()=>({ ok:true, json:async()=>({ items:[{ name:"bad.md" }] }) });
+  ok((await poolPick()) === null, "网页取材: 选中项缺 text 回 null");
+
+  state.poolUsed = [];
+  let _webN = 0;
+  globalThis.fetch = async ()=>({ ok:true, json:async()=>{
+    _webN++;
+    return { items:[{ name:"web-" + _webN + ".md", text:"骨架" }] };
+  } });
+  for(let i=0;i<201;i++) await poolPick();
+  ok(state.poolUsed.length <= 200 && state.poolUsed[0] === "web-2.md"
+     && state.poolUsed[state.poolUsed.length - 1] === "web-201.md",
+     "网页取材: 连取 201 次仍只留最近 200 条使用记录");
+
+  let _shellFetch = 0;
+  globalThis.window = {
+    liantai: { poolPick:async()=>({ name:"shell.md", text:"壳内骨架" }) },
+    poolPicker: { pickOne:(items)=>items[0] || null },
+  };
+  globalThis.fetch = async ()=>{ _shellFetch++; throw new Error("壳内不该走网页 fetch"); };
+  const _shellOnly = await poolPick();
+  ok(_shellOnly && _shellOnly.text === "壳内骨架" && _shellFetch === 0,
+     "网页取材: 有 window.liantai 时走壳内通道，绝不调用 fetch");
+  globalThis.fetch = _savedFetch;
+  state.poolUsed = _savedPoolUsed;
   const _topics = poolTopicsFor("sl.guina");
   ok(Array.isArray(_topics) && _topics.length === 1 && PD_TOPICS.indexOf(_topics[0]) >= 0,
      "有据: 选材带主题白名单（复用快判 PD_TOPICS）");
