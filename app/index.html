@@ -1298,6 +1298,7 @@ const DEFAULT_STATE = {
   tut:{ seq:0, done:false },   // seq = 一条引导序列的游标（原始索引，指向下一个未消费的步骤）；done = 序列已完结
   tutVersion:4,
   history:[],
+  poolUsed:[],   // 网页材料池使用次序（最多 200 条）；壳内使用记录仍由主进程单独保存
   flows:[],
   resumeZy:null,   // 综应A 当前题（不在 flows 里）：刷新 / 崩溃后靠它恢复题目与计时起点
   paper:null,      // 申论整卷（一套材料 + 5 题 + 每题作答/批改）；一次只留一套，跨重启恢复
@@ -2400,12 +2401,31 @@ function groundedSpec(skel, m){
 ⑨ 如果你出的题干让考生「提出对策 / 建议 / 措施」，材料里就**不许把「建议 / 主张」栏的主张整段抄进去**——那等于把答案写在题面上，拄一遍就得分；最多留一两条当干扰，其余只用背景、做法、成效、难点四栏。（这一条看的是题干，不是模块名：归纳概括模块也会出「概括问题并提出建议」）
 这条对返回里的每个字段都适用（含学习卡的 example）。`;
 }
-/* 从池子取一篇骨架。取不到（界面不在壳里、池子空、读失败）一律返回 null，由调用方回落到编材料。
-   材料取不到是常事，不在这里抛错。 */
+/* 从池子取一篇骨架。壳内走 preload，网页读构建时放在同源的 pool.json；
+   取不到（池子空、资源缺失、读失败）一律返回 null，由调用方回落到编材料。材料取不到是常事，不在这里抛错。 */
 async function poolPick(topics){
   const api = (typeof window !== "undefined" && window.liantai) || null;
-  if(!api || !api.poolPick) return null;
-  try{ const r = await api.poolPick(topics); return (r && r.text)? r : null; }catch(e){ return null; }
+  if(api){
+    if(!api.poolPick) return null;
+    try{ const r = await api.poolPick(topics); return (r && r.text)? r : null; }catch(e){ return null; }
+  }
+  try{
+    if(typeof window === "undefined" || typeof fetch !== "function"
+      || !window.poolPicker || typeof window.poolPicker.pickOne !== "function") return null;
+    const res = await fetch("pool.json");
+    if(!res || !res.ok) return null;
+    const data = await res.json();
+    const items = data && Array.isArray(data.items)? data.items : [];
+    const r = window.poolPicker.pickOne(items, state.poolUsed||[], topics);
+    if(!r || !r.name || !r.text) return null;
+    const used = Array.isArray(state.poolUsed)? state.poolUsed.filter(x=>typeof x === "string") : [];
+    const i = used.indexOf(r.name);
+    if(i >= 0) used.splice(i, 1);
+    used.push(r.name);
+    state.poolUsed = used.slice(-200);
+    save();
+    return r;
+  }catch(e){ return null; }
 }
 /* 选材主题：白名单与快判共用 PD_TOPICS，每次按权重抽一个。
    不传 topics 时 pool-pick 只能按使用历史轮转，等于把主题映射丢掉了；

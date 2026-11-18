@@ -75,4 +75,6 @@ function parsePoolHead(text){
   };
 }
 
-module.exports = { pickOne: pickOne, RECENT: RECENT, parsePoolHead: parsePoolHead, mediaName: mediaName, sourceHost: sourceHost };
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { pickOne: pickOne, RECENT: RECENT, parsePoolHead: parsePoolHead, mediaName: mediaName, sourceHost: sourceHost };
+}

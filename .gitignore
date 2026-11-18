@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-web/
 logs/
 
 # 打包产物 / 临时文件
