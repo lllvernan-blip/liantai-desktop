@@ -2183,8 +2183,18 @@ callLLM = async (sys, user)=>{ cap14 = { sys, user }; return { experiences: [] }
 await distillExperience("sl.guina", null, { hits:[], weaknesses:[], comment:"" }, { background:"prompt题。", requirements:"r" });
 ok(cap14.user.indexOf('"existingTitles"') >= 0 && cap14.user.indexOf("漏写落款") >= 0,
    "经验去重: prompt 带当前模块已有经验 titles（≤10）");
-ok(cap14.sys.indexOf("title 原文") >= 0 && cap14.sys.indexOf("不要换措辞") >= 0,
-   "经验去重: prompt 明确「本质相同就返回已有 title 原文，不要换措辞」");
+/* 2026-11-18：清单与「碰到本质相同的就复用原文」那条规矩从 sys 挪进了 user——
+   原来它拼在 sys 里，每多一条经验 sys 就变一次，前缀缓存全废；而 user 里本来就有一份同样的列表，等于发了两遍。 */
+ok(cap14.user.indexOf("title 原文") >= 0 && cap14.user.indexOf("不要换措辞") >= 0,
+   "经验去重: prompt 明确「本质相同就返回已有 title 原文，不要换措辞」（跟在列表旁边，住 user）");
+ok(cap14.sys.indexOf("漏写落款") < 0 && cap14.sys.indexOf("考生已有这些经验") < 0,
+   "经验去重: sys 不带已有经验清单（带上了就是每提炼一条缓存全废）");
+const sys14a = cap14.sys;
+state.experiences.push({ id:"sys-stable", type:"规则", title:"判分先数点", body:"b", module:"sl.guina", disabled:false });
+await distillExperience("sl.guina", null, { hits:[], weaknesses:[], comment:"" }, { background:"prompt题。", requirements:"r" });
+ok(cap14.sys === sys14a && cap14.user.indexOf("判分先数点") >= 0,
+   "经验去重: 多一条经验也不动 sys（前缀缓存靠这个），变化只落在 user");
+state.experiences = state.experiences.filter(e=> e.id !== "sys-stable");
 ok(cap14.sys.indexOf("至少提炼 1 条") >= 0, "经验: 有未满分采分点时优先提炼错因");
 callLLM = realCall14;
 

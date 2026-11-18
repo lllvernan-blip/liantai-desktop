@@ -2478,7 +2478,10 @@ async function gen(k, subtype, focusDim, needCard, onDelta, skel){
     "question":{"background":"${matSpec}","requirements":"${reqSpec}","suggestedFormat":"建议作答结构","difficulty":"简单/适中/较难","score":${m.score || 20},"theme":"材料主题（4-8 字，如「基层治理」「老旧小区改造」）"},
     ${kpSchema}
   }`;
-  const data = await callLLM(sysCoach(k) + "\n" + modInstruction(k) + GEN_POINT_RULES + "\n返回 JSON：\n" + schema, user, true, onDelta, { level: GEN_LEVEL });
+  /* 前缀顺序（2026-11-18）：GEN_POINT_RULES 是全科共用的采分点口径（一千多字），必须排在随模块变的
+     modInstruction 之前——服务商的上下文缓存比的是整段前缀，挡在变化段后面就等于每道题都重新算它。
+     schema 里带着本模块的名字与分值，依旧放最后（变化的部分越靠后越好）。 */
+  const data = await callLLM(sysCoach(k) + GEN_POINT_RULES + "\n" + modInstruction(k) + "\n返回 JSON：\n" + schema, user, true, onDelta, { level: GEN_LEVEL });
   // 题目满分是本地口径：模型偶尔照抄模板里的数字，这里以 MODULES.score 为准再重分配子项
   if(data && data.question) data.question.score = m.score || 20;
   return alignPointScores(data);
@@ -2757,14 +2760,18 @@ async function distillExperience(mod, subtype, g, q){
   _lastDistilled = [];   // 提炼一开始就清掉上一题残留：失败/超时也不能把旧经验标成「本次新提炼」
   // 防重复第一道保险：prompt 带上当前模块已有经验 titles（≤10），本质相同就复用原文，不要换措辞
   const existTitles = (state.experiences||[]).filter(e=> e && !e.disabled && e.module === mod).map(e=>e.title).slice(0,10);
+  const schema = '{\n  "experiences": [ { "type": "错因 / 规则 / 表达", "kind": "type 为错因时从这几类里选一个：' + GRADE_TAG_KEYS.join(" / ") + '（其余填 -）", "title": "要点（≤30字）", "body": "具体经验：错在哪、下次怎么办（≤220字）" } ]\n}';
+  /* 系统提示是常量（2026-11-18 拆的）：原来把「考生已有这些经验：…」拼在 sys 里、把 schema 拼在 user 尾巴上，
+     结果每多一条经验 sys 就变一次，缓存全废；而同一次请求的 user 里又躺着一模一样的 existingTitles，等于发了两遍。
+     现在 sys 一字不变（只留口径与 schema），列表与「碰到本质相同的就复用原文」那条规矩都住进 user。 */
+  const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）；type 为错因时还要给 kind，从这几类里选一个——" + GRADE_TAG_LINE + "（其余 type 填 -）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。**这次批改里有未满分的采分点时，至少提炼 1 条 type=错因**（kind 取对应采分点的 kind），不要只给规则或表达。只输出 JSON。"
+    + "\n返回 JSON：\n" + schema;
   const user = JSON.stringify({ module:(MODULES[mod]||{}).name||mod, subtype:subtype||"",
     requirements:(q && q.requirements)||"",
     hits:(g && g.hits)||[], review:(g && g.review)||[], causes:(g && g.causes)||[],
-    existingTitles: existTitles.length? existTitles : undefined });
-  const sys = "你是阅卷教练，根据这次批改结果为考生提炼可复用的个人经验。type 只能是：错因（这次具体错在哪）、规则（该题型的作答规则）、表达（表述与格式技巧）；type 为错因时还要给 kind，从这几类里选一个——" + GRADE_TAG_LINE + "（其余 type 填 -）。每条 title 不超过30字、body 不超过220字；最多 2 条，没有值得沉淀的就返回空数组，不要编造。**这次批改里有未满分的采分点时，至少提炼 1 条 type=错因**（kind 取对应采分点的 kind），不要只给规则或表达。只输出 JSON。"
-    + (existTitles.length? " 考生已有这些经验：" + existTitles.join("；") + "。若本次要提炼的经验与已有经验本质相同，必须原样返回已有经验的 title 原文（不要换措辞、不要新造条目），只给出更新后的 body；确有新经验才新增。" : "");
-  const schema = '{\n  "experiences": [ { "type": "错因 / 规则 / 表达", "kind": "type 为错因时从这几类里选一个：' + GRADE_TAG_KEYS.join(" / ") + '（其余填 -）", "title": "要点（≤30字）", "body": "具体经验：错在哪、下次怎么办（≤220字）" } ]\n}';
-  const data = await callLLM(sys, user + "\n返回 JSON：\n" + schema, true, null, { level: DISTILL_LEVEL });
+    existingTitles: existTitles.length? existTitles : undefined,
+    existingTitlesNote: existTitles.length? "若本次要提炼的经验与已有经验（existingTitles）本质相同，必须原样返回已有经验的 title 原文（不要换措辞、不要新造条目），只给出更新后的 body；确有新经验才新增。" : undefined });
+  const data = await callLLM(sys, user, true, null, { level: DISTILL_LEVEL });
   const list = (data && Array.isArray(data.experiences))? data.experiences : [];
   const out = [];
   for(const e of list.slice(0,2)){
