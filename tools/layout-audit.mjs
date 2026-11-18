@@ -6,6 +6,7 @@
  *   npm run audit:layout -- --fast          只跑 1280 一个宽度（快扫）
  *   npm run audit:layout -- --only=作答     只测名字里带「作答」的
  *   npm run audit:layout -- --widths=1280,960
+ *   npm run audit:layout -- --widths=768,1024 --heights=1024,768
  *   npm run audit:layout -- --data=real     带上你真实的历史记录
  *   npm run audit:layout -- --update-baseline   把当前软项登记成基线（改了布局、认定新软项是故意的）
  *
@@ -60,7 +61,9 @@ const quick = args.includes('--quick')
 const updateBaseline = args.includes('--update-baseline')
 const only = (args.find(a => a.startsWith('--only=')) || '').slice(7)
 const widthsArg = (args.find(a => a.startsWith('--widths=')) || '').slice(9)
+const heightsArg = (args.find(a => a.startsWith('--heights=')) || '').slice(10)
 const WIDE = quick ? [1280] : widthsArg ? widthsArg.split(',').map(Number) : (fast ? [1280] : [1280, 960, 780])
+const HEIGHTS = heightsArg ? heightsArg.split(',').map(Number) : []
 const NARROW = [1280]   // 大量文种只用一个宽度扫结构，宽度差异留给关键屏
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -99,8 +102,11 @@ app.whenReady().then(async () => {
         if (err) throw new Error(err)
       }
       await sleep(200)
-      for (const w of (widths || WIDE)) {
-        win.setSize(w, 900)
+      const sizes = widths || WIDE
+      for (let i = 0; i < sizes.length; i++) {
+        const w = sizes[i]
+        const h = sizes === WIDE && HEIGHTS.length ? HEIGHTS[i] : 900
+        win.setSize(w, h)
         await sleep(150)
         report.push({ 屏: name, ...(await run()) })
       }
@@ -241,7 +247,7 @@ app.whenReady().then(async () => {
       seen.add(key)
       if (printed++ >= 10 || detailLines >= MAX_DETAIL) { console.log('  …还有，单跑 --only=屏名 看全部'); break }
       const nz = Object.fromEntries(Object.entries(r.计数 || {}).filter(([, v]) => v > 0))
-      console.log(`  【${r.屏}】${r.屏宽}px ${JSON.stringify(nz)}`)
+      console.log(`  【${r.屏}】${r.屏宽}×${r.屏高}px ${JSON.stringify(nz)}`)
       detailLines++
       for (const k of HARD) {
         const list = (r.明细 || {})[k] || []
