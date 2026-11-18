@@ -321,8 +321,9 @@ html,body{margin:0;padding:0;}
   .ghead button.tool{padding:0 12px;}
   .sec-title{font-family:var(--hei);font-weight:700;font-size:var(--fs-title);margin:24px 0 12px;border-left:3px solid var(--gov-red);padding-left:8px;letter-spacing:0;}
   /* 题头右边的行内动作（换一题）：不再单占一行孤悬在题头之上 */
-  .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 12px;}
+  .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 12px;flex-wrap:wrap;}   /* 右侧现在可能有图例 + 按钮两颗，窄窗一行盛不下就折行，不往纸外渗 */
   .secrow .sec-title{margin:0;}   /* 标题自带的上 24 下 12 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
+  .secrow .secrow-actions{display:flex;align-items:center;gap:12px;}   /* 图例与按钮并到右侧一组，不被 space-between 拆到两头 */
   /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
   .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:0;}
   /* 批改内容按空间分区，解析标题不附彩色竖线。 */
@@ -600,7 +601,11 @@ html,body{margin:0;padding:0;}
   .answerreview{margin-top:0;background:var(--wash);border-radius:var(--r-ctl);padding:24px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);}
   .answerreview .asent.got{color:var(--gov-red);}
   .answerreview .asent.got.full{color:var(--ink);}
-  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin:0 8px 0 4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;}
+  /* 句末的分数交给伪元素显示（2026-11-18）：数字写在 data-sc 上，又盖了 user-select:none——
+     这一页的字经常要整段复制走（改到别的稿子里接着用），而 +N 是给眼睛看的分，跟着进剪贴板就成了噪声，
+     还得一个个删。伪元素不在文本流里，划选和 Ctrl+C 都带不上它；间距、颜色、等宽数字一点没变。 */
+  .answerreview .asc{font-style:normal;font-family:var(--hei);font-size:var(--fs-note);color:var(--gov-red);margin:0 8px 0 4px;font-variant-numeric:tabular-nums;-webkit-text-stroke:0;user-select:none;}
+  .answerreview .asc::after{content:attr(data-sc);}
   .answerreview .asc.full{color:var(--muted);}
   .comment{margin-top:24px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-doc);}
   .nextrow{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
@@ -680,6 +685,10 @@ html,body{margin:0;padding:0;}
   .setgrp .notebox>summary{padding:4px 0;}
   .setgrp .notebox .notebody{padding:4px 0 0;font-size:var(--fs-note);line-height:var(--lh-body);}
   #updateField .note{margin:0 0 8px;}
+  /* 网页版（不在壳里）不摆桌面专有的那几格：启动备份、启动日志、版本与更新。
+     它们都是壳的能力（读 userData 目录、摸安装包、换包重启），摆在网页里点了只会得到一句
+     「只在桌面壳里可用」——一次点击换一句拒绝，不如不给。导出 / 导入备份照旧留着，网页版同样要用。 */
+  html:not(.shell) #backupField, html:not(.shell) #logField, html:not(.shell) #updateField{display:none;}
   /* 次级按钮（ghost）：透明底细边、与 primary 同高——「测试连接」不该和「保存」一个重量。
      原来写 40，比主按钮的 36 还高 4px，同一行里次级压过主行动，也破了「控件只有两档高度」 */
   button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);min-height:var(--h-ctl);font-size:var(--fs-body);}
@@ -954,12 +963,12 @@ html,body{margin:0;padding:0;}
           </div>
           <div class="note long">练习记录、草稿、划线只存你这台机器上（我们的服务器不碰）；批改那一步会把题目、你的作答和你积累的错因发给你上面填的服务商——它才能给分。备份里不含 Key，可放心转存。换电脑前先「导出备份」，新机器上「导入备份」接着练。</div>
         </div>
-        <div class="field">
+        <div class="field" id="backupField">
           <label>启动备份</label>
           <div id="backupList" class="note">每次启动留一份，最多 10 份。</div>
           <div class="note">恢复按时间戳与题面合并练习记录，本机已有的记录不会丢。</div>
         </div>
-        <div class="field">
+        <div class="field" id="logField">
           <label>启动日志</label>
           <button type="button" id="btnOpenLogs">打开日志目录</button>
           <div class="note">窗口没出来、数据看着像丢了，先看 userData/logs/startup.log。</div>
@@ -1013,6 +1022,12 @@ html,body{margin:0;padding:0;}
 <script>
 /* mac 无边框标题栏：在壳内才给顶栏让出红绿灯位（SPEC 3.2；浏览器直开不加） */
 if(/Macintosh/.test(navigator.userAgent)&&/Electron/.test(navigator.userAgent))document.documentElement.classList.add("shell-mac");
+/* 在不在壳里（2026-11-18）：网页版上线后，界面要能被普通浏览器直接打开，
+   桌面专有的东西不能照样往外伸。唯一判据是 preload 注入的那个口子（window.liantai）——
+   不看协议、也不看 UA：壳里的界面同样是 http://127.0.0.1:端口，拿协议判会把网页版误认成壳。
+   判出来先给 <html> 挂类，桌面专属的几格由 CSS 一次收掉（见 html:not(.shell) 那几条）。 */
+const IS_SHELL = !!(typeof window !== "undefined" && window.liantai);
+if(IS_SHELL) document.documentElement.classList.add("shell");
 
 /* ============ 服务商预设 ============ */
 /* 这里只预设「地址」这类稳定信息，模型名一个都不写死——
@@ -1022,11 +1037,16 @@ const PROVIDERS = [
   { id:"deepseek", name:"DeepSeek（推荐 · 国内直连）", baseUrl:"https://api.deepseek.com/v1" },
   { id:"kimi", name:"Kimi 月之暗面", baseUrl:"https://api.moonshot.cn/v1" },
   { id:"qwen", name:"通义千问（阿里百炼）", baseUrl:"https://dashscope.aliyuncs.com/compatible-mode/v1" },
-  { id:"glm", name:"智谱 GLM", baseUrl:"https://open.bigmodel.cn/api/paas/v4" },
   { id:"siliconflow", name:"硅基流动 SiliconFlow", baseUrl:"https://api.siliconflow.cn/v1" },
-  { id:"openai", name:"OpenAI（需自备网络）", baseUrl:"https://api.openai.com/v1" },
-  { id:"custom", name:"自定义 / 其他", baseUrl:"" }
+  { id:"custom", name:"自定义（自己填接口地址）", baseUrl:"" }
 ];
+/* 只留实测能直连的四家 + 一家自定义（2026-11-18 实测，Origin 分别取 Pages 域名 / null / http://127.0.0.1 各一轮）：
+   DeepSeek（含 /user/balance 查余额）、Kimi、通义千问、硅基流动都原样回 access-control-allow-origin，放行；
+   智谱 GLM 预检回 200 但一个 CORS 头都不给，OpenAI 预检 403。
+   为什么这两家必须下掉：壳里的界面是本地 http 服务（http://127.0.0.1:端口）加进来的，
+   跟浏览器里是同一套跨域环境（没有 webSecurity:false、也不改写响应头），所以它们在应用里一直就是拦着的，
+   摆在预设里只会让人填完 Key 白试一轮。要用它们的人走「自定义」，填自己的转发地址。
+   模型侧的 glm 家族判定（THINK_FAMILIES）照旧留着：自定义接智谱时它还要按 thinking 参数发。 */
 
 /* ============ 模块定义 ============ */
 // 模块键统一带科目前缀（zy.gongwen）：键全局唯一，画像 / 历史 / 调度全部按模块键聚合，
@@ -2991,7 +3011,7 @@ function networkFailHint(){
   if(location.protocol === "file:"){
     return " 当前以 file:// 打开：部分浏览器/环境会拦截本地文件的对外请求。建议用本地服务器方式打开（文件目录运行 python -m http.server 8000，访问 http://localhost:8000/index.html）。";
   }
-  return " 多为网络不通或服务商不可达（确认能正常访问该域名）；也可能是浏览器/插件拦截了跨域请求。";
+  return " 多为网络不通或服务商不可达（确认能正常访问该域名）；也可能是接口不允许从当前页面跨域访问（CORS，自建转发时常见），或浏览器插件拦了请求。";
 }
 
 /* 卷首用哪一档（2026-11-01）：作答类工作屏用页眉版，入口 / 小结 / 批改用完整版。
@@ -4201,6 +4221,7 @@ function wireZyPage(phase){
     if(br) br.onclick = ()=> startModule(current.module);   // 整卷里这一位不渲染，页头已经有「回整卷」
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
     const bd = $("#btnDone"); if(bd) bd.onclick = finishCurrent;
+    const bc = $("#btnCopyAns"); if(bc) bc.onclick = copyAnswerText;
     wireSelfNote();
   } else {
     wireCardPage("btnZyAnswer", ()=>{ current.phase = "answer"; syncZyResume(); save(); renderZyPage(); });
@@ -5173,6 +5194,7 @@ function wireStep(step, f){
     const br = $("#btnRetry"); if(br) br.onclick = ()=> startModule(current.module);
     const bp = $("#btnSeeProfile"); if(bp) bp.onclick = ()=>{ openModal("modalProfile"); renderProfile(); };
     const bd = $("#btnDone"); if(bd) bd.onclick = finishCurrent;
+    const bc = $("#btnCopyAns"); if(bc) bc.onclick = copyAnswerText;
     wireSelfNote();
   }
 }
@@ -5447,10 +5469,43 @@ function answerReviewHtml(g, answer){
     const on = m.usable && sc > 0;
     const full = on && fu > 0 && sc >= fu - 0.001;   // 这一句覆盖的采分项都拿满了
     body += `<span class="asent${on? " got":""}${full? " full":""}">${esc(p)}</span>`
-      + (on? `<i class="asc${full? " full":""}">+${sc}</i>` : "");
+      + (on? `<i class="asc${full? " full":""}" data-sc="+${sc}"></i>` : "");
   });
   // 不自带小标题：标题由 gradeHtml 用 .sec-title 给出，三块共用一套题头
   return head + `<div class="answerreview">${body}</div>`;
+}
+/* 「复制原文」：批改页那颗按钮取的是答卷原文，不是屏幕上那份带 +N 的批改版。
+   来源与 answerReviewHtml 同一条（lastGrade.answer + 题号校验），所以复制的就是这一题自己写的；
+   题号对不上就什么都不复制（宁可没反应，也不把上一题的答案塞进剪贴板）。
+   剪贴板优先走 async API；被拒或老内核退到临时 textarea + execCommand。 */
+function copyAnswerText(){
+  const lg = (lastGrade && (!lastGrade.sig || (current && current.question && lastGrade.sig === qSig(current.question))))? lastGrade : null;
+  const text = String((lg && lg.answer) || "");
+  const btn = $("#btnCopyAns");
+  if(!text || !btn) return;
+  const say = (msg)=>{
+    if(btn._t) clearTimeout(btn._t);
+    btn.textContent = msg;
+    btn._t = setTimeout(()=>{ btn.textContent = "复制原文"; btn._t = 0; }, 1500);
+  };
+  const legacy = ()=>{
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:-1000px;left:0;opacity:0;";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    }catch(e){ return false; }
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=> say("已复制 ✓"), ()=> say(legacy()? "已复制 ✓" : "复制失败"));
+  } else {
+    say(legacy()? "已复制 ✓" : "复制失败");
+  }
 }
 /* 提炼结果就地补进批改页那一行：经验闭环的最后一步是「回执」，不再单占一屏（2026-10-09） */
 function paintExpLine(){
@@ -5620,8 +5675,11 @@ function gradeHtml(g, total){
   if(ansReview){
     // 宽窗对照（2026-11-10 恢复）：左「我的答案 / 自述」，右「解析 / 参考答案」。
     // 窄窗 wide-review 不亮，这层壳不分组，按 DOM 顺序落回单栏；无答卷的老记录走下面分支，不建空栏。
+    /* 「复制原文」跟着「我的答案」的标题走（2026-11-18）：要复制的正是这一折里的东西，
+       按钮离它最近才不用想；图例与它并成右侧一组。 */
     html += `<div class="grade-columns"><div class="gcol"><div class="secrow"><div class="sec-title">我的答案</div>`
-      + (legend? `<div class="hint">${legend}</div>` : "") + `</div>` + ansReview
+      + `<div class="secrow-actions">` + (legend? `<div class="hint">${legend}</div>` : "")
+      + `<button class="tool" id="btnCopyAns">复制原文</button></div></div>` + ansReview
       + selfNoteHtml(g, total)
       + `</div><div class="gcol">` + reviewCol + `</div></div>`;
   } else {
@@ -5951,7 +6009,9 @@ async function checkBalance(manual){
 
 function fillSettings(){
   fillProviderSelect();
-  $("#setProvider").value = PROVIDERS.some(p=>p.id===state.settings.provider)? state.settings.provider : "deepseek";
+  /* 存着的服务商若已不在名单里（2026-11-18 下掉了智谱 / OpenAI 两个预设），落到「自定义」：
+     地址栏接着用他存过的 baseUrl，不是把他换回 DeepSeek、再拿智谱的地址去请 DeepSeek。 */
+  $("#setProvider").value = PROVIDERS.some(p=>p.id===state.settings.provider)? state.settings.provider : "custom";
   const p = providerById($("#setProvider").value);
   $("#setBase").value = state.settings.baseUrl || p.baseUrl || "";
   $("#setKey").value = state.settings.apiKey||"";
@@ -6682,7 +6742,9 @@ let updateInfo = null;
 let _updateFailNote = "";   // 更新动作失败的原因：留到下一次动作，状态推送不覆盖它
 
 function updateApiReady(){
-  return typeof fetch === "function" && typeof location !== "undefined" && /^https?:$/.test(location.protocol);
+  /* 网页版没有壳：本地那个 /__update/* 不存在，请求只会换回一个 404（设置页还停在「正在读取更新状态…」）。
+     所以先问一句在不在壳里，再谈协议。 */
+  return IS_SHELL && typeof fetch === "function" && typeof location !== "undefined" && /^https?:$/.test(location.protocol);
 }
 function fetchUpdateStatus(){
   if(!updateApiReady()) return Promise.resolve(null);

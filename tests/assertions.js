@@ -213,12 +213,12 @@ renderGrade({ scores:{}, strengths:["条理清楚"], weaknesses:["缺少主送�
 ok(el("#docBody").innerHTML.indexOf("asent got") >= 0 && el("#docBody").innerHTML.indexOf(">我的答案<") >= 0,
    "批改页: 逐句标注收进「我的答案」一折（2026-11-02 重排：主角是丢分清单，原答退成证据）");
 ok(el("#docBody").innerHTML.indexOf("asent got") >= 0, "批改页: 有分的句子保留逐句分数标记");
-ok(el("#docBody").innerHTML.indexOf('class="asent got full"') >= 0 && el("#docBody").innerHTML.indexOf('class="asc full">+4<') >= 0,
+ok(el("#docBody").innerHTML.indexOf('class="asent got full"') >= 0 && el("#docBody").innerHTML.indexOf('class="asc full" data-sc="+4">') >= 0,
    "批改页: 满分句保留 full 状态与句末实得分");
-ok(el("#docBody").innerHTML.indexOf('class="asc full">+4<') >= 0 && el("#docBody").innerHTML.indexOf('class="asc">+1<') >= 0,
+ok(el("#docBody").innerHTML.indexOf('class="asc full" data-sc="+4">') >= 0 && el("#docBody").innerHTML.indexOf('class="asc" data-sc="+1">') >= 0,
    "批改页: 凡有分的句子都在句末报分（满分句也报，2026-10-16）");
 ok(el("#docBody").innerHTML.indexOf("+0<") < 0, "批改页: 没分的不标 +0（素色本身就是「这里没分」）");
-const ascSum = (el("#docBody").innerHTML.match(/class="asc[^"]*">\+([\d.]+)</g) || [])
+const ascSum = (el("#docBody").innerHTML.match(/class="asc[^"]*" data-sc="\+([\d.]+)"/g) || [])
   .reduce((a, s)=> a + Number(s.replace(/[^\d.]/g, "")), 0);
 ok(Math.abs(ascSum - 5) < 1e-9, "批改页: 句末分数加起来就是页头总分（5 = 4 + 1）");
 ok(el("#docBody").innerHTML.indexOf("漏掉的采分点") < 0 && el("#docBody").innerHTML.indexOf("missline") < 0,
@@ -514,6 +514,12 @@ ok(el("#modelMenu").innerHTML.indexOf("a-flash-model") >= 0, "实拉: 候选菜�
 ok(el("#modelMenu").innerHTML.indexOf("z-model") >= 0 && el("#modelMenu").innerHTML.indexOf("m-chat") >= 0,
    "实拉: 展开候选时整份名单全量列出（不受已填文字过滤，自绘菜单替代原生 datalist）");
 ok(PROVIDERS.every(p=>!p.models), "预设: 服务商只预设地址，模型名一个都不写死（手写的名字迟早过期）");
+/* 2026-11-18：只留浏览器能直连的四家 + 自定义。守的是两件事：连不上的不摆进预设；
+   自定义永远在最后一位（providerById 的兜底与「存着的服务商已不在名单」都落在它身上）。 */
+ok(PROVIDERS.filter(p=>p.id!=="custom").every(p=>!/bigmodel|api\.openai\.com/i.test(p.baseUrl))
+   && PROVIDERS.filter(p=>p.id==="custom").length === 1
+   && PROVIDERS[PROVIDERS.length-1].id === "custom",
+   "预设: 只留实测能直连的服务商，其余走自定义（智谱 / OpenAI 不回 CORS 头，摆着只会让人白试一轮）");
 el("#setModel").value = "";
 await fetchModels(true);
 ok(el("#setModel").value === "a-flash-model", "实拉: 当前为空时自动补最快模型");
@@ -3375,7 +3381,9 @@ const polishHead = (PAGE_HTML.match(/\.ghead\{[^}]+\}/) || [""])[0];
 ok(polishHead.indexOf('padding:0 0 16px;background:none') >= 0
    && polishHead.indexOf('border-bottom:1px solid var(--line-soft)') >= 0,
    "视觉精修: 分数按正文边缘对齐，用轻底线分隔而非大底色卡片");
-ok(H22.indexOf('<div class="secrow"><div class="sec-title">我的答案</div><div class="hint">') >= 0,
+/* 2026-11-18：「图例」旁边多了「复制原文」，两样并成右侧一组（.secrow-actions），
+   标题仍与图例同一行——这条守的仍是「图例不另占一行」。 */
+ok(H22.indexOf('<div class="secrow"><div class="sec-title">我的答案</div><div class="secrow-actions"><div class="hint">') >= 0,
    "视觉对齐: 标注图例跟「我的答案」同处一行（它解释的是紧挨着的逐句标注，不另占一行）");
 ok(H22.indexOf(">我的答案<") >= 0 && H22.indexOf(">解析<") >= 0 && H22.indexOf(">参考答案<") >= 0,
    "批改页: 三块各有自己的名字（我的答案 / 解析 / 参考答案），不再让人猜哪块是哪块");
@@ -3399,7 +3407,7 @@ renderGrade({ scores:{}, causes:[ { title:"格式缺项", why:"写了做法没�
          {point:"落款单位与日期",score:2,awarded:1,status:"半分",kind:"格式",evidence:"答到：「遵照执行」，【缺：成文日期】"} ] },
   78, null, null, "关于调整作息的通知。各科室请遵照执行。特此通知。");
 const H22c = el("#docBody").innerHTML;
-ok(H22c.indexOf("asent got") >= 0 && H22c.indexOf('class="asc">+1<') >= 0 && H22c.indexOf('class="asc full">+4<') >= 0,
+ok(H22c.indexOf("asent got") >= 0 && H22c.indexOf('class="asc" data-sc="+1">') >= 0 && H22c.indexOf('class="asc full" data-sc="+4">') >= 0,
    "批改页: 逐句标注标的是得分处（满分句也报分，加起来＝页头总分）");
 ok(H22c.indexOf("第一段内容。\n第二段内容。") >= 0,
    "批改页: 范文按原文换行渲染（pre-wrap，不再折成一坨）");
@@ -3440,7 +3448,7 @@ renderGrade({ scores:{}, strengths:[], weaknesses:[], comment:"x",
 const H22b = el("#docBody").innerHTML;
 ok(H22b.indexOf("相加＝总分") < 0 && H22b.indexOf("是本句得分") >= 0,
    "批改页: 有采分项定位不到时不宣称「相加＝总分」");
-ok(H22b.indexOf('class="asc full">+5<') >= 0, "批改页: 模型多给分时句末按满分显示（+5 不是 +8）");
+ok(H22b.indexOf('class="asc full" data-sc="+5">') >= 0, "批改页: 模型多给分时句末按满分显示（+5 不是 +8）");
 renderGrade({ hits:[{point:"a",score:5,awarded:5,evidence:"答到：「关于调整作息的通知」"}] }, 5, null, null, "关于调整作息的通知。");
 ok(el("#docBody").innerHTML.indexOf("相加＝总分") >= 0, "批改页: 全部定位成功时才说「相加＝总分」");
 /* 全满分：三段照常，不留空块 */
@@ -4004,6 +4012,15 @@ ok(PAGE_HTML.indexOf('<div class="actions actbar">') >= 0
 }
 ok(PAGE_HTML.indexOf(".modal .box:focus{outline:none") >= 0, "弹层: 容器被聚焦时不画浏览器默认焦点环");
 ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*margin:0 8px 0 4px/) || [""])[0].length > 0, "批改页: 句末分数与下一句之间留出间距");
+/* 2026-11-18：分数改由伪元素显示 + 这一折能一键复制原文。两条一起重，少一条就等于只做了一半——
+   只有伪元素而没按钮，用户仍然要手动划选；只有按钮而伪元素没上，复制出来仍带 +N。 */
+ok((PAGE_HTML.match(/\.answerreview \.asc\{[^}]*user-select:none/) || [""])[0].length > 0
+   && PAGE_HTML.indexOf(".answerreview .asc::after{content:attr(data-sc);}") >= 0
+   && PAGE_HTML.indexOf('id="btnCopyAns"') >= 0,
+   "批改页: 句末分数不进文本流（伪元素 + user-select:none），另给一颗「复制原文」");
+ok(PAGE_HTML.indexOf('function copyAnswerText()') >= 0
+   && (PAGE_HTML.match(/\$\("#btnCopyAns"\); if\(bc\) bc\.onclick = copyAnswerText;/g) || []).length === 2,
+   "批改页: 「复制原文」两处链路（申论批改步 / 综应A 结果页）都接上了，谁都没漏");
 ok(PAGE_HTML.indexOf('"这题你大概错在哪？"') >= 0 && PAGE_HTML.indexOf("卡在哪一步") < 0,
    "批改页: 自述问句是「这题你大概错在哪？」（批改页的一问，跟我的答案同栏，让他自己写一段）");
 ok(PAGE_HTML.indexOf('${matSrcTag(current.question)}<span class="mathint">选中文字划线</span></div>') >= 0
