@@ -869,6 +869,20 @@ html,body{margin:0;padding:0;}
     input,textarea,select{font-size:calc(16px / var(--paper-scale)) !important;}
   }
 
+  /* 平板（641–1240）：只补输入字号这一条兜底，纸边与折行仍走桌面规则。
+     这一档纸面缩放恒为 1，输入框落到 16px，iOS 聚焦放大的触发条件与手机档同样关掉。 */
+  @media (min-width:641px) and (max-width:1240px){
+    input,textarea,select{font-size:calc(16px / var(--paper-scale)) !important;}
+  }
+
+  /* 矮窄屏（375×667 一档）：首屏里作答框刚露头时，交卷条也得整条在视口内。
+     sticky 底吸最多把动作条提到作答区顶为止，所以把纸面顶边、作答区上距与动作条自身留白各收一档。 */
+  @media (max-width:640px) and (max-height:720px){
+    .doc{padding-top:16px;}
+    .answer-wrap{margin-top:12px;}
+    .actbar{margin-top:8px;padding:4px 0;}
+  }
+
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto;}
     *{transition:none !important;}
@@ -935,7 +949,7 @@ html,body{margin:0;padding:0;}
           <div class="note">Key 只发往上面这个地址；只认 https 或本机 http（127.0.0.1 / localhost），别用来路不明的地址。</div>
         </div>
         <div class="field">
-          <label>DeepSeek 账户余额</label>
+          <label id="balanceLabel">DeepSeek 账户余额</label>
           <div class="actions" style="margin-top:0">
             <button type="button" id="btnBalance">查询余额</button>
           </div>
@@ -3989,7 +4003,9 @@ async function startPaper(confirmed){
     }
     if(!ownsGen()) return;   // 等待期间被取消
     if(picks.length < 3){
-      const msg = POOL_SHORT_HINT + "：当前可用的骨架不足（至少 3 篇），先在桌面壳里抓几篇，或检查材料池。";
+      const msg = POOL_SHORT_HINT + (IS_SHELL
+        ? "：当前可用的骨架不足（至少 3 篇），先在桌面壳里抓几篇，或检查材料池。"
+        : "：当前可用的骨架不足（至少 3 篇），网页版暂不能补充材料池，可回首页练单题。");
       const viewNow = _view;
       pendingGen = null;
       banner(msg, "error");
@@ -6009,6 +6025,7 @@ function onProviderChange(){
   renderModelList(cached || []);
   $("#setModel").value = cached? pickFast(cached) : "";
   $("#modelNote").textContent = modelNoteText(hasKey, cached);
+  renderBalanceField();
   if(hasKey && !cached) fetchModels(true);
 }
 function applyMarkColor(){ document.documentElement.style.setProperty("--mark", state.settings.markColor || MARK_COLORS[1]); }
@@ -6019,6 +6036,31 @@ function renderMarkSwatches(){
 /* 余额只报一行：币种 + total_balance，不折算、不列子项。
    接口少给字段就如实说「没给」，缺字段和余额为 0 是两回事。 */
 const BALANCE_URL = "https://api.deepseek.com/user/balance";
+/* 余额是 DeepSeek 官方接口独有的能力：服务商选 deepseek，或自定义地址的 host 就是
+   api.deepseek.com 时，Key 才允许发往 BALANCE_URL；其余服务商一个字节都不发。
+   手动查询与批改后的自动查询走同一条守卫，设置页那格的标签与说明也按它分岔。 */
+function balanceSupported(provider, baseUrl){
+  const s = state.settings || {};
+  const prov = provider != null ? provider : s.provider;
+  const base = baseUrl != null ? baseUrl : s.baseUrl;
+  if(prov === "deepseek") return true;
+  if(prov !== "custom") return false;
+  try{ return new URL(String(base || "")).host === "api.deepseek.com"; }catch(e){ return false; }
+}
+const BALANCE_UNSUPPORTED_NOTE = "余额只能查 DeepSeek 官方接口，当前服务商不支持。";
+function renderBalanceField(){
+  const label = $("#balanceLabel"), note = $("#balanceNote");
+  if(!label || !note) return;
+  const prov = $("#setProvider") ? $("#setProvider").value : "";
+  const base = $("#setBase") ? $("#setBase").value.trim() : "";
+  if(balanceSupported(prov, base)){
+    label.textContent = "DeepSeek 账户余额";
+    note.textContent = "点一次查余额；每轮批改后也会自动查。";
+  }else{
+    label.textContent = "账户余额";
+    note.textContent = BALANCE_UNSUPPORTED_NOTE;
+  }
+}
 function balanceLine(data){
   const list = (data && Array.isArray(data.balance_infos))? data.balance_infos : [];
   const one = list.find(x => x && x.total_balance != null) || null;
@@ -6028,6 +6070,7 @@ function balanceLine(data){
 }
 async function checkBalance(manual){
   const note = $("#balanceNote"); if(!note) return;
+  if(!balanceSupported()){ note.textContent = BALANCE_UNSUPPORTED_NOTE; return; }
   const key = String((state.settings && state.settings.apiKey) || "").trim();
   if(!key){ if(manual) note.textContent = "先填 API Key 再查余额。"; return; }
   if(manual) note.textContent = "查询中…";
@@ -6061,6 +6104,7 @@ function fillSettings(){
   $("#modelNote").textContent = modelNoteText(!!state.settings.apiKey, cached);
   $("#setOrg").value = state.settings.orgName||"";
   renderMarkSwatches();
+  renderBalanceField();
 }
 function applyForm(){
   state.settings.provider = $("#setProvider").value;
@@ -6976,6 +7020,7 @@ renderChangelog();
   });
   renderBackupList();
   $("#setProvider").onchange = onProviderChange;
+  $("#setBase").addEventListener("input", renderBalanceField);   // 自定义地址改到 DeepSeek 官方 host 时，余额那格跟着变
   $("#btnTutReset").onclick = ()=>{
     if(tour) tourEnd(false);   // 若正播到一半（暂歇中）：旧播报作废，不推进游标，按重置后的序列重新来
     state.tut = { seq:0, done:false };

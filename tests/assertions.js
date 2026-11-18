@@ -3595,6 +3595,14 @@ ok(el("#docBody").innerHTML.indexOf('class="answerreview"') >= 0 && el("#docBody
      "尺子: 间距没有中间值（2/3/5/6/7/9/10/11/13/14/18/20/22/26/28/30 一个不剩）");
   ok(_mobile640 && (_mobile640.match(/18px/g) || []).length === 3,
      "尺子: 18px 只给 640px 窄屏的纸边、顶栏与提示条三处");
+  const _tab1240 = (PAGE_HTML.match(/@media \(min-width:641px\) and \(max-width:1240px\)\{[\s\S]*?\n  \}/) || [""])[0];
+  ok(_tab1240.indexOf("input,textarea,select{font-size:calc(16px / var(--paper-scale)) !important;}") >= 0
+     && _tab1240.indexOf("18px") < 0 && _tab1240.indexOf("padding") < 0,
+     "尺子: 641–1240 只补输入字号兜底，不搬纸边与折行");
+  const _short640 = (PAGE_HTML.match(/@media \(max-width:640px\) and \(max-height:720px\)\{[\s\S]*?\n  \}/) || [""])[0];
+  ok(_short640.indexOf(".doc{padding-top:16px;}") >= 0 && _short640.indexOf(".answer-wrap{margin-top:12px;}") >= 0
+     && _short640.indexOf(".actbar{margin-top:8px;padding:4px 0;}") >= 0,
+     "尺子: 矮窄屏收一档留白把交卷条让进首屏，按钮尺寸不动");
   ok(_spVals.has(4) && _spVals.has(8) && _spVals.has(12) && _spVals.has(16) && _spVals.has(24),
      "尺子: 五档间距确实在用（4 / 8 / 12 / 16 / 24）");
   // 字族与字距（2026-11-01：字体栈按「本机真命中」重排后钉住）。
@@ -4930,6 +4938,10 @@ globalThis.window = _savedWinUpd;
      && PAGE_HTML.indexOf("startPaper(true)") >= 0, "整卷: 答完的卷也要两步确认才换");
   ok(POOL_SHORT_HINT === "整卷需要材料池，单题不受影响" && PAGE_HTML.indexOf("const msg = POOL_SHORT_HINT") >= 0,
      "整卷: 池子不足文案点名单题不受影响");
+  ok(PAGE_HTML.indexOf("const msg = POOL_SHORT_HINT + (IS_SHELL") >= 0
+     && PAGE_HTML.indexOf("：当前可用的骨架不足（至少 3 篇），先在桌面壳里抓几篇，或检查材料池。") >= 0
+     && PAGE_HTML.indexOf("：当前可用的骨架不足（至少 3 篇），网页版暂不能补充材料池，可回首页练单题。") >= 0,
+     "整卷: 池子不足文案按壳/网页分岔，网页版给网页内的下一步、不指桌面壳");
 }
 {
   const picks = PAPER_SECTIONS.map((sec,i)=> i === 1 ? null : {
@@ -5037,6 +5049,48 @@ globalThis.window = _savedWinUpd;
   await checkBalance(true);
   ok(note.textContent === "余额：CNY 8.80", "余额: 正常响应只写一行余额");
   globalThis.fetch = prevFetch; state.settings.apiKey = prevKey;
+}
+
+/* 6.5b 余额守卫：Key 只发往 DeepSeek 官方地址（网页版 UI/UX 审查 M1） */
+{
+  const prevFetch = globalThis.fetch, prevKey = state.settings.apiKey,
+        prevProv = state.settings.provider, prevBase = state.settings.baseUrl;
+  const note = el("#balanceNote"), label = el("#balanceLabel");
+  const urls = [];
+  globalThis.fetch = (u)=>{ urls.push(String(u)); return mockRes({ json: async()=>({ balance_infos:[{ currency:"CNY", total_balance:"1.00" }] }) }); };
+  state.settings.apiKey = "sk-custom";
+  state.settings.provider = "custom"; state.settings.baseUrl = "http://127.0.0.1:8766/v1";
+  await checkBalance(true);
+  ok(urls.length === 0 && note.textContent === BALANCE_UNSUPPORTED_NOTE,
+     "余额守卫: 自定义非官方地址，手动查询一个字节都不发");
+  await checkBalance(false);
+  ok(urls.length === 0 && note.textContent === BALANCE_UNSUPPORTED_NOTE,
+     "余额守卫: 批改后的自动查询走同一条守卫");
+  state.settings.provider = "kimi"; state.settings.baseUrl = "https://api.moonshot.cn/v1";
+  await checkBalance(true);
+  ok(urls.length === 0, "余额守卫: 预设非 DeepSeek 服务商同样不发");
+  state.settings.provider = "custom"; state.settings.baseUrl = "https://api.deepseek.com/v1";
+  await checkBalance(true);
+  ok(urls.length === 1 && urls[0] === BALANCE_URL && note.textContent === "余额：CNY 1.00",
+     "余额守卫: 自定义指到官方 host 才放行");
+  ok(balanceSupported("deepseek", "") === true && balanceSupported("custom", "https://api.deepseek.com/v1") === true
+     && balanceSupported("custom", "https://api.deepseek.com.evil.example/v1") === false
+     && balanceSupported("custom", "not a url") === false && balanceSupported("qwen", "https://api.deepseek.com/v1") === false,
+     "余额守卫: host 全等比较，仿冒域名与坏地址不放行");
+  el("#setProvider").value = "custom"; el("#setBase").value = "http://127.0.0.1:8766/v1";
+  renderBalanceField();
+  ok(label.textContent === "账户余额" && note.textContent.indexOf("每轮批改后") < 0,
+     "余额格: 非官方服务商标签不挂 DeepSeek，说明不承诺自动查");
+  el("#setProvider").value = "deepseek"; el("#setBase").value = "https://api.deepseek.com/v1";
+  renderBalanceField();
+  ok(label.textContent === "DeepSeek 账户余额" && note.textContent.indexOf("每轮批改后") >= 0,
+     "余额格: 官方服务商恢复原标签与说明");
+  ok(PAGE_HTML.indexOf("if(!balanceSupported()){ note.textContent = BALANCE_UNSUPPORTED_NOTE; return; }") >= 0
+     && PAGE_HTML.indexOf("checkBalance(false);") >= 0
+     && (PAGE_HTML.match(/fetchWithTimeout\(BALANCE_URL/g) || []).length === 1,
+     "余额守卫: 手动/自动共用一条守卫，BALANCE_URL 全文只有一处请求点");
+  globalThis.fetch = prevFetch; state.settings.apiKey = prevKey;
+  state.settings.provider = prevProv; state.settings.baseUrl = prevBase;
 }
 
 /* 6.6 清理：归纳缓存、预览窗死分支、文案假话、日志入口 */
