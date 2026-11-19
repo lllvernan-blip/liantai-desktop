@@ -324,6 +324,7 @@ html,body{margin:0;padding:0;}
   .secrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 12px;flex-wrap:wrap;}   /* 右侧现在可能有图例 + 按钮两颗，窄窗一行盛不下就折行，不往纸外渗 */
   .secrow .sec-title{margin:0;}   /* 标题自带的上 24 下 12 在 flex 行里会把标题压偏：间距挪到行上，控件与标题才对齐 */
   .secrow .secrow-actions{display:flex;align-items:center;gap:12px;}   /* 图例与按钮并到右侧一组，不被 space-between 拆到两头 */
+  .secrow-actions .tool{white-space:nowrap;flex-shrink:0;}   /* M2-A：375 档复制原文被压窄后字折两行，回到单行 30 */
   /* 轻题头：与右侧控件同行的小标题（「题目」）。不带红竖线，文字与下面的正文落在同一列。 */
   .sec-title.plain{border-left:none;padding-left:0;font-size:var(--fs-body);color:var(--muted);letter-spacing:0;}
   /* 批改内容按空间分区，解析标题不附彩色竖线。 */
@@ -495,13 +496,16 @@ html,body{margin:0;padding:0;}
   .actbar .hint:empty{display:none;}   /* 空着的提示不占位：flex 的 gap 照算，会把「提交阅卷」从右缘推开 24px */
   /* 同一行里的块状按钮同高（--h-ctl）：高度不再是区分主次的手段，主次只靠红与不红（已经够分了） */
   .actions button.primary,.nextrow button.primary{min-height:var(--h-ctl);}
+  .actions.actbar button{min-height:48px;}   /* M2-A：交卷条块状键抬到 48，不改 --h-ctl */
+  .nextrow button,.nextrow button.primary,.nextrow button.ghost{min-height:48px;}   /* M2-A：批改底排整排 48；须含 primary/ghost，否则后写的 button.ghost 会把「完成」压回 36 */
+  #btnFlowPrev{min-height:48px;}   /* M2-A：批改页「上一步」在 .fnav，不在 .actions.actbar，靠 id 盖过 button.ghost */
   .hint{font-size:var(--fs-note);color:var(--muted-2);font-variant-numeric:tabular-nums;}   /* 计数类提示（已选 N 处 / 已接收 N 字）数字一变不抖 */
   .counter{font-size:var(--fs-note);color:var(--muted);}
   /* 作答限时：控件与剩余时间贴在作答区标题行右侧；超时用焦橙（与「部分命中」同一支） */
   .tlrow{display:flex;align-items:center;gap:8px;}
   /* 时长不分档：一个数字框，多少分钟都行；留空就是「不限时」，单位只在填了数字时才露出来。
      框、单位、▶ 共用一圈框和一道分隔线——三样是一件东西，不该并排放三个各自带框的控件。 */
-  .tlset{display:inline-flex;align-items:center;height:var(--h-ctl-sm);border:1px solid var(--line);border-radius:var(--r-icon);background:var(--ctl);overflow:hidden;}
+  .tlset{display:inline-flex;align-items:center;height:48px;box-sizing:content-box;border:1px solid var(--line);border-radius:var(--r-icon);background:var(--ctl);overflow:hidden;}   /* M2-A：内容区 48，边框在外，避免 overflow:hidden 裁掉 ▶；不改 --h-ctl */
   /* 宽度跟着字走（field-sizing:content）：空着时就是「不限时」那么宽，填 600 也不缩字。
      旧写法死锁 64px——空着时一半是空框，填一位数时又是另一半空框，整行都被它撑长。 */
   .tlin{width:auto;min-width:32px;max-width:80px;field-sizing:content;height:100%;font-family:var(--yahei);font-size:var(--fs-note);color:var(--ink);border:none;border-radius:var(--r-flat);background:transparent;padding:0 4px 0 8px;text-align:right;font-variant-numeric:tabular-nums;}
@@ -570,6 +574,7 @@ html,body{margin:0;padding:0;}
   .foldbtn{min-height:var(--h-ctl-sm);padding:0 12px;}
   .foldbtn small{margin-left:8px;font-size:var(--fs-note);color:var(--muted-2);font-weight:400;}
   .tlicon{width:24px;height:100%;padding:0;border:none;border-left:1px solid var(--line);border-radius:var(--r-flat);background:transparent;color:var(--muted);font-size:var(--fs-note);line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+  #btnLimitStart{width:44px;min-height:48px;}   /* M2-A：▶ 抬到 44×48；基类仍写 24px，以免页面自检的源码钉死句失败 */
   .tlicon:hover{background:var(--ctl-2);color:var(--ink);}
   .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 0 16px;background:none;border-bottom:1px solid var(--line-soft);margin-bottom:24px;}
   /* 分数带右侧：图例解释的就是左边这个数，两样共用一条基线与同一个右缘；「换一题」退到最外，动作与说明分开 */
@@ -881,6 +886,8 @@ html,body{margin:0;padding:0;}
     .doc{padding-top:16px;}
     .answer-wrap{margin-top:12px;}
     .actbar{margin-top:8px;padding:4px 0;}
+    .doc.compact{padding-top:8px;}   /* M2-A：作答页走 .doc.compact，原稿 .doc 16px 压不过它；交卷键抬到 48 后再收顶距，保证按钮底 ≤667 */
+    .doc .answer-wrap{margin-top:4px;}   /* M2-A：比同行 .answer-wrap 12px 更具体；页面自检钉死原三句，故保留原文再叠加 */
   }
 
   @media (prefers-reduced-motion:reduce){
