@@ -336,6 +336,7 @@ html,body{margin:0;padding:0;}
      16px / 2.05 的行距给划线留出落笔的空间，原来 15px / 1.85 众人挤在一起 */
   .material{background:var(--mat);border-radius:var(--r-ctl);padding:16px;font-family:var(--fangsong);font-size:16px;line-height:var(--lh-loose);white-space:pre-wrap;word-break:break-word;}
   .material .label{display:flex;align-items:center;gap:8px;font-family:var(--hei);color:var(--ink);font-size:var(--fs-note);margin-bottom:8px;}
+  .material .label #btnColLayout{flex:0 0 auto;min-height:30px;}   /* M2-B：分栏切换，高 30 进 H_OK；只在 avail>=950 时由 JS 挂上 */
   /* 分值与难度：标签紧贴值、两个一组，并进工具行右侧（metaInlineHtml）。 */
   .meta{display:flex;gap:24px;font-size:var(--fs-body);}
   .meta b{font-family:var(--hei);font-weight:700;margin-right:4px;}
@@ -7139,8 +7140,55 @@ function paperScaleFor(w, h){
   return s;
 }
 const GAP_BOTTOM = 16;   // 纸的下边：两栏铺到一屏时，纸的下沿距窗口下沿留这么多（--sheet-gap-b 的那个 16）
+/* 软键盘判据：iOS Safari 弹键盘不改 innerHeight，只缩小 visualViewport。
+   差值 > 150 视为键盘弹起。反向验证时把 KEYBOARD_DELTA 临时改成 1000000。 */
+const KEYBOARD_DELTA = 150;
+function isSoftKeyboardOpen(){
+  const vv = typeof window !== "undefined" && window.visualViewport;
+  return !!(vv && (window.innerHeight - vv.height > KEYBOARD_DELTA));
+}
+/* 分栏偏好只活在这一次打开的这一题：一个变量，不进 settings、不进 localStorage。
+   转屏、换题、切模块时复位为跟随宽度。键盘弹起另走强制单栏，收起后回到这里记下的选择。 */
+let forceSingleCol = false;
+let _colPrefKey = "";
+let _colOrient = "";
+function colPrefKey(){
+  if(typeof current === "undefined" || !current) return "";
+  const sig = current.question && typeof qSig === "function" ? qSig(current.question) : "";
+  return String(current.module || "") + "\t" + String(sig || "");
+}
+function syncColLayoutBtn(show){
+  const label = document.querySelector && document.querySelector("#docBody .paper-cols .col-mat .material .label");
+  let btn = document.getElementById("btnColLayout");
+  if(!show || !label){
+    if(btn && btn.parentNode) btn.parentNode.removeChild(btn);
+    return;
+  }
+  if(!btn){
+    btn = document.createElement("button");
+    btn.id = "btnColLayout";
+    btn.type = "button";
+    btn.className = "tool";
+    btn.addEventListener("click", ()=>{
+      forceSingleCol = !forceSingleCol;
+      applyPaperScale();
+    });
+    label.appendChild(btn);
+  } else if(btn.parentNode !== label){
+    label.appendChild(btn);
+  }
+  const pressed = !!forceSingleCol;
+  btn.setAttribute("aria-pressed", pressed ? "true" : "false");
+  btn.title = pressed ? "跟随宽度" : "强制单栏";
+  btn.textContent = pressed ? "跟随宽度" : "强制单栏";
+}
 function applyPaperScale(){
   if(typeof window === "undefined" || typeof document === "undefined" || !document.documentElement) return;
+  const o = (window.innerWidth >= window.innerHeight) ? "l" : "p";
+  if(_colOrient && o !== _colOrient) forceSingleCol = false;
+  _colOrient = o;
+  const prefKey = colPrefKey();
+  if(prefKey !== _colPrefKey){ forceSingleCol = false; _colPrefKey = prefKey; }
   const colMat = document.querySelector && document.querySelector("#docBody .paper-cols .col-mat");
   const review = document.querySelector && document.querySelector("#docBody .grade-columns .answerreview");
   const L = layoutFor(window.innerWidth, window.innerHeight, !!colMat || !!review);
@@ -7152,9 +7200,10 @@ function applyPaperScale(){
   st.setProperty("--sheet-w", num(L.sheet) + "px");
   st.setProperty("--mat-col-w", num(L.matW) + "px");
   if(document.body){
-    document.body.classList.toggle("wide-cols", L.wide && !!colMat);
+    document.body.classList.toggle("wide-cols", L.wide && !!colMat && !isSoftKeyboardOpen() && !forceSingleCol);
     document.body.classList.toggle("wide-review", wideReview);
   }
+  syncColLayoutBtn(!!colMat && availNow >= MIN_SHEET_WORK);
   /* 材料窗的高按「这一栏离文档顶多远」现算（顶栏 + 红头 + 横幅占的多高并不固定），
      剩下的视口高减 24、再减掉窗下那一块（划线说明 / 我划的重点）就是它该占的高。
      两样的顶都不受自己的高影响，量一次就够，不会来回摆。 */
@@ -7192,6 +7241,7 @@ function layoutFor(w, h, hasCols){
 applyPaperScale();
 init();
 if(typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", applyPaperScale);
+if(typeof window !== "undefined" && window.visualViewport && window.visualViewport.addEventListener) window.visualViewport.addEventListener("resize", applyPaperScale);
 /* 换一屏就是换一次「这一屏带不带材料」，几何跟着重算。挂在这里而不是每个渲染函数各点一次：
    渲染都从 #docBody 的子节点变化走出去，判定只留一处。 */
 /* 折叠块展开/收起会改掉它自己占的高度，而两栏的高度是按「离视口顶多远」现量的：
